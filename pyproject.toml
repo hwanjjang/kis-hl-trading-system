@@ -1,0 +1,16 @@
+[project]
+name = "kis-hl-trading-system"
+version = "0.1.0"
+description = "KIS market data collector and Hyperliquid trading CLI for BTC/USDC and trade.xyz RWA assets."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "hyperliquid-python-sdk",
+]
+
+[project.scripts]
+kis-hl = "kis_hl.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["kis_hl*"]
+
