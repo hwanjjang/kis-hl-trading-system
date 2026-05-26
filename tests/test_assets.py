@@ -19,9 +19,12 @@ class AssetResolutionTests(unittest.TestCase):
 
     def test_explicit_dex_symbol_wins(self) -> None:
         resolved = resolve_hyperliquid_symbol("xyz:samsung")
-        self.assertEqual(resolved.coin, "xyz:SAMSUNG")
+        self.assertEqual(resolved.coin, "xyz:SMSN")
+
+    def test_trade_xyz_alias_resolves_to_actual_hyperliquid_coin(self) -> None:
+        self.assertEqual(resolve_hyperliquid_symbol("xyz:SKHYNIX").coin, "xyz:SKHX")
+        self.assertEqual(resolve_hyperliquid_symbol("xyz:SKHX").coin, "xyz:SKHX")
 
 
 if __name__ == "__main__":
     unittest.main()
-

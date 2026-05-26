@@ -15,6 +15,8 @@ class TradeXyzAssetTests(unittest.TestCase):
     def test_aliases_resolve_to_canonical_assets(self) -> None:
         self.assertEqual(get_trade_xyz_asset("SMSN").trade_symbol, "SAMSUNG")
         self.assertEqual(get_trade_xyz_asset("SKHX").trade_symbol, "SKHYNIX")
+        self.assertEqual(get_trade_xyz_asset("SAMSUNG").hyperliquid_coin, "xyz:SMSN")
+        self.assertEqual(get_trade_xyz_asset("SKHYNIX").hyperliquid_coin, "xyz:SKHX")
 
     def test_duplicate_etf_exposures_are_not_tradable(self) -> None:
         self.assertTrue(is_trade_xyz_symbol_tradable("KR200"))

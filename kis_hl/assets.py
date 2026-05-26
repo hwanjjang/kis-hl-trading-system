@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from kis_hl.trade_xyz_assets import get_trade_xyz_asset, normalize_trade_symbol
+
 
 @dataclass(frozen=True, slots=True)
 class ResolvedAsset:
@@ -21,6 +23,16 @@ def resolve_hyperliquid_symbol(symbol: str, *, dex: str | None = None) -> Resolv
     active_dex = explicit_dex or dex
     if active_dex:
         normalized = asset.upper().replace("/", "").replace("-", "")
+        if active_dex.lower() == "xyz":
+            mapped = get_trade_xyz_asset(normalize_trade_symbol(normalized))
+            if mapped:
+                return ResolvedAsset(
+                    original=symbol,
+                    coin=mapped.hyperliquid_coin,
+                    kind="perp",
+                    dex="xyz",
+                    note="Mapped trade.xyz HIP-3 builder-deployed perp namespace",
+                )
         return ResolvedAsset(
             original=symbol,
             coin=f"{active_dex.lower()}:{normalized}",
@@ -54,4 +66,3 @@ def _split_dex(symbol: str) -> tuple[str | None, str]:
     if not left or not right:
         raise ValueError("dex-qualified symbols must use the format dex:asset")
     return left, right
-

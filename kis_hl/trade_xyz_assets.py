@@ -143,7 +143,7 @@ TRADE_XYZ_ASSETS: tuple[TradeXyzAsset, ...] = (
     TradeXyzAsset("TSM", "xyz:TSM", "stock", "Taiwan Semiconductor Manufacturing Company ADR", "TSM", "NYSE", "listed", True, "1997-10-08"),
     TradeXyzAsset(
         "SKHYNIX",
-        "xyz:SKHYNIX",
+        "xyz:SKHX",
         "stock",
         "SK hynix Inc.",
         "000660.KS",
@@ -155,7 +155,7 @@ TRADE_XYZ_ASSETS: tuple[TradeXyzAsset, ...] = (
     ),
     TradeXyzAsset(
         "SAMSUNG",
-        "xyz:SAMSUNG",
+        "xyz:SMSN",
         "stock",
         "Samsung Electronics Co., Ltd.",
         "005930.KS",

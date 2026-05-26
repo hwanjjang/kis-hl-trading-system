@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,7 @@ from kis_hl.trade_xyz_assets import TRADE_XYZ_ASSETS, TradeXyzAsset, is_asset_tr
 def init_db(db_path: str | Path) -> None:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as conn:
+    with closing(sqlite3.connect(path)) as conn:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS market_ticks (
@@ -75,6 +76,29 @@ def init_db(db_path: str | Path) -> None:
             "min_listing_age_weeks",
             "INTEGER NOT NULL DEFAULT 30",
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS trade_xyz_asset_checks (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              trade_symbol TEXT NOT NULL,
+              hyperliquid_coin TEXT NOT NULL,
+              dex TEXT NOT NULL,
+              available INTEGER NOT NULL,
+              last_mid TEXT,
+              mid_source_key TEXT,
+              checked_at_ms INTEGER NOT NULL,
+              failure_reason TEXT,
+              raw_json TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_trade_xyz_asset_checks_coin_time
+            ON trade_xyz_asset_checks (hyperliquid_coin, checked_at_ms DESC)
+            """
+        )
+        conn.commit()
 
 
 def store_market_payload(
@@ -91,7 +115,7 @@ def store_market_payload(
     observed_at = observed_at_ms or int(time.time() * 1000)
     payload_json = json.dumps(payload, default=str, sort_keys=True)
     last_price = _extract_last_price(payload)
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         cur = conn.execute(
             """
             INSERT INTO market_ticks (
@@ -100,6 +124,7 @@ def store_market_payload(
             """,
             (source, market, symbol, exchange_code, observed_at, last_price, payload_json),
         )
+        conn.commit()
         return int(cur.lastrowid)
 
 
@@ -121,7 +146,7 @@ def store_order_submission(
     init_db(db_path)
     submitted_at = submitted_at_ms or int(time.time() * 1000)
     response_json = json.dumps(response, default=str, sort_keys=True)
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         cur = conn.execute(
             """
             INSERT INTO order_submissions (
@@ -143,13 +168,14 @@ def store_order_submission(
                 response_json,
             ),
         )
+        conn.commit()
         return int(cur.lastrowid)
 
 
 def seed_trade_xyz_assets(db_path: str | Path, *, updated_at_ms: int | None = None) -> int:
     init_db(db_path)
     updated_at = updated_at_ms or int(time.time() * 1000)
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         conn.executemany(
             """
             INSERT INTO trade_xyz_assets (
@@ -178,6 +204,7 @@ def seed_trade_xyz_assets(db_path: str | Path, *, updated_at_ms: int | None = No
             """,
             [_asset_row(asset, updated_at) for asset in TRADE_XYZ_ASSETS],
         )
+        conn.commit()
         return len(TRADE_XYZ_ASSETS)
 
 
@@ -196,7 +223,7 @@ def list_trade_xyz_assets(
         clauses.append("asset_class = ?")
         params.append(asset_class)
     where = " WHERE " + " AND ".join(clauses) if clauses else ""
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             f"""
@@ -211,6 +238,82 @@ def list_trade_xyz_assets(
             params,
         ).fetchall()
     return [_asset_dict(row) for row in rows]
+
+
+def store_trade_xyz_asset_check(
+    db_path: str | Path,
+    *,
+    trade_symbol: str,
+    hyperliquid_coin: str,
+    dex: str,
+    available: bool,
+    last_mid: str | None,
+    mid_source_key: str | None,
+    checked_at_ms: int | None = None,
+    failure_reason: str | None = None,
+    raw: Any | None = None,
+) -> int:
+    init_db(db_path)
+    checked_at = checked_at_ms or int(time.time() * 1000)
+    raw_json = json.dumps(raw or {}, default=str, sort_keys=True)
+    with closing(sqlite3.connect(db_path)) as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO trade_xyz_asset_checks (
+              trade_symbol, hyperliquid_coin, dex, available, last_mid, mid_source_key,
+              checked_at_ms, failure_reason, raw_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                trade_symbol,
+                hyperliquid_coin,
+                dex,
+                1 if available else 0,
+                last_mid,
+                mid_source_key,
+                checked_at,
+                failure_reason,
+                raw_json,
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def get_latest_trade_xyz_asset_check(
+    db_path: str | Path,
+    *,
+    hyperliquid_coin: str,
+) -> dict[str, Any] | None:
+    init_db(db_path)
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            """
+            SELECT id, trade_symbol, hyperliquid_coin, dex, available, last_mid,
+                   mid_source_key, checked_at_ms, failure_reason, raw_json
+            FROM trade_xyz_asset_checks
+            WHERE hyperliquid_coin = ?
+            ORDER BY checked_at_ms DESC, id DESC
+            LIMIT 1
+            """,
+            (hyperliquid_coin,),
+        ).fetchone()
+    return _check_dict(row) if row else None
+
+
+def has_recent_successful_trade_xyz_check(
+    db_path: str | Path,
+    *,
+    hyperliquid_coin: str,
+    max_age_ms: int,
+    now_ms: int | None = None,
+) -> bool:
+    latest = get_latest_trade_xyz_asset_check(db_path, hyperliquid_coin=hyperliquid_coin)
+    if not latest or not latest["available"]:
+        return False
+    now = now_ms or int(time.time() * 1000)
+    return now - int(latest["checked_at_ms"]) <= max_age_ms
 
 
 def _extract_last_price(payload: Any) -> str | None:
@@ -252,6 +355,13 @@ def _asset_dict(row: sqlite3.Row) -> dict[str, Any]:
     item = dict(row)
     item["tradable"] = bool(item["tradable"])
     item["aliases"] = json.loads(item.pop("aliases_json"))
+    return item
+
+
+def _check_dict(row: sqlite3.Row) -> dict[str, Any]:
+    item = dict(row)
+    item["available"] = bool(item["available"])
+    item["raw"] = json.loads(item.pop("raw_json"))
     return item
 
 

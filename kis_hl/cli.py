@@ -29,6 +29,7 @@ from kis_hl.storage import (
     store_market_payload,
     store_order_submission,
 )
+from kis_hl.trade_xyz_verifier import summarize_checks, verify_trade_xyz_assets
 
 logger = get_logger(__name__)
 
@@ -99,6 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
     trade.add_argument("--reduce-only", action="store_true")
     trade.add_argument("--tif", default="Gtc")
     trade.add_argument("--slippage", default="0.05")
+    trade.add_argument("--verification-max-age-hours", type=int, default=24)
     trade.add_argument("--live", action="store_true", help="Send the order to Hyperliquid")
     trade.add_argument("--no-store", action="store_true")
     trade.set_defaults(handler=cmd_trade)
@@ -118,6 +120,11 @@ def build_parser() -> argparse.ArgumentParser:
     xyz_list.add_argument("--tradable-only", action="store_true")
     xyz_list.add_argument("--asset-class", choices=["equity_index", "etf", "stock"])
     xyz_list.set_defaults(handler=cmd_xyz_assets_list)
+
+    xyz_verify = xyz_sub.add_parser("verify", help="Verify mapped assets against Hyperliquid allMids")
+    xyz_verify.add_argument("--all", action="store_true", help="Verify excluded assets too")
+    xyz_verify.add_argument("--asset-class", choices=["equity_index", "etf", "stock"])
+    xyz_verify.set_defaults(handler=cmd_xyz_assets_verify)
     return parser
 
 
@@ -209,7 +216,11 @@ def cmd_hl_candles(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def cmd_trade(args: argparse.Namespace) -> dict[str, Any]:
-    client = HyperliquidTradingClient(load_hyperliquid_config())
+    client = HyperliquidTradingClient(
+        load_hyperliquid_config(),
+        verification_db_path=args.db,
+        verification_max_age_hours=args.verification_max_age_hours,
+    )
     submission = client.place_order(
         symbol=args.symbol,
         dex=args.dex,
@@ -257,6 +268,19 @@ def cmd_xyz_assets_list(args: argparse.Namespace) -> dict[str, Any]:
         asset_class=args.asset_class,
     )
     return {"count": len(assets), "assets": assets}
+
+
+def cmd_xyz_assets_verify(args: argparse.Namespace) -> dict[str, Any]:
+    client = HyperliquidInfoClient(load_hyperliquid_config())
+    mids = client.all_mids(dex="xyz")
+    checks = verify_trade_xyz_assets(
+        args.db,
+        mids=mids,
+        tradable_only=not args.all,
+        asset_class=args.asset_class,
+    )
+    summary = summarize_checks(checks)
+    return {"db": args.db, **summary, "checks": checks}
 
 
 def _response_dict(status: int, body: Any) -> dict[str, Any]:

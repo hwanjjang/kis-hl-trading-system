@@ -6,12 +6,14 @@ import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from kis_hl.assets import ResolvedAsset, resolve_hyperliquid_symbol
 from kis_hl.config import HyperliquidConfig
 from kis_hl.logging_utils import get_logger
+from kis_hl.storage import has_recent_successful_trade_xyz_check
 from kis_hl.trade_xyz_assets import is_trade_xyz_symbol_tradable, normalize_trade_symbol
 
 logger = get_logger(__name__)
@@ -94,8 +96,16 @@ class HyperliquidInfoClient:
 
 
 class HyperliquidTradingClient:
-    def __init__(self, config: HyperliquidConfig) -> None:
+    def __init__(
+        self,
+        config: HyperliquidConfig,
+        *,
+        verification_db_path: str | Path | None = None,
+        verification_max_age_hours: int = 24,
+    ) -> None:
         self.config = config
+        self.verification_db_path = verification_db_path
+        self.verification_max_age_ms = verification_max_age_hours * 60 * 60 * 1000
         self._sdk: tuple[Any, Any] | None = None
 
     def place_order(
@@ -147,6 +157,7 @@ class HyperliquidTradingClient:
                 "Live trading is limited to BTCUSDC spot and mapped tradable trade.xyz assets; "
                 f"got {symbol}"
             )
+        self._require_recent_verification(resolved)
 
         self._require_credentials()
         _info, exchange = self._load_sdk()
@@ -222,6 +233,18 @@ class HyperliquidTradingClient:
             return resolved.coin
         spot_meta = HyperliquidInfoClient(self.config).spot_meta()
         return resolve_spot_order_coin(spot_meta, resolved.coin)
+
+    def _require_recent_verification(self, resolved: ResolvedAsset) -> None:
+        if resolved.dex != "xyz":
+            return
+        if not self.verification_db_path:
+            raise RuntimeError("Live trade.xyz orders require a verification database path")
+        if not has_recent_successful_trade_xyz_check(
+            self.verification_db_path,
+            hyperliquid_coin=resolved.coin,
+            max_age_ms=self.verification_max_age_ms,
+        ):
+            raise RuntimeError(f"{resolved.coin} is not recently verified in Hyperliquid metadata")
 
 
 def submission_to_dict(submission: OrderSubmission) -> dict[str, Any]:

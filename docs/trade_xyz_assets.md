@@ -15,6 +15,7 @@ This project keeps a local SQLite seed table for trade.xyz RWA markets. The tabl
 ## SQLite Table
 
 `trade_xyz_assets` is created by `init_db()` and populated by `seed_trade_xyz_assets()`.
+`trade_xyz_asset_checks` stores point-in-time Hyperliquid metadata verification results from `xyz-assets verify`.
 
 Important columns:
 
@@ -32,3 +33,10 @@ Important columns:
 ## Verification Notes
 
 The table is based on the trade.xyz specification index and asset directory, plus project-specific duplicate exposure rules. Before enabling a new live asset, verify that Hyperliquid `allMids` or metadata exposes the expected `xyz:<symbol>` market.
+
+Live trade.xyz order submission requires both:
+
+- `trade_xyz_assets.tradable = 1`
+- A recent successful `trade_xyz_asset_checks` row for the expected `hyperliquid_coin`; the CLI default freshness window is 24 hours.
+
+Some project-friendly canonical symbols differ from trade.xyz/Hyperliquid market keys. For example, Samsung Electronics is stored as `SAMSUNG` but maps to `xyz:SMSN`, and SK hynix is stored as `SKHYNIX` but maps to `xyz:SKHX`.

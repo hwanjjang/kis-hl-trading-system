@@ -5,7 +5,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from kis_hl.storage import list_trade_xyz_assets, seed_trade_xyz_assets, store_market_payload, store_order_submission
+from kis_hl.storage import (
+    get_latest_trade_xyz_asset_check,
+    has_recent_successful_trade_xyz_check,
+    list_trade_xyz_assets,
+    seed_trade_xyz_assets,
+    store_market_payload,
+    store_order_submission,
+    store_trade_xyz_asset_check,
+)
 
 
 class StorageTests(unittest.TestCase):
@@ -70,6 +78,40 @@ class StorageTests(unittest.TestCase):
             symbols = {asset["trade_symbol"] for asset in list_trade_xyz_assets(db, tradable_only=True)}
             self.assertIn("KR200", symbols)
             self.assertNotIn("EWY", symbols)
+
+    def test_trade_xyz_asset_check_tracks_latest_availability(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "test.sqlite"
+            store_trade_xyz_asset_check(
+                db,
+                trade_symbol="KR200",
+                hyperliquid_coin="xyz:KR200",
+                dex="xyz",
+                available=True,
+                last_mid="350.5",
+                mid_source_key="xyz:KR200",
+                checked_at_ms=100,
+                raw={"source_key": "xyz:KR200"},
+            )
+            latest = get_latest_trade_xyz_asset_check(db, hyperliquid_coin="xyz:KR200")
+            self.assertTrue(latest["available"])
+            self.assertEqual(latest["last_mid"], "350.5")
+            self.assertTrue(
+                has_recent_successful_trade_xyz_check(
+                    db,
+                    hyperliquid_coin="xyz:KR200",
+                    max_age_ms=50,
+                    now_ms=125,
+                )
+            )
+            self.assertFalse(
+                has_recent_successful_trade_xyz_check(
+                    db,
+                    hyperliquid_coin="xyz:KR200",
+                    max_age_ms=10,
+                    now_ms=125,
+                )
+            )
 
 
 if __name__ == "__main__":

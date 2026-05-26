@@ -21,6 +21,7 @@
 - Live Hyperliquid orders must fail closed.
 - Do not broaden the supported live asset set without updating the asset mapping table and tests.
 - For trade.xyz RWA assets, use the local SQLite-backed mapping table as the eligibility source.
+- Live trade.xyz orders must also require recent successful Hyperliquid metadata verification.
 - Exclude assets that have not completed a public listing or IPO.
 - Exclude stock assets that have been publicly listed for less than 30 weeks.
 - Avoid duplicate country exposure:

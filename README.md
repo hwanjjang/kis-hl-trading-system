@@ -71,7 +71,10 @@ Create or refresh the local trade.xyz asset mapping table:
 ```bash
 python -m kis_hl.cli xyz-assets seed
 python -m kis_hl.cli xyz-assets list --tradable-only
+python -m kis_hl.cli xyz-assets verify --asset-class equity_index
 ```
+
+Run `xyz-assets verify` against the same `--db` that live orders will use. The default live verification freshness window is 24 hours.
 
 Prepare an order without sending it:
 
@@ -91,6 +94,7 @@ python -m kis_hl.cli trade --live --symbol xyz:XYZ100 --side buy --order-type li
 - BTC/USDC resolves to Hyperliquid mainnet spot `UBTC/USDC` because Hyperliquid remaps the UI label. Live spot orders resolve that pair through `spotMeta` and submit the `@index` coin expected by HyperCore.
 - trade.xyz assets should be passed as `xyz:ASSET` or with `--dex xyz`.
 - Live trade.xyz orders are limited to assets marked tradable in the local mapping table.
+- Live trade.xyz orders also require a recent successful `xyz-assets verify` check in SQLite.
 - Non-IPO assets are excluded from the mapping by default.
 - Stocks listed for less than 30 weeks are excluded from live trading.
 - `KR200` replaces `EWY` for South Korea exposure; `JP225` replaces `EWJ` for Japan exposure.

@@ -71,6 +71,40 @@ class CliTests(unittest.TestCase):
             self.assertIn("KR200", symbols)
             self.assertNotIn("EWY", symbols)
 
+    def test_xyz_assets_verify_uses_hyperliquid_mids(self) -> None:
+        class FakeHyperliquidInfoClient:
+            def __init__(self, _config: object) -> None:
+                pass
+
+            def all_mids(self, *, dex: str | None = None) -> dict[str, str]:
+                assert dex == "xyz"
+                return {"xyz:KR200": "350.1", "XYZ100": "1000.2"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "test.sqlite"
+            stdout = io.StringIO()
+            with (
+                patch("kis_hl.cli.load_hyperliquid_config", return_value=object()),
+                patch("kis_hl.cli.HyperliquidInfoClient", FakeHyperliquidInfoClient),
+                redirect_stdout(stdout),
+            ):
+                exit_code = main(
+                    [
+                        "--db",
+                        str(db_path),
+                        "xyz-assets",
+                        "verify",
+                        "--asset-class",
+                        "equity_index",
+                    ]
+                )
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["checked"], 4)
+            self.assertEqual(payload["available"], 2)
+            symbols = {check["trade_symbol"] for check in payload["checks"] if check["available"]}
+            self.assertEqual(symbols, {"KR200", "XYZ100"})
+
 
 if __name__ == "__main__":
     unittest.main()

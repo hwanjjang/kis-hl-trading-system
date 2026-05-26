@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from decimal import Decimal
+import tempfile
 import unittest
+from pathlib import Path
 
 from kis_hl.config import HyperliquidConfig
 from kis_hl.hyperliquid.client import (
@@ -11,6 +13,7 @@ from kis_hl.hyperliquid.client import (
     submission_to_dict,
 )
 from kis_hl.assets import resolve_hyperliquid_symbol
+from kis_hl.storage import store_trade_xyz_asset_check
 
 
 class HyperliquidClientTests(unittest.TestCase):
@@ -91,6 +94,57 @@ class HyperliquidClientTests(unittest.TestCase):
                 price=Decimal("1000"),
                 dry_run=False,
             )
+
+    def test_live_xyz_order_requires_recent_metadata_verification_before_credentials(self) -> None:
+        client = HyperliquidTradingClient(
+            HyperliquidConfig(
+                base_url="https://api.hyperliquid.xyz",
+                account_address="",
+                private_key="",
+                key_profile="default",
+            )
+        )
+        with self.assertRaisesRegex(RuntimeError, "verification database path"):
+            client.place_order(
+                symbol="xyz:KR200",
+                side="buy",
+                order_type="limit",
+                size=Decimal("1"),
+                price=Decimal("350"),
+                dry_run=False,
+            )
+
+    def test_live_xyz_order_with_recent_verification_reaches_credential_check(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "test.sqlite"
+            store_trade_xyz_asset_check(
+                db,
+                trade_symbol="KR200",
+                hyperliquid_coin="xyz:KR200",
+                dex="xyz",
+                available=True,
+                last_mid="350",
+                mid_source_key="xyz:KR200",
+                raw={},
+            )
+            client = HyperliquidTradingClient(
+                HyperliquidConfig(
+                    base_url="https://api.hyperliquid.xyz",
+                    account_address="",
+                    private_key="",
+                    key_profile="default",
+                ),
+                verification_db_path=db,
+            )
+            with self.assertRaisesRegex(RuntimeError, "Missing Hyperliquid"):
+                client.place_order(
+                    symbol="xyz:KR200",
+                    side="buy",
+                    order_type="limit",
+                    size=Decimal("1"),
+                    price=Decimal("350"),
+                    dry_run=False,
+                )
 
 
 if __name__ == "__main__":
