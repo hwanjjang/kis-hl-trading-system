@@ -417,15 +417,30 @@ def has_recent_successful_trade_xyz_check(
 
 
 def _extract_last_price(payload: Any) -> str | None:
+    price_keys = (
+        "last",
+        "LAST",
+        "price",
+        "stck_prpr",
+        "ovrs_now_pric",
+        "clos",
+        "bstp_nmix_prpr",
+        "ovrs_nmix_prpr",
+    )
     if isinstance(payload, dict):
-        output = payload.get("output")
-        if isinstance(output, dict):
-            for key in ("last", "LAST", "stck_prpr", "ovrs_now_pric", "clos"):
-                if key in output and output[key] not in (None, ""):
-                    return str(output[key])
-        for key in ("last", "LAST", "price"):
+        for key in price_keys:
             if key in payload and payload[key] not in (None, ""):
                 return str(payload[key])
+        for nested_key in ("output", "output1", "output2"):
+            if nested_key in payload:
+                value = _extract_last_price(payload[nested_key])
+                if value is not None:
+                    return value
+    if isinstance(payload, list):
+        for item in payload:
+            value = _extract_last_price(item)
+            if value is not None:
+                return value
     return None
 
 

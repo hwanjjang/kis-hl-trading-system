@@ -23,12 +23,22 @@ class KisMappingsTests(unittest.TestCase):
         self.assertEqual(mappings["ORCL"].kis_exchange_code, "NYS")
         self.assertEqual(mappings["URNM"].kis_exchange_code, "AMS")
 
-    def test_marks_indexes_without_implemented_kis_endpoint_as_unsupported(self) -> None:
+    def test_builds_supported_index_mappings(self) -> None:
         mappings = {item.trade_symbol: item for item in build_trade_xyz_kis_mappings()}
 
-        self.assertEqual(mappings["KR200"].status, "unsupported")
-        self.assertEqual(mappings["KR200"].kis_market, "unsupported")
-        self.assertIn("not implemented", mappings["KR200"].reason)
+        self.assertEqual(mappings["KR200"].status, "active")
+        self.assertEqual(mappings["KR200"].kis_market, "domestic_index")
+        self.assertEqual(mappings["KR200"].kis_symbol, "2001")
+        self.assertEqual(mappings["SP500"].kis_market, "overseas_index_time")
+        self.assertEqual(mappings["SP500"].kis_symbol, "SPX")
+        self.assertEqual(mappings["JP225"].kis_symbol, "JP#NI225")
+
+    def test_marks_trade_xyz_proprietary_index_as_unsupported(self) -> None:
+        mappings = {item.trade_symbol: item for item in build_trade_xyz_kis_mappings()}
+
+        self.assertEqual(mappings["XYZ100"].status, "unsupported")
+        self.assertEqual(mappings["XYZ100"].kis_market, "unsupported")
+        self.assertIn("not implemented", mappings["XYZ100"].reason)
 
     def test_keeps_duplicate_exposure_etfs_excluded(self) -> None:
         mappings = {item.trade_symbol: item for item in build_trade_xyz_kis_mappings()}

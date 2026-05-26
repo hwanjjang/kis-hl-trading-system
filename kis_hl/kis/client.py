@@ -47,6 +47,22 @@ class KisClient:
             },
         )
 
+    def inquire_domestic_index_price(
+        self,
+        *,
+        index_code: str,
+        market_code: str = "U",
+    ) -> KisHttpResponse:
+        return self._request_with_auth(
+            "GET",
+            "/uapi/domestic-stock/v1/quotations/inquire-index-price",
+            tr_id="FHPUP02100000",
+            query={
+                "FID_COND_MRKT_DIV_CODE": market_code,
+                "FID_INPUT_ISCD": index_code,
+            },
+        )
+
     def inquire_overseas_price(self, *, exchange_code: str, symbol: str) -> KisHttpResponse:
         return self._request_with_auth(
             "GET",
@@ -56,6 +72,26 @@ class KisClient:
                 "AUTH": "",
                 "EXCD": exchange_code,
                 "SYMB": symbol,
+            },
+        )
+
+    def inquire_overseas_time_indexchartprice(
+        self,
+        *,
+        symbol: str,
+        market_code: str = "N",
+        hour_cls_code: str = "0",
+        include_past_data: bool = True,
+    ) -> KisHttpResponse:
+        return self._request_with_auth(
+            "GET",
+            "/uapi/overseas-price/v1/quotations/inquire-time-indexchartprice",
+            tr_id="FHKST03030200",
+            query={
+                "FID_COND_MRKT_DIV_CODE": market_code,
+                "FID_INPUT_ISCD": symbol,
+                "FID_HOUR_CLS_CODE": hour_cls_code,
+                "FID_PW_DATA_INCU_YN": "Y" if include_past_data else "N",
             },
         )
 

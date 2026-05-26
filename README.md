@@ -83,9 +83,10 @@ Create or refresh the trade.xyz to KIS quote mapping table, then fetch the mappe
 python -m kis_hl.cli xyz-assets seed-kis
 python -m kis_hl.cli xyz-assets kis-list --status active
 python -m kis_hl.cli xyz-assets kis-fetch --symbol SAMSUNG --store
+python -m kis_hl.cli xyz-assets kis-collect --symbols SAMSUNG KR200 SP500 --delay-ms 300
 ```
 
-`kis-fetch` rejects excluded or unsupported mappings. Current stock and ETF mappings use KIS stock quote endpoints; direct KIS index quote endpoints for `KR200`, `JP225`, `SP500`, and `XYZ100` are not implemented yet.
+`kis-fetch` rejects excluded or unsupported mappings. `kis-collect` stores active mappings by default and continues after per-symbol failures unless `--fail-fast` is passed. `KR200` uses the KIS domestic index current-price endpoint. `SP500` and `JP225` use the KIS overseas index intraday chart endpoint. `XYZ100` remains unsupported because it is a trade.xyz proprietary index without a KIS source route.
 
 Prepare an order without sending it:
 

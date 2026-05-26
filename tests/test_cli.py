@@ -165,11 +165,65 @@ class CliTests(unittest.TestCase):
                 patch("sys.stderr", stderr),
             ):
                 fetch_exit = main(
-                    ["--db", str(db_path), "xyz-assets", "kis-fetch", "--symbol", "KR200"]
+                    ["--db", str(db_path), "xyz-assets", "kis-fetch", "--symbol", "XYZ100"]
                 )
             self.assertEqual(fetch_exit, 1)
             payload = json.loads(stderr.getvalue().strip().splitlines()[-1])
             self.assertIn("unsupported", payload["error"])
+
+    def test_xyz_assets_kis_collect_fetches_batch_and_skips_unsupported(self) -> None:
+        calls = []
+
+        class FakeKisClient:
+            def __init__(self, _config: object) -> None:
+                pass
+
+            def inquire_domestic_price(self, *, symbol: str, market_code: str) -> KisHttpResponse:
+                calls.append(("domestic", symbol, market_code))
+                return KisHttpResponse(200, {"rt_cd": "0", "output": {"stck_prpr": "75000"}}, {})
+
+            def inquire_domestic_index_price(
+                self,
+                *,
+                index_code: str,
+                market_code: str,
+            ) -> KisHttpResponse:
+                calls.append(("domestic_index", index_code, market_code))
+                return KisHttpResponse(200, {"rt_cd": "0", "output": {"bstp_nmix_prpr": "400.12"}}, {})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "test.sqlite"
+            with redirect_stdout(io.StringIO()):
+                seed_exit = main(["--db", str(db_path), "xyz-assets", "seed-kis"])
+            self.assertEqual(seed_exit, 0)
+
+            stdout = io.StringIO()
+            with (
+                patch("kis_hl.cli.load_kis_config", return_value=object()),
+                patch("kis_hl.cli.KisClient", FakeKisClient),
+                redirect_stdout(stdout),
+            ):
+                collect_exit = main(
+                    [
+                        "--db",
+                        str(db_path),
+                        "xyz-assets",
+                        "kis-collect",
+                        "--symbols",
+                        "SAMSUNG",
+                        "KR200",
+                        "XYZ100",
+                    ]
+                )
+            self.assertEqual(collect_exit, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["succeeded"], 2)
+            self.assertEqual(payload["skipped"], 1)
+            self.assertEqual(payload["stored"], 2)
+            self.assertEqual(
+                calls,
+                [("domestic", "005930", "J"), ("domestic_index", "2001", "U")],
+            )
 
 
 if __name__ == "__main__":

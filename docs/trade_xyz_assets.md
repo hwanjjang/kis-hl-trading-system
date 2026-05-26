@@ -43,7 +43,7 @@ Important columns:
 
 - `trade_symbol`: canonical project symbol, such as `SAMSUNG`, `SKHYNIX`, or `KR200`.
 - `hyperliquid_coin`: expected Hyperliquid HIP-3 coin, such as `xyz:SMSN`.
-- `kis_market`: `domestic`, `overseas`, or `unsupported`.
+- `kis_market`: `domestic`, `overseas`, `domestic_index`, `overseas_index_time`, or `unsupported`.
 - `kis_symbol`: the KIS quote symbol. Korean stocks strip the `.KS` suffix, so Samsung maps to `005930`.
 - `kis_exchange_code`: KIS overseas quote exchange code. This uses price quote codes such as `NAS`, `NYS`, and `AMS`, not overseas order codes such as `NASD`, `NYSE`, or `AMEX`.
 - `kis_market_code`: KIS domestic market division code, currently `J` for listed Korean stocks.
@@ -55,7 +55,10 @@ Current route policy:
 - KRX stocks use the KIS domestic stock `inquire-price` endpoint.
 - U.S. stocks use the KIS overseas `price` endpoint with `NAS` or `NYS`.
 - NYSE Arca ETFs use `AMS` for the KIS overseas quote route and must be live-checked before a new ETF is traded.
-- `KR200`, `JP225`, `SP500`, and `XYZ100` remain `unsupported` until a dedicated KIS index or alternative source endpoint is implemented.
+- `KR200` uses the KIS domestic index current-price endpoint with index code `2001`.
+- `SP500` uses the KIS overseas index intraday chart endpoint with index code `SPX`.
+- `JP225` uses the KIS overseas index intraday chart endpoint with index code `JP#NI225`.
+- `XYZ100` remains `unsupported` because it is a trade.xyz proprietary index without a KIS source route.
 - `EWY` and `EWJ` retain quote mappings for auditability but are `excluded` because this project trades `KR200` and `JP225` instead.
 
 Operational commands:
@@ -63,9 +66,10 @@ Operational commands:
 ```bash
 python -m kis_hl.cli xyz-assets kis-list --status active
 python -m kis_hl.cli xyz-assets kis-fetch --symbol SAMSUNG --store
+python -m kis_hl.cli xyz-assets kis-collect --symbols SAMSUNG KR200 SP500 --delay-ms 300
 ```
 
-`kis-fetch` stores raw KIS payloads in `market_ticks` with `market` set to `trade_xyz_domestic` or `trade_xyz_overseas`.
+`kis-fetch` and `kis-collect` store raw KIS payloads in `market_ticks` with `market` set to values such as `trade_xyz_domestic`, `trade_xyz_overseas`, `trade_xyz_domestic_index`, or `trade_xyz_overseas_index_time`.
 
 ## Verification Notes
 

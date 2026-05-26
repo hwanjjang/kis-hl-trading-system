@@ -22,6 +22,11 @@ from kis_hl.hyperliquid.client import (
     submission_to_dict,
 )
 from kis_hl.kis.client import KisClient
+from kis_hl.kis_collector import (
+    collect_trade_xyz_kis_quotes,
+    fetch_mapped_kis_response,
+    raise_on_kis_failure,
+)
 from kis_hl.logging_utils import configure_logging, get_logger
 from kis_hl.storage import (
     get_trade_xyz_kis_mapping,
@@ -137,13 +142,26 @@ def build_parser() -> argparse.ArgumentParser:
 
     xyz_kis_list = xyz_sub.add_parser("kis-list", help="List trade.xyz KIS quote mappings")
     xyz_kis_list.add_argument("--status", choices=["active", "excluded", "unsupported"])
-    xyz_kis_list.add_argument("--market", choices=["domestic", "overseas", "unsupported"])
+    xyz_kis_list.add_argument(
+        "--market",
+        choices=["domestic", "overseas", "domestic_index", "overseas_index_time", "unsupported"],
+    )
     xyz_kis_list.set_defaults(handler=cmd_xyz_assets_kis_list)
 
     xyz_kis_fetch = xyz_sub.add_parser("kis-fetch", help="Fetch a KIS quote by trade.xyz symbol")
     xyz_kis_fetch.add_argument("--symbol", required=True)
     xyz_kis_fetch.add_argument("--store", action="store_true")
     xyz_kis_fetch.set_defaults(handler=cmd_xyz_assets_kis_fetch)
+
+    xyz_kis_collect = xyz_sub.add_parser(
+        "kis-collect",
+        help="Fetch KIS quotes for active trade.xyz mappings",
+    )
+    xyz_kis_collect.add_argument("--symbols", nargs="*", help="Optional trade.xyz symbols to collect")
+    xyz_kis_collect.add_argument("--no-store", action="store_true")
+    xyz_kis_collect.add_argument("--delay-ms", type=int, default=0)
+    xyz_kis_collect.add_argument("--fail-fast", action="store_true")
+    xyz_kis_collect.set_defaults(handler=cmd_xyz_assets_kis_collect)
     return parser
 
 
@@ -335,31 +353,16 @@ def cmd_xyz_assets_kis_fetch(args: argparse.Namespace) -> dict[str, Any]:
             "kis_symbol": mapping["kis_symbol"],
         },
     )
-    kis_symbol = _require_mapping_value(mapping, "kis_symbol")
-    if mapping["kis_market"] == "domestic":
-        response = client.inquire_domestic_price(
-            symbol=kis_symbol,
-            market_code=mapping["kis_market_code"] or "J",
-        )
-        exchange_code = None
-    elif mapping["kis_market"] == "overseas":
-        exchange_code = _require_mapping_value(mapping, "kis_exchange_code")
-        response = client.inquire_overseas_price(
-            exchange_code=exchange_code,
-            symbol=kis_symbol,
-        )
-    else:
-        raise RuntimeError(f"Unsupported KIS market route: {mapping['kis_market']}")
-
-    _raise_on_kis_failure(response.status, response.body)
+    mapped = fetch_mapped_kis_response(client, mapping)
+    response = mapped.response
     result = {"mapping": mapping, **_response_dict(response.status, response.body)}
     if args.store:
         result["stored_id"] = store_market_payload(
             args.db,
             source="kis",
-            market=f"trade_xyz_{mapping['kis_market']}",
+            market=mapped.storage_market,
             symbol=mapping["trade_symbol"],
-            exchange_code=exchange_code,
+            exchange_code=mapped.exchange_code,
             payload=response.body,
         )
         logger.info(
@@ -369,11 +372,17 @@ def cmd_xyz_assets_kis_fetch(args: argparse.Namespace) -> dict[str, Any]:
     return result
 
 
-def _require_mapping_value(mapping: dict[str, Any], key: str) -> str:
-    value = mapping.get(key)
-    if not value:
-        raise RuntimeError(f"KIS mapping for {mapping['trade_symbol']} is missing {key}")
-    return str(value)
+def cmd_xyz_assets_kis_collect(args: argparse.Namespace) -> dict[str, Any]:
+    client = KisClient(load_kis_config())
+    summary = collect_trade_xyz_kis_quotes(
+        args.db,
+        client=client,
+        symbols=args.symbols,
+        store=not args.no_store,
+        delay_ms=args.delay_ms,
+        fail_fast=args.fail_fast,
+    )
+    return {"db": args.db, **summary}
 
 
 def _response_dict(status: int, body: Any) -> dict[str, Any]:
@@ -381,14 +390,7 @@ def _response_dict(status: int, body: Any) -> dict[str, Any]:
 
 
 def _raise_on_kis_failure(status: int, body: Any) -> None:
-    if status >= 400:
-        raise RuntimeError(f"KIS request failed: HTTP {status}")
-    if isinstance(body, dict):
-        rt_cd = body.get("rt_cd")
-        if rt_cd is not None and str(rt_cd) != "0":
-            msg_cd = body.get("msg_cd", "unknown")
-            msg = body.get("msg1", "")
-            raise RuntimeError(f"KIS request failed: {msg_cd} {msg}".strip())
+    raise_on_kis_failure(status, body)
 
 
 if __name__ == "__main__":

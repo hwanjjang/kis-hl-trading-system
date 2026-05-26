@@ -18,6 +18,8 @@ KIS_MAPPING_UNSUPPORTED = "unsupported"
 
 KIS_MARKET_DOMESTIC = "domestic"
 KIS_MARKET_OVERSEAS = "overseas"
+KIS_MARKET_DOMESTIC_INDEX = "domestic_index"
+KIS_MARKET_OVERSEAS_INDEX_TIME = "overseas_index_time"
 KIS_MARKET_UNSUPPORTED = "unsupported"
 
 KIS_DOMESTIC_STOCK_MARKET_CODE = "J"
@@ -32,6 +34,33 @@ _OVERSEAS_PRICE_EXCHANGE_CODES = {
     "NYSEARCA": "AMS",
     "AMEX": "AMS",
     "AMS": "AMS",
+}
+
+_INDEX_ROUTES = {
+    "KR200": {
+        "kis_market": KIS_MARKET_DOMESTIC_INDEX,
+        "kis_symbol": "2001",
+        "kis_exchange_code": None,
+        "kis_market_code": "U",
+        "source": "kis_domestic_index_price",
+        "notes": "Uses KIS domestic index current-price endpoint for KOSPI 200.",
+    },
+    "SP500": {
+        "kis_market": KIS_MARKET_OVERSEAS_INDEX_TIME,
+        "kis_symbol": "SPX",
+        "kis_exchange_code": None,
+        "kis_market_code": "N",
+        "source": "kis_overseas_time_indexchartprice",
+        "notes": "Uses KIS overseas index intraday chart endpoint for S&P 500 latest available data.",
+    },
+    "JP225": {
+        "kis_market": KIS_MARKET_OVERSEAS_INDEX_TIME,
+        "kis_symbol": "JP#NI225",
+        "kis_exchange_code": None,
+        "kis_market_code": "N",
+        "source": "kis_overseas_time_indexchartprice",
+        "notes": "Uses KIS overseas index intraday chart endpoint for Nikkei 225 latest available data.",
+    },
 }
 
 
@@ -78,6 +107,22 @@ def build_trade_xyz_kis_mapping(
         KIS_MAPPING_ACTIVE if is_asset_tradable(asset, as_of=as_of) else KIS_MAPPING_EXCLUDED
     )
     eligibility_reason = None if eligibility_status == KIS_MAPPING_ACTIVE else _exclusion_reason(asset, as_of)
+
+    if asset.asset_class == "equity_index" and asset.trade_symbol in _INDEX_ROUTES:
+        route = _INDEX_ROUTES[asset.trade_symbol]
+        return KisMarketDataMapping(
+            trade_symbol=asset.trade_symbol,
+            hyperliquid_coin=asset.hyperliquid_coin,
+            asset_class=asset.asset_class,
+            kis_market=str(route["kis_market"]),
+            kis_symbol=str(route["kis_symbol"]),
+            kis_exchange_code=route["kis_exchange_code"],
+            kis_market_code=str(route["kis_market_code"]),
+            status=eligibility_status,
+            reason=eligibility_reason,
+            source=str(route["source"]),
+            notes=str(route["notes"]),
+        )
 
     if asset.asset_class == "stock" and asset.underlying_exchange.upper() == "KRX":
         return KisMarketDataMapping(

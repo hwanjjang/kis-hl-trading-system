@@ -38,6 +38,23 @@ class StorageTests(unittest.TestCase):
                 row = conn.execute("SELECT last_price FROM market_ticks").fetchone()
             self.assertEqual(row[0], "189.50")
 
+    def test_store_market_payload_extracts_index_prices(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "test.sqlite"
+            row_id = store_market_payload(
+                db,
+                source="kis",
+                market="trade_xyz_domestic_index",
+                symbol="KR200",
+                exchange_code="U",
+                payload={"output": {"bstp_nmix_prpr": "400.12"}},
+                observed_at_ms=1,
+            )
+            self.assertEqual(row_id, 1)
+            with closing(sqlite3.connect(db)) as conn:
+                row = conn.execute("SELECT last_price FROM market_ticks").fetchone()
+            self.assertEqual(row[0], "400.12")
+
     def test_store_order_submission_records_dry_run_flag(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             db = Path(tmp) / "test.sqlite"
@@ -127,11 +144,11 @@ class StorageTests(unittest.TestCase):
             active_symbols = {item["trade_symbol"] for item in active}
             self.assertIn("AAPL", active_symbols)
             self.assertIn("SAMSUNG", active_symbols)
-            self.assertNotIn("KR200", active_symbols)
+            self.assertIn("KR200", active_symbols)
 
             unsupported = list_trade_xyz_kis_mappings(db, status="unsupported")
             unsupported_symbols = {item["trade_symbol"] for item in unsupported}
-            self.assertIn("KR200", unsupported_symbols)
+            self.assertIn("XYZ100", unsupported_symbols)
 
     def test_get_trade_xyz_kis_mapping_resolves_aliases_and_hyperliquid_coins(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

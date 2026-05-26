@@ -17,6 +17,8 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.kis_mappings` converts curated trade.xyz assets into KIS quote routes. It keeps RWA trading eligibility separate from KIS market-data availability, so an asset can be Hyperliquid-tradable while its KIS route is still `unsupported`.
 
+`kis_hl.kis_collector` executes mapped KIS routes for one symbol or a batch, stores raw payloads in SQLite, and reports per-symbol success, skipped, and failed states without stopping the whole batch by default.
+
 `kis_hl.hyperliquid.client` wraps Hyperliquid public info calls with standard HTTP and uses `hyperliquid-python-sdk` only for signed trading. This avoids custom signing code.
 
 `kis_hl.assets` normalizes user-facing symbols into Hyperliquid L1 names. `BTCUSDC` resolves to `UBTC/USDC` spot, and live spot orders resolve the pair through `spotMeta` to the `@index` order coin. trade.xyz assets resolve to `xyz:ASSET`.
@@ -61,6 +63,7 @@ flowchart LR
 
 - The active trade.xyz asset list and session hours can change; validate metadata before live orders.
 - KIS quote routing for NYSE Arca ETFs uses `AMS` and still needs live-account confirmation per ETF symbol.
-- Direct KIS index quote routes for `KR200`, `JP225`, `SP500`, and `XYZ100` are not implemented.
+- `SP500` and `JP225` use KIS overseas index intraday chart data, not a dedicated current-price quote endpoint.
+- `XYZ100` has no KIS source route and remains unsupported for KIS market-data collection.
 - Hyperliquid SDK behavior for spot market orders should be tested with a small live or testnet order before using spot market orders operationally.
 - KIS websocket subscriptions are not implemented in this first scaffold.
