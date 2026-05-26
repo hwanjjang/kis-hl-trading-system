@@ -109,6 +109,8 @@ def load_kis_config(env: Mapping[str, str] | None = None) -> KisConfig:
 def load_hyperliquid_config(env: Mapping[str, str] | None = None) -> HyperliquidConfig:
     source = env or os.environ
     profile = source.get("HYPERLIQUID_KEY_PROFILE", "default").strip().lower()
+    if profile not in {"default", "production"}:
+        raise RuntimeError("HYPERLIQUID_KEY_PROFILE must be 'default' or 'production'")
     if profile == "production":
         address_name = "PRO_HYPERLIQUID_WALLETADDRESS"
         private_key_name = "PRO_HYPERLIQUID_PRIVATEKEY"
@@ -153,4 +155,3 @@ def _strip_env_value(value: str) -> str:
     if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
         return value[1:-1]
     return value
-

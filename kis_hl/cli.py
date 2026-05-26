@@ -18,11 +18,14 @@ from kis_hl.config import (
 from kis_hl.hyperliquid.client import (
     HyperliquidInfoClient,
     HyperliquidTradingClient,
+    resolve_spot_order_coin,
     submission_to_dict,
 )
 from kis_hl.kis.client import KisClient
-from kis_hl.logging_utils import configure_logging
+from kis_hl.logging_utils import configure_logging, get_logger
 from kis_hl.storage import store_market_payload, store_order_submission
+
+logger = get_logger(__name__)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -38,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = args.handler(args)
     except Exception as exc:
+        logger.error("cli_command_failed", extra={"command": args.command, "error": str(exc)})
         print(json.dumps({"error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 1
     if result is not None:
@@ -112,6 +116,7 @@ def cmd_kis_price(args: argparse.Namespace) -> dict[str, Any]:
             symbol=args.symbol,
         )
         exchange_code = args.exchange_code
+    _raise_on_kis_failure(response.status, response.body)
     result = _response_dict(response.status, response.body)
     if args.store:
         result["stored_id"] = store_market_payload(
@@ -134,6 +139,7 @@ def cmd_kis_daily(args: argparse.Namespace) -> dict[str, Any]:
         period=args.period,
         market_code=args.market_code,
     )
+    _raise_on_kis_failure(response.status, response.body)
     result = _response_dict(response.status, response.body)
     if args.store:
         result["stored_id"] = store_market_payload(
@@ -153,9 +159,24 @@ def cmd_hl_mids(args: argparse.Namespace) -> dict[str, Any]:
     if not args.symbols:
         return {"mids": mids}
     resolved = [resolve_hyperliquid_symbol(symbol, dex=args.dex) for symbol in args.symbols]
+    spot_meta = None
+    output_mids: dict[str, str | None] = {}
+    resolved_payload = []
+    for asset in resolved:
+        order_coin = asset.coin
+        value = mids.get(asset.coin)
+        if value is None and asset.kind == "spot":
+            if spot_meta is None:
+                spot_meta = client.spot_meta()
+            order_coin = resolve_spot_order_coin(spot_meta, asset.coin)
+            value = mids.get(order_coin)
+        output_mids[asset.coin] = value
+        item = asdict(asset)
+        item["order_coin"] = order_coin
+        resolved_payload.append(item)
     return {
-        "mids": {asset.coin: mids.get(asset.coin) for asset in resolved},
-        "resolved": [asdict(asset) for asset in resolved],
+        "mids": output_mids,
+        "resolved": resolved_payload,
     }
 
 
@@ -210,6 +231,17 @@ def cmd_resolve_symbol(args: argparse.Namespace) -> dict[str, Any]:
 
 def _response_dict(status: int, body: Any) -> dict[str, Any]:
     return {"status": status, "body": body}
+
+
+def _raise_on_kis_failure(status: int, body: Any) -> None:
+    if status >= 400:
+        raise RuntimeError(f"KIS request failed: HTTP {status}")
+    if isinstance(body, dict):
+        rt_cd = body.get("rt_cd")
+        if rt_cd is not None and str(rt_cd) != "0":
+            msg_cd = body.get("msg_cd", "unknown")
+            msg = body.get("msg1", "")
+            raise RuntimeError(f"KIS request failed: {msg_cd} {msg}".strip())
 
 
 if __name__ == "__main__":

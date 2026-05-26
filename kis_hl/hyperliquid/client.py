@@ -59,6 +59,12 @@ class HyperliquidInfoClient:
             raise RuntimeError("Hyperliquid allMids returned a non-object response")
         return {str(key): str(value) for key, value in result.items()}
 
+    def spot_meta(self) -> dict[str, Any]:
+        result = self.post_info({"type": "spotMeta"})
+        if not isinstance(result, dict):
+            raise RuntimeError("Hyperliquid spotMeta returned a non-object response")
+        return result
+
     def l2_book(self, symbol: str, *, dex: str | None = None) -> Any:
         resolved = resolve_hyperliquid_symbol(symbol, dex=dex)
         return self.post_info({"type": "l2Book", "coin": resolved.coin})
@@ -121,6 +127,7 @@ class HyperliquidTradingClient:
             "client_request_id": uuid4().hex,
             "symbol": symbol,
             "resolved_coin": resolved.coin,
+            "order_coin": resolved.coin,
             "kind": resolved.kind,
             "side": normalized_side,
             "order_type": normalized_type,
@@ -134,28 +141,41 @@ class HyperliquidTradingClient:
         if dry_run:
             logger.info("hyperliquid_order_dry_run", extra={"resolved_coin": resolved.coin})
             return OrderSubmission("dry_run", True, resolved, request, {"skipped": "dry_run"})
+        if not is_supported_live_asset(resolved):
+            raise RuntimeError(
+                f"Live trading is limited to BTCUSDC spot and xyz:* assets; got {symbol}"
+            )
 
         self._require_credentials()
         _info, exchange = self._load_sdk()
+        order_coin = self._resolve_live_order_coin(resolved)
+        request["order_coin"] = order_coin
         is_buy = normalized_side == "buy"
-        if normalized_type == "market":
-            response = exchange.market_open(
-                resolved.coin,
-                is_buy,
-                float(size),
-                None,
-                float(slippage),
+        try:
+            if normalized_type == "market":
+                response = exchange.market_open(
+                    order_coin,
+                    is_buy,
+                    float(size),
+                    None,
+                    float(slippage),
+                )
+            else:
+                order_payload = {"limit": {"tif": tif}}
+                response = exchange.order(
+                    order_coin,
+                    is_buy,
+                    float(size),
+                    float(price),
+                    order_payload,
+                    reduce_only,
+                )
+        except Exception as exc:
+            logger.error(
+                "hyperliquid_order_failed",
+                extra={"resolved_coin": resolved.coin, "order_coin": order_coin, "error": str(exc)},
             )
-        else:
-            order_payload = {"limit": {"tif": tif}}
-            response = exchange.order(
-                resolved.coin,
-                is_buy,
-                float(size),
-                float(price),
-                order_payload,
-                reduce_only,
-            )
+            raise
         logger.info("hyperliquid_order_submitted", extra={"resolved_coin": resolved.coin})
         return OrderSubmission("submitted", False, resolved, request, response)
 
@@ -195,6 +215,12 @@ class HyperliquidTradingClient:
         if missing:
             raise RuntimeError("Missing Hyperliquid " + " and ".join(missing))
 
+    def _resolve_live_order_coin(self, resolved: ResolvedAsset) -> str:
+        if resolved.kind != "spot" or resolved.coin.startswith("@"):
+            return resolved.coin
+        spot_meta = HyperliquidInfoClient(self.config).spot_meta()
+        return resolve_spot_order_coin(spot_meta, resolved.coin)
+
 
 def submission_to_dict(submission: OrderSubmission) -> dict[str, Any]:
     return {
@@ -206,3 +232,54 @@ def submission_to_dict(submission: OrderSubmission) -> dict[str, Any]:
         "submitted_at_ms": int(time.time() * 1000),
     }
 
+
+def is_supported_live_asset(resolved: ResolvedAsset) -> bool:
+    if resolved.kind == "spot" and resolved.coin == "UBTC/USDC":
+        return True
+    return resolved.dex == "xyz" and resolved.coin.startswith("xyz:")
+
+
+def resolve_spot_order_coin(spot_meta: dict[str, Any], pair: str) -> str:
+    if pair.startswith("@"):
+        return pair
+    target = pair.upper()
+    universe = spot_meta.get("universe")
+    if not isinstance(universe, list):
+        raise RuntimeError("spotMeta response is missing universe")
+
+    token_names = _spot_token_names(spot_meta)
+    for entry in universe:
+        if not isinstance(entry, dict):
+            continue
+        index = entry.get("index")
+        if index is None:
+            continue
+        name = str(entry.get("name", "")).upper()
+        if name == target:
+            return f"@{index}"
+        token_pair = _spot_pair_from_token_ids(entry.get("tokens"), token_names)
+        if token_pair == target:
+            return f"@{index}"
+    raise RuntimeError(f"Spot pair {pair} was not found in Hyperliquid spotMeta")
+
+
+def _spot_token_names(spot_meta: dict[str, Any]) -> dict[int, str]:
+    names: dict[int, str] = {}
+    tokens = spot_meta.get("tokens")
+    if not isinstance(tokens, list):
+        return names
+    for token in tokens:
+        if not isinstance(token, dict) or "index" not in token:
+            continue
+        names[int(token["index"])] = str(token.get("name", "")).upper()
+    return names
+
+
+def _spot_pair_from_token_ids(raw_tokens: Any, token_names: dict[int, str]) -> str | None:
+    if not isinstance(raw_tokens, list) or len(raw_tokens) != 2:
+        return None
+    base = token_names.get(int(raw_tokens[0]))
+    quote = token_names.get(int(raw_tokens[1]))
+    if not base or not quote:
+        return None
+    return f"{base}/{quote}"

@@ -17,7 +17,7 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.hyperliquid.client` wraps Hyperliquid public info calls with standard HTTP and uses `hyperliquid-python-sdk` only for signed trading. This avoids custom signing code.
 
-`kis_hl.assets` normalizes user-facing symbols into Hyperliquid L1 names. `BTCUSDC` resolves to `UBTC/USDC` spot. trade.xyz assets resolve to `xyz:ASSET`.
+`kis_hl.assets` normalizes user-facing symbols into Hyperliquid L1 names. `BTCUSDC` resolves to `UBTC/USDC` spot, and live spot orders resolve the pair through `spotMeta` to the `@index` order coin. trade.xyz assets resolve to `xyz:ASSET`.
 
 `kis_hl.storage` persists raw KIS payloads and order submissions in SQLite. Raw payloads are stored because vendor schemas and exchange responses can change.
 
@@ -56,4 +56,3 @@ flowchart LR
 - The active trade.xyz asset list and session hours can change; validate metadata before live orders.
 - Hyperliquid SDK behavior for spot market orders should be tested with a small live or testnet order before using spot market orders operationally.
 - KIS websocket subscriptions are not implemented in this first scaffold.
-

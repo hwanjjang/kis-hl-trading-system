@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import io
 import json
+import tempfile
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
+from unittest.mock import patch
 
 from kis_hl.cli import main
+from kis_hl.kis.client import KisHttpResponse
 
 
 class CliTests(unittest.TestCase):
@@ -16,6 +20,38 @@ class CliTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["coin"], "UBTC/USDC")
+
+    def test_kis_http_failure_exits_nonzero_without_storing(self) -> None:
+        class FakeKisClient:
+            def __init__(self, _config: object) -> None:
+                pass
+
+            def inquire_overseas_price(self, *, exchange_code: str, symbol: str) -> KisHttpResponse:
+                return KisHttpResponse(500, {"msg1": "rate limit"}, {})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "test.sqlite"
+            stderr = io.StringIO()
+            with (
+                patch("kis_hl.cli.load_kis_config", return_value=object()),
+                patch("kis_hl.cli.KisClient", FakeKisClient),
+                redirect_stdout(io.StringIO()),
+                patch("sys.stderr", stderr),
+            ):
+                exit_code = main(
+                    [
+                        "--db",
+                        str(db_path),
+                        "kis-price",
+                        "--market",
+                        "overseas",
+                        "--symbol",
+                        "AAPL",
+                        "--store",
+                    ]
+                )
+            self.assertEqual(exit_code, 1)
+            self.assertFalse(db_path.exists())
 
 
 if __name__ == "__main__":

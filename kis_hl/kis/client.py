@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 import urllib.error
 import urllib.parse
@@ -113,16 +114,30 @@ class KisClient:
                 body=body,
             )
             if response.status in (401, 403):
+                logger.warning(
+                    "kis_auth_retry",
+                    extra={"status": response.status, "action": "invalidate_token"},
+                )
                 self._delete_token_cache()
                 last_response = response
                 continue
             if _is_rate_limited(response):
                 last_response = response
                 if attempt < self.config.rate_limit_retries:
-                    time.sleep((self.config.rate_limit_delay_ms / 1000) * (2**attempt))
+                    delay_seconds = (self.config.rate_limit_delay_ms / 1000) * (2**attempt)
+                    logger.warning(
+                        "kis_rate_limit_retry",
+                        extra={
+                            "status": response.status,
+                            "attempt": attempt + 1,
+                            "delay_ms": int(delay_seconds * 1000),
+                        },
+                    )
+                    time.sleep(delay_seconds)
                     continue
             return response
         if last_response:
+            logger.error("kis_request_failed_after_retries", extra={"status": last_response.status})
             return last_response
         raise RuntimeError("KIS request failed without a response")
 
@@ -218,17 +233,21 @@ class KisClient:
 
     def _write_token_cache(self, cache: TokenCache) -> None:
         self.config.token_dir.mkdir(parents=True, exist_ok=True)
-        self._token_path().write_text(
-            json.dumps(
-                {
-                    "access_token": cache.access_token,
-                    "expires_at_ms": cache.expires_at_ms,
-                    "last_issued_at_ms": cache.last_issued_at_ms,
-                },
-                sort_keys=True,
-            ),
-            encoding="utf-8",
+        path = self._token_path()
+        payload = json.dumps(
+            {
+                "access_token": cache.access_token,
+                "expires_at_ms": cache.expires_at_ms,
+                "last_issued_at_ms": cache.last_issued_at_ms,
+            },
+            sort_keys=True,
         )
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(payload)
+        finally:
+            os.chmod(path, 0o600)
 
     def _delete_token_cache(self) -> None:
         try:
@@ -264,4 +283,3 @@ def _is_rate_limited(response: KisHttpResponse) -> bool:
         message = str(response.body.get("msg1", ""))
         return "초당 거래건수" in message
     return False
-

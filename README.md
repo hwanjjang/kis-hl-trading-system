@@ -81,7 +81,7 @@ python -m kis_hl.cli trade --live --symbol xyz:XYZ100 --side buy --order-type li
 ## Safety Notes
 
 - Live trading is opt-in with `--live`.
-- BTC/USDC resolves to Hyperliquid mainnet spot `UBTC/USDC` because Hyperliquid remaps the UI label.
+- BTC/USDC resolves to Hyperliquid mainnet spot `UBTC/USDC` because Hyperliquid remaps the UI label. Live spot orders resolve that pair through `spotMeta` and submit the `@index` coin expected by HyperCore.
 - trade.xyz assets should be passed as `xyz:ASSET` or with `--dex xyz`.
 - Validate live metadata with `hl-mids --dex xyz` before trading a new RWA asset.
 - Use an approved Hyperliquid API wallet per trading process to avoid nonce collisions.

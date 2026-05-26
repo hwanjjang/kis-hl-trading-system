@@ -34,6 +34,10 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.account_address, "0xabc")
         self.assertEqual(config.private_key, "0xabc123")
 
+    def test_hyperliquid_invalid_profile_fails_closed(self) -> None:
+        with self.assertRaises(RuntimeError):
+            load_hyperliquid_config({"HYPERLIQUID_KEY_PROFILE": "prod"})
+
     def test_load_env_file_does_not_override_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             env_file = Path(tmp) / ".env"
@@ -45,4 +49,3 @@ class ConfigTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
