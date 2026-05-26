@@ -3,12 +3,16 @@ from __future__ import annotations
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from kis_hl.storage import (
+    get_trade_xyz_kis_mapping,
     get_latest_trade_xyz_asset_check,
     has_recent_successful_trade_xyz_check,
+    list_trade_xyz_kis_mappings,
     list_trade_xyz_assets,
+    seed_trade_xyz_kis_mappings,
     seed_trade_xyz_assets,
     store_market_payload,
     store_order_submission,
@@ -30,7 +34,7 @@ class StorageTests(unittest.TestCase):
                 observed_at_ms=1,
             )
             self.assertEqual(row_id, 1)
-            with sqlite3.connect(db) as conn:
+            with closing(sqlite3.connect(db)) as conn:
                 row = conn.execute("SELECT last_price FROM market_ticks").fetchone()
             self.assertEqual(row[0], "189.50")
 
@@ -51,7 +55,7 @@ class StorageTests(unittest.TestCase):
                 response={"ok": True},
                 submitted_at_ms=1,
             )
-            with sqlite3.connect(db) as conn:
+            with closing(sqlite3.connect(db)) as conn:
                 row = conn.execute("SELECT dry_run, resolved_symbol FROM order_submissions").fetchone()
             self.assertEqual(row, (1, "UBTC/USDC"))
 
@@ -112,6 +116,35 @@ class StorageTests(unittest.TestCase):
                     now_ms=125,
                 )
             )
+
+    def test_seed_trade_xyz_kis_mappings_lists_active_and_unsupported_routes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "test.sqlite"
+            count = seed_trade_xyz_kis_mappings(db, updated_at_ms=1)
+            self.assertGreater(count, 0)
+
+            active = list_trade_xyz_kis_mappings(db, status="active")
+            active_symbols = {item["trade_symbol"] for item in active}
+            self.assertIn("AAPL", active_symbols)
+            self.assertIn("SAMSUNG", active_symbols)
+            self.assertNotIn("KR200", active_symbols)
+
+            unsupported = list_trade_xyz_kis_mappings(db, status="unsupported")
+            unsupported_symbols = {item["trade_symbol"] for item in unsupported}
+            self.assertIn("KR200", unsupported_symbols)
+
+    def test_get_trade_xyz_kis_mapping_resolves_aliases_and_hyperliquid_coins(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "test.sqlite"
+            seed_trade_xyz_kis_mappings(db, updated_at_ms=1)
+
+            by_alias = get_trade_xyz_kis_mapping(db, "SMSN")
+            by_coin = get_trade_xyz_kis_mapping(db, "xyz:SKHX")
+
+            self.assertEqual(by_alias["trade_symbol"], "SAMSUNG")
+            self.assertEqual(by_alias["kis_symbol"], "005930")
+            self.assertEqual(by_coin["trade_symbol"], "SKHYNIX")
+            self.assertEqual(by_coin["kis_symbol"], "000660")
 
 
 if __name__ == "__main__":

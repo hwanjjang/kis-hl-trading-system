@@ -8,6 +8,7 @@ The first implementation is intentionally small:
 - Hyperliquid public `info` calls for mids, books, and candles.
 - Hyperliquid signed trading through the official `hyperliquid-python-sdk`.
 - SQLite persistence for collected market payloads and order submissions.
+- SQLite trade.xyz asset and KIS market-data mapping tables.
 - CLI defaults that never place a live order unless `--live` is passed.
 
 ## Setup
@@ -76,6 +77,16 @@ python -m kis_hl.cli xyz-assets verify --asset-class equity_index
 
 Run `xyz-assets verify` against the same `--db` that live orders will use. The default live verification freshness window is 24 hours.
 
+Create or refresh the trade.xyz to KIS quote mapping table, then fetch the mapped KIS quote:
+
+```bash
+python -m kis_hl.cli xyz-assets seed-kis
+python -m kis_hl.cli xyz-assets kis-list --status active
+python -m kis_hl.cli xyz-assets kis-fetch --symbol SAMSUNG --store
+```
+
+`kis-fetch` rejects excluded or unsupported mappings. Current stock and ETF mappings use KIS stock quote endpoints; direct KIS index quote endpoints for `KR200`, `JP225`, `SP500`, and `XYZ100` are not implemented yet.
+
 Prepare an order without sending it:
 
 ```bash
@@ -98,6 +109,7 @@ python -m kis_hl.cli trade --live --symbol xyz:XYZ100 --side buy --order-type li
 - Non-IPO assets are excluded from the mapping by default.
 - Stocks listed for less than 30 weeks are excluded from live trading.
 - `KR200` replaces `EWY` for South Korea exposure; `JP225` replaces `EWJ` for Japan exposure.
+- `xyz-assets kis-list` should be checked before relying on KIS data for a trade.xyz asset.
 - Validate live metadata with `hl-mids --dex xyz` before trading a new RWA asset.
 - Use an approved Hyperliquid API wallet per trading process to avoid nonce collisions.
 

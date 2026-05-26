@@ -7,7 +7,9 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
+from kis_hl.kis_mappings import KisMarketDataMapping, build_trade_xyz_kis_mappings
 from kis_hl.trade_xyz_assets import TRADE_XYZ_ASSETS, TradeXyzAsset, is_asset_tradable
+from kis_hl.trade_xyz_assets import normalize_trade_symbol
 
 
 def init_db(db_path: str | Path) -> None:
@@ -90,6 +92,30 @@ def init_db(db_path: str | Path) -> None:
               failure_reason TEXT,
               raw_json TEXT NOT NULL
             )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS trade_xyz_kis_mappings (
+              trade_symbol TEXT PRIMARY KEY,
+              hyperliquid_coin TEXT NOT NULL,
+              asset_class TEXT NOT NULL,
+              kis_market TEXT NOT NULL,
+              kis_symbol TEXT,
+              kis_exchange_code TEXT,
+              kis_market_code TEXT,
+              status TEXT NOT NULL,
+              reason TEXT,
+              source TEXT NOT NULL,
+              notes TEXT NOT NULL,
+              updated_at_ms INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_trade_xyz_kis_mappings_status
+            ON trade_xyz_kis_mappings (status, kis_market)
             """
         )
         conn.execute(
@@ -240,6 +266,80 @@ def list_trade_xyz_assets(
     return [_asset_dict(row) for row in rows]
 
 
+def seed_trade_xyz_kis_mappings(db_path: str | Path, *, updated_at_ms: int | None = None) -> int:
+    init_db(db_path)
+    updated_at = updated_at_ms or int(time.time() * 1000)
+    mappings = build_trade_xyz_kis_mappings()
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.executemany(
+            """
+            INSERT INTO trade_xyz_kis_mappings (
+              trade_symbol, hyperliquid_coin, asset_class, kis_market, kis_symbol,
+              kis_exchange_code, kis_market_code, status, reason, source, notes,
+              updated_at_ms
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(trade_symbol) DO UPDATE SET
+              hyperliquid_coin = excluded.hyperliquid_coin,
+              asset_class = excluded.asset_class,
+              kis_market = excluded.kis_market,
+              kis_symbol = excluded.kis_symbol,
+              kis_exchange_code = excluded.kis_exchange_code,
+              kis_market_code = excluded.kis_market_code,
+              status = excluded.status,
+              reason = excluded.reason,
+              source = excluded.source,
+              notes = excluded.notes,
+              updated_at_ms = excluded.updated_at_ms
+            """,
+            [_kis_mapping_row(mapping, updated_at) for mapping in mappings],
+        )
+        conn.commit()
+        return len(mappings)
+
+
+def list_trade_xyz_kis_mappings(
+    db_path: str | Path,
+    *,
+    status: str | None = None,
+    kis_market: str | None = None,
+) -> list[dict[str, Any]]:
+    init_db(db_path)
+    clauses: list[str] = []
+    params: list[Any] = []
+    if status:
+        clauses.append("status = ?")
+        params.append(status)
+    if kis_market:
+        clauses.append("kis_market = ?")
+        params.append(kis_market)
+    where = " WHERE " + " AND ".join(clauses) if clauses else ""
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            f"""
+            SELECT trade_symbol, hyperliquid_coin, asset_class, kis_market, kis_symbol,
+                   kis_exchange_code, kis_market_code, status, reason, source, notes,
+                   updated_at_ms
+            FROM trade_xyz_kis_mappings
+            {where}
+            ORDER BY status, asset_class, trade_symbol
+            """,
+            params,
+        ).fetchall()
+    return [_kis_mapping_dict(row) for row in rows]
+
+
+def get_trade_xyz_kis_mapping(db_path: str | Path, symbol: str) -> dict[str, Any] | None:
+    mappings = list_trade_xyz_kis_mappings(db_path)
+    normalized = normalize_trade_symbol(symbol)
+    for mapping in mappings:
+        if normalize_trade_symbol(mapping["trade_symbol"]) == normalized:
+            return mapping
+        if normalize_trade_symbol(mapping["hyperliquid_coin"]) == normalized:
+            return mapping
+    return None
+
+
 def store_trade_xyz_asset_check(
     db_path: str | Path,
     *,
@@ -356,6 +456,27 @@ def _asset_dict(row: sqlite3.Row) -> dict[str, Any]:
     item["tradable"] = bool(item["tradable"])
     item["aliases"] = json.loads(item.pop("aliases_json"))
     return item
+
+
+def _kis_mapping_row(mapping: KisMarketDataMapping, updated_at_ms: int) -> tuple[Any, ...]:
+    return (
+        mapping.trade_symbol,
+        mapping.hyperliquid_coin,
+        mapping.asset_class,
+        mapping.kis_market,
+        mapping.kis_symbol,
+        mapping.kis_exchange_code,
+        mapping.kis_market_code,
+        mapping.status,
+        mapping.reason,
+        mapping.source,
+        mapping.notes,
+        updated_at_ms,
+    )
+
+
+def _kis_mapping_dict(row: sqlite3.Row) -> dict[str, Any]:
+    return dict(row)
 
 
 def _check_dict(row: sqlite3.Row) -> dict[str, Any]:

@@ -105,6 +105,72 @@ class CliTests(unittest.TestCase):
             symbols = {check["trade_symbol"] for check in payload["checks"] if check["available"]}
             self.assertEqual(symbols, {"KR200", "XYZ100"})
 
+    def test_xyz_assets_seed_kis_and_fetch_uses_mapping(self) -> None:
+        calls = []
+
+        class FakeKisClient:
+            def __init__(self, _config: object) -> None:
+                pass
+
+            def inquire_domestic_price(self, *, symbol: str, market_code: str) -> KisHttpResponse:
+                calls.append((symbol, market_code))
+                return KisHttpResponse(200, {"rt_cd": "0", "output": {"stck_prpr": "75000"}}, {})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "test.sqlite"
+            with redirect_stdout(io.StringIO()):
+                seed_exit = main(["--db", str(db_path), "xyz-assets", "seed-kis"])
+            self.assertEqual(seed_exit, 0)
+
+            stdout = io.StringIO()
+            with (
+                patch("kis_hl.cli.load_kis_config", return_value=object()),
+                patch("kis_hl.cli.KisClient", FakeKisClient),
+                redirect_stdout(stdout),
+            ):
+                fetch_exit = main(
+                    [
+                        "--db",
+                        str(db_path),
+                        "xyz-assets",
+                        "kis-fetch",
+                        "--symbol",
+                        "SMSN",
+                        "--store",
+                    ]
+                )
+            self.assertEqual(fetch_exit, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["mapping"]["trade_symbol"], "SAMSUNG")
+            self.assertEqual(payload["mapping"]["kis_symbol"], "005930")
+            self.assertEqual(payload["stored_id"], 1)
+            self.assertEqual(calls, [("005930", "J")])
+
+    def test_xyz_assets_kis_fetch_rejects_unsupported_mapping(self) -> None:
+        class FakeKisClient:
+            def __init__(self, _config: object) -> None:
+                raise AssertionError("unsupported assets must not call KIS")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "test.sqlite"
+            with redirect_stdout(io.StringIO()):
+                seed_exit = main(["--db", str(db_path), "xyz-assets", "seed-kis"])
+            self.assertEqual(seed_exit, 0)
+
+            stderr = io.StringIO()
+            with (
+                patch("kis_hl.cli.load_kis_config", return_value=object()),
+                patch("kis_hl.cli.KisClient", FakeKisClient),
+                redirect_stdout(io.StringIO()),
+                patch("sys.stderr", stderr),
+            ):
+                fetch_exit = main(
+                    ["--db", str(db_path), "xyz-assets", "kis-fetch", "--symbol", "KR200"]
+                )
+            self.assertEqual(fetch_exit, 1)
+            payload = json.loads(stderr.getvalue().strip().splitlines()[-1])
+            self.assertIn("unsupported", payload["error"])
+
 
 if __name__ == "__main__":
     unittest.main()

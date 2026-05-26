@@ -16,6 +16,7 @@ This project keeps a local SQLite seed table for trade.xyz RWA markets. The tabl
 
 `trade_xyz_assets` is created by `init_db()` and populated by `seed_trade_xyz_assets()`.
 `trade_xyz_asset_checks` stores point-in-time Hyperliquid metadata verification results from `xyz-assets verify`.
+`trade_xyz_kis_mappings` stores the KIS market-data route for each trade.xyz asset when this project has an implemented KIS quote path.
 
 Important columns:
 
@@ -29,6 +30,42 @@ Important columns:
 - `tradable`: `1` only when this project may trade the asset. This is computed at seed time from the configured eligibility flags and listing-age rule.
 - `exclusion_reason`: populated for excluded assets.
 - `duplicate_group` and `preferred_symbol`: document equivalent exposure decisions.
+
+## KIS Market-Data Mapping
+
+`trade_xyz_kis_mappings` is populated by `seed_trade_xyz_kis_mappings()` or:
+
+```bash
+python -m kis_hl.cli xyz-assets seed-kis
+```
+
+Important columns:
+
+- `trade_symbol`: canonical project symbol, such as `SAMSUNG`, `SKHYNIX`, or `KR200`.
+- `hyperliquid_coin`: expected Hyperliquid HIP-3 coin, such as `xyz:SMSN`.
+- `kis_market`: `domestic`, `overseas`, or `unsupported`.
+- `kis_symbol`: the KIS quote symbol. Korean stocks strip the `.KS` suffix, so Samsung maps to `005930`.
+- `kis_exchange_code`: KIS overseas quote exchange code. This uses price quote codes such as `NAS`, `NYS`, and `AMS`, not overseas order codes such as `NASD`, `NYSE`, or `AMEX`.
+- `kis_market_code`: KIS domestic market division code, currently `J` for listed Korean stocks.
+- `status`: `active`, `excluded`, or `unsupported`.
+- `reason`: why an excluded or unsupported mapping cannot be used by `kis-fetch`.
+
+Current route policy:
+
+- KRX stocks use the KIS domestic stock `inquire-price` endpoint.
+- U.S. stocks use the KIS overseas `price` endpoint with `NAS` or `NYS`.
+- NYSE Arca ETFs use `AMS` for the KIS overseas quote route and must be live-checked before a new ETF is traded.
+- `KR200`, `JP225`, `SP500`, and `XYZ100` remain `unsupported` until a dedicated KIS index or alternative source endpoint is implemented.
+- `EWY` and `EWJ` retain quote mappings for auditability but are `excluded` because this project trades `KR200` and `JP225` instead.
+
+Operational commands:
+
+```bash
+python -m kis_hl.cli xyz-assets kis-list --status active
+python -m kis_hl.cli xyz-assets kis-fetch --symbol SAMSUNG --store
+```
+
+`kis-fetch` stores raw KIS payloads in `market_ticks` with `market` set to `trade_xyz_domestic` or `trade_xyz_overseas`.
 
 ## Verification Notes
 

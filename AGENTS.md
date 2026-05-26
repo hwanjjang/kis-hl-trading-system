@@ -20,6 +20,7 @@
 
 - Live Hyperliquid orders must fail closed.
 - Do not broaden the supported live asset set without updating the asset mapping table and tests.
+- When trade.xyz asset coverage changes, update both `trade_xyz_assets` and `trade_xyz_kis_mappings` behavior plus tests.
 - For trade.xyz RWA assets, use the local SQLite-backed mapping table as the eligibility source.
 - Live trade.xyz orders must also require recent successful Hyperliquid metadata verification.
 - Exclude assets that have not completed a public listing or IPO.

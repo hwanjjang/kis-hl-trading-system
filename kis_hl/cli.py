@@ -24,7 +24,10 @@ from kis_hl.hyperliquid.client import (
 from kis_hl.kis.client import KisClient
 from kis_hl.logging_utils import configure_logging, get_logger
 from kis_hl.storage import (
+    get_trade_xyz_kis_mapping,
+    list_trade_xyz_kis_mappings,
     list_trade_xyz_assets,
+    seed_trade_xyz_kis_mappings,
     seed_trade_xyz_assets,
     store_market_payload,
     store_order_submission,
@@ -125,6 +128,22 @@ def build_parser() -> argparse.ArgumentParser:
     xyz_verify.add_argument("--all", action="store_true", help="Verify excluded assets too")
     xyz_verify.add_argument("--asset-class", choices=["equity_index", "etf", "stock"])
     xyz_verify.set_defaults(handler=cmd_xyz_assets_verify)
+
+    xyz_seed_kis = xyz_sub.add_parser(
+        "seed-kis",
+        help="Create or refresh the trade.xyz to KIS market-data map",
+    )
+    xyz_seed_kis.set_defaults(handler=cmd_xyz_assets_seed_kis)
+
+    xyz_kis_list = xyz_sub.add_parser("kis-list", help="List trade.xyz KIS quote mappings")
+    xyz_kis_list.add_argument("--status", choices=["active", "excluded", "unsupported"])
+    xyz_kis_list.add_argument("--market", choices=["domestic", "overseas", "unsupported"])
+    xyz_kis_list.set_defaults(handler=cmd_xyz_assets_kis_list)
+
+    xyz_kis_fetch = xyz_sub.add_parser("kis-fetch", help="Fetch a KIS quote by trade.xyz symbol")
+    xyz_kis_fetch.add_argument("--symbol", required=True)
+    xyz_kis_fetch.add_argument("--store", action="store_true")
+    xyz_kis_fetch.set_defaults(handler=cmd_xyz_assets_kis_fetch)
     return parser
 
 
@@ -281,6 +300,80 @@ def cmd_xyz_assets_verify(args: argparse.Namespace) -> dict[str, Any]:
     )
     summary = summarize_checks(checks)
     return {"db": args.db, **summary, "checks": checks}
+
+
+def cmd_xyz_assets_seed_kis(args: argparse.Namespace) -> dict[str, Any]:
+    count = seed_trade_xyz_kis_mappings(args.db)
+    return {"seeded": count, "db": args.db}
+
+
+def cmd_xyz_assets_kis_list(args: argparse.Namespace) -> dict[str, Any]:
+    mappings = list_trade_xyz_kis_mappings(
+        args.db,
+        status=args.status,
+        kis_market=args.market,
+    )
+    return {"count": len(mappings), "mappings": mappings}
+
+
+def cmd_xyz_assets_kis_fetch(args: argparse.Namespace) -> dict[str, Any]:
+    mapping = get_trade_xyz_kis_mapping(args.db, args.symbol)
+    if mapping is None:
+        raise RuntimeError(f"No trade.xyz KIS mapping found for {args.symbol}")
+    if mapping["status"] != "active":
+        reason = mapping["reason"] or "mapping is not active"
+        raise RuntimeError(
+            f"KIS mapping for {mapping['trade_symbol']} is {mapping['status']}: {reason}"
+        )
+
+    client = KisClient(load_kis_config())
+    logger.info(
+        "trade_xyz_kis_fetch_started",
+        extra={
+            "trade_symbol": mapping["trade_symbol"],
+            "kis_market": mapping["kis_market"],
+            "kis_symbol": mapping["kis_symbol"],
+        },
+    )
+    kis_symbol = _require_mapping_value(mapping, "kis_symbol")
+    if mapping["kis_market"] == "domestic":
+        response = client.inquire_domestic_price(
+            symbol=kis_symbol,
+            market_code=mapping["kis_market_code"] or "J",
+        )
+        exchange_code = None
+    elif mapping["kis_market"] == "overseas":
+        exchange_code = _require_mapping_value(mapping, "kis_exchange_code")
+        response = client.inquire_overseas_price(
+            exchange_code=exchange_code,
+            symbol=kis_symbol,
+        )
+    else:
+        raise RuntimeError(f"Unsupported KIS market route: {mapping['kis_market']}")
+
+    _raise_on_kis_failure(response.status, response.body)
+    result = {"mapping": mapping, **_response_dict(response.status, response.body)}
+    if args.store:
+        result["stored_id"] = store_market_payload(
+            args.db,
+            source="kis",
+            market=f"trade_xyz_{mapping['kis_market']}",
+            symbol=mapping["trade_symbol"],
+            exchange_code=exchange_code,
+            payload=response.body,
+        )
+        logger.info(
+            "trade_xyz_kis_fetch_stored",
+            extra={"trade_symbol": mapping["trade_symbol"], "stored_id": result["stored_id"]},
+        )
+    return result
+
+
+def _require_mapping_value(mapping: dict[str, Any], key: str) -> str:
+    value = mapping.get(key)
+    if not value:
+        raise RuntimeError(f"KIS mapping for {mapping['trade_symbol']} is missing {key}")
+    return str(value)
 
 
 def _response_dict(status: int, body: Any) -> dict[str, Any]:
