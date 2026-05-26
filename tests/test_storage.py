@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from kis_hl.storage import store_market_payload, store_order_submission
+from kis_hl.storage import list_trade_xyz_assets, seed_trade_xyz_assets, store_market_payload, store_order_submission
 
 
 class StorageTests(unittest.TestCase):
@@ -47,7 +47,28 @@ class StorageTests(unittest.TestCase):
                 row = conn.execute("SELECT dry_run, resolved_symbol FROM order_submissions").fetchone()
             self.assertEqual(row, (1, "UBTC/USDC"))
 
+    def test_seed_trade_xyz_assets_excludes_duplicate_etf_exposures(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "test.sqlite"
+            count = seed_trade_xyz_assets(db, updated_at_ms=1)
+            self.assertGreater(count, 0)
+            assets = list_trade_xyz_assets(db)
+            by_symbol = {asset["trade_symbol"]: asset for asset in assets}
+            self.assertTrue(by_symbol["KR200"]["tradable"])
+            self.assertFalse(by_symbol["EWY"]["tradable"])
+            self.assertEqual(by_symbol["EWY"]["preferred_symbol"], "KR200")
+            self.assertTrue(by_symbol["JP225"]["tradable"])
+            self.assertFalse(by_symbol["EWJ"]["tradable"])
+            self.assertEqual(by_symbol["EWJ"]["preferred_symbol"], "JP225")
+
+    def test_list_trade_xyz_assets_tradable_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "test.sqlite"
+            seed_trade_xyz_assets(db, updated_at_ms=1)
+            symbols = {asset["trade_symbol"] for asset in list_trade_xyz_assets(db, tradable_only=True)}
+            self.assertIn("KR200", symbols)
+            self.assertNotIn("EWY", symbols)
+
 
 if __name__ == "__main__":
     unittest.main()
-

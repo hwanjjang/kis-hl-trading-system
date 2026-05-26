@@ -12,6 +12,7 @@ from uuid import uuid4
 from kis_hl.assets import ResolvedAsset, resolve_hyperliquid_symbol
 from kis_hl.config import HyperliquidConfig
 from kis_hl.logging_utils import get_logger
+from kis_hl.trade_xyz_assets import is_trade_xyz_symbol_tradable, normalize_trade_symbol
 
 logger = get_logger(__name__)
 
@@ -143,7 +144,8 @@ class HyperliquidTradingClient:
             return OrderSubmission("dry_run", True, resolved, request, {"skipped": "dry_run"})
         if not is_supported_live_asset(resolved):
             raise RuntimeError(
-                f"Live trading is limited to BTCUSDC spot and xyz:* assets; got {symbol}"
+                "Live trading is limited to BTCUSDC spot and mapped tradable trade.xyz assets; "
+                f"got {symbol}"
             )
 
         self._require_credentials()
@@ -236,7 +238,9 @@ def submission_to_dict(submission: OrderSubmission) -> dict[str, Any]:
 def is_supported_live_asset(resolved: ResolvedAsset) -> bool:
     if resolved.kind == "spot" and resolved.coin == "UBTC/USDC":
         return True
-    return resolved.dex == "xyz" and resolved.coin.startswith("xyz:")
+    if resolved.dex != "xyz" or not resolved.coin.startswith("xyz:"):
+        return False
+    return is_trade_xyz_symbol_tradable(normalize_trade_symbol(resolved.coin))
 
 
 def resolve_spot_order_coin(spot_meta: dict[str, Any], pair: str) -> str:

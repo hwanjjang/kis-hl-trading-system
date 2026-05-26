@@ -21,6 +21,8 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.storage` persists raw KIS payloads and order submissions in SQLite. Raw payloads are stored because vendor schemas and exchange responses can change.
 
+`kis_hl.trade_xyz_assets` defines the curated trade.xyz asset mapping seed. `trade_xyz_assets` rows in SQLite drive RWA eligibility: non-IPO assets are excluded, `EWY` is excluded in favor of `KR200`, and `EWJ` is excluded in favor of `JP225`.
+
 `kis_hl.cli` provides operational commands. Live orders require `--live`; dry-run is the default.
 
 ## Data Flow

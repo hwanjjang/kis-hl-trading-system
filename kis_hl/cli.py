@@ -23,7 +23,12 @@ from kis_hl.hyperliquid.client import (
 )
 from kis_hl.kis.client import KisClient
 from kis_hl.logging_utils import configure_logging, get_logger
-from kis_hl.storage import store_market_payload, store_order_submission
+from kis_hl.storage import (
+    list_trade_xyz_assets,
+    seed_trade_xyz_assets,
+    store_market_payload,
+    store_order_submission,
+)
 
 logger = get_logger(__name__)
 
@@ -102,6 +107,17 @@ def build_parser() -> argparse.ArgumentParser:
     resolve.add_argument("--symbol", required=True)
     resolve.add_argument("--dex")
     resolve.set_defaults(handler=cmd_resolve_symbol)
+
+    xyz_assets = sub.add_parser("xyz-assets", help="Manage the local trade.xyz asset map")
+    xyz_sub = xyz_assets.add_subparsers(dest="xyz_command")
+
+    xyz_seed = xyz_sub.add_parser("seed", help="Create or refresh the trade.xyz asset map")
+    xyz_seed.set_defaults(handler=cmd_xyz_assets_seed)
+
+    xyz_list = xyz_sub.add_parser("list", help="List mapped trade.xyz assets")
+    xyz_list.add_argument("--tradable-only", action="store_true")
+    xyz_list.add_argument("--asset-class", choices=["equity_index", "etf", "stock"])
+    xyz_list.set_defaults(handler=cmd_xyz_assets_list)
     return parser
 
 
@@ -227,6 +243,20 @@ def cmd_trade(args: argparse.Namespace) -> dict[str, Any]:
 
 def cmd_resolve_symbol(args: argparse.Namespace) -> dict[str, Any]:
     return asdict(resolve_hyperliquid_symbol(args.symbol, dex=args.dex))
+
+
+def cmd_xyz_assets_seed(args: argparse.Namespace) -> dict[str, Any]:
+    count = seed_trade_xyz_assets(args.db)
+    return {"seeded": count, "db": args.db}
+
+
+def cmd_xyz_assets_list(args: argparse.Namespace) -> dict[str, Any]:
+    assets = list_trade_xyz_assets(
+        args.db,
+        tradable_only=args.tradable_only,
+        asset_class=args.asset_class,
+    )
+    return {"count": len(assets), "assets": assets}
 
 
 def _response_dict(status: int, body: Any) -> dict[str, Any]:

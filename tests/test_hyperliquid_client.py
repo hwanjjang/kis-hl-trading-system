@@ -68,6 +68,10 @@ class HyperliquidClientTests(unittest.TestCase):
         self.assertFalse(is_supported_live_asset(resolve_hyperliquid_symbol("ETH")))
         self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("BTCUSDC")))
         self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("xyz:XYZ100")))
+        self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("xyz:KR200")))
+        self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("xyz:JP225")))
+        self.assertFalse(is_supported_live_asset(resolve_hyperliquid_symbol("xyz:EWY")))
+        self.assertFalse(is_supported_live_asset(resolve_hyperliquid_symbol("xyz:EWJ")))
 
     def test_live_order_rejects_unsupported_symbol_before_credentials(self) -> None:
         client = HyperliquidTradingClient(

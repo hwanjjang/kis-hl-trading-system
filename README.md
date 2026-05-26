@@ -66,6 +66,13 @@ Fetch trade.xyz mids from the HIP-3 dex namespace:
 python -m kis_hl.cli hl-mids --dex xyz --symbols XYZ100 SP500 SAMSUNG
 ```
 
+Create or refresh the local trade.xyz asset mapping table:
+
+```bash
+python -m kis_hl.cli xyz-assets seed
+python -m kis_hl.cli xyz-assets list --tradable-only
+```
+
 Prepare an order without sending it:
 
 ```bash
@@ -83,6 +90,9 @@ python -m kis_hl.cli trade --live --symbol xyz:XYZ100 --side buy --order-type li
 - Live trading is opt-in with `--live`.
 - BTC/USDC resolves to Hyperliquid mainnet spot `UBTC/USDC` because Hyperliquid remaps the UI label. Live spot orders resolve that pair through `spotMeta` and submit the `@index` coin expected by HyperCore.
 - trade.xyz assets should be passed as `xyz:ASSET` or with `--dex xyz`.
+- Live trade.xyz orders are limited to assets marked tradable in the local mapping table.
+- Non-IPO assets are excluded from the mapping by default.
+- `KR200` replaces `EWY` for South Korea exposure; `JP225` replaces `EWJ` for Japan exposure.
 - Validate live metadata with `hl-mids --dex xyz` before trading a new RWA asset.
 - Use an approved Hyperliquid API wallet per trading process to avoid nonce collisions.
 

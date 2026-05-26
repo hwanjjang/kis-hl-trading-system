@@ -53,6 +53,24 @@ class CliTests(unittest.TestCase):
             self.assertEqual(exit_code, 1)
             self.assertFalse(db_path.exists())
 
+    def test_xyz_assets_seed_and_list(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "test.sqlite"
+            with redirect_stdout(io.StringIO()):
+                seed_exit = main(["--db", str(db_path), "xyz-assets", "seed"])
+            self.assertEqual(seed_exit, 0)
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                list_exit = main(
+                    ["--db", str(db_path), "xyz-assets", "list", "--tradable-only"]
+                )
+            self.assertEqual(list_exit, 0)
+            payload = json.loads(stdout.getvalue())
+            symbols = {asset["trade_symbol"] for asset in payload["assets"]}
+            self.assertIn("KR200", symbols)
+            self.assertNotIn("EWY", symbols)
+
 
 if __name__ == "__main__":
     unittest.main()
