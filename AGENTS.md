@@ -22,6 +22,7 @@
 - Do not broaden the supported live asset set without updating the asset mapping table and tests.
 - For trade.xyz RWA assets, use the local SQLite-backed mapping table as the eligibility source.
 - Exclude assets that have not completed a public listing or IPO.
+- Exclude stock assets that have been publicly listed for less than 30 weeks.
 - Avoid duplicate country exposure:
   - Use `KR200` for South Korea exposure and exclude `EWY`.
   - Use `JP225` for Japan exposure and exclude `EWJ`.
@@ -31,4 +32,3 @@
 - Run tests relevant to the changed scope.
 - Add or update tests when behavior changes.
 - Prefer behavior-focused tests over tests coupled to implementation details.
-

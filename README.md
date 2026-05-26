@@ -92,6 +92,7 @@ python -m kis_hl.cli trade --live --symbol xyz:XYZ100 --side buy --order-type li
 - trade.xyz assets should be passed as `xyz:ASSET` or with `--dex xyz`.
 - Live trade.xyz orders are limited to assets marked tradable in the local mapping table.
 - Non-IPO assets are excluded from the mapping by default.
+- Stocks listed for less than 30 weeks are excluded from live trading.
 - `KR200` replaces `EWY` for South Korea exposure; `JP225` replaces `EWJ` for Japan exposure.
 - Validate live metadata with `hl-mids --dex xyz` before trading a new RWA asset.
 - Use an approved Hyperliquid API wallet per trading process to avoid nonce collisions.

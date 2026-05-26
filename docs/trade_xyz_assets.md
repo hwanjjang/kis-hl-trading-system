@@ -6,6 +6,7 @@ This project keeps a local SQLite seed table for trade.xyz RWA markets. The tabl
 
 - Include current or explicitly configured trade.xyz index, ETF, and single-name equity assets.
 - Exclude assets that have not completed a public listing or IPO.
+- Exclude stock assets that have traded on a public securities exchange for less than 30 weeks.
 - Prefer direct index exposure over ETF proxy exposure when both serve the same trading objective:
   - `KR200` is the preferred South Korea exposure; `EWY` is excluded.
   - `JP225` is the preferred Japan exposure; `EWJ` is excluded.
@@ -22,11 +23,12 @@ Important columns:
 - `asset_class`: `equity_index`, `etf`, or `stock`.
 - `underlying_symbol`: source market symbol, index name, ETF ticker, or KRX ticker.
 - `listing_status`: `listed`, `not_applicable`, or another explicit status.
-- `tradable`: `1` only when this project may trade the asset.
+- `listing_date`: first public trading date for stock assets.
+- `min_listing_age_weeks`: minimum listing age required before stock assets become tradable.
+- `tradable`: `1` only when this project may trade the asset. This is computed at seed time from the configured eligibility flags and listing-age rule.
 - `exclusion_reason`: populated for excluded assets.
 - `duplicate_group` and `preferred_symbol`: document equivalent exposure decisions.
 
 ## Verification Notes
 
 The table is based on the trade.xyz specification index and asset directory, plus project-specific duplicate exposure rules. Before enabling a new live asset, verify that Hyperliquid `allMids` or metadata exposes the expected `xyz:<symbol>` market.
-

@@ -60,6 +60,8 @@ class StorageTests(unittest.TestCase):
             self.assertTrue(by_symbol["JP225"]["tradable"])
             self.assertFalse(by_symbol["EWJ"]["tradable"])
             self.assertEqual(by_symbol["EWJ"]["preferred_symbol"], "JP225")
+            self.assertEqual(by_symbol["CRCL"]["listing_date"], "2025-06-05")
+            self.assertEqual(by_symbol["CRCL"]["min_listing_age_weeks"], 30)
 
     def test_list_trade_xyz_assets_tradable_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

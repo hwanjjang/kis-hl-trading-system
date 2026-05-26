@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from kis_hl.trade_xyz_assets import TRADE_XYZ_ASSETS, TradeXyzAsset
+from kis_hl.trade_xyz_assets import TRADE_XYZ_ASSETS, TradeXyzAsset, is_asset_tradable
 
 
 def init_db(db_path: str | Path) -> None:
@@ -56,6 +56,8 @@ def init_db(db_path: str | Path) -> None:
               underlying_exchange TEXT NOT NULL,
               listing_status TEXT NOT NULL,
               tradable INTEGER NOT NULL,
+              listing_date TEXT,
+              min_listing_age_weeks INTEGER NOT NULL DEFAULT 30,
               aliases_json TEXT NOT NULL,
               duplicate_group TEXT,
               preferred_symbol TEXT,
@@ -65,6 +67,13 @@ def init_db(db_path: str | Path) -> None:
               updated_at_ms INTEGER NOT NULL
             )
             """
+        )
+        _ensure_column(conn, "trade_xyz_assets", "listing_date", "TEXT")
+        _ensure_column(
+            conn,
+            "trade_xyz_assets",
+            "min_listing_age_weeks",
+            "INTEGER NOT NULL DEFAULT 30",
         )
 
 
@@ -145,9 +154,10 @@ def seed_trade_xyz_assets(db_path: str | Path, *, updated_at_ms: int | None = No
             """
             INSERT INTO trade_xyz_assets (
               trade_symbol, hyperliquid_coin, asset_class, underlying_name, underlying_symbol,
-              underlying_exchange, listing_status, tradable, aliases_json, duplicate_group,
-              preferred_symbol, exclusion_reason, source_url, notes, updated_at_ms
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              underlying_exchange, listing_status, tradable, listing_date,
+              min_listing_age_weeks, aliases_json, duplicate_group, preferred_symbol,
+              exclusion_reason, source_url, notes, updated_at_ms
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(trade_symbol) DO UPDATE SET
               hyperliquid_coin = excluded.hyperliquid_coin,
               asset_class = excluded.asset_class,
@@ -156,6 +166,8 @@ def seed_trade_xyz_assets(db_path: str | Path, *, updated_at_ms: int | None = No
               underlying_exchange = excluded.underlying_exchange,
               listing_status = excluded.listing_status,
               tradable = excluded.tradable,
+              listing_date = excluded.listing_date,
+              min_listing_age_weeks = excluded.min_listing_age_weeks,
               aliases_json = excluded.aliases_json,
               duplicate_group = excluded.duplicate_group,
               preferred_symbol = excluded.preferred_symbol,
@@ -190,8 +202,8 @@ def list_trade_xyz_assets(
             f"""
             SELECT trade_symbol, hyperliquid_coin, asset_class, underlying_name,
                    underlying_symbol, underlying_exchange, listing_status, tradable,
-                   aliases_json, duplicate_group, preferred_symbol, exclusion_reason,
-                   source_url, notes, updated_at_ms
+                   listing_date, min_listing_age_weeks, aliases_json, duplicate_group,
+                   preferred_symbol, exclusion_reason, source_url, notes, updated_at_ms
             FROM trade_xyz_assets
             {where}
             ORDER BY asset_class, trade_symbol
@@ -223,7 +235,9 @@ def _asset_row(asset: TradeXyzAsset, updated_at_ms: int) -> tuple[Any, ...]:
         asset.underlying_symbol,
         asset.underlying_exchange,
         asset.listing_status,
-        1 if asset.tradable else 0,
+        1 if is_asset_tradable(asset) else 0,
+        asset.listing_date,
+        asset.min_listing_age_weeks,
         json.dumps(list(asset.aliases), sort_keys=True),
         asset.duplicate_group,
         asset.preferred_symbol,
@@ -239,3 +253,10 @@ def _asset_dict(row: sqlite3.Row) -> dict[str, Any]:
     item["tradable"] = bool(item["tradable"])
     item["aliases"] = json.loads(item.pop("aliases_json"))
     return item
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    existing = {row[1] for row in rows}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
