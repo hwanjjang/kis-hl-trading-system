@@ -56,7 +56,7 @@ class KisCollectorTests(unittest.TestCase):
             summary = collect_trade_xyz_kis_quotes(
                 db,
                 client=FakeClient(),
-                symbols=["SAMSUNG", "AAPL", "XYZ100"],
+                symbols=["SAMSUNG", "AAPL", "EWY"],
                 store=True,
             )
 

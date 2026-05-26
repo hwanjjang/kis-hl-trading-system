@@ -63,7 +63,6 @@ flowchart LR
 
 - The active trade.xyz asset list and session hours can change; validate metadata before live orders.
 - KIS quote routing for NYSE Arca ETFs uses `AMS` and still needs live-account confirmation per ETF symbol.
-- `SP500` and `JP225` use KIS overseas index intraday chart data, not a dedicated current-price quote endpoint.
-- `XYZ100` has no KIS source route and remains unsupported for KIS market-data collection.
+- `XYZ100`, `SP500`, and `JP225` use KIS overseas index intraday chart data, not a dedicated current-price quote endpoint.
 - Hyperliquid SDK behavior for spot market orders should be tested with a small live or testnet order before using spot market orders operationally.
 - KIS websocket subscriptions are not implemented in this first scaffold.

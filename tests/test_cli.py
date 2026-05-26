@@ -146,10 +146,10 @@ class CliTests(unittest.TestCase):
             self.assertEqual(payload["stored_id"], 1)
             self.assertEqual(calls, [("005930", "J")])
 
-    def test_xyz_assets_kis_fetch_rejects_unsupported_mapping(self) -> None:
+    def test_xyz_assets_kis_fetch_rejects_excluded_mapping(self) -> None:
         class FakeKisClient:
             def __init__(self, _config: object) -> None:
-                raise AssertionError("unsupported assets must not call KIS")
+                raise AssertionError("excluded assets must not call KIS")
 
         with tempfile.TemporaryDirectory() as tmp:
             db_path = Path(tmp) / "test.sqlite"
@@ -165,11 +165,11 @@ class CliTests(unittest.TestCase):
                 patch("sys.stderr", stderr),
             ):
                 fetch_exit = main(
-                    ["--db", str(db_path), "xyz-assets", "kis-fetch", "--symbol", "XYZ100"]
+                    ["--db", str(db_path), "xyz-assets", "kis-fetch", "--symbol", "EWY"]
                 )
             self.assertEqual(fetch_exit, 1)
             payload = json.loads(stderr.getvalue().strip().splitlines()[-1])
-            self.assertIn("unsupported", payload["error"])
+            self.assertIn("excluded", payload["error"])
 
     def test_xyz_assets_kis_collect_fetches_batch_and_skips_unsupported(self) -> None:
         calls = []
@@ -212,7 +212,7 @@ class CliTests(unittest.TestCase):
                         "--symbols",
                         "SAMSUNG",
                         "KR200",
-                        "XYZ100",
+                        "EWY",
                     ]
                 )
             self.assertEqual(collect_exit, 0)

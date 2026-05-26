@@ -56,9 +56,9 @@ Current route policy:
 - U.S. stocks use the KIS overseas `price` endpoint with `NAS` or `NYS`.
 - NYSE Arca ETFs use `AMS` for the KIS overseas quote route and must be live-checked before a new ETF is traded.
 - `KR200` uses the KIS domestic index current-price endpoint with index code `2001`.
+- `XYZ100` maps to Nasdaq 100 and uses the KIS overseas index intraday chart endpoint with index code `NDX`.
 - `SP500` uses the KIS overseas index intraday chart endpoint with index code `SPX`.
 - `JP225` uses the KIS overseas index intraday chart endpoint with index code `JP#NI225`.
-- `XYZ100` remains `unsupported` because it is a trade.xyz proprietary index without a KIS source route.
 - `EWY` and `EWJ` retain quote mappings for auditability but are `excluded` because this project trades `KR200` and `JP225` instead.
 
 Operational commands:

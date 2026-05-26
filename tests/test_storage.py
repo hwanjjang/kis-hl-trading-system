@@ -145,10 +145,11 @@ class StorageTests(unittest.TestCase):
             self.assertIn("AAPL", active_symbols)
             self.assertIn("SAMSUNG", active_symbols)
             self.assertIn("KR200", active_symbols)
+            self.assertIn("XYZ100", active_symbols)
 
             unsupported = list_trade_xyz_kis_mappings(db, status="unsupported")
             unsupported_symbols = {item["trade_symbol"] for item in unsupported}
-            self.assertIn("XYZ100", unsupported_symbols)
+            self.assertNotIn("XYZ100", unsupported_symbols)
 
     def test_get_trade_xyz_kis_mapping_resolves_aliases_and_hyperliquid_coins(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

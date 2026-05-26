@@ -86,7 +86,7 @@ python -m kis_hl.cli xyz-assets kis-fetch --symbol SAMSUNG --store
 python -m kis_hl.cli xyz-assets kis-collect --symbols SAMSUNG KR200 SP500 --delay-ms 300
 ```
 
-`kis-fetch` rejects excluded or unsupported mappings. `kis-collect` stores active mappings by default and continues after per-symbol failures unless `--fail-fast` is passed. `KR200` uses the KIS domestic index current-price endpoint. `SP500` and `JP225` use the KIS overseas index intraday chart endpoint. `XYZ100` remains unsupported because it is a trade.xyz proprietary index without a KIS source route.
+`kis-fetch` rejects excluded or unsupported mappings. `kis-collect` stores active mappings by default and continues after per-symbol failures unless `--fail-fast` is passed. `KR200` uses the KIS domestic index current-price endpoint. `XYZ100`, `SP500`, and `JP225` use the KIS overseas index intraday chart endpoint.
 
 Prepare an order without sending it:
 

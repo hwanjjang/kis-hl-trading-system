@@ -53,6 +53,14 @@ _INDEX_ROUTES = {
         "source": "kis_overseas_time_indexchartprice",
         "notes": "Uses KIS overseas index intraday chart endpoint for S&P 500 latest available data.",
     },
+    "XYZ100": {
+        "kis_market": KIS_MARKET_OVERSEAS_INDEX_TIME,
+        "kis_symbol": "NDX",
+        "kis_exchange_code": None,
+        "kis_market_code": "N",
+        "source": "kis_overseas_time_indexchartprice",
+        "notes": "Uses KIS overseas index intraday chart endpoint for Nasdaq 100 latest available data.",
+    },
     "JP225": {
         "kis_market": KIS_MARKET_OVERSEAS_INDEX_TIME,
         "kis_symbol": "JP#NI225",

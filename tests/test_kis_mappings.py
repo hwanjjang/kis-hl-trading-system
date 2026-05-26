@@ -32,13 +32,8 @@ class KisMappingsTests(unittest.TestCase):
         self.assertEqual(mappings["SP500"].kis_market, "overseas_index_time")
         self.assertEqual(mappings["SP500"].kis_symbol, "SPX")
         self.assertEqual(mappings["JP225"].kis_symbol, "JP#NI225")
-
-    def test_marks_trade_xyz_proprietary_index_as_unsupported(self) -> None:
-        mappings = {item.trade_symbol: item for item in build_trade_xyz_kis_mappings()}
-
-        self.assertEqual(mappings["XYZ100"].status, "unsupported")
-        self.assertEqual(mappings["XYZ100"].kis_market, "unsupported")
-        self.assertIn("not implemented", mappings["XYZ100"].reason)
+        self.assertEqual(mappings["XYZ100"].kis_market, "overseas_index_time")
+        self.assertEqual(mappings["XYZ100"].kis_symbol, "NDX")
 
     def test_keeps_duplicate_exposure_etfs_excluded(self) -> None:
         mappings = {item.trade_symbol: item for item in build_trade_xyz_kis_mappings()}
