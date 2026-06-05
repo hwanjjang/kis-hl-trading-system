@@ -1,2 +1,2 @@
 hyperliquid-python-sdk
-
+websocket-client

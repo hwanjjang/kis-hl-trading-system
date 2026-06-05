@@ -33,6 +33,22 @@ class TradeXyzVerifierTests(unittest.TestCase):
             self.assertTrue(latest["available"])
             self.assertEqual(latest["mid_source_key"], "xyz:KR200")
 
+    def test_verify_trade_xyz_commodities_uses_hyperliquid_market_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "test.sqlite"
+            checks = verify_trade_xyz_assets(
+                db,
+                mids={"xyz:CL": "61.2", "xyz:GOLD": "3325.0"},
+                tradable_only=True,
+                asset_class="commodity",
+                checked_at_ms=100,
+            )
+            by_symbol = {check["trade_symbol"]: check for check in checks}
+            self.assertTrue(by_symbol["WTIOIL"]["available"])
+            self.assertEqual(by_symbol["WTIOIL"]["mid_source_key"], "xyz:CL")
+            self.assertTrue(by_symbol["GOLD"]["available"])
+            self.assertFalse(by_symbol["BRENTOIL"]["available"])
+
 
 if __name__ == "__main__":
     unittest.main()

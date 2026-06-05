@@ -42,6 +42,7 @@ def resolve_hyperliquid_symbol(symbol: str, *, dex: str | None = None) -> Resolv
         )
 
     compact = raw.upper().replace("-", "").replace("_", "").replace(" ", "")
+    compact_no_slash = compact.replace("/", "")
     if compact in {"BTCUSDC", "BTC/USD", "BTC/USDC"} or raw.upper() == "BTC/USDC":
         return ResolvedAsset(
             original=symbol,
@@ -50,11 +51,16 @@ def resolve_hyperliquid_symbol(symbol: str, *, dex: str | None = None) -> Resolv
             note="Hyperliquid mainnet L1 remaps UI BTC/USDC to UBTC/USDC",
         )
 
+    if compact_no_slash in {"BTCPERP", "BTCPERPETUAL", "BTCUSDCPERP", "BTCUSDCPERPETUAL"}:
+        return ResolvedAsset(
+            original=symbol,
+            coin="BTC",
+            kind="perp",
+            note="Hyperliquid BTCUSDC futures/perpetual market uses the BTC perp coin",
+        )
+
     if "/" in raw:
         return ResolvedAsset(original=symbol, coin=raw.upper(), kind="spot")
-
-    if compact in {"BTCPERP", "BTCPERPETUAL"}:
-        return ResolvedAsset(original=symbol, coin="BTC", kind="perp")
 
     return ResolvedAsset(original=symbol, coin=compact, kind="perp")
 

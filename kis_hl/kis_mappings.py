@@ -71,6 +71,79 @@ _INDEX_ROUTES = {
     },
 }
 
+_REFERENCE_ONLY_ROUTES = {
+    "BRENTOIL": {
+        "kis_symbol": "BZ",
+        "kis_exchange_code": "CME",
+        "source": "kis_overseas_future_pending",
+        "reason": "KIS overseas futures collection needs dynamic SRS_CD contract resolution.",
+        "notes": "Reference root is CME Brent crude futures. Do not collect until ffcode.mst front-contract resolution is implemented.",
+    },
+    "WTIOIL": {
+        "kis_symbol": "CL",
+        "kis_exchange_code": "CME",
+        "source": "kis_overseas_future_pending",
+        "reason": "KIS overseas futures collection needs dynamic SRS_CD contract resolution.",
+        "notes": "Reference root is CME WTI crude futures. Hyperliquid exposes the market as xyz:CL.",
+    },
+    "NATGAS": {
+        "kis_symbol": "NG",
+        "kis_exchange_code": "CME",
+        "source": "kis_overseas_future_pending",
+        "reason": "KIS overseas futures collection needs dynamic SRS_CD contract resolution.",
+        "notes": "Reference root is CME Henry Hub natural gas futures. Do not collect until ffcode.mst front-contract resolution is implemented.",
+    },
+    "COPPER": {
+        "kis_symbol": "HG",
+        "kis_exchange_code": "CME",
+        "source": "kis_overseas_future_pending",
+        "reason": "KIS overseas futures collection needs dynamic SRS_CD contract resolution.",
+        "notes": "Reference root is CME copper futures. Do not collect until ffcode.mst front-contract resolution is implemented.",
+    },
+    "GOLD": {
+        "kis_symbol": "XAUUSD",
+        "kis_exchange_code": None,
+        "source": "pyth_spot_reference",
+        "reason": "No exact KIS spot metal quote route is implemented.",
+        "notes": "trade.xyz references XAU/USD spot; a KIS gold futures quote would be a proxy and is not enabled.",
+    },
+    "SILVER": {
+        "kis_symbol": "XAGUSD",
+        "kis_exchange_code": None,
+        "source": "pyth_spot_reference",
+        "reason": "No exact KIS spot metal quote route is implemented.",
+        "notes": "trade.xyz references XAG/USD spot; a KIS silver futures quote would be a proxy and is not enabled.",
+    },
+    "PLATINUM": {
+        "kis_symbol": "XPTUSD",
+        "kis_exchange_code": None,
+        "source": "pyth_spot_reference",
+        "reason": "No exact KIS spot metal quote route is implemented.",
+        "notes": "trade.xyz references XPT/USD spot; a KIS platinum futures quote would be a proxy and is not enabled.",
+    },
+    "PALLADIUM": {
+        "kis_symbol": "XPDUSD",
+        "kis_exchange_code": None,
+        "source": "pyth_spot_reference",
+        "reason": "No exact KIS spot metal quote route is implemented.",
+        "notes": "trade.xyz references XPD/USD spot; a KIS palladium futures quote would be a proxy and is not enabled.",
+    },
+    "JPY": {
+        "kis_symbol": "USDJPY",
+        "kis_exchange_code": None,
+        "source": "pyth_fx_reference",
+        "reason": "No KIS FX quote route is implemented for trade.xyz FX references.",
+        "notes": "trade.xyz references USD/JPY.",
+    },
+    "EUR": {
+        "kis_symbol": "EURUSD",
+        "kis_exchange_code": None,
+        "source": "pyth_fx_reference",
+        "reason": "No KIS FX quote route is implemented for trade.xyz FX references.",
+        "notes": "trade.xyz references EUR/USD.",
+    },
+}
+
 
 @dataclass(frozen=True, slots=True)
 class KisMarketDataMapping:
@@ -128,6 +201,26 @@ def build_trade_xyz_kis_mapping(
             kis_market_code=str(route["kis_market_code"]),
             status=eligibility_status,
             reason=eligibility_reason,
+            source=str(route["source"]),
+            notes=str(route["notes"]),
+        )
+
+    if asset.trade_symbol in _REFERENCE_ONLY_ROUTES:
+        route = _REFERENCE_ONLY_ROUTES[asset.trade_symbol]
+        return KisMarketDataMapping(
+            trade_symbol=asset.trade_symbol,
+            hyperliquid_coin=asset.hyperliquid_coin,
+            asset_class=asset.asset_class,
+            kis_market=KIS_MARKET_UNSUPPORTED,
+            kis_symbol=str(route["kis_symbol"]),
+            kis_exchange_code=route["kis_exchange_code"],
+            kis_market_code=None,
+            status=(
+                KIS_MAPPING_UNSUPPORTED
+                if eligibility_status == KIS_MAPPING_ACTIVE
+                else KIS_MAPPING_EXCLUDED
+            ),
+            reason=eligibility_reason or str(route["reason"]),
             source=str(route["source"]),
             notes=str(route["notes"]),
         )

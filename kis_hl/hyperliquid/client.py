@@ -5,9 +5,10 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from uuid import uuid4
 
 from kis_hl.assets import ResolvedAsset, resolve_hyperliquid_symbol
@@ -15,6 +16,7 @@ from kis_hl.config import HyperliquidConfig
 from kis_hl.logging_utils import get_logger
 from kis_hl.storage import has_recent_successful_trade_xyz_check
 from kis_hl.trade_xyz_assets import is_trade_xyz_symbol_tradable, normalize_trade_symbol
+from kis_hl.trading_hours import trading_session_decision_for_resolved_asset
 
 logger = get_logger(__name__)
 
@@ -68,6 +70,15 @@ class HyperliquidInfoClient:
             raise RuntimeError("Hyperliquid spotMeta returned a non-object response")
         return result
 
+    def meta_and_asset_ctxs(self, *, dex: str | None = None) -> list[Any]:
+        payload: dict[str, Any] = {"type": "metaAndAssetCtxs"}
+        if dex:
+            payload["dex"] = dex
+        result = self.post_info(payload)
+        if not isinstance(result, list) or len(result) < 2:
+            raise RuntimeError("Hyperliquid metaAndAssetCtxs returned an unexpected response")
+        return result
+
     def l2_book(self, symbol: str, *, dex: str | None = None) -> Any:
         resolved = resolve_hyperliquid_symbol(symbol, dex=dex)
         return self.post_info({"type": "l2Book", "coin": resolved.coin})
@@ -94,6 +105,75 @@ class HyperliquidInfoClient:
             }
         )
 
+    def funding_history(
+        self,
+        symbol: str,
+        *,
+        start_time_ms: int,
+        end_time_ms: int,
+        dex: str | None = None,
+    ) -> list[dict[str, Any]]:
+        resolved = resolve_hyperliquid_symbol(symbol, dex=dex)
+        result = self.post_info(
+            {
+                "type": "fundingHistory",
+                "coin": resolved.coin,
+                "startTime": start_time_ms,
+                "endTime": end_time_ms,
+            }
+        )
+        if not isinstance(result, list):
+            raise RuntimeError("Hyperliquid fundingHistory returned a non-list response")
+        return [item for item in result if isinstance(item, dict)]
+
+    def clearinghouse_state(self, *, user: str | None = None, dex: str | None = None) -> Any:
+        payload = {"type": "clearinghouseState", "user": self._resolve_user(user)}
+        if dex:
+            payload["dex"] = dex
+        return self.post_info(payload)
+
+    def spot_clearinghouse_state(self, *, user: str | None = None) -> Any:
+        return self.post_info({"type": "spotClearinghouseState", "user": self._resolve_user(user)})
+
+    def all_dexs_clearinghouse_state(self, *, user: str | None = None) -> Any:
+        return self.post_info(
+            {
+                "type": "clearinghouseState",
+                "user": self._resolve_user(user),
+                "dex": "ALL_DEXES",
+            }
+        )
+
+    def account_asset_info(
+        self,
+        *,
+        user: str | None = None,
+        include_spot: bool = True,
+        include_all_dexs: bool = False,
+        dexes: list[str] | tuple[str, ...] | None = None,
+    ) -> dict[str, Any]:
+        resolved_user = self._resolve_user(user)
+        result: dict[str, Any] = {
+            "user": resolved_user,
+            "perp": self.clearinghouse_state(user=resolved_user),
+        }
+        if include_spot:
+            result["spot"] = self.spot_clearinghouse_state(user=resolved_user)
+        if include_all_dexs:
+            result["all_dexs"] = self.all_dexs_clearinghouse_state(user=resolved_user)
+        if dexes:
+            result["dexes"] = {
+                dex: self.clearinghouse_state(user=resolved_user, dex=dex)
+                for dex in dexes
+            }
+        return result
+
+    def _resolve_user(self, user: str | None) -> str:
+        resolved = (user or self.config.account_address).strip()
+        if not resolved:
+            raise RuntimeError("Hyperliquid wallet address is required")
+        return resolved
+
 
 class HyperliquidTradingClient:
     def __init__(
@@ -102,10 +182,12 @@ class HyperliquidTradingClient:
         *,
         verification_db_path: str | Path | None = None,
         verification_max_age_hours: int = 24,
+        now: Callable[[], datetime] | None = None,
     ) -> None:
         self.config = config
         self.verification_db_path = verification_db_path
         self.verification_max_age_ms = verification_max_age_hours * 60 * 60 * 1000
+        self._now = now or (lambda: datetime.now(timezone.utc))
         self._sdk: tuple[Any, Any] | None = None
 
     def place_order(
@@ -116,23 +198,35 @@ class HyperliquidTradingClient:
         order_type: str,
         size: Decimal,
         price: Decimal | None = None,
+        trigger_price: Decimal | None = None,
+        tpsl: str = "sl",
         reduce_only: bool = False,
         tif: str = "Gtc",
         slippage: Decimal = Decimal("0.05"),
         dex: str | None = None,
         dry_run: bool = True,
+        allow_outside_session: bool = False,
     ) -> OrderSubmission:
         resolved = resolve_hyperliquid_symbol(symbol, dex=dex)
         normalized_side = side.lower()
         normalized_type = order_type.lower()
         if normalized_side not in {"buy", "sell"}:
             raise ValueError("side must be buy or sell")
-        if normalized_type not in {"limit", "market"}:
-            raise ValueError("order_type must be limit or market")
+        if normalized_type not in {"limit", "market", "stop-market"}:
+            raise ValueError("order_type must be limit, market, or stop-market")
+        normalized_tpsl = tpsl.lower()
+        if normalized_tpsl not in {"tp", "sl"}:
+            raise ValueError("tpsl must be tp or sl")
         if size <= 0:
             raise ValueError("size must be positive")
         if normalized_type == "limit" and (price is None or price <= 0):
             raise ValueError("limit orders require a positive price")
+        if normalized_type == "stop-market":
+            if trigger_price is None or trigger_price <= 0:
+                raise ValueError("stop-market orders require a positive trigger_price")
+            if not reduce_only:
+                raise ValueError("stop-market stop-loss orders require reduce_only=True")
+        execution_price = price if price is not None else trigger_price
 
         request = {
             "client_request_id": uuid4().hex,
@@ -143,11 +237,15 @@ class HyperliquidTradingClient:
             "side": normalized_side,
             "order_type": normalized_type,
             "size": str(size),
-            "price": str(price) if price is not None else None,
+            "price": str(execution_price) if execution_price is not None else None,
+            "trigger_price": str(trigger_price) if trigger_price is not None else None,
+            "trigger_is_market": normalized_type == "stop-market",
+            "tpsl": normalized_tpsl if normalized_type == "stop-market" else None,
             "reduce_only": reduce_only,
             "tif": tif,
             "base_url": self.config.base_url,
             "key_profile": self.config.key_profile,
+            "allow_outside_session": allow_outside_session,
         }
         if dry_run:
             logger.info("hyperliquid_order_dry_run", extra={"resolved_coin": resolved.coin})
@@ -160,6 +258,27 @@ class HyperliquidTradingClient:
         self._require_recent_verification(resolved)
 
         self._require_credentials()
+        if not reduce_only:
+            session_decision = trading_session_decision_for_resolved_asset(
+                resolved,
+                now=self._now(),
+            )
+            request["session"] = asdict(session_decision)
+            logger.info(
+                "hyperliquid_session_decision",
+                extra={
+                    "resolved_coin": resolved.coin,
+                    "session_group": session_decision.session_group,
+                    "allowed": session_decision.allowed,
+                    "reason": session_decision.reason,
+                    "allow_outside_session": allow_outside_session,
+                },
+            )
+            if not session_decision.allowed and not allow_outside_session:
+                raise RuntimeError(
+                    "Underlying market session is closed for "
+                    f"{resolved.coin}: {session_decision.reason}"
+                )
         _info, exchange = self._load_sdk()
         order_coin = self._resolve_live_order_coin(resolved)
         request["order_coin"] = order_coin
@@ -174,12 +293,21 @@ class HyperliquidTradingClient:
                     float(slippage),
                 )
             else:
-                order_payload = {"limit": {"tif": tif}}
+                if normalized_type == "stop-market":
+                    order_payload = {
+                        "trigger": {
+                            "isMarket": True,
+                            "triggerPx": _decimal_to_api_string(trigger_price),
+                            "tpsl": normalized_tpsl,
+                        }
+                    }
+                else:
+                    order_payload = {"limit": {"tif": tif}}
                 response = exchange.order(
                     order_coin,
                     is_buy,
                     float(size),
-                    float(price),
+                    float(execution_price),
                     order_payload,
                     reduce_only,
                 )
@@ -191,6 +319,30 @@ class HyperliquidTradingClient:
             raise
         logger.info("hyperliquid_order_submitted", extra={"resolved_coin": resolved.coin})
         return OrderSubmission("submitted", False, resolved, request, response)
+
+    def place_stop_loss_order(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        size: Decimal,
+        trigger_price: Decimal,
+        price: Decimal | None = None,
+        dex: str | None = None,
+        dry_run: bool = True,
+    ) -> OrderSubmission:
+        return self.place_order(
+            symbol=symbol,
+            side=side,
+            order_type="stop-market",
+            size=size,
+            price=price,
+            trigger_price=trigger_price,
+            tpsl="sl",
+            reduce_only=True,
+            dex=dex,
+            dry_run=dry_run,
+        )
 
     def user_state(self) -> Any:
         self._require_credentials()
@@ -258,8 +410,31 @@ def submission_to_dict(submission: OrderSubmission) -> dict[str, Any]:
     }
 
 
+def extract_hyperliquid_order_id(response: Any) -> str | None:
+    if isinstance(response, dict):
+        for key in ("oid", "orderId", "order_id"):
+            value = response.get(key)
+            if value not in (None, ""):
+                return str(value)
+        for key in ("resting", "filled", "triggered", "response", "data", "statuses"):
+            value = response.get(key)
+            if value is None:
+                continue
+            found = extract_hyperliquid_order_id(value)
+            if found is not None:
+                return found
+    if isinstance(response, list):
+        for item in response:
+            found = extract_hyperliquid_order_id(item)
+            if found is not None:
+                return found
+    return None
+
+
 def is_supported_live_asset(resolved: ResolvedAsset) -> bool:
     if resolved.kind == "spot" and resolved.coin == "UBTC/USDC":
+        return True
+    if resolved.kind == "perp" and resolved.coin == "BTC" and resolved.dex is None:
         return True
     if resolved.dex != "xyz" or not resolved.coin.startswith("xyz:"):
         return False
@@ -310,3 +485,9 @@ def _spot_pair_from_token_ids(raw_tokens: Any, token_names: dict[int, str]) -> s
     if not base or not quote:
         return None
     return f"{base}/{quote}"
+
+
+def _decimal_to_api_string(value: Decimal | None) -> str:
+    if value is None:
+        raise ValueError("value is required")
+    return format(value.normalize(), "f")

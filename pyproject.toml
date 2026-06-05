@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "hyperliquid-python-sdk",
+  "websocket-client",
 ]
 
 [project.scripts]
@@ -13,4 +14,3 @@ kis-hl = "kis_hl.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["kis_hl*"]
-

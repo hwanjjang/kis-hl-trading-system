@@ -43,6 +43,17 @@ class KisMappingsTests(unittest.TestCase):
         self.assertEqual(mappings["EWY"].kis_exchange_code, "AMS")
         self.assertIn("KR200", mappings["EWY"].reason)
 
+    def test_preserves_reference_only_commodity_and_fx_mappings(self) -> None:
+        mappings = {item.trade_symbol: item for item in build_trade_xyz_kis_mappings()}
+
+        self.assertEqual(mappings["WTIOIL"].status, "unsupported")
+        self.assertEqual(mappings["WTIOIL"].kis_market, "unsupported")
+        self.assertEqual(mappings["WTIOIL"].kis_symbol, "CL")
+        self.assertEqual(mappings["WTIOIL"].hyperliquid_coin, "xyz:CL")
+        self.assertIn("dynamic SRS_CD", mappings["WTIOIL"].reason)
+        self.assertEqual(mappings["GOLD"].kis_symbol, "XAUUSD")
+        self.assertEqual(mappings["JPY"].kis_symbol, "USDJPY")
+
     def test_recent_listing_is_excluded_even_when_quote_route_exists(self) -> None:
         mapping = get_trade_xyz_kis_mapping("CRCL", as_of=date(2025, 7, 1))
 

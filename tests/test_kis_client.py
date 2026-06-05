@@ -65,6 +65,22 @@ class KisClientTests(unittest.TestCase):
             },
         )
 
+    def test_websocket_approval_key_uses_approval_endpoint(self) -> None:
+        client = RecordingKisClient()
+
+        approval_key = client.get_websocket_approval_key()
+
+        self.assertEqual(approval_key, "approval")
+        self.assertEqual(client.json_calls[0]["path"], "/oauth2/Approval")
+        self.assertEqual(
+            client.json_calls[0]["body"],
+            {
+                "grant_type": "client_credentials",
+                "appkey": "key",
+                "secretkey": "secret",
+            },
+        )
+
 
 class RecordingKisClient(KisClient):
     def __init__(self) -> None:
@@ -86,6 +102,7 @@ class RecordingKisClient(KisClient):
             )
         )
         self.calls: list[dict[str, Any]] = []
+        self.json_calls: list[dict[str, Any]] = []
 
     def _request_with_auth(
         self,
@@ -106,6 +123,26 @@ class RecordingKisClient(KisClient):
             }
         )
         return KisHttpResponse(200, {"rt_cd": "0"}, {})
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        headers: dict[str, str],
+        query: dict[str, str | int | float | None] | None = None,
+        body: dict[str, Any] | None = None,
+    ) -> KisHttpResponse:
+        self.json_calls.append(
+            {
+                "method": method,
+                "path": path,
+                "headers": headers,
+                "query": query,
+                "body": body,
+            }
+        )
+        return KisHttpResponse(200, {"approval_key": "approval"}, {})
 
 
 if __name__ == "__main__":

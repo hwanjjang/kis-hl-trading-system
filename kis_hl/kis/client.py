@@ -129,6 +129,26 @@ class KisClient:
         self._write_token_cache(fresh)
         return fresh.access_token
 
+    def get_websocket_approval_key(self) -> str:
+        response = self._request_json(
+            "POST",
+            "/oauth2/Approval",
+            headers={
+                "content-type": "application/json; charset=utf-8",
+                "accept": "application/json",
+            },
+            body={
+                "grant_type": "client_credentials",
+                "appkey": self.config.app_key,
+                "secretkey": self.config.app_secret,
+            },
+        )
+        if response.status >= 400:
+            raise RuntimeError(f"KIS websocket approval request failed: HTTP {response.status}")
+        if not isinstance(response.body, dict) or "approval_key" not in response.body:
+            raise RuntimeError("KIS websocket approval response is missing approval_key")
+        return str(response.body["approval_key"])
+
     def _request_with_auth(
         self,
         method: str,

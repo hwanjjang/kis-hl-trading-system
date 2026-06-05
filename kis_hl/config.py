@@ -10,6 +10,11 @@ KIS_BASE_URLS = {
     "live": "https://openapi.koreainvestment.com:9443",
 }
 
+KIS_WS_URLS = {
+    "sim": "ws://ops.koreainvestment.com:31000",
+    "live": "ws://ops.koreainvestment.com:21000",
+}
+
 HL_MAINNET_URL = "https://api.hyperliquid.xyz"
 HL_TESTNET_URL = "https://api.hyperliquid-testnet.xyz"
 
@@ -35,6 +40,7 @@ class KisConfig:
     min_request_interval_ms: int
     rate_limit_retries: int
     rate_limit_delay_ms: int
+    ws_url: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +49,7 @@ class HyperliquidConfig:
     account_address: str
     private_key: str
     key_profile: str
+    ws_url: str = ""
 
 
 def load_env_file(path: str | Path = ".env", *, override: bool = False) -> None:
@@ -103,6 +110,7 @@ def load_kis_config(env: Mapping[str, str] | None = None) -> KisConfig:
         min_request_interval_ms=int(source.get("KIS_MIN_REQUEST_INTERVAL_MS", "300")),
         rate_limit_retries=int(source.get("KIS_RATE_LIMIT_RETRIES", "2")),
         rate_limit_delay_ms=int(source.get("KIS_RATE_LIMIT_DELAY_MS", "500")),
+        ws_url=source.get("KIS_WS_ST_URL" if mode == "sim" else "KIS_WS_URL", KIS_WS_URLS[mode]),
     )
 
 
@@ -134,6 +142,7 @@ def load_hyperliquid_config(env: Mapping[str, str] | None = None) -> Hyperliquid
         account_address=source.get(address_name, "").strip(),
         private_key=private_key,
         key_profile=profile,
+        ws_url=source.get("HYPERLIQUID_WS_URL", "").strip(),
     )
 
 
