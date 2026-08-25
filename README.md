@@ -234,6 +234,7 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 
 ## References
 
+- `.agents/skills/kis-open-api/` (also linked as `.claude/skills/kis-open-api/`) is the KIS Open API skill for Claude Code and Codex: auth/transport rules, endpoint and TR ID tables, websocket protocol, and a search script over the official `koreainvestment/open-trading-api` samples.
 - `../ccxt-tradingview-webhook` for KIS TR IDs, token caching, and request throttling patterns.
 - `../grid-bot-rotation-strategy` for official Hyperliquid Python SDK usage.
 - Hyperliquid API docs for public info, signed exchange actions, asset IDs, tick/lot size, and API wallet rules.

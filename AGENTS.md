@@ -11,6 +11,7 @@
 
 ## Documentation
 
+- For any KIS Open API work (new endpoint, TR ID, token/rate-limit issue, KIS route for a trade.xyz asset), read `.agents/skills/kis-open-api/SKILL.md` first and keep its endpoint tables in sync when `kis_hl/kis/client.py` changes.
 - Update documentation whenever behavior, setup, schema, asset eligibility, trading safety, or operational assumptions change.
 - Keep README focused on usage.
 - Keep deeper design notes in `docs/`.
