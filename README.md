@@ -234,6 +234,7 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 
 ## References
 
+- `AGENTS.md` holds the shared agent rules, and `CLAUDE.md` is the Claude Code entry point with the file-ownership table used to keep documentation single-sourced.
 - `.agents/skills/kis-open-api/` (also linked as `.claude/skills/kis-open-api/`) is the KIS Open API skill for Claude Code and Codex: auth/transport rules, endpoint and TR ID tables, websocket protocol, and a search script over the official `koreainvestment/open-trading-api` samples.
 - `../ccxt-tradingview-webhook` for KIS TR IDs, token caching, and request throttling patterns.
 - `../grid-bot-rotation-strategy` for official Hyperliquid Python SDK usage.
