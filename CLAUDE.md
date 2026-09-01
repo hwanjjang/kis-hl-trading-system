@@ -22,6 +22,7 @@ link to it instead.
 | Underlying market sessions and live-entry session policy | `docs/trading_hours.md` | Paired with `kis_hl/trading_hours.py` |
 | trade.xyz asset universe, eligibility, exclusions | `docs/trade_xyz_assets.md` + `kis_hl/trade_xyz_assets.py` | Doc explains policy, code is the seed of record |
 | KIS endpoints, TR IDs, auth, rate limits, websocket protocol | `.agents/skills/kis-open-api/` | Symlinked as `.claude/skills/kis-open-api/` |
+| Hyperliquid endpoints, order schema, asset ids, tick/lot rules, rate limits, websocket protocol | `.agents/skills/hyperliquid-api/` | Symlinked as `.claude/skills/hyperliquid-api/` |
 | Non-secret env variable template | `.env.example` | `.env` stays untracked |
 | Runtime eligibility and verification state | SQLite tables | Code and tests are the contract, not prose |
 
@@ -38,6 +39,10 @@ must be corrected.
 - Use the `kis-open-api` skill for any KIS REST or WebSocket work, TR ID lookup,
   token/`approval_key`/`EGW00201` rate-limit issue, or trade.xyz-to-KIS route
   question, and keep its endpoint tables in sync with `kis_hl/kis/client.py`.
+- Use the `hyperliquid-api` skill for any Hyperliquid REST or WebSocket work,
+  `/info` type or `/exchange` action lookup, symbol-to-coin/asset-id resolution,
+  tick/lot sizing, or order-rejection question, and keep its tables in sync with
+  `kis_hl/hyperliquid/client.py` and `kis_hl/hyperliquid/ws.py`.
 - Keep changes minimal and incremental, and keep the CLI-first shape. New behavior
   belongs in a focused module under `kis_hl/` with a matching test in `tests/`.
 - Write all code, comments, docs, CLI text, and commit messages in English.
