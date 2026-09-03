@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Live Hyperliquid Order Request Sequence",
+    "locale": "en",
+    "output": "docs/architecture/live-order-sequence.html",
+    "quality_profile": "showcase",
+    "viewBox": [1080, 550],
+    "views": [
+      { "id": "dispatch", "label": "CLI dispatch", "focus": ["operator", "cli", "trading"], "note": "The parsed trade command creates a configured trading client." },
+      { "id": "guards", "label": "Fail-closed guards", "focus": ["trading", "policy", "sqlite"], "note": "Eligibility, recent xyz verification, credentials, and session policy run before SDK submission." },
+      { "id": "submit_audit", "label": "Submit and audit", "focus": ["trading", "sdk", "hyperliquid", "cli", "sqlite", "operator"], "note": "The signed response is normalized, persisted, and printed as JSON." }
+    ]
+  },
+  "participants": [
+    { "id": "operator", "type": "external", "label": "Operator", "sublabel": "trade --live" },
+    { "id": "cli", "type": "frontend", "label": "kis_hl.cli", "sublabel": "cmd_trade" },
+    { "id": "trading", "type": "backend", "label": "TradingClient", "sublabel": "place_order" },
+    { "id": "policy", "type": "security", "label": "Safety Rules", "sublabel": "symbol + session" },
+    { "id": "sqlite", "type": "database", "label": "SQLite", "sublabel": "checks + audit" },
+    { "id": "sdk", "type": "backend", "label": "HL SDK", "sublabel": "Exchange" },
+    { "id": "hyperliquid", "type": "external", "label": "Hyperliquid", "sublabel": "exchange API" }
+  ],
+  "segments": [
+    { "from": 150, "to": 210, "label": "Dispatch" },
+    { "from": 215, "to": 330, "label": "Fail-closed validation" },
+    { "from": 335, "to": 475, "label": "Submission and audit" }
+  ],
+  "messages": [
+    { "id": "invoke", "from": "operator", "to": "cli", "y": 168, "label": "trade --live + order fields", "variant": "emphasis" },
+    { "id": "place_order", "from": "cli", "to": "trading", "y": 198, "label": "configured place_order(dry_run=False)", "variant": "emphasis" },
+    { "id": "resolve_validate", "from": "trading", "to": "policy", "y": 228, "label": "resolve + validate + session policy", "variant": "security" },
+    { "id": "recent_check", "from": "trading", "to": "sqlite", "y": 258, "label": "recent successful xyz check?", "variant": "security", "note": "Only for dex=xyz" },
+    { "id": "check_result", "from": "sqlite", "to": "trading", "y": 288, "label": "availability + freshness", "variant": "return" },
+    { "id": "sdk_order", "from": "trading", "to": "sdk", "y": 338, "label": "market_open() or order() after guards", "variant": "emphasis" },
+    { "id": "signed_request", "from": "sdk", "to": "hyperliquid", "y": 368, "label": "signed exchange action", "variant": "emphasis" },
+    { "id": "exchange_response", "from": "hyperliquid", "to": "sdk", "y": 398, "label": "order response", "variant": "return" },
+    { "id": "normalized", "from": "trading", "to": "cli", "y": 428, "label": "SDK result → OrderSubmission", "variant": "return" },
+    { "id": "audit", "from": "cli", "to": "sqlite", "y": 458, "label": "store audit; print JSON result", "variant": "dashed" }
+  ],
+  "activations": [
+    { "participant": "cli", "from": 168, "to": 468, "type": "frontend" },
+    { "participant": "trading", "from": 194, "to": 434, "type": "backend" },
+    { "participant": "policy", "from": 224, "to": 248, "type": "security" },
+    { "participant": "sqlite", "from": 254, "to": 468, "type": "database" },
+    { "participant": "sdk", "from": 334, "to": 410, "type": "backend" },
+    { "participant": "hyperliquid", "from": 364, "to": 404, "type": "external" }
+  ],
+  "cards": [
+    { "dot": "rose", "title": "Guard Evidence", "items": ["client.py:193–281 validates fields, allowlist, verification, credentials, and session", "client.py:389–399 queries SQLite freshness for xyz", "Tests cover allowlist and verification rejection"] },
+    { "dot": "emerald", "title": "Submission & Scope", "items": ["client.py:282–321 invokes SDK market_open/order", "cli.py:530–588 stores the response", "Failed guards and dry-run return before SDK submission"] }
+  ]
+}
