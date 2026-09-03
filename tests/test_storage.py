@@ -323,7 +323,7 @@ class StorageTests(unittest.TestCase):
             self.assertEqual(len(entries), 1)
             self.assertEqual(entries[0]["symbol"], "xyz:SP500")
             self.assertEqual(entries[0]["realized_pnl"], "10")
-            self.assertEqual(entries[0]["stats"]["success_failure_ratio"], "1:0")
+            self.assertIsNone(entries[0]["stats"]["success_failure_ratio"])
 
     def test_seed_trade_xyz_assets_excludes_duplicate_etf_exposures(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

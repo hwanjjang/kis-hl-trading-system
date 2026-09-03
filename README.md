@@ -181,7 +181,7 @@ python -m kis_hl.cli journal add \
 python -m kis_hl.cli journal stats
 ```
 
-The journal report includes average profit, average loss, success/failure ratio, win rate, adjusted success/failure ratio, max profit, max loss, average profit holding days, and average loss holding days.
+The journal report calculates the nine review statistics from completed-position net return percentages. `success_failure_ratio` is average positive return divided by the absolute average negative return; `adjusted_success_failure_ratio` also weights those averages by win and loss frequency. Breakevens remain in the trade count but are excluded from the win-rate and ratio denominators. See `.agents/skills/trade-journal/` for the record boundary, formulas, holding-day convention, and edge cases.
 
 Prepare an order without sending it:
 
@@ -236,6 +236,8 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 
 - `AGENTS.md` holds the shared agent rules, and `CLAUDE.md` is the Claude Code entry point with the file-ownership table used to keep documentation single-sourced.
 - `.agents/skills/kis-open-api/` (also linked as `.claude/skills/kis-open-api/`) is the KIS Open API skill for Claude Code and Codex: auth/transport rules, endpoint and TR ID tables, websocket protocol, and a search script over the official `koreainvestment/open-trading-api` samples.
+- `.agents/skills/hyperliquid-api/` (also linked as `.claude/skills/hyperliquid-api/`) owns Hyperliquid REST/WebSocket, symbol, sizing, rate-limit, and rejection rules used by this repo.
+- `.agents/skills/trade-journal/` (also linked as `.claude/skills/trade-journal/`) owns the completed-trade record contract and the nine Minervini-style review-statistics formulas.
 - `../ccxt-tradingview-webhook` for KIS TR IDs, token caching, and request throttling patterns.
 - `../grid-bot-rotation-strategy` for official Hyperliquid Python SDK usage.
 - Hyperliquid API docs for public info, signed exchange actions, asset IDs, tick/lot size, and API wallet rules.

@@ -323,19 +323,19 @@ All tables should store raw payload references or raw JSON where external schema
 
 Every completed trade should produce a journal entry. Until position close reconciliation is implemented, operators should call `journal add` manually after a trade is fully closed.
 
-The required statistics snapshot includes:
+The required statistics snapshot is calculated from unweighted per-trade net return percentages and includes:
 
 - Average profit.
 - Average loss.
-- Success/failure ratio.
-- Win rate, calculated as profitable trades over all journaled trades.
-- Adjusted success/failure ratio for manual post-trade classification.
+- Success/failure ratio, calculated as average profit divided by absolute average loss.
+- Win rate, calculated over non-breakeven trades.
+- Adjusted success/failure ratio, weighting average profit and loss by win and loss frequency.
 - Max profit.
 - Max loss.
 - Average profit holding days.
 - Average loss holding days.
 
-The journal stores a statistics snapshot with each entry so the review context is preserved even if later trades change aggregate results.
+The journal stores a statistics snapshot with each entry so the review context is preserved even if later trades change aggregate results. The legacy `adjusted_outcome` input remains storage-compatible but does not alter the required statistics. `.agents/skills/trade-journal/` owns the detailed record and formula contract.
 
 ## Execution State Machine
 

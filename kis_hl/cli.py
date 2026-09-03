@@ -229,7 +229,11 @@ def build_parser() -> argparse.ArgumentParser:
     journal_add.add_argument("--quantity", required=True)
     journal_add.add_argument("--fees", default="0")
     journal_add.add_argument("--realized-pnl")
-    journal_add.add_argument("--adjusted-outcome", choices=["success", "failure", "breakeven"])
+    journal_add.add_argument(
+        "--adjusted-outcome",
+        choices=["success", "failure", "breakeven"],
+        help="Legacy classification metadata; does not change required statistics",
+    )
     journal_add.add_argument("--notes", default="")
     journal_add.set_defaults(handler=cmd_journal_add)
 

@@ -15,6 +15,7 @@
 - `CLAUDE.md` also holds the ownership table that says which file owns which knowledge. Update the owner file in the same change as the code.
 - For any KIS Open API work (new endpoint, TR ID, token/rate-limit issue, KIS route for a trade.xyz asset), read `.agents/skills/kis-open-api/SKILL.md` first and keep its endpoint tables in sync when `kis_hl/kis/client.py` changes.
 - For any Hyperliquid work (new `/info` request, signed action, symbol or asset-id resolution, tick/lot sizing, websocket subscription), read `.agents/skills/hyperliquid-api/SKILL.md` first and keep its tables in sync when `kis_hl/hyperliquid/` changes.
+- For completed-trade journal records, statistics, CLI output, or storage semantics, read `.agents/skills/trade-journal/SKILL.md` first and keep its formula references in sync with `kis_hl/trade_journal.py`.
 - Update documentation whenever behavior, setup, schema, asset eligibility, trading safety, or operational assumptions change.
 - Keep README focused on usage.
 - Keep deeper design notes in `docs/`.
