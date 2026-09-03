@@ -24,6 +24,8 @@ link to it instead.
 | KIS endpoints, TR IDs, auth, rate limits, websocket protocol | `.agents/skills/kis-open-api/` | Symlinked as `.claude/skills/kis-open-api/` |
 | Hyperliquid endpoints, order schema, asset ids, tick/lot rules, rate limits, websocket protocol | `.agents/skills/hyperliquid-api/` | Symlinked as `.claude/skills/hyperliquid-api/` |
 | Completed-trade journal record contract, review-statistics formulas, and edge cases | `.agents/skills/trade-journal/` | Symlinked as `.claude/skills/trade-journal/` |
+| Session observation, skill-improvement workflow, observation log | `.agents/skills/task-observer/` | Symlinked as `.claude/skills/task-observer/`; activation rule lives in `AGENTS.md` |
+| Coding behavior guidelines (assumptions, surgical changes, success criteria) | `.agents/skills/karpathy-guidelines/` | Symlinked as `.claude/skills/karpathy-guidelines/`; activation rule lives in `AGENTS.md` |
 | Non-secret env variable template | `.env.example` | `.env` stays untracked |
 | Runtime eligibility and verification state | SQLite tables | Code and tests are the contract, not prose |
 
