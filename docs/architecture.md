@@ -33,7 +33,7 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.btc_strategy` turns Hyperliquid BTC spot websocket mids into 3H spot candles, creates a BTC perp long-entry plan when the latest closed candle close breaks the previous high, sizes the entry from an `80 USDC` notional, and attaches a reduce-only stop-market order at `entry_price - ATR(10D) * 2`.
 
-`kis_hl.trade_journal` creates completed-trade journal records and calculates the required review statistics: average profit, average loss, success/failure ratio, win rate, adjusted success/failure ratio, max profit, max loss, average profit holding days, and average loss holding days.
+`kis_hl.trade_journal` creates completed-position journal records and calculates the required review statistics from net return percentages rather than currency PnL. The formula, breakeven, ratio, and holding-day contract is owned by `.agents/skills/trade-journal/`.
 
 `kis_hl.trading_hours` maps tradable assets to the underlying market session group and returns timezone-aware session decisions. Live non-reduce-only trade.xyz orders fail closed outside that session unless `--allow-outside-session` is passed. Reduce-only exits are allowed outside the entry session.
 

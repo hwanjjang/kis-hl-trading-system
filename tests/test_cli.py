@@ -300,35 +300,37 @@ class CliTests(unittest.TestCase):
             payload = json.loads(stdout.getvalue())
             self.assertEqual(payload["stored_id"], 1)
             self.assertEqual(payload["entry"]["outcome"], "success")
-            self.assertEqual(payload["statistics"]["success_failure_ratio"], "1:0")
+            self.assertEqual(payload["statistics"]["average_profit"], "10.0")
+            self.assertIsNone(payload["statistics"]["success_failure_ratio"])
             self.assertIn("average_profit", payload["required_statistics"])
 
     def test_journal_stats_lists_existing_entries(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             db_path = Path(tmp) / "test.sqlite"
-            with redirect_stdout(io.StringIO()):
-                main(
-                    [
-                        "--db",
-                        str(db_path),
-                        "journal",
-                        "add",
-                        "--symbol",
-                        "xyz:SP500",
-                        "--side",
-                        "long",
-                        "--opened-at-ms",
-                        "0",
-                        "--closed-at-ms",
-                        "86400000",
-                        "--entry-price",
-                        "100",
-                        "--exit-price",
-                        "90",
-                        "--quantity",
-                        "1",
-                    ]
-                )
+            for exit_price, quantity in (("110", "1"), ("95", "10")):
+                with redirect_stdout(io.StringIO()):
+                    main(
+                        [
+                            "--db",
+                            str(db_path),
+                            "journal",
+                            "add",
+                            "--symbol",
+                            "xyz:SP500",
+                            "--side",
+                            "long",
+                            "--opened-at-ms",
+                            "0",
+                            "--closed-at-ms",
+                            "86400000",
+                            "--entry-price",
+                            "100",
+                            "--exit-price",
+                            exit_price,
+                            "--quantity",
+                            quantity,
+                        ]
+                    )
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
@@ -336,8 +338,11 @@ class CliTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
             payload = json.loads(stdout.getvalue())
-            self.assertEqual(payload["statistics"]["average_loss"], "-10")
-            self.assertEqual(len(payload["entries"]), 1)
+            self.assertEqual(payload["statistics"]["average_profit"], "10.0")
+            self.assertEqual(payload["statistics"]["average_loss"], "-5.00")
+            self.assertEqual(payload["statistics"]["success_failure_ratio"], "2:1")
+            self.assertEqual(payload["statistics"]["adjusted_success_failure_ratio"], "2:1")
+            self.assertEqual(len(payload["entries"]), 2)
 
     def test_kis_http_failure_exits_nonzero_without_storing(self) -> None:
         class FakeKisClient:

@@ -24,6 +24,8 @@ class TradeJournalRecord:
     fees: Decimal
     holding_days: Decimal
     outcome: str
+    # Legacy operator classification retained for stored-row compatibility only.
+    # Required review statistics always use the realized net PnL outcome.
     adjusted_outcome: str | None = None
     notes: str = ""
 
@@ -35,11 +37,10 @@ class TradeJournalStats:
     average_loss: Decimal | None
     success_count: int
     failure_count: int
-    success_failure_ratio: str
+    breakeven_count: int
+    success_failure_ratio: str | None
     win_rate_pct: Decimal | None
-    adjusted_success_count: int
-    adjusted_failure_count: int
-    adjusted_success_failure_ratio: str
+    adjusted_success_failure_ratio: str | None
     max_profit: Decimal | None
     max_loss: Decimal | None
     average_profit_holding_days: Decimal | None
@@ -118,25 +119,31 @@ def calculate_trade_journal_stats(
     losses = [record for record in records if record.realized_pnl < 0]
     success_count = len(profits)
     failure_count = len(losses)
-    adjusted_success_count = sum(1 for record in records if _effective_outcome(record) == "success")
-    adjusted_failure_count = sum(1 for record in records if _effective_outcome(record) == "failure")
+    breakeven_count = len(records) - success_count - failure_count
+    decisive_count = success_count + failure_count
+    average_profit = _average([record.realized_pnl_pct for record in profits])
+    average_loss = _average([record.realized_pnl_pct for record in losses])
     return TradeJournalStats(
         trade_count=len(records),
-        average_profit=_average([record.realized_pnl for record in profits]),
-        average_loss=_average([record.realized_pnl for record in losses]),
+        average_profit=average_profit,
+        average_loss=average_loss,
         success_count=success_count,
         failure_count=failure_count,
-        success_failure_ratio=_ratio(success_count, failure_count),
+        breakeven_count=breakeven_count,
+        success_failure_ratio=_return_ratio(average_profit, average_loss),
         win_rate_pct=(
-            (Decimal(success_count) / Decimal(len(records))) * Decimal("100")
-            if records
+            (Decimal(success_count) / Decimal(decisive_count)) * Decimal("100")
+            if decisive_count
             else None
         ),
-        adjusted_success_count=adjusted_success_count,
-        adjusted_failure_count=adjusted_failure_count,
-        adjusted_success_failure_ratio=_ratio(adjusted_success_count, adjusted_failure_count),
-        max_profit=max((record.realized_pnl for record in profits), default=None),
-        max_loss=min((record.realized_pnl for record in losses), default=None),
+        adjusted_success_failure_ratio=_adjusted_return_ratio(
+            average_profit=average_profit,
+            average_loss=average_loss,
+            success_count=success_count,
+            failure_count=failure_count,
+        ),
+        max_profit=max((record.realized_pnl_pct for record in profits), default=None),
+        max_loss=min((record.realized_pnl_pct for record in losses), default=None),
         average_profit_holding_days=_average([record.holding_days for record in profits]),
         average_loss_holding_days=_average([record.holding_days for record in losses]),
     )
@@ -181,10 +188,6 @@ def _calculate_pnl(
     return (entry_price - exit_price) * quantity - fees
 
 
-def _effective_outcome(record: TradeJournalRecord) -> str:
-    return record.adjusted_outcome or record.outcome
-
-
 def _normalize_optional_outcome(value: str | None) -> str | None:
     if value is None or value == "":
         return None
@@ -223,8 +226,37 @@ def _average(values: list[Decimal]) -> Decimal | None:
     return sum(values, Decimal("0")) / Decimal(len(values))
 
 
-def _ratio(left: int, right: int) -> str:
-    return f"{left}:{right}"
+def _return_ratio(
+    average_profit: Decimal | None,
+    average_loss: Decimal | None,
+) -> str | None:
+    if average_profit is None or average_loss is None or average_loss == 0:
+        return None
+    return _format_ratio(average_profit / abs(average_loss))
+
+
+def _adjusted_return_ratio(
+    *,
+    average_profit: Decimal | None,
+    average_loss: Decimal | None,
+    success_count: int,
+    failure_count: int,
+) -> str | None:
+    if (
+        average_profit is None
+        or average_loss is None
+        or average_loss == 0
+        or success_count == 0
+        or failure_count == 0
+    ):
+        return None
+    weighted_profit = average_profit * Decimal(success_count)
+    weighted_loss = abs(average_loss) * Decimal(failure_count)
+    return _format_ratio(weighted_profit / weighted_loss)
+
+
+def _format_ratio(value: Decimal) -> str:
+    return f"{format(value.normalize(), 'f')}:1"
 
 
 def _to_decimal(value: Decimal | str | int | float | Any) -> Decimal:
