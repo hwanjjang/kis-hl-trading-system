@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "KIS–Hyperliquid Trading System Architecture",
+    "locale": "en",
+    "output": "docs/architecture/system-architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/hwanjjang/kis-hl-trading-system",
+      "revision": "e012d2533463b6dd38abf32aee09e150719177f3"
+    },
+    "viewBox": [1380, 690],
+    "views": [
+      { "id": "collection", "label": "Market-data collection", "focus": ["operator", "cli", "services", "kis_adapter", "yahoo_adapter", "hl_adapter", "kis_api", "yahoo_api", "hl_api", "sqlite"], "note": "Trace KIS, Yahoo Finance, and Hyperliquid data into SQLite." },
+      { "id": "live_trade", "label": "Guarded live trading", "focus": ["operator", "cli", "services", "hl_adapter", "hl_api", "sqlite"], "note": "Follow the fail-closed order path and its audit write." },
+      { "id": "integrations", "label": "External boundaries", "focus": ["services", "kis_adapter", "yahoo_adapter", "hl_adapter", "kis_api", "yahoo_api", "hl_api"], "note": "Inspect the explicit REST, SDK, and WebSocket integration seams." }
+    ]
+  },
+  "components": [
+    { "id": "operator", "type": "external", "label": "Operator", "sublabel": "shell / scheduler", "pos": [30, 250], "size": [135, 66], "sources": [{ "path": "kis_hl/cli.py", "line": 83, "end_line": 101, "label": "CLI entry point" }] },
+    { "id": "cli", "type": "frontend", "label": "kis-hl CLI", "sublabel": "argparse + JSON output", "pos": [235, 250], "size": [165, 66], "sources": [{ "path": "kis_hl/cli.py", "line": 83, "end_line": 107, "label": "dispatch" }, { "path": "pyproject.toml", "line": 1, "end_line": 14, "label": "console script" }] },
+    { "id": "config", "type": "security", "label": "Configuration", "sublabel": ".env + key profiles", "pos": [235, 55], "size": [165, 66], "sources": [{ "path": "kis_hl/config.py", "line": 117, "end_line": 146, "label": "HL profiles" }] },
+    { "id": "services", "type": "backend", "label": "Application Services", "sublabel": "collectors · strategy · safety", "pos": [500, 250], "size": [205, 76], "sources": [{ "path": "kis_hl/kis_collector.py", "line": 22, "end_line": 113, "label": "collection" }, { "path": "kis_hl/hyperliquid/client.py", "line": 193, "end_line": 281, "label": "order guards" }, { "path": "kis_hl/trade_xyz_verifier.py", "line": 14, "end_line": 53, "label": "metadata checks" }] },
+    { "id": "sqlite", "type": "database", "label": "SQLite", "sublabel": "market · mappings · orders · journal", "pos": [500, 555], "size": [205, 78], "sources": [{ "path": "kis_hl/storage.py", "line": 21, "end_line": 342, "label": "schema" }, { "path": "kis_hl/storage.py", "line": 588, "end_line": 629, "label": "order audit" }] },
+    { "id": "kis_adapter", "type": "backend", "label": "KIS Adapter", "sublabel": "REST + WebSocket", "pos": [820, 55], "size": [175, 68], "sources": [{ "path": "kis_hl/kis/client.py", "line": 35, "end_line": 118, "label": "REST endpoints" }, { "path": "kis_hl/kis/ws.py", "line": 122, "end_line": 174, "label": "WebSocket client" }] },
+    { "id": "yahoo_adapter", "type": "backend", "label": "Yahoo Adapter", "sublabel": "chart HTTP client", "pos": [820, 250], "size": [175, 68], "sources": [{ "path": "kis_hl/yahoo_finance/client.py", "line": 34, "end_line": 109, "label": "chart client" }] },
+    { "id": "hl_adapter", "type": "backend", "label": "Hyperliquid Adapter", "sublabel": "/info + SDK + WebSocket", "pos": [820, 445], "size": [205, 72], "sources": [{ "path": "kis_hl/hyperliquid/client.py", "line": 33, "end_line": 171, "label": "public info" }, { "path": "kis_hl/hyperliquid/client.py", "line": 178, "end_line": 399, "label": "signed trading" }, { "path": "kis_hl/hyperliquid/ws.py", "line": 61, "end_line": 98, "label": "WebSocket client" }] },
+    { "id": "kis_api", "type": "external", "label": "KIS Open API", "sublabel": "OAuth REST / market streams", "pos": [1130, 55], "size": [205, 68], "sources": [{ "path": "kis_hl/kis/client.py", "line": 120, "end_line": 274, "label": "auth + HTTP" }] },
+    { "id": "yahoo_api", "type": "external", "label": "Yahoo Finance", "sublabel": "v8 chart endpoint", "pos": [1130, 250], "size": [205, 68], "sources": [{ "path": "kis_hl/yahoo_finance/client.py", "line": 54, "end_line": 109, "label": "HTTP request" }] },
+    { "id": "hl_api", "type": "external", "label": "Hyperliquid", "sublabel": "/info · /exchange · /ws", "pos": [1130, 445], "size": [205, 72], "sources": [{ "path": "kis_hl/hyperliquid/client.py", "line": 38, "end_line": 56, "label": "/info" }, { "path": "kis_hl/hyperliquid/client.py", "line": 282, "end_line": 321, "label": "SDK order" }, { "path": "kis_hl/hyperliquid/ws.py", "line": 21, "end_line": 39, "label": "/ws" }] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Local Python process + project state", "wraps": ["cli", "config", "services", "sqlite", "kis_adapter", "yahoo_adapter", "hl_adapter"], "pad": 24 }
+  ],
+  "connections": [
+    { "id": "operator_cli", "from": "operator", "to": "cli", "label": "commands + flags", "variant": "emphasis", "labelAt": [200, 240] },
+    { "id": "config_cli", "from": "config", "to": "cli", "label": "validated config", "variant": "security", "labelAt": [318, 185] },
+    { "id": "cli_services", "from": "cli", "to": "services", "variant": "emphasis" },
+    { "id": "services_kis", "from": "services", "to": "kis_adapter", "label": "mapped routes" },
+    { "id": "services_yahoo", "from": "services", "to": "yahoo_adapter", "label": "chart routes", "labelAt": [720, 340] },
+    { "id": "services_hl", "from": "services", "to": "hl_adapter", "label": "info + guarded orders", "variant": "security" },
+    { "id": "services_db", "from": "services", "to": "sqlite", "label": "local state + audit", "variant": "emphasis", "labelAt": [603, 350] },
+    { "id": "kis_external", "from": "kis_adapter", "to": "kis_api", "label": "REST / WebSocket" },
+    { "id": "yahoo_external", "from": "yahoo_adapter", "to": "yahoo_api", "label": "chart JSON" },
+    { "id": "hl_external", "from": "hl_adapter", "to": "hl_api", "label": "info / SDK / WebSocket", "variant": "emphasis", "labelAt": [1078, 531] }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Implemented Shape", "items": ["CLI handlers construct focused clients and collectors", "SQLite is the local eligibility, verification, market-data, and audit store", "REST and WebSocket adapters share configuration but remain explicit modules"] },
+    { "dot": "rose", "title": "Fail-Closed Trading", "items": ["Dry-run is the default", "Live xyz orders require curated eligibility and a recent successful metadata check", "Non-reduce-only entries enforce the underlying market session before SDK submission"] },
+    { "dot": "orange", "title": "Current Boundary", "items": ["WebSocket clients exist, but no autonomous strategy daemon is wired", "Funding and spread snapshots inform review; they do not reject entries automatically", "Completed trades are journaled explicitly through the CLI"] }
+  ]
+}

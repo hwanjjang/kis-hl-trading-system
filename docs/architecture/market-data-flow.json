@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Market Data, Eligibility, and Audit Flow",
+    "locale": "en",
+    "output": "docs/architecture/market-data-flow.html",
+    "quality_profile": "showcase",
+    "viewBox": [1080, 520],
+    "views": [
+      { "id": "reference_data", "label": "Reference market data", "focus": ["reference_apis", "reference_adapters", "collectors", "sqlite", "reports"], "note": "KIS and Yahoo responses follow mapping-driven collection paths into local tables." },
+      { "id": "hyperliquid_data", "label": "Hyperliquid market state", "focus": ["hyperliquid", "hl_adapters", "collectors", "guard", "sqlite", "reports"], "note": "Public info feeds market collections and the separate live-order verification path." },
+      { "id": "trade_audit", "label": "Trading audit", "focus": ["hyperliquid", "hl_adapters", "guard", "sqlite", "reports"], "note": "Eligibility checks, submissions, and protective orders become local audit state." }
+    ]
+  },
+  "stages": [
+    { "label": "Sources" },
+    { "label": "Acquire & Route" },
+    { "label": "Normalize & Guard" },
+    { "label": "Persist" },
+    { "label": "Consume" }
+  ],
+  "nodes": [
+    { "id": "reference_apis", "type": "external", "label": "KIS + Yahoo APIs", "sublabel": "quotes · charts · bars", "stage": 0, "row": 0, "width": 140, "tag": "reference data" },
+    { "id": "hyperliquid", "type": "external", "label": "Hyperliquid", "sublabel": "market + order data", "stage": 0, "row": 2, "width": 140, "tag": "public + signed" },
+    { "id": "reference_adapters", "type": "backend", "label": "Reference Adapters", "sublabel": "KIS + Yahoo clients", "stage": 1, "row": 0, "width": 140, "tag": "HTTP" },
+    { "id": "hl_adapters", "type": "backend", "label": "Hyperliquid Adapters", "sublabel": "/info + signed SDK", "stage": 1, "row": 2, "width": 140, "tag": "HTTP" },
+    { "id": "collectors", "type": "backend", "label": "Market Collectors", "sublabel": "payloads · bars · snapshots", "stage": 2, "row": 0, "width": 140, "tag": "batch" },
+    { "id": "guard", "type": "security", "label": "Eligibility + Audit", "sublabel": "checks · sessions · orders", "stage": 2, "row": 2, "width": 140, "tag": "live gate" },
+    { "id": "sqlite", "type": "database", "label": "SQLite", "sublabel": "market · checks · orders", "stage": 3, "row": 1, "width": 140, "tag": "local state" },
+    { "id": "reports", "type": "backend", "label": "CLI JSON + Review", "sublabel": "history · signals · stats", "stage": 4, "row": 1, "width": 140, "tag": "operator" }
+  ],
+  "flows": [
+    { "id": "reference_response", "from": "reference_apis", "to": "reference_adapters", "label": "quotes + charts", "classification": "vendor JSON", "labelAt": [208, 200] },
+    { "id": "hl_response", "from": "hyperliquid", "to": "hl_adapters", "label": "market + orders", "classification": "API response", "variant": "emphasis", "labelAt": [208, 428] },
+    { "id": "reference_collect", "from": "reference_adapters", "to": "collectors", "label": "payloads + bars", "classification": "mapped data", "route": "straight", "labelAt": [480, 200] },
+    { "id": "hl_collect", "from": "hl_adapters", "to": "collectors", "label": "meta + funding + L2", "classification": "market state", "variant": "emphasis" },
+    { "id": "hl_guard", "from": "hl_adapters", "to": "guard", "label": "allMids + result", "classification": "verification", "variant": "security", "route": "straight", "labelAt": [423, 428] },
+    { "id": "collector_store", "from": "collectors", "to": "sqlite", "label": "ticks + bars + snapshots", "classification": "market data", "variant": "emphasis" },
+    { "id": "guard_store", "from": "guard", "to": "sqlite", "label": "checks + order audit", "classification": "eligibility", "variant": "security" },
+    { "id": "report_read", "from": "sqlite", "to": "reports", "label": "history + stats", "classification": "local query", "labelAt": [853, 314] }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Collection Evidence", "items": ["kis_hl/kis_collector.py:22–113 stores mapped KIS responses", "kis_hl/daily_collector.py:29–114 stores normalized daily bars", "kis_hl/xyz_market_collector.py:22–199 stores universe, funding, and spreads"] },
+    { "dot": "rose", "title": "State & Safety Evidence", "items": ["kis_hl/storage.py:21–342 defines the SQLite schema", "kis_hl/trade_xyz_verifier.py:14–53 persists metadata checks", "kis_hl/hyperliquid/client.py:250–281 gates live submission before SDK calls"] },
+    { "dot": "orange", "title": "Known Boundary", "items": ["Raw vendor payloads are retained for traceability", "Funding and spread data are review inputs, not automatic trade blockers", "WebSocket ticks are normalized in memory but are not wired to persistent tick storage"] }
+  ]
+}

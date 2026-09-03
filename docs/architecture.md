@@ -57,6 +57,13 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 ## Data Flow
 
+Interactive, code-grounded views generated from repository revision
+`e012d2533463b6dd38abf32aee09e150719177f3`:
+
+- [High-level system architecture](architecture/system-architecture.html)
+- [Live order request sequence](architecture/live-order-sequence.html)
+- [Market data, eligibility, and audit flow](architecture/market-data-flow.html)
+
 ```mermaid
 flowchart LR
   Env[".env"] --> Config["Config loader"]
