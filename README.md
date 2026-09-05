@@ -25,6 +25,8 @@ pip install -r requirements.txt
 
 The repository reads `.env` from the project root. Secrets must stay in `.env`; the file is ignored by git.
 Use `.env.example` as the non-secret variable template.
+Paseo worktree workspaces copy `.env` from the source checkout automatically via the
+`worktree.setup` hook in `paseo.json`; the hook is read from the committed base branch.
 
 ## Environment
 
