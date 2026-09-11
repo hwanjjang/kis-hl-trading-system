@@ -78,3 +78,5 @@ silently skips values that are not parseable as `Decimal`.
 
 Tests stub the transport (`tests/test_websocket_streams.py`); never open a real socket
 in a test.
+
+The trailing worker uses the maintained allMids connection with per-symbol receive-age checks, first-sample quarantine on reconnect, and optional idle/disconnect callbacks. allMids has no exchange event timestamp: its receive-time bars do not prove recent underlying trades. It reconciles orders/fills through REST; no new user-stream adapter is implied.

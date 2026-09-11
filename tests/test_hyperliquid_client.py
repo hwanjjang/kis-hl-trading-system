@@ -4,6 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -399,6 +400,112 @@ class HyperliquidClientTests(unittest.TestCase):
                     price=Decimal("350"),
                     dry_run=False,
                 )
+
+
+class ExchangeSafetyTests(unittest.TestCase):
+    def client(self):
+        c = HyperliquidTradingClient(HyperliquidConfig('https://api.hyperliquid.xyz', '0xabc', 'unused', 'default'))
+        c._sdk = (MagicMock(), MagicMock())
+        return c
+
+    def test_market_reduce_only_never_uses_market_open(self):
+        c = self.client()
+        with patch.object(HyperliquidInfoClient, 'clearinghouse_state', return_value={'assetPositions':[{'position':{'coin':'BTC','szi':'1'}}]}), patch.object(HyperliquidInfoClient, 'all_mids', return_value={'BTC':'100'}), patch.object(HyperliquidInfoClient, 'meta_and_asset_ctxs', return_value=[{'universe':[{'name':'BTC','szDecimals':3}]},[]]):
+            c.place_order(symbol='BTC-PERP', side='sell', order_type='market', size=Decimal('1'), reduce_only=True, dry_run=False)
+        c._sdk[1].market_open.assert_not_called()
+        c._sdk[1].market_close.assert_not_called()
+        self.assertTrue(c._sdk[1].order.call_args.args[5])
+
+    def test_reduce_only_spot_market_fails_closed(self):
+        with self.assertRaisesRegex(ValueError, 'perpetual'):
+            self.client().place_order(symbol='BTCUSDC', side='sell', order_type='market', size=Decimal('1'), reduce_only=True)
+
+    def test_explicit_exit_dry_run_rounds_price_and_size_without_sdk(self):
+        from kis_hl.hyperliquid.client import prepare_perp_exit
+        p, sz = prepare_perp_exit(price=Decimal('123.456'), size=Decimal('1.234567'), sz_decimals=4, slippage=Decimal('0.01'))
+        self.assertEqual(p, Decimal('122.23'))  # Sell floor rounds UP to keep slippage bounded.
+        self.assertEqual(sz, Decimal('1.2345'))
+        for bad in ['0', '1', 'NaN']:
+            with self.assertRaises(ValueError):
+                prepare_perp_exit(price=Decimal('100'), size=Decimal('1'), sz_decimals=2, slippage=Decimal(bad))
+
+    def test_cloid_is_in_signed_ioc_call(self):
+        c = self.client()
+        cloid = '0x' + 'a'*32
+        with patch('kis_hl.hyperliquid.client.sdk_cloid', side_effect=lambda x: x):
+            c.place_order(symbol='BTC-PERP', side='sell', order_type='limit', size=Decimal('1'), price=Decimal('100'), tif='Ioc', reduce_only=True, cloid=cloid, dry_run=False)
+        args, kw = c._sdk[1].order.call_args
+        self.assertTrue(args[5])
+        self.assertEqual(args[4], {'limit': {'tif': 'Ioc'}})
+        self.assertEqual(kw['cloid'], cloid)
+
+    def test_new_info_payloads(self):
+        c = HyperliquidInfoClient(self.client().config)
+        c.post_info = MagicMock(return_value=[])
+        c.frontend_open_orders(dex='xyz')
+        c.post_info.assert_called_with({'type':'frontendOpenOrders','user':'0xabc','dex':'xyz'})
+        c.user_fills_by_time(start_time_ms=12, end_time_ms=34)
+        c.post_info.assert_called_with({'type':'userFillsByTime','user':'0xabc','startTime':12,'endTime':34,'aggregateByTime':False})
+        c.post_info.return_value={'status':'unknownOid'}
+        c.order_status(oid='0x'+'a'*32)
+        c.post_info.assert_called_with({'type':'orderStatus','user':'0xabc','oid':'0x'+'a'*32})
+
+    def test_cancel_dry_run_never_loads_sdk(self):
+        c = self.client()
+        result = c.cancel_order(symbol='BTC-PERP', oid=123)
+        self.assertTrue(result.dry_run)
+        c._sdk[1].cancel.assert_not_called()
+
+    def test_live_entry_is_blocked_for_managed_position(self):
+        with patch('kis_hl.hyperliquid.client.has_managed_position', return_value=True):
+            with self.assertRaisesRegex(RuntimeError, 'blocks entries'):
+                self.client().place_order(symbol='BTC-PERP', side='buy', order_type='limit', size=Decimal('1'), price=Decimal('100'), dry_run=False)
+
+    def test_per_order_rejection_is_not_reported_as_submitted(self):
+        c=self.client()
+        c._sdk[1].order.return_value={'status':'ok','response':{'data':{'statuses':[{'error':'rejected'}]}}}
+        result=c.place_order(symbol='BTC-PERP',side='sell',order_type='limit',size=Decimal('1'),price=Decimal('100'),reduce_only=True,dry_run=False)
+        self.assertEqual(result.status,'rejected')
+
+    def test_integer_price_exception_and_unrepresentable_slippage(self):
+        from kis_hl.hyperliquid.client import prepare_perp_exit
+        p,_=prepare_perp_exit(price=Decimal('123456'),size=Decimal('1'),sz_decimals=0,slippage=Decimal('0.01'))
+        self.assertEqual(p,Decimal('122222'))
+        with self.assertRaisesRegex(ValueError,'slippage'):
+            prepare_perp_exit(price=Decimal('0.1'),size=Decimal('1'),sz_decimals=6,slippage=Decimal('0.01'))
+
+    def test_reduce_only_market_cannot_reverse_the_requested_side(self):
+        c=self.client()
+        with patch.object(HyperliquidInfoClient, 'clearinghouse_state', return_value={'assetPositions':[{'position':{'coin':'BTC','szi':'-1'}}]}):
+            with self.assertRaisesRegex(ValueError, 'side'):
+                c.place_order(symbol='BTC-PERP', side='sell', order_type='market', size=Decimal('1'), reduce_only=True, dry_run=False)
+        c._sdk[1].market_close.assert_not_called()
+
+    def test_cancel_live_preserves_guard_and_calls_sdk_by_oid(self):
+        c = self.client()
+        c.cancel_order(symbol='BTC-PERP', oid=123, dry_run=False)
+        c._sdk[1].cancel.assert_called_once_with('BTC', 123)
+        with patch.object(c, '_require_recent_verification', side_effect=RuntimeError('stale metadata')):
+            with self.assertRaisesRegex(RuntimeError, 'stale metadata'):
+                c.cancel_order(symbol='xyz:KR200', oid=456, dry_run=False)
+        self.assertEqual(c._sdk[1].cancel.call_count, 1)
+
+
+    def test_expiry_is_forwarded_and_reset_after_signed_action(self):
+        c = self.client()
+        with patch('kis_hl.hyperliquid.client.time.time', return_value=1):
+            c.place_order(symbol='BTC-PERP', side='sell', order_type='limit', size=Decimal('1'),
+                          price=Decimal('100'), reduce_only=True, dry_run=False, expires_after_ms=2000)
+        self.assertEqual(c._sdk[1].set_expires_after.call_args_list,
+                         [unittest.mock.call(2000), unittest.mock.call(None)])
+
+    def test_expired_quote_cannot_reach_exchange(self):
+        c = self.client()
+        with patch('kis_hl.hyperliquid.client.time.time', return_value=3):
+            with self.assertRaisesRegex(TimeoutError, 'expired'):
+                c.place_order(symbol='BTC-PERP', side='sell', order_type='limit', size=Decimal('1'),
+                              price=Decimal('100'), reduce_only=True, dry_run=False, expires_after_ms=2000)
+        c._sdk[1].order.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -98,9 +98,15 @@ Three different names exist for the same market. Keep them straight:
 | `spot_clearinghouse_state(user=)` | `spotClearinghouseState` | spot balances |
 | `all_dexs_clearinghouse_state(user=)` | `clearinghouseState` + `dex: ALL_DEXES` | HIP-3 totals |
 | `account_asset_info(...)` | composite of the above | `hl-account` |
+| `frontend_open_orders(...)` | `frontendOpenOrders` | trailing protection and ownership checks |
+| `order_status(...)` | `orderStatus` by oid/cloid | trailing attempt and cleanup reconciliation |
+| `user_fills_by_time(...)` | `userFillsByTime`, no aggregation | trailing fill-ledger continuity |
 
 `HyperliquidTradingClient`: `place_order()`, `place_stop_loss_order()` (reduce-only
-`trigger` with `isMarket: true`, `tpsl: "sl"`), `user_state()`.
+`trigger` with `isMarket: true`, `tpsl: "sl"`), `cancel_order()` (dry-run default), `user_state()`.
+`place_order` forwards optional exchange cloid and distinguishes per-order rejection.
+Signed actions share a local POSIX account lock; managed live coins reject new entries
+until cleanup. Use the same verification/state database for all local commands.
 `kis_hl/hyperliquid/ws.py`: `allMids`, `userFills`, `userEvents`,
 `allDexsClearinghouseState`, `candle` subscriptions over `MaintainedWebSocketClient`.
 
@@ -134,17 +140,20 @@ rejected or silently ignored.
   spot. Integer prices are always legal. Violations return
   `"Price must be divisible by tick size."`
 - **Lot size**: sizes are rounded to the asset's `szDecimals` from `meta` / `spotMeta`.
-- **This repo does not round.** `place_order` passes `float(size)` and `float(price)`
-  straight to the SDK. Callers that compute a price (ATR stop, slippage-adjusted limit)
-  must round to the asset's tick/lot first. This is an open gap, not a designed choice.
+- **Exit rounding is scoped.** `prepare_perp_exit()` rounds size down and IOC prices
+  inward to preserve slippage (sell up, buy down). Generic entries and initial trigger
+  prices still need caller-side rounding; do not infer universal normalization.
 - **Minimum notional** is $10 (`"Order must have minimum value of $10."`); the BTC
   strategy's 80 USDC tranche clears it, a partial add-up might not.
 - **Reduce-only** orders that would increase a position are rejected
   (`"Reduce only order would increase position."`), so a stop-loss placed before the
   entry fills will fail.
-- Market orders in this repo use `Exchange.market_open`, which sends an IOC limit priced
-  at mid ± `slippage` (default `0.05` = 5%). It is written for perps; spot market
-  behavior is an open risk in `docs/architecture.md`.
+- Non-reduce-only market orders use SDK `market_open` (IOC at mid ± slippage).
+  Never use that helper for exits: it hardcodes reduce_only=False. Reduce-only
+  perpetual market orders verify direction/size, then send a rounded fixed-side IOC
+  through `Exchange.order(..., True)`. Spot reduce-only markets fail closed.
+  Trailing management uses explicit reconciled-size IOC limit orders with cloids.
+  SDK metadata includes base and xyz dexes; numeric asset IDs remain SDK-owned.
 
 Full rejection list: `references/limits-and-errors.md`.
 

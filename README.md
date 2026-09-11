@@ -14,6 +14,65 @@ The first implementation is intentionally small:
 - Strategy risk helpers for operating capital, ATR(10D), 30-week EMA, and position sizing.
 - A live-order session guard that blocks non-reduce-only trade.xyz orders outside the mapped underlying market session unless explicitly overridden.
 - CLI defaults that never place a live order unless `--live` is passed.
+- Explicitly enrolled long-position trailing management, durable reconciliation, and offline tick replay.
+
+## Trailing stop management
+
+Start with a network-free paper replay:
+
+```bash
+python -m kis_hl.cli --db /tmp/trailing-paper.sqlite trailing replay --input examples/trailing-stop-replay.jsonl
+python -m kis_hl.cli --db /tmp/trailing-paper.sqlite trailing status
+```
+
+The example raises the threshold from 96 to 104 and records `PAPER_EXIT`; it does
+not assume a fill price or profitability. Replay accepts JSONL: a `position`
+header (`symbol`, `size`, `entry`, `atr`, `multiple`, `opened_ms`, `max_gap_ms`),
+then `{ "time_ms": 123, "price": "100", "age_ms": 0 }` ticks or
+`{ "type": "disconnect" }`. Each replay has a separate paper identity.
+
+To shadow an existing protected long, supply its actual entry and native stop
+order IDs (replace 123 and 456):
+
+```bash
+python -m kis_hl.cli --db data/kis_hl.sqlite trailing enroll --symbol BTC-PERP --entry-order-id 123 --stop-order-id 456 --multiple 2 --max-gap-ms 15000 --slippage 0.01
+python -m kis_hl.cli --db data/kis_hl.sqlite trailing run --position-id POSITION_ID
+python -m kis_hl.cli --db data/kis_hl.sqlite trailing status --position-id POSITION_ID
+```
+
+Enrollment reads account/order/fill/metadata data and 11 closed Hyperliquid daily
+bars. It requires a fully filled single long entry, unchanged position quantity,
+no unowned open orders in that coin, and a matching reduce-only Stop Market order
+at or above the initial ATR risk floor. It creates no entry or SL. Paper enrollment
+and execution are the defaults; paper exits record intent without sending or
+simulating fills. Its ATR is frozen **at explicit enrollment**, and historical
+pre-enrollment highs are not inferred. Enroll promptly after confirming protection.
+
+Live management requires `--live` on both **enroll** and **run**. Modes cannot be
+promoted in place. With live enabled, the worker can send only reduce-only exits
+and cancel its enrolled stop after flatness is confirmed. It uses the supplied
+slippage tolerance, at most 3 attempts within 120 seconds, and never resends an
+ambiguous attempt without terminal evidence. All existing eligibility, credential
+and metadata-freshness guards still apply; a blocked exit requires operator action.
+
+Use the same `--db` for all live commands for an account. A POSIX account lock
+allows one local worker and serializes signed actions; multi-host execution is
+unsupported. Non-reduce-only entries in an enrolled coin are blocked until cleanup.
+Do not run independent/manual strategies in that coin. Manual partial reductions
+are reconciled; additions, reversals or unowned orders halt management.
+
+`run --recover` explicitly rechecks a `MANUAL_INTERVENTION` state after the operator
+has resolved its cause. It does not reset attempt counts, deadlines or adopt a new
+stop/position. The fixed native SL stays in place during disconnects and exits.
+Stopping the worker (including Ctrl-C or `--max-messages`) suspends trailing; it
+never cancels that protection. `--max-reconnects` can bound reconnection attempts.
+
+No live exchange execution has been verified for this feature. Mid-price signals
+can differ from native mark-price triggers; gaps, IOC residuals and outages can
+lose the latest trailing profit floor. Status shows verified coverage timestamps,
+state/reason, exit intent and attempts. See
+[the strategy design](docs/strategy_execution_design.md#implemented-trailing-management)
+for exact scope, recovery and limitations.
 
 ## Setup
 
@@ -244,3 +303,5 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 - `../grid-bot-rotation-strategy` for official Hyperliquid Python SDK usage.
 - Hyperliquid API docs for public info, signed exchange actions, asset IDs, tick/lot size, and API wallet rules.
 - trade.xyz specification index for active RWA asset names and session constraints.
+
+Trailing IOC attempts carry a signed `expiresAfter` equal to the source price receive time plus its configured freshness budget. Local age checks include all reconciliation work; the exchange expiry also bounds delayed delivery. An expiry rejection consumes the existing bounded retry budget.

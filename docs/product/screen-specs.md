@@ -427,3 +427,73 @@
 - Raw upstream payloads may be too large or unstable for a future direct UI contract.
 - The CLI has no masking layer if an upstream response unexpectedly includes sensitive content, although secrets are not intentionally printed.
 - `CORE-002` and `CORE-003` do not yet provide contextual no-subcommand help.
+
+## CORE-004 Trailing command index
+
+- **Screen purpose:** Discover enroll, run, status and replay.
+- **Entry conditions:** trailing --help
+- **User roles:** P-01, P-03, P-04.
+- **Displayed data:** Command names and argparse help.
+- **Primary actions:** Select a subcommand.
+- **Empty state:** No selected subcommand prints usage and exits 2.
+- **Loading state:** None.
+- **Error state:** Invalid arguments exit 2.
+- **Permission restrictions:** No external access.
+- **Mobile behavior:** No mobile UI; terminal text only.
+- **Completion conditions:** Help is displayed.
+
+## STRATEGY-003 Enroll protected long
+
+- **Screen purpose:** Register a reconciled entry and fixed SL for explicit management.
+- **Entry conditions:** trailing enroll with symbol, entry/stop IDs, multiple, max-gap-ms and slippage
+- **User roles:** P-01, P-03, P-04.
+- **Displayed data:** Position ID, mode, frozen ATR inputs, native stop ID and price basis.
+- **Primary actions:** Choose paper (default) or live enrollment.
+- **Empty state:** Missing fills or protection rejects enrollment.
+- **Loading state:** Public account/order/fill/metadata/candle reads.
+- **Error state:** Reconciliation or validation failure exits 1 with no new position row.
+- **Permission restrictions:** Local DB; public account reads; --live also requires existing live guards.
+- **Mobile behavior:** No mobile UI; terminal text only.
+- **Completion conditions:** One durable position generation is registered; no order is sent.
+
+## STRATEGY-004 Run trailing manager
+
+- **Screen purpose:** Track and close an enrolled protected long.
+- **Entry conditions:** trailing run --position-id; mode and account must match enrollment
+- **User roles:** P-01, P-03, P-04.
+- **Displayed data:** Final state/reason, watermark/threshold and last verified coverage; interim structured logs.
+- **Primary actions:** Resume; --recover explicitly rechecks a halted state; bound messages/reconnects.
+- **Empty state:** Unknown position rejects before streaming.
+- **Loading state:** WebSocket consumption and periodic REST reconciliation.
+- **Error state:** MANUAL_INTERVENTION is an explicit result state; exceptions exit 1; reconnect retains native protection.
+- **Permission restrictions:** Paper default never mutates exchange orders; live enrollment and --live required for exits/cancellation.
+- **Mobile behavior:** No mobile UI; terminal text only.
+- **Completion conditions:** PAPER_EXIT, CLOSED, manual halt or bounded/interrupted stream returns persisted state.
+
+## STRATEGY-005 Trailing status
+
+- **Screen purpose:** Inspect persisted generations, verification timing and attempts.
+- **Entry conditions:** trailing status [--position-id]
+- **User roles:** P-01, P-03, P-04.
+- **Displayed data:** State, timestamps, snapshot, exit intent, cloids, attempts and responses.
+- **Primary actions:** List all snapshots or inspect one generation.
+- **Empty state:** An empty database returns positions=[].
+- **Loading state:** Local SQLite query.
+- **Error state:** Unknown ID or storage error exits 1.
+- **Permission restrictions:** Local DB access only; initializes schema if absent.
+- **Mobile behavior:** No mobile UI; terminal text only.
+- **Completion conditions:** Current local report is printed; it does not assert fresh exchange state.
+
+## STRATEGY-006 Trailing replay
+
+- **Screen purpose:** Evaluate recorded prices without external side effects.
+- **Entry conditions:** trailing replay --input JSONL_PATH
+- **User roles:** P-01, P-03, P-04.
+- **Displayed data:** Paper position ID, watermark/threshold and exit state.
+- **Primary actions:** Replay explicit paper initial conditions and receive-time ticks.
+- **Empty state:** No ticks ends the paper run without a signal.
+- **Loading state:** Sequential local file processing.
+- **Error state:** Malformed header/ticks reject or abort the paper run; no live state changes.
+- **Permission restrictions:** Local file/DB access only; no --live option or network clients.
+- **Mobile behavior:** No mobile UI; terminal text only.
+- **Completion conditions:** PAPER_EXIT records a hypothetical crossing; EOF closes the paper run without assuming a fill.

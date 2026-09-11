@@ -65,18 +65,18 @@
 
 | Category | Count |
 | --- | ---: |
-| Command-group/index surfaces | 3 |
+| Command-group/index surfaces | 4 |
 | Direct market/account/symbol surfaces | 6 |
-| Strategy/order/journal leaf surfaces | 5 |
+| Strategy/order/journal leaf surfaces | 9 |
 | Asset and live-market evidence surfaces | 6 |
 | KIS mapping surfaces | 4 |
 | Secondary mapping/history surfaces | 5 |
-| **Total** | **29** |
+| **Total** | **34** |
 
 ## Deliberately excluded surfaces
 
 - `.env` editing, direct SQLite queries, log viewers, token-cache files, and test commands are supporting tools rather than product screens.
-- Planned strategy-daemon, trailing-stop, fill-reconciliation, notifications, and graphical UI surfaces are not implemented and therefore have no screen IDs.
+- Broad entry/add-up strategy orchestration, notifications and graphical UI remain unimplemented. The explicitly enrolled trailing worker has its own surfaces below.
 - Error output is specified as a state on every screen rather than as a separate error screen.
 
 ## Assumptions
@@ -87,5 +87,15 @@
 
 ## Unresolved risks
 
-- If the product direction changes to a GUI, the 29 IDs should be retained as capability trace IDs, not assumed to be a one-to-one page design.
+- If the product direction changes to a GUI, the 34 IDs should be retained as capability trace IDs, not assumed to be a one-to-one page design.
 - Some locally stored data lacks a corresponding read surface, so this inventory does not cover every database entity's lifecycle.
+
+## Enrolled trailing management
+
+| ID | Screen name | Surface type | CLI entry | Primary job | Write behavior |
+| --- | --- | --- | --- | --- | --- |
+| CORE-004 | Trailing command index | Command-group help | `trailing --help` | JTBD-19 | None |
+| STRATEGY-003 | Enroll protected long | Local registration | `trailing enroll` | JTBD-19 | Local paper/live snapshot; public reads only |
+| STRATEGY-004 | Run trailing manager | Long-running operation | `trailing run` | JTBD-19 | Local state; reduce-only exits and managed-stop cleanup only with matching live enrollment and `--live` |
+| STRATEGY-005 | Trailing status | Local report | `trailing status` | JTBD-19 | Schema initialization if needed; no external writes |
+| STRATEGY-006 | Trailing replay | Offline operation | `trailing replay` | JTBD-19 | Isolated paper state only |

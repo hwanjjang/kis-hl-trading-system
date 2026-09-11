@@ -185,3 +185,16 @@ Completion: the rerun output isolates the previously affected symbols and preser
 - The exact compensation path after a live entry succeeds but stop submission fails is not implemented as a durable state machine.
 - Process interruption between external success and local persistence can leave incomplete audit records.
 - There is no command-level correlation ID connecting multiple surfaces in one operating session.
+
+## UF-12 Manage an enrolled trailing exit
+
+**Actor:** P-01 or P-03. **Job:** JTBD-19.
+
+`confirmed entry + fixed SL → enroll in paper mode → run shadow / offline replay → inspect status`
+
+For intended external exits, create separate live enrollment and run with explicit
+`--live`. A fresh threshold crossing persists intent before IOC submission.
+Unknown acceptance waits for reconciliation; terminal partial fills may retry
+within the fixed budget. Flatness leads to managed-stop cleanup before CLOSED.
+Missing protection, unknown generation or budget exhaustion requires intervention.
+`--recover` rechecks an explicitly resolved halt; it preserves all attempt limits.

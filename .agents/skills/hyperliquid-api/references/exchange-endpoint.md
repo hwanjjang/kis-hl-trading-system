@@ -54,7 +54,7 @@ construct it by hand.
   entry and its TP/SL are sent in one `orders` array; the repo currently sends them
   separately with `"na"`.
 
-## Other actions (reference only — none are implemented here)
+## Other actions (cancel-by-oid is implemented; other actions are reference only)
 
 | Action | Required fields | Purpose |
 |---|---|---|
@@ -91,19 +91,20 @@ A **rejected order still returns `"status": "ok"`** with the reason inside
 `response.data.statuses[].error`. Per-order status is positional: `statuses[i]`
 corresponds to `orders[i]`.
 
-**Open gap in this repo**: `HyperliquidTradingClient.place_order()` returns
-`OrderSubmission(status="submitted")` and logs `hyperliquid_order_submitted` without
-inspecting `statuses[].error`. `extract_hyperliquid_order_id()` returns `None` for a
-rejected order, which is the only current signal. If you touch this path, add an
-explicit rejection check plus a test before adding anything else.
+`place_order()` reports per-order errors as `status="rejected"`; otherwise it
+reports submission, never fill confirmation. Trailing attempts preserve raw
+responses and require independent status/fill/position evidence before resending.
 
 ## SDK mapping used by this repo
 
 | Repo call | SDK call | Resulting action |
 |---|---|---|
-| `place_order(order_type="market")` | `Exchange.market_open(coin, is_buy, sz, None, slippage)` | `order` with an IOC limit at mid ± slippage (default `0.05`) |
+| `place_order(order_type="market", reduce_only=False)` | `Exchange.market_open(coin, is_buy, sz, None, slippage)` | `order` with an IOC limit at mid ± slippage (default `0.05`) |
 | `place_order(order_type="limit")` | `Exchange.order(coin, is_buy, sz, px, {"limit": {"tif": tif}}, reduce_only)` | `order`, `grouping: "na"` |
 | `place_order(order_type="stop-market")` | `Exchange.order(coin, is_buy, sz, px, {"trigger": {...}}, True)` | reduce-only trigger order |
+| `place_order(order_type="market", reduce_only=True)` | `Exchange.order(..., {"limit": {"tif": "Ioc"}}, True)` | Verified side, capped/rounded size and slippage-bounded price; perpetuals only |
+| `place_order(..., cloid=...)` | Optional SDK `Cloid` on order/market_open | Reconciliation key; not an exactly-once guarantee |
+| `cancel_order(symbol=..., oid=..., dry_run=True)` | `Exchange.cancel(coin, oid)` only when live | Guarded cancel by order ID; worker confirms terminal status |
 | `user_state()` | `Info.user_state(address)` | `clearinghouseState` (read) |
 
 `Exchange` is constructed with `wallet=Account.from_key(private_key)` and
@@ -111,3 +112,7 @@ explicit rejection check plus a test before adding anything else.
 may be an agent wallet, the account address is the funded account.
 
 Full SDK method list: `sdk-and-docs.md`.
+
+Local signed actions use an account lock; a running trailing worker holds it for its lifetime. Entry guards also inspect active live trailing state. Cancellation retains eligibility, metadata-freshness and credential checks. No modify or cancel-before-replace ratchet is implemented.
+
+`place_order(expires_after_ms=...)` applies SDK `set_expires_after` for one action and resets it afterward. Trailing IOC attempts use receive-time plus the configured freshness budget; local preflight rejects expired prices and signed expiresAfter bounds delayed delivery. Expiry is not an exactly-once mechanism.

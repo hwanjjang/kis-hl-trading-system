@@ -82,3 +82,5 @@ Most history queries cap at 2000 rows. Paginate with the timestamp of the last r
 `l2Book`, `candleSnapshot`, `fundingHistory`, `clearinghouseState` (plain, spot, and
 `ALL_DEXES`). Everything else in this table is unwrapped; follow the checklist in
 `SKILL.md` section 5 before adding one.
+
+Trailing management wraps `frontendOpenOrders` (strict list of objects), `orderStatus` (oid or cloid; unknownOid is ambiguous), and `userFillsByTime` (explicit start/end, aggregateByTime=false). It queries order status before the final position snapshot, rejects saturated fill history, and treats a ledger/position mismatch as unreconciled. An absent open order alone does not prove termination.

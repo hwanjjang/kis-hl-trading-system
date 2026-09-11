@@ -16,6 +16,11 @@ kis-hl
 ├── btc-3h-breakout
 ├── btc-3h-monitor
 ├── trade
+├── trailing
+│   ├── enroll
+│   ├── run
+│   ├── status
+│   └── replay
 ├── journal
 │   ├── add
 │   └── stats
@@ -112,3 +117,5 @@ kis-hl
 - `journal` and `xyz-assets` without a leaf command currently fall back to root help instead of dedicated contextual help.
 - There is no first-class history/list/detail navigation for stored orders, protective orders, raw market ticks, or universe snapshots.
 - A future graphical UI cannot reuse this hierarchy unchanged without deciding roles, navigation depth, confirmation, and mobile behavior.
+
+Trailing state is owned by the `trailing_*` SQLite tables and surfaced through STRATEGY-003 through STRATEGY-006. These audit records do not replace manual order history or automatically create journal entries.

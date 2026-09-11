@@ -114,14 +114,14 @@ These criteria specify observable current-product behavior. They do not authoriz
 
 | ID | Given | When | Then |
 | --- | --- | --- | --- |
-| AC-DOC-001 | `screen-inventory.md` and `screen-specs.md` | Screen IDs are compared | The same 29 unique IDs appear once in each file. |
+| AC-DOC-001 | `screen-inventory.md` and `screen-specs.md` | Screen IDs are compared | The same 34 unique IDs appear once in each file. |
 | AC-DOC-002 | Every screen section in `screen-specs.md` | Required field labels are counted | Purpose, entry, role, data, actions, empty, loading, error, permissions, mobile, and completion are each present once. |
-| AC-DOC-003 | The eight requested files | Paths are enumerated | All exist under `docs/product` and no production-code file is changed by this task. |
+| AC-DOC-003 | The eight requested files | Paths are enumerated | All exist under `docs/product`; behavior changes update the relevant owner and surface contracts together. |
 | AC-DOC-004 | A statement is not established by code, tests, or a cited reference | Product docs are reviewed | It is placed under an Assumptions or Unresolved risks section rather than described as implemented functionality. |
 
 ## Out-of-scope future acceptance
 
-No acceptance criteria are defined for a GUI, authentication/RBAC, approvals, notifications, autonomous trade.xyz daemon, automatic fill reconciliation, tick/lot rounding, exposure/liquidation guards, or automatic funding/spread gates. Those capabilities require explicit product decisions before specification.
+No acceptance criteria are defined for a GUI, authentication/RBAC, approvals, notifications, autonomous trade.xyz daemon, general entry fill reconciliation, generic entry rounding, exposure/liquidation guards, or automatic funding/spread gates. Those capabilities require explicit product decisions before specification.
 
 ## Assumptions
 
@@ -134,3 +134,17 @@ No acceptance criteria are defined for a GUI, authentication/RBAC, approvals, no
 - Some operational requirements in `user-flows.md` are manual and cannot be proven by the current CLI alone.
 - Exchange-level price/size and reduce-only rejection behavior requires testnet or explicitly approved small live validation beyond this documentation scope.
 - Documentation acceptance does not establish that all product acceptance criteria already have automated tests.
+
+## Trailing acceptance
+
+| ID | Surface | Given | When | Then |
+| --- | --- | --- | --- | --- |
+| AC-TRAIL-001 | STRATEGY-003 | A fully filled long, complete fill ledger and sufficient fixed SL | Enroll with explicit risk parameters | A generation records matching Hyperliquid ATR/basis; no external mutation occurs |
+| AC-TRAIL-002 | STRATEGY-004 | Default run on live enrollment | Start | Mode mismatch rejects; paper cannot send live orders |
+| AC-TRAIL-003 | STRATEGY-004 | Exit response was lost | Restart and reconcile | UNKNOWN blocks a duplicate attempt until terminal evidence |
+| AC-TRAIL-004 | STRATEGY-004 | Confirmed partial fill | Retry | Only residual size is sent, reduce-only, with a new cloid within preserved limits |
+| AC-TRAIL-005 | STRATEGY-004 | Position is flat | Cleanup | Remaining managed stop is canceled and confirmed terminal before CLOSED |
+| AC-TRAIL-006 | STRATEGY-004 | Feed gap or reconnect | Resume | Partial bar is discarded; saved H/T remains; first reconnect sample is quarantined |
+| AC-TRAIL-007 | STRATEGY-006 | Offline JSONL sample | Replay | Threshold becomes 104 and PAPER_EXIT is stored without any exchange action |
+| AC-TRAIL-008 | STRATEGY-005 | Stored generations | Status | Snapshot, verification times, intent and attempts are returned |
+| AC-TRAIL-009 | CORE-004 | CLI is installed | Request help | Enroll, run, status and replay are discoverable |
