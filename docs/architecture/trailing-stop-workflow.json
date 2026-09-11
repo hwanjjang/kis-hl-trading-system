@@ -1,0 +1,220 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Trailing Stop \u2014 Proposed v1",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "manage",
+      "label": "Track and decide"
+    },
+    {
+      "id": "execute",
+      "label": "Execute and close"
+    },
+    {
+      "id": "reconcile",
+      "label": "Protection and recovery"
+    }
+  ],
+  "mainPath": [
+    "recover",
+    "protect",
+    "track",
+    "cross",
+    "intent",
+    "submit",
+    "fills",
+    "clean"
+  ],
+  "nodes": [
+    {
+      "id": "recover",
+      "lane": "manage",
+      "col": 0,
+      "type": "database",
+      "label": "Restore state"
+    },
+    {
+      "id": "protect",
+      "lane": "manage",
+      "col": 1,
+      "type": "security",
+      "label": "Arm initial SL"
+    },
+    {
+      "id": "track",
+      "lane": "manage",
+      "col": 2,
+      "type": "backend",
+      "label": "Track 9m highs"
+    },
+    {
+      "id": "cross",
+      "lane": "manage",
+      "col": 3,
+      "type": "backend",
+      "label": "Check live mid"
+    },
+    {
+      "id": "intent",
+      "lane": "manage",
+      "col": 4,
+      "type": "database",
+      "label": "Save exit intent",
+      "width": 144
+    },
+    {
+      "id": "submit",
+      "lane": "manage",
+      "col": 5,
+      "type": "external",
+      "label": "Submit exit"
+    },
+    {
+      "id": "native",
+      "lane": "execute",
+      "col": 1,
+      "type": "security",
+      "label": "Native fixed SL",
+      "width": 144
+    },
+    {
+      "id": "degraded",
+      "lane": "execute",
+      "col": 2,
+      "type": "backend",
+      "label": "Pause trailing"
+    },
+    {
+      "id": "fills",
+      "lane": "execute",
+      "col": 5,
+      "type": "backend",
+      "label": "Reconcile fills",
+      "width": 144
+    },
+    {
+      "id": "unknown",
+      "lane": "reconcile",
+      "col": 4,
+      "type": "security",
+      "label": "Resolve attempt",
+      "width": 144
+    },
+    {
+      "id": "clean",
+      "lane": "reconcile",
+      "col": 5,
+      "type": "backend",
+      "label": "Clean up stops"
+    }
+  ],
+  "edges": [
+    {
+      "to": "protect",
+      "label": "verified",
+      "role": "main",
+      "from": "recover"
+    },
+    {
+      "to": "track",
+      "label": "armed",
+      "role": "main",
+      "from": "protect"
+    },
+    {
+      "to": "cross",
+      "label": "save H / T",
+      "role": "main",
+      "from": "track"
+    },
+    {
+      "to": "intent",
+      "label": "fresh P <= T",
+      "role": "main",
+      "from": "cross"
+    },
+    {
+      "to": "submit",
+      "label": "committed",
+      "role": "main",
+      "from": "intent"
+    },
+    {
+      "to": "fills",
+      "label": "fills / status",
+      "role": "main",
+      "from": "submit"
+    },
+    {
+      "to": "clean",
+      "label": "flat",
+      "role": "main",
+      "from": "fills"
+    },
+    {
+      "to": "native",
+      "label": "fixed SL",
+      "role": "branch",
+      "from": "protect"
+    },
+    {
+      "to": "degraded",
+      "label": "stale / gap",
+      "role": "error",
+      "from": "track"
+    },
+    {
+      "to": "track",
+      "label": "recovered",
+      "role": "return",
+      "from": "degraded"
+    },
+    {
+      "to": "unknown",
+      "label": "unknown / partial",
+      "role": "error",
+      "from": "fills"
+    },
+    {
+      "to": "submit",
+      "label": "retry residual",
+      "role": "return",
+      "from": "unknown"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Price contract",
+      "items": [
+        "Reconcile fills; freeze entry ATR \u00d7 N as D",
+        "Closed 9m bars: T = max(T, H \u2212 D)",
+        "One Hyperliquid basis; no raw KIS mixing"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Outage protection",
+      "items": [
+        "Initial native SL remains on the exchange",
+        "Latest app profit floor is not outage-safe",
+        "Missing protection requires emergency handling"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Before live implementation",
+      "items": [
+        "Submit reduce-only IOC; fix unsafe market_open",
+        "Persist cloid; reconcile before retrying",
+        "Confirmed partial fill: retry bounded residual",
+        "Re-entry waits for flat + managed stop cleanup"
+      ]
+    }
+  ]
+}

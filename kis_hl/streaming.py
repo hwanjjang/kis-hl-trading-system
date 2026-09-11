@@ -130,6 +130,8 @@ class MaintainedWebSocketClient:
         heartbeat_interval_ms: int = 50_000,
         now_ms: Clock | None = None,
         sleep: Sleeper | None = None,
+        on_idle: Callable[[], None] | None = None,
+        on_disconnect: Callable[[], None] | None = None,
     ) -> None:
         self.url = url
         self.subscriptions = tuple(subscriptions)
@@ -146,6 +148,8 @@ class MaintainedWebSocketClient:
         self.sleep = sleep or time.sleep
         self.status = WebSocketStatus(url=url)
         self._stopped = False
+        self.on_idle = on_idle
+        self.on_disconnect = on_disconnect
 
     def stop(self) -> None:
         self._stopped = True
@@ -175,6 +179,8 @@ class MaintainedWebSocketClient:
                     try:
                         raw = transport.recv_text(timeout_seconds=self.recv_timeout_seconds)
                     except TimeoutError:
+                        if self.on_idle:
+                            self.on_idle()
                         self._send_heartbeat_if_due(connection)
                         if self.status.is_stale(
                             now_ms=self.now_ms(),
@@ -203,6 +209,8 @@ class MaintainedWebSocketClient:
                         logger.debug("websocket_close_failed", extra={"url": self.url, "error": str(exc)})
                 if self.status.state != "stopped":
                     self.status.state = "disconnected"
+                if self.on_disconnect:
+                    self.on_disconnect()
             if self._stopped:
                 break
             if max_reconnects is not None and reconnects >= max_reconnects:

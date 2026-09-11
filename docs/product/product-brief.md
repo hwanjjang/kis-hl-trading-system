@@ -89,8 +89,8 @@ These are operational personas, not application-enforced roles. See `personas.md
 - Fully autonomous trade.xyz strategy execution.
 - Short-selling strategy rules beyond accepting manual short journal records.
 - Automatic position/fill reconciliation, automatic journal creation, or restart reconciliation.
-- Native trailing-stop orders or a completed application-level trailing daemon.
-- Automatic funding/spread rejection, portfolio exposure caps, liquidation checks, or tick/lot rounding.
+- Native trailing-stop orders or broad autonomous entry/add-up orchestration. Explicit protected-position trailing management is supported.
+- Automatic funding/spread rejection, portfolio exposure caps, liquidation checks, or generic entry tick/lot rounding.
 - Notifications, approvals, alerts, reports, scheduling, or remote administration.
 
 ## Core product principles
@@ -156,4 +156,6 @@ The current repository does not implement product analytics. The following are a
 - Live order behavior has not been exercised as part of this documentation task.
 - A future GUI would require a separate product decision about authentication, roles, navigation, responsive behavior, and approval controls; none are inferred here.
 - The current CLI can submit live orders without an interactive second confirmation after `--live` is supplied.
-- Tick/lot rounding, exposure limits, fill reconciliation, and stop-placement compensation remain incomplete for unattended execution.
+- Generic entry rounding, exposure limits, entry fill reconciliation and initial-stop compensation remain incomplete. Enrolled trailing exits have their own rounding/reconciliation scope; live behavior remains unverified.
+
+Explicit trailing management supports enrollment, paper/live execution, status and offline replay. It begins with an already-protected long, retains a native fixed SL, and persists unresolved exit attempts across restarts. See the strategy design and STRATEGY-003 through STRATEGY-006 for limits.

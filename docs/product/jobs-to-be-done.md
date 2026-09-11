@@ -47,9 +47,15 @@
 
 - **A-009:** Jobs describe the current manual operating model; they do not imply a scheduler, workflow engine, or GUI.
 - **A-010:** Suitability review uses funding and spread data manually because no automatic threshold contract exists.
-- **A-011:** A “fresh” observation uses the command-specific policy. Only trade.xyz metadata verification currently has an enforced maximum age in order flow.
+- **A-011:** A “fresh” observation uses the command-specific policy. Trade.xyz metadata verification and enrolled trailing per-symbol prices have enforced maximum ages in their respective order flows.
 
 ## Unresolved risks
 
 - No persisted trade-plan object connects the original rationale, account snapshot, ATR input, dry-run, live submission, fills, and journal entry end to end.
 - The product does not currently expose list/detail commands for all SQLite tables, so some audit jobs require direct database access.
+
+## Enrolled position management
+
+| ID | Job | Outcome | Screens |
+| --- | --- | --- | --- |
+| JTBD-19 | When a confirmed long has native protection, I want to enroll, shadow or run a durable trailing exit and inspect its recovery state. | Frozen risk, traceable decisions and no blind retries | CORE-004, STRATEGY-003, STRATEGY-004, STRATEGY-005, STRATEGY-006 |

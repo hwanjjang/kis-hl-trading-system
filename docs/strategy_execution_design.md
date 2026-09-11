@@ -113,30 +113,243 @@ Hyperliquid supports trigger-style orders through the exchange endpoint and `tp`
 
 ## Application-Level Trailing Exit
 
-Hyperliquid does not provide a native trailing-stop order type for this workflow, so trailing exit logic runs in the strategy process.
+### Implemented trailing management
 
-The trailing exit uses 9-minute bars:
+The `trailing enroll/run/status/replay` CLI now implements explicit management of
+an existing protected long. The broader entry/add-up daemon below remains a plan.
+Implementation differences from the original proposal are deliberate:
+
+- Enrollment requires an existing fully filled single entry and verified fixed SL;
+  it does not place either order. ATR is frozen from 11 matching closed HL daily
+  bars at enrollment, not retrospectively claimed to be the original entry ATR.
+  No pre-enrollment intraday watermark is inferred. The existing SL must be at
+  least as protective as the newly configured initial floor.
+- `Trail` consumes receive-time allMids samples because this feed has no exchange
+  event timestamp. Late/out-of-order samples are rejected (zero lateness window).
+  The first bucket and any bucket with an excessive gap are ineligible for H/T
+  updates. Closed valid bars alone ratchet T; fresh ticks check crossings.
+- The CLI runs a single position per worker under a process-held account lock.
+  REST reconciliation runs every 10 seconds and before new exit attempts; no
+  user-stream reconciliation adapter or multi-host ownership lease is added.
+- `trailing_positions`, `trailing_exit_intents`, `trailing_exit_attempts` and
+  `trailing_events` are owned by `kis_hl.trailing_storage` in the same SQLite file.
+  The snapshot is versioned; a unique decision and updated threshold commit in one
+  transaction. Attempts start UNKNOWN before sending and retain their cloid/raw
+  response. They supplement the existing manual order/protective audit tables.
+- Missing/insufficient native protection enters latched MANUAL_INTERVENTION,
+  rather than attempting an unreviewed emergency price/slippage policy. Unknown
+  submissions reconcile without blind retry; confirmed terminal attempts may
+  retry residual size up to 3 attempts / 120 seconds. Dust and limit exhaustion
+  require intervention. Existing verification guards are not relaxed for exits.
+- Fill-ledger continuity must cover the original entry through current size.
+  Truncated/missing history, extra buys, reversals and unowned open orders fail
+  closed. A non-atomic fill/position mismatch waits in RECONCILING for consistent
+  snapshots. Native stop cleanup requires flatness and terminal attempt evidence;
+  disappearance from open orders alone is insufficient to prove stop termination.
+- Paper enrollment and offline replay cannot mutate live orders. A paper crossing
+  records PAPER_EXIT and assumes no fill. Replay end/invalid input closes that
+  paper run only. `run --recover` is explicit, preserves retry budgets, and never
+  adopts another position generation.
+
+The implementation is covered by offline tests; no live fill, disconnect or
+cancellation behavior has been verified. Keep the diagram labeled Proposed v1:
+its initial-stop stage describes the full intended lifecycle, while this CLI
+starts after that stage has been confirmed externally. CLI usage is in README.
+
+
+### Original first-release proposal (implementation scope above)
+
+Use an application-managed trailing exit plus an independently resting native
+Hyperliquid stop-loss. Keep the native stop at its initial protective level in
+v1; the application submits a reduce-only exit when its trailing threshold is
+crossed. This preserves the existing strategy model and avoids adding stop
+replacement races to the first release. A process outage preserves only the
+native stop, not the latest application profit-protection level.
+
+Scope: long-only perpetual positions, one managed position per account/dex/coin,
+within the existing live eligibility rules. Spot management, shorts, automatic
+adoption of manual positions, add-ups, and concurrent strategies on the same coin
+are outside the first release. Disable managed-symbol entries while an exit or
+recovery is pending. No live asset set is widened by this proposal.
+
+### Calculation and activation
+
+Freeze `ATR_10D`, `N`, their source/version, and price units when the initial fill
+is reconciled. Let `E` be the actual volume-weighted entry price and `D = ATR_10D * N`.
+Reject non-positive inputs and a non-positive initial stop.
 
 ```text
-trail_distance = ATR_10D * N
-high_watermark = max(9m_bar.high since position entry)
-exit_trigger = high_watermark - trail_distance
-exit when selected_live_price <= exit_trigger
+initial_stop = E - D
+H = E
+T = initial_stop
+on each valid closed post-entry 9-minute bar:
+    H = max(H, bar.high)
+    T = max(T, initial_stop, H - D)
+on each fresh selected price P, including immediately after a T update:
+    if P <= T: persist one exit intent
 ```
 
-Price-source priority:
+Activate after the native stop is confirmed live with sufficient coverage. No
+profit-activation threshold or automatic breakeven rule is added in v1. ATR is
+not recomputed during the position, so increased volatility cannot widen the
+stop. Both H and T are monotonic. If tick rounding is needed, use the legal long
+sell-stop level at or below the raw threshold; validate the risk impact and never
+lower an already established effective threshold. Use Decimal calculations.
 
-1. KIS websocket price, when the asset has an active KIS route and the stream is fresh.
-2. Hyperliquid websocket price, when KIS is unsupported, stale, unavailable, or outside a verified KIS route.
+Example: E=100, ATR=2, N=2 gives D=4 and initial stop=96. A closed bar high of 108
+raises T to 104. A later high of 106 leaves T at 104. A fresh price of 104 or lower
+creates an exit intent; the execution price is not guaranteed to be 104.
 
-Rules:
+### Candles and price basis
 
-- Do not blend KIS and Hyperliquid ticks inside the same 9-minute candle. Pick the active source for the candle and record it.
-- If the primary source becomes stale mid-candle, close the current partial candle as degraded and start a new candle from the fallback source.
-- A stale live price must not trigger a new entry or add-up.
-- A stale primary source may trigger a risk-reduction exit only if the fallback source is fresh and confirms the exit condition.
-- Use closed 9-minute candles for high-watermark updates unless a separate tick-level emergency exit is explicitly added.
-- Keep the native Hyperliquid stop-loss active even when the application-level trailing exit is running.
+Use event-time UTC buckets `[floor(t / 540000) * 540000, start + 540000)`.
+Only post-fill ticks contribute. Discard the entry bucket from watermark updates
+if complete post-entry coverage cannot be established. Finalize after a bounded,
+configured lateness allowance; ignore duplicates and quarantine events arriving
+after finalization. Never revise past decisions using later data. Persist the
+processed bar ID with H/T so a replay cannot apply a bar twice. Missing or degraded
+bars do not advance H; the last valid T remains active for fresh-price checks.
+The 9-minute delay intentionally ignores unclosed intrabar highs.
+
+The broader strategy prefers KIS when a usable route exists. For trailing v1,
+pin the management price source to Hyperliquid for the position lifetime and use
+Hyperliquid daily ATR in the same instrument units. This is a deliberate narrower
+management policy: entry signals may still use KIS, but raw KIS prices or ATR must
+not be compared with Hyperliquid entry prices or thresholds. If matching ATR is
+unavailable, automated management must not be activated for a new entry.
+
+Use the existing allMids stream for application bars and crossing checks; label
+these as mid-price signals. Hyperliquid native TP/SL triggers use mark price, so
+the two protections may fire at different times. A future mark-based mode needs
+a tested market-context adapter and its own persisted price basis.
+
+Supporting KIS-managed trails later requires an explicit, versioned conversion
+contract for currency, units, instrument scale and market basis. Maintain a
+separate watermark per source basis; neither switch sources under an old H/T nor
+blend ticks in a candle. A source change must reconcile the conversion and
+protective level before resuming. Unverifiable conversion means degraded mode.
+
+Freshness must be per symbol, with monotonic receive-age, source event time when
+available, connection generation and gap flags. allMids receive time alone does
+not prove that the underlying market traded recently. Reject invalid prices,
+out-of-order updates and replay snapshots as new high-watermark evidence. Set
+freshness and reconnect thresholds explicitly in the paper-run configuration;
+calibrate them from recorded feed cadence before live release.
+
+### Execution and state
+
+```text
+RECOVERING -> PROTECTED -> EXIT_PENDING -> FLAT_CLEANUP -> CLOSED
+                  |             |
+                  v             v
+               DEGRADED <-> RECONCILING
+unprotected position -> EMERGENCY_EXIT or MANUAL_INTERVENTION
+```
+
+DEGRADED means the fixed native protection remains verified, but trailing updates
+are suspended. If protection is unknown, enter RECONCILING; do not label a locally
+stored stop as verified protection. Keep the prior T and resume only with fresh,
+consistent data. Once an exit intent exists, a price rebound does not cancel it.
+
+1. Serialize actions per account/dex/coin under a process lock held for the full
+   worker lifetime. Use one supervised CLI worker and one submission owner per
+   account; multi-host writers are outside v1. A SQLite transaction atomically
+   saves the threshold decision, state transition and exit intent before sending.
+2. Reconcile current position and known outstanding exit orders. Submit only the
+   remaining positive long size, rounded to permitted lot precision, with
+   `reduce_only=True`, a bounded slippage price and IOC semantics.
+3. Persist an exchange-compatible 128-bit cloid before sending. The local
+   `client_request_id` is not an exchange cloid. Track each attempt separately;
+   cloid is a reconciliation key, not a guarantee of exactly-once submission.
+4. On timeout, record UNKNOWN and query order status, open orders, fills and
+   position before any resend. An absent open order alone does not prove failure.
+   If acceptance remains ambiguous, block resubmission and require reconciliation.
+5. IOC acceptance is not full closure. Reconcile fills and residual position;
+   use a new linked attempt only after the previous attempt is terminal. Bound
+   retries by count/time/slippage. On exhaustion retain protection, block entries
+   and raise a structured manual-intervention event. Do not silently increase
+   slippage. Handle residual dust explicitly rather than rounding it to flat.
+6. Keep the native stop active during exit submission. If it triggers concurrently,
+   refresh size and cancel any now-unneeded managed exit orders. Every exit must
+   be reduce-only so a race cannot open a short.
+7. Confirm the actual position is flat, cancel this position generation's remaining
+   managed protective orders, and confirm cleanup before permitting re-entry.
+   A stale reduce-only stop could otherwise affect a future position in the same
+   coin. Never cancel unowned/manual orders.
+
+The unsafe `market_open()` reduce-only path is now fixed. Generic reduce-only
+market orders verify the side against the current position and submit a rounded,
+fixed-side reduce-only IOC through `exchange.order`. The trailing worker uses its
+reconciled quantity and persisted cloid with the same explicit IOC semantics.
+Per-order rejection responses are returned as `status="rejected"`; successful
+submission still requires independent fill/coverage verification.
+
+Keep existing allowlist, metadata freshness and credential guards. Current
+reduce-only paths bypass entry-session checks but still require recent metadata
+verification. If that guard blocks a needed exit, record it and escalate while
+retaining the native stop. A separate authorization policy for exits from an
+existing verified position would require an explicit safety-policy change.
+
+### Persistence and recovery
+
+Extend the already proposed `position_state` with position-generation ID,
+account/dex/coin, initial fill identity/time, side/size, E, frozen ATR/N/D, initial
+stop, price basis, H/T, last processed bar, native stop identifiers, last verified
+coverage/time, state and version. Store prices/sizes as decimal strings.
+
+Add `exit_intents` containing a unique decision key `(position_id, exit_reason)`,
+trigger event/threshold, status and creation time. Add `exit_order_attempts` linked
+to that intent with cloid, exchange oid, requested/filled size, limit price,
+response/error, reconciliation status and timestamps. Reuse `order_submissions`
+for raw submission evidence and extend `protective_orders` for reconciled status;
+its local active flag alone is insufficient. Keep dry-run and live state isolated.
+
+On startup, acquire ownership, disable entries and reconcile actual account state,
+managed open orders and unresolved attempts before consuming new signals. Restore
+H/T from SQLite; never reset them to the current price. Replay only complete,
+verified same-source post-entry data. For an unfillable data gap, keep the last
+saved T and report missed-high uncertainty; do not invent an outage watermark.
+If a fresh price is already below T, create or resume the same exit intent.
+
+A manual partial close updates residual size and stop coverage. An unexpected
+increase, reversal or unknown position generation enters MANUAL_INTERVENTION;
+never silently adopt it. A confirmed external full close goes through cleanup.
+A missing native stop blocks entries and invokes the initial-stop failure policy.
+
+Log position_id, intent_id, attempt_id, cloid/oid, event time, source/basis,
+old/new H/T, quantity, state transition, cause, action and result. Persist pending
+intent and state before external effects; log transitions rather than every tick.
+
+### Implementation lanes and acceptance gates
+
+These are sequential implementation slices, not authorization to trade live:
+
+| Slice | Intended files | Required evidence |
+| --- | --- | --- |
+| Safe exit primitive | `kis_hl/hyperliquid/client.py`, matching client tests, Hyperliquid skill references | SDK receives reduce-only IOC and cloid; tick/lot, rejection and timeout tests |
+| Pure trailing calculation | New `kis_hl/trailing.py`, `tests/test_trailing.py` | H/T never decrease; equality crossing; frozen ATR; entry bucket, duplicates, gaps and stale-price tests |
+| Durable state | `kis_hl/storage.py`, matching storage tests | Atomic intent/state write, unique decisions, generation isolation, crash recovery |
+| Reconciliation and worker | New `kis_hl/trailing_runner.py`, client/info and websocket adapters, matching tests | Unknown acceptance, partial fills, simultaneous native stop, manual changes, missing protection, restart and worker ownership tests |
+| CLI and paper rollout | `kis_hl/cli.py`, CLI tests, README and owning docs | Dry-run default, explicit management enrollment, recorded-tick replay, no unintended writes to live state |
+
+Write behavior tests before each production slice. Test crash points before send,
+after exchange acceptance but before local acknowledgement, and during cleanup.
+Existing websocket clients need integration; they do not provide this state
+machine by themselves. Expose status including degraded reason and verified stop
+coverage before exposing a long-running management command.
+
+Native stop ratcheting is a later option when preserving the latest profit floor
+through an application outage is required. Add modify/cancel wrappers with their
+own safety tests, coalesce improvements and reconcile every ambiguous response.
+Do not implement cancel-then-create as an unprotected two-step replacement, and
+do not assume modify failure preserves the old stop without verification. Never
+submit a replacement trigger already crossed; use the reconciled exit path.
+
+Outstanding live risks: sampled mid-price bars can miss traded highs, market/mark
+basis can diverge, gaps can exceed the stop or slippage tolerance, IOC can leave
+residuals, and an application outage loses trailing updates. Exchange order and
+reconnect behavior must be validated before live activation. No profit or maximum
+loss guarantee follows from this design.
 
 ## Entry And Add-Up Model
 
@@ -358,7 +571,7 @@ PROTECTED
 ADD_PENDING
   -> STOP_ARMING after add fill reconciliation
 EXIT_PENDING
-  -> READY after position is flat and protective orders are canceled or harmlessly reduce-only
+  -> READY after position is flat and managed protective-order cleanup is confirmed
 EMERGENCY_EXIT
   -> READY only after position is flat and reconciliation is clean
 ```
@@ -406,3 +619,8 @@ Every abnormal path must produce structured logs with cause, action, and result.
 - Korea Investment Open Trading API sample repository: https://github.com/koreainvestment/open-trading-api
 - KIS domestic websocket sample: https://github.com/koreainvestment/open-trading-api/blob/main/examples_user/domestic_stock/domestic_stock_examples_ws.py
 - KIS overseas websocket sample: https://github.com/koreainvestment/open-trading-api/blob/main/examples_user/overseas_stock/overseas_stock_examples_ws.py
+
+- Hyperliquid TP/SL trigger basis: https://hyperliquid.gitbook.io/hyperliquid-docs/trading/take-profit-and-stop-loss-orders-tp-sl
+- Hyperliquid SDK order helpers: https://github.com/hyperliquid-dex/hyperliquid-python-sdk/blob/master/hyperliquid/exchange.py
+
+Trailing IOC attempts carry a signed `expiresAfter` equal to the source price receive time plus its configured freshness budget. Local age checks include all reconciliation work; the exchange expiry also bounds delayed delivery. An expiry rejection consumes the existing bounded retry budget.

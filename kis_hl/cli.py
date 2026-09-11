@@ -106,6 +106,31 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--db", default="data/kis_hl.sqlite", help="SQLite database path")
     sub = parser.add_subparsers(dest="command")
 
+    trailing = sub.add_parser("trailing", help="Manage a confirmed protected long or replay recorded ticks")
+    trailing_sub = trailing.add_subparsers(dest="trailing_action", required=True)
+    enroll = trailing_sub.add_parser("enroll", help="Explicitly register a filled long with an existing native SL")
+    enroll.add_argument("--symbol", required=True)
+    enroll.add_argument("--entry-order-id", required=True, type=int)
+    enroll.add_argument("--stop-order-id", required=True, type=int)
+    enroll.add_argument("--multiple", required=True, help="Frozen ATR multiplier")
+    enroll.add_argument("--max-gap-ms", required=True, type=int, help="Explicit per-symbol freshness budget")
+    enroll.add_argument("--slippage", required=True, help="Maximum sell IOC price discount")
+    enroll.add_argument("--live", action="store_true", help="Enroll live management state (no order at enrollment)")
+    enroll.set_defaults(handler=cmd_trailing)
+    run = trailing_sub.add_parser("run", help="Resume one enrolled position under an account lock")
+    run.add_argument("--position-id", required=True)
+    run.add_argument("--live", action="store_true", help="Permit reduce-only exits and managed stop cleanup")
+    run.add_argument("--recover", action="store_true", help="Recheck a manually halted position; retry limits remain intact")
+    run.add_argument("--max-messages", type=int)
+    run.add_argument("--max-reconnects", type=int)
+    run.set_defaults(handler=cmd_trailing)
+    status = trailing_sub.add_parser("status", help="Read persisted management state and exit attempts")
+    status.add_argument("--position-id")
+    status.set_defaults(handler=cmd_trailing)
+    replay = trailing_sub.add_parser("replay", help="Offline JSONL replay; cannot place exchange orders")
+    replay.add_argument("--input", required=True)
+    replay.set_defaults(handler=cmd_trailing)
+
     kis_price = sub.add_parser("kis-price", help="Fetch one KIS quote")
     kis_price.add_argument("--market", choices=["domestic", "overseas"], required=True)
     kis_price.add_argument("--symbol", required=True)
@@ -525,6 +550,31 @@ def cmd_hl_account(args: argparse.Namespace) -> dict[str, Any]:
         include_all_dexs=args.all_dexs and not args.no_all_dexs,
         dexes=args.dex,
     )
+
+
+def cmd_trailing(args: argparse.Namespace) -> dict[str, Any]:
+    from kis_hl.execution_lock import account_lock
+    from kis_hl.trailing_storage import TrailStore
+    from kis_hl.trailing_runner import enroll_position, replay_trailing, run_trailing_stream
+    store = TrailStore(args.db)
+    if args.trailing_action == "replay":
+        return replay_trailing(store, args.input)
+    if args.trailing_action == "status":
+        rows = [store.get(args.position_id)] if args.position_id else store.list()
+        return {"positions": [{**r, "exit_intent": store.intent(r["id"]),
+                               "attempts": store.attempts(r["id"])} for r in rows]}
+    config = load_hyperliquid_config()
+    info = HyperliquidInfoClient(config)
+    trading = HyperliquidTradingClient(config, verification_db_path=args.db)
+    with account_lock(config.base_url if args.live else config.base_url + "#paper", config.account_address):
+        if args.trailing_action == "enroll":
+            return enroll_position(store, info, trading, symbol=args.symbol,
+                entry_oid=args.entry_order_id, stop_oid=args.stop_order_id,
+                multiple=Decimal(args.multiple), max_gap_ms=args.max_gap_ms,
+                slippage=Decimal(args.slippage), live=args.live)
+        return run_trailing_stream(store, args.position_id, info, trading,
+            live=args.live, recover=args.recover,
+            max_messages=args.max_messages, max_reconnects=args.max_reconnects)
 
 
 def cmd_trade(args: argparse.Namespace) -> dict[str, Any]:

@@ -53,7 +53,7 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.cli` provides operational commands. Live orders require `--live`; dry-run is the default.
 
-`docs/strategy_execution_design.md` records the planned strategy daemon design for operating-capital sizing, ATR stop-losses, application-level trailing exits, add-up logic, and KIS/Hyperliquid websocket responsibilities. Low-level stop-loss trigger orders and websocket clients are implemented, but the autonomous strategy daemon is not enabled yet.
+`docs/strategy_execution_design.md` records the planned strategy daemon design for operating-capital sizing, ATR stop-losses, application-level trailing exits, add-up logic, and KIS/Hyperliquid websocket responsibilities. Explicit protected-position trailing management is implemented as a supervised CLI worker; the broader autonomous entry/add-up strategy daemon remains unimplemented.
 
 ## Data Flow
 
@@ -86,7 +86,7 @@ flowchart LR
 
 ## Safety Decisions
 
-- The first version does not implement autonomous strategy execution.
+- Autonomous entry/add-up orchestration remains unimplemented; explicit enrolled-position trailing exits are supported.
 - Signed Hyperliquid actions use the SDK rather than hand-written signatures.
 - BTCUSDC futures signal evaluation is available through `btc-3h-breakout`; websocket-driven dry-run/live execution is available through `btc-3h-monitor`.
 - `btc-3h-monitor` submits the requested entry size and stop from the signal price. It does not yet reconcile existing BTC positions or confirm actual average fill price before deriving the stop.
@@ -113,4 +113,28 @@ flowchart LR
 - Yahoo Finance data is useful as a secondary cross-check, but it can be rate-limited and does not provide an exchange-licensed production data guarantee.
 - Hyperliquid funding and spread snapshots are stored for suitability review only. They are not yet wired into automatic entry rejection, position sizing changes, or liquidation-risk checks.
 - Hyperliquid SDK behavior for spot market orders should be tested with a small live or testnet order before using spot market orders operationally.
-- KIS and Hyperliquid websocket clients are implemented at the connection layer, but they are not yet wired into an autonomous strategy daemon or persistent tick tables.
+- The trailing worker consumes Hyperliquid allMids through the maintained connection layer. Persistent raw tick tables and unified KIS/Hyperliquid strategy orchestration remain unimplemented.
+
+## Trailing management components
+
+- `kis_hl.trailing`: pure Decimal policy and conservative receive-time 9-minute bar
+  aggregation. Frozen risk distance and monotonic H/T are separate from execution.
+- `kis_hl.trailing_storage`: versioned SQLite position snapshots, atomic exit
+  decisions, pre-send UNKNOWN attempts, and structured state-event history. All
+  `trailing_*` tables are initialized on first trailing CLI use. Prices and sizes
+  are decimal strings; active generations and exchange cloids are unique.
+- `kis_hl.trailing_runner`: enrollment verification, REST account/order/fill
+  reconciliation, bounded IOC exits, managed-stop cleanup, WebSocket supervision
+  and offline replay. See the strategy document for the behavior contract.
+- `kis_hl.execution_lock`: reentrant POSIX account lock shared by the worker and
+  signed client operations. All local live commands must use the same database;
+  another host or external trading app is outside this ownership boundary.
+- `kis_hl.streaming`: optional idle/disconnect callbacks let the owner persist
+  degraded/reconciling state even when the managed symbol is silent.
+
+The Hyperliquid adapter adds frontend open orders, order status by oid/cloid,
+non-aggregated fills by time, explicit cloid forwarding, cancel-by-oid, and bounded
+perpetual exit rounding. It loads both base and xyz SDK metadata. Generic order
+rejections are distinguished from submission; this does not imply filled quantity.
+The worker's attempts retain raw exchange responses independently of manual
+`order_submissions` / `protective_orders` rows. Auto-journal creation remains absent.
