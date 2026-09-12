@@ -115,6 +115,14 @@ class ManagedExecutionTests(unittest.TestCase):
         del p["max_loss"]
         with self.assertRaises(ValueError):
             validate_plan(p, 1)
+
+    def test_kis_preview_requires_explicit_verified_tick(self):
+        p = plan()
+        p["instrument"] = "kis:SPY"
+        with self.assertRaisesRegex(ValueError, "verified_price_step"):
+            validate_plan(p, 1)
+        p["verified_price_step"] = "0.01"
+        self.assertEqual(validate_plan(p, 1)["verified_price_step"], "0.01")
         p = plan()
         p["quantity"] = "NaN"
         with self.assertRaises(ValueError):
@@ -164,6 +172,59 @@ class ManagedExecutionTests(unittest.TestCase):
         self.assertEqual(self.g.sent[-1]["price"], "95.04")
         self.worker.step(row["id"], 30)
         self.assertEqual(self.store.get(row["id"])["state"], "PROTECTED")
+
+    def test_transient_snapshot_failure_recovers_local_protection(self):
+        row = self.queue()
+        self.g.native_sl = False
+        self.worker.step(row["id"], 10)
+        self.g.size = self.g.filled = "1"
+        self.g.orders[self.g.sent[0]["id"]]["status"] = "filled"
+        self.worker.step(row["id"], 20)
+        snapshot = self.g.snapshot
+        self.g.snapshot = lambda *args: (_ for _ in ()).throw(
+            RuntimeError("inquiry unavailable")
+        )
+        self.worker.step(row["id"], 30)
+        self.assertEqual(self.store.get(row["id"])["state"], "DEGRADED")
+        self.g.snapshot = lambda *args: {**snapshot(*args), "price": "90"}
+        self.worker.step(row["id"], 40)
+        self.assertEqual(self.g.sent[-1]["kind"], "exit")
+
+    def test_repeated_read_failure_latches_exit_and_recovers_without_resend(self):
+        row = self.queue()
+        self.g.native_sl = False
+        self.worker.step(row["id"], 10)
+        self.g.size = self.g.filled = "1"
+        self.g.orders[self.g.sent[0]["id"]]["status"] = "filled"
+        self.worker.step(row["id"], 20)
+        snapshot = self.g.snapshot
+        self.g.snapshot = lambda *args: (_ for _ in ()).throw(OSError("unavailable"))
+        for now in (30, 40, 50):
+            self.worker.step(row["id"], now)
+        self.assertTrue(self.store.get(row["id"])["exit_requested_ms"])
+        self.assertEqual(len(self.g.sent), 1)
+        self.g.snapshot = snapshot
+        self.worker.step(row["id"], 60)
+        self.assertEqual(self.g.sent[-1]["kind"], "exit")
+
+    def test_read_outage_does_not_clear_existing_identity_intervention(self):
+        row = self.queue()
+        self.worker.step(row["id"], 10)
+        snapshot = self.g.snapshot
+        self.g.snapshot = lambda *args: (_ for _ in ()).throw(
+            ValueError("identity mismatch")
+        )
+        self.worker.step(row["id"], 20)
+        self.g.snapshot = lambda *args: (_ for _ in ()).throw(
+            RuntimeError("unavailable")
+        )
+        for now in (30, 40, 50):
+            self.worker.step(row["id"], now)
+        self.g.size = self.g.filled = "1"
+        self.g.snapshot = snapshot
+        self.worker.step(row["id"], 60)
+        self.assertEqual(self.store.get(row["id"])["state"], "INTERVENTION")
+        self.assertEqual(len(self.g.sent), 1)
 
     def test_unknown_entry_is_not_resent(self):
         row = self.queue()

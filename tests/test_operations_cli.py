@@ -57,6 +57,32 @@ class OperationsCliTests(unittest.TestCase):
         ):
             self.run_cli("journal", "run", "--venue", "hyperliquid")
 
+    def test_incomplete_persistent_sync_waits_for_configured_interval(self):
+        from unittest.mock import Mock
+
+        scope = Scope("hyperliquid", "testnet", "pace-fixture")
+        sleeps = []
+
+        def idle(_):
+            sleeps.append(1)
+            if len(sleeps) == 2:
+                raise KeyboardInterrupt
+
+        sync = Mock(return_value={"run_complete": False, "run_reason": "Retention gap"})
+        with (
+            patch("kis_hl.operations_cli.scope_client", return_value=(scope, None)),
+            patch("kis_hl.operations_cli.sync_hyperliquid", sync),
+            patch("kis_hl.operations_cli.time.sleep", side_effect=idle),
+            self.assertRaises(KeyboardInterrupt),
+        ):
+            self.run_cli("journal", "run", "--venue", "hyperliquid", "--start-ms", "0")
+        self.assertEqual(sync.call_count, 1)
+        from kis_hl.journal_sync import SyncSchedule
+
+        settings = SyncSchedule(JournalLedger(self.db), scope).settings()
+        self.assertIsNone(settings["last_success_ms"])
+        self.assertEqual(settings["last_reason"], "Retention gap")
+
     def test_import_actual_history_without_credentials_and_deduplicate(self):
         raw = {
             "schema_version": 1,

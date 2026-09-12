@@ -139,7 +139,7 @@ index 0000000..b83ea11
 +`CNDT_PRIC`, order names and HTS features alone are not evidence of Open API SL.
 
 diff --git a/.agents/skills/trade-journal/references/record-contract.md b/.agents/skills/trade-journal/references/record-contract.md
-index 555482d..9af543d 100644
+index 555482d..cb2aa13 100644
 --- a/.agents/skills/trade-journal/references/record-contract.md
 +++ b/.agents/skills/trade-journal/references/record-contract.md
 @@ -37,9 +37,10 @@ other execution costs; `fees` is stored but is not subtracted a second time.
@@ -156,7 +156,7 @@ index 555482d..9af543d 100644
  
  ```text
  weighted_average_price = sum(fill_price * fill_quantity) / sum(fill_quantity)
-@@ -65,3 +66,25 @@ provide an exchange-reported net realized PnL with an explanatory note.
+@@ -65,3 +66,29 @@ provide an exchange-reported net realized PnL with an explanatory note.
  `journal stats` can filter by symbol and strategy. Use the strategy filter for edge and
  risk decisions. An unfiltered report is useful as an account overview but should not be
  used to claim that every included strategy has the same expectancy.
@@ -182,6 +182,10 @@ index 555482d..9af543d 100644
 +when an exact native order match becomes available. Economic fields must remain
 +identical; known attribution conflicts require an explicit correction. Reobserving
 +unknown attribution never removes existing evidenced attribution.
++
++The scheduler records every collection attempt and its reason separately from
++last successful collection and verified execution/cost coverage. Incomplete or
++failed attempts wait the configurable interval; explicit sync may retry sooner.
 
 diff --git a/.github/workflows/tests.yml b/.github/workflows/tests.yml
 new file mode 100644
@@ -1215,10 +1219,10 @@ index 0000000..3ab516b
 
 diff --git a/docs/trading-operations.md b/docs/trading-operations.md
 new file mode 100644
-index 0000000..0e67483
+index 0000000..a355dbb
 --- /dev/null
 +++ b/docs/trading-operations.md
-@@ -0,0 +1,237 @@
+@@ -0,0 +1,273 @@
 +# Protected trading operations
 +
 +This implementation is CLI-first and uses one local SQLite database. Codex,
@@ -1456,6 +1460,55 @@ index 0000000..0e67483
 +through an append-only fill revision; a later unknown observation cannot erase it.
 +Execution amounts, costs, times and conflicting known attribution still require
 +explicit correction imports.
++
++### Read outages and recovery limits
++
++A transient account snapshot `RuntimeError`/`OSError` puts active protection in
++DEGRADED and continues readback. Three consecutive failures, or a read outage lasting
++`protection_grace_ms`, latches an exit and reports INTERVENTION while reads continue.
++Once consistent fresh account data returns, this read-outage intervention resumes
++bounded cancellation/exit automatically. Existing identity/ownership interventions
++remain manual. No order is sent using a failed snapshot; the original protection
++and exit clocks are not reset. Events retain the failed operation, exception class
++and retry count without copying potentially sensitive transport error payloads.
++
++For Hyperliquid, `max_quote_age_ms` also bounds each action's `expiresAfter` from
++its durable attempt creation, including stops and exits. Use a realistic network
++budget: an expired local send can remain UNKNOWN, and the system never guesses
++that it was not transmitted. `order recover` retries reconciliation; it cannot
++attest non-transmission or bind an operator-supplied broker order ID. If native
++readback cannot resolve an UNKNOWN attempt, inspect broker orders/fills/holdings
++and manage any exposure in HTS or the exchange UI. Keep the intent reserved and
++do not edit SQLite to retry it. An audited broker-evidence binding workflow is
++still required before relying on unattended KIS entries after ambiguous acknowledgments.
++
++Every scheduled collection attempt, including incomplete coverage or an API
++failure, advances the next scheduled attempt by the configured interval. It does
++not advance successful coverage or fabricate journal completion. `journal status`
++shows `last_attempt_ms`, `last_reason`, and `last_success_ms`; explicit `journal sync`
++can retry sooner. Interval changes use the last attempt as their scheduling anchor.
++A successful historical collection uses its completion clock for scheduling, not
++its historical end date. KIS snapshots reuse the date window captured with their
++preflight baseline, including intents queued across a day boundary.
++
++Conservative journal discontinuities may leave subsequent cycles pending until a
++source correction or complete backfill reconciles the gap; automatic re-anchoring
++after an already-known position discontinuity is a follow-up. Architecture HTML
++views describe the target design; implementation status and excluded future
++notification nodes are mapped in `docs/architecture.md` and the fidelity report.
+
+diff --git a/docs/trading_hours.md b/docs/trading_hours.md
+index df5f81e..9a6ce17 100644
+--- a/docs/trading_hours.md
++++ b/docs/trading_hours.md
+@@ -67,3 +67,7 @@ Remaining requirements before autonomous trading:
+ - CME FX futures overview: https://www.cmegroup.com/trading/why-futures/welcome-to-cme-fx-futures.html
+ - CME Gold futures fact card: https://www.cmegroup.com/market-regulation/files/gold-futures-and-options-fact-card.pdf
+ - CME Copper futures fact card: https://www.cmegroup.com/trading/metals/files/copper-futures-and-options.pdf
++
++Native `ETH`, `ETH-PERP`, and `ETHUSDC-PERP` resolve to the Hyperliquid ETH
++perpetual and use the same explicit 24/7 crypto-perpetual session as BTC. This
++session mapping does not authorize any additional native or HIP-3 asset.
 
 diff --git a/intent/kis-account.md b/intent/kis-account.md
 new file mode 100644
@@ -2201,10 +2254,10 @@ index 0000000..3be316b
 
 diff --git a/kis_hl/journal_sync.py b/kis_hl/journal_sync.py
 new file mode 100644
-index 0000000..429eba1
+index 0000000..18f14a8
 --- /dev/null
 +++ b/kis_hl/journal_sync.py
-@@ -0,0 +1,731 @@
+@@ -0,0 +1,749 @@
 +"""Account-wide execution facts and deferred, source-backed completed journals."""
 +
 +from __future__ import annotations
@@ -2339,6 +2392,17 @@ index 0000000..429eba1
 +                last_success_ms INTEGER, next_due_ms INTEGER NOT NULL DEFAULT 0);
 +            """
 +            )
++            columns = {
++                r[1] for r in db.execute("PRAGMA table_info(journal_sync_schedule)")
++            }
++            for name, definition in [
++                ("last_attempt_ms", "INTEGER"),
++                ("last_reason", "TEXT NOT NULL DEFAULT ''"),
++            ]:
++                if name not in columns:
++                    db.execute(
++                        f"ALTER TABLE journal_sync_schedule ADD COLUMN {name} {definition}"
++                    )
 +
 +    @contextmanager
 +    def connect(self):
@@ -2917,7 +2981,7 @@ index 0000000..429eba1
 +        with self.store.connect() as db:
 +            db.execute("BEGIN IMMEDIATE")
 +            old = db.execute(
-+                "SELECT last_success_ms FROM journal_sync_schedule WHERE scope=?",
++                "SELECT COALESCE(last_attempt_ms,last_success_ms) FROM journal_sync_schedule WHERE scope=?",
 +                (self.scope.key,),
 +            ).fetchone()[0]
 +            due = (old + seconds * 1000) if old is not None else now_ms
@@ -2933,8 +2997,15 @@ index 0000000..429eba1
 +    def success(self, now_ms):
 +        with self.store.connect() as db:
 +            db.execute(
-+                "UPDATE journal_sync_schedule SET last_success_ms=?,next_due_ms=?+interval_seconds*1000 WHERE scope=?",
-+                (now_ms, now_ms, self.scope.key),
++                "UPDATE journal_sync_schedule SET last_success_ms=?,last_attempt_ms=?,last_reason='',next_due_ms=?+interval_seconds*1000 WHERE scope=?",
++                (now_ms, now_ms, now_ms, self.scope.key),
++            )
++
++    def attempted(self, now_ms, reason):
++        with self.store.connect() as db:
++            db.execute(
++                "UPDATE journal_sync_schedule SET last_attempt_ms=?,last_reason=?,next_due_ms=?+interval_seconds*1000 WHERE scope=?",
++                (now_ms, reason, now_ms, self.scope.key),
 +            )
 
 diff --git a/kis_hl/kis/client.py b/kis_hl/kis/client.py
@@ -3257,10 +3328,10 @@ index 0000000..a073f81
 
 diff --git a/kis_hl/managed_execution.py b/kis_hl/managed_execution.py
 new file mode 100644
-index 0000000..0809fe4
+index 0000000..5ef6ee3
 --- /dev/null
 +++ b/kis_hl/managed_execution.py
-@@ -0,0 +1,836 @@
+@@ -0,0 +1,867 @@
 +"""Durable long-entry protection coordinated by one local account supervisor."""
 +
 +from __future__ import annotations
@@ -3373,6 +3444,10 @@ index 0000000..0809fe4
 +            raise ValueError("Positive integer risk budgets required")
 +    if type(plan["allow_local_sl"]) is not bool:
 +        raise ValueError("Local SL fallback must be explicit")
++    if plan["instrument"].startswith("kis:"):
++        if "verified_price_step" not in plan:
++            raise ValueError("KIS plans require verified_price_step")
++        decimal(plan["verified_price_step"], positive=True)
 +    if not 0 < decimal(plan["slippage"]) < 1:
 +        raise ValueError("Slippage must be between zero and one")
 +    if plan["expires_ms"] <= now_ms:
@@ -3646,6 +3721,7 @@ index 0000000..0809fe4
 +            ):
 +                current = self.store.get(position_id)
 +                if current["version"] == row["version"]:
++                    row.pop("read_failure_exit", None)
 +                    self._state(
 +                        row,
 +                        "INTERVENTION",
@@ -3741,6 +3817,7 @@ index 0000000..0809fe4
 +            if not self.gateway.native_sl and not p["allow_local_sl"]:
 +                raise ValueError("No protective provider available")
 +            row["baseline"] = snap.get("baseline", {})
++            row["baseline_start_ms"] = snap.get("baseline_start_ms", row["created_ms"])
 +            row["atr_source"] = snap["atr_source"]
 +            row["providers"] = {
 +                "stop_loss": "native" if self.gateway.native_sl else "local",
@@ -3758,7 +3835,32 @@ index 0000000..0809fe4
 +            )
 +            self._send(row, "entry", now, quantity=str(size), price=str(price))
 +            return
-+        snap = self.gateway.snapshot(row, attempts, now)
++        try:
++            snap = self.gateway.snapshot(row, attempts, now)
++        except (RuntimeError, OSError) as exc:
++            row["read_failures"] = row.get("read_failures", 0) + 1
++            row.setdefault("read_failure_since_ms", now)
++            existing_intervention = row["state"] == "INTERVENTION" and not row.get(
++                "read_failure_exit"
++            )
++            exhausted = (
++                row["read_failures"] >= 3
++                or now - row["read_failure_since_ms"] >= p["protection_grace_ms"]
++            )
++            if exhausted and not existing_intervention:
++                row["exit_requested_ms"] = row["exit_requested_ms"] or now
++                row["read_failure_exit"] = True
++            self._state(
++                row,
++                "INTERVENTION" if existing_intervention or exhausted else "DEGRADED",
++                f"Account snapshot unavailable ({type(exc).__name__}); consecutive failures={row['read_failures']}; awaiting readback",
++                now,
++            )
++            return
++        row["read_failures"] = 0
++        row.pop("read_failure_since_ms", None)
++        if row.pop("read_failure_exit", False):
++            row["state"] = "EXITING"
 +        now = int(snap.get("observed_now_ms", now))
 +        if not snap["consistent"] or snap["foreign_add"]:
 +            raise ValueError("External ownership or inconsistent exposure")
@@ -4100,10 +4202,10 @@ index 0000000..0809fe4
 
 diff --git a/kis_hl/managed_gateways.py b/kis_hl/managed_gateways.py
 new file mode 100644
-index 0000000..f0e4cde
+index 0000000..6f6a47d
 --- /dev/null
 +++ b/kis_hl/managed_gateways.py
-@@ -0,0 +1,702 @@
+@@ -0,0 +1,705 @@
 +"""Venue-specific snapshots for the account supervisor; no inferred stop order names."""
 +
 +from datetime import datetime, timezone, timedelta
@@ -4687,12 +4789,15 @@ index 0000000..f0e4cde
 +            "quantity_step": "1",
 +            "price_step": p.get("verified_price_step", "0"),
 +            "baseline": baseline,
++            "baseline_start_ms": now,
 +            "observed_now_ms": int(time.time() * 1000),
 +        }
 +
 +    def snapshot(self, row, attempts, now):
 +        asset = self._asset(row["plan"]["instrument"])
-+        history = self._history(asset, row["created_ms"], now)
++        history = self._history(
++            asset, row.get("baseline_start_ms", row["created_ms"]), now
++        )
 +        owned = {
 +            str(a["order_id"]): a
 +            for a in attempts
@@ -4809,10 +4914,10 @@ index 0000000..f0e4cde
 
 diff --git a/kis_hl/operations_cli.py b/kis_hl/operations_cli.py
 new file mode 100644
-index 0000000..fb4f0cb
+index 0000000..7d375b7
 --- /dev/null
 +++ b/kis_hl/operations_cli.py
-@@ -0,0 +1,688 @@
+@@ -0,0 +1,696 @@
 +"""Harness-neutral account, instrument, managed order and journal commands."""
 +
 +from dataclasses import asdict, replace
@@ -5263,6 +5368,9 @@ index 0000000..fb4f0cb
 +                        reason="Account history collection failed",
 +                    )
 +                    if args.sync_action == "sync" or args.once:
++                        schedule.attempted(
++                            int(time.time() * 1000), "Account history collection failed"
++                        )
 +                        raise RuntimeError(
 +                            "Journal synchronization failed; cursor unchanged"
 +                        ) from None
@@ -5271,7 +5379,12 @@ index 0000000..fb4f0cb
 +                        "run_reason": "Collection failed; retry on next poll",
 +                    }
 +                if result.get("run_complete") or result.get("collection_complete"):
-+                    schedule.success(end)
++                    schedule.success(int(time.time() * 1000))
++                else:
++                    schedule.attempted(
++                        int(time.time() * 1000),
++                        result.get("run_reason") or "History coverage incomplete",
++                    )
 +                if args.sync_action == "sync" or args.once:
 +                    return result
 +            elif args.once:
@@ -5741,6 +5854,20 @@ index 0000000..f76bf27
 +                        (grant_id,),
 +                    )
 +            return self.store.enqueue(scope, p, live=live, now_ms=now_ms)
+
+diff --git a/kis_hl/trading_hours.py b/kis_hl/trading_hours.py
+index 6274cb5..ac68d29 100644
+--- a/kis_hl/trading_hours.py
++++ b/kis_hl/trading_hours.py
+@@ -57,7 +57,7 @@ def trading_session_decision_for_resolved_asset(
+             SESSION_CRYPTO_SPOT,
+             current.astimezone(UTC_TZ),
+         )
+-    if resolved.kind == "perp" and resolved.coin == "BTC" and resolved.dex is None:
++    if resolved.kind == "perp" and resolved.coin in {"BTC", "ETH"} and resolved.dex is None:
+         return _decision(
+             True,
+             "crypto_perp_is_24_7",
 
 diff --git a/kis_hl/trailing_runner.py b/kis_hl/trailing_runner.py
 index 86e6c60..0279ef0 100644
@@ -6703,10 +6830,10 @@ index 0000000..d4505fe
 
 diff --git a/tests/test_journal_sync.py b/tests/test_journal_sync.py
 new file mode 100644
-index 0000000..914010d
+index 0000000..bfaea1c
 --- /dev/null
 +++ b/tests/test_journal_sync.py
-@@ -0,0 +1,214 @@
+@@ -0,0 +1,227 @@
 +import tempfile
 +import unittest
 +from pathlib import Path
@@ -6736,6 +6863,19 @@ index 0000000..914010d
 +            costs_complete=True,
 +            **kw,
 +        )
++
++    def test_incomplete_schedule_attempt_preserves_success_and_delays_next_run(self):
++        schedule = SyncSchedule(self.store, self.scope)
++        schedule.success(100)
++        schedule.attempted(200, "History coverage incomplete")
++        self.assertFalse(schedule.due(201))
++        self.assertEqual(schedule.settings()["last_success_ms"], 100)
++        self.assertEqual(schedule.settings()["last_attempt_ms"], 200)
++        self.assertEqual(
++            schedule.settings()["last_reason"], "History coverage incomplete"
++        )
++        schedule.configure(60, now_ms=300)
++        self.assertEqual(schedule.settings()["next_due_ms"], 60200)
 +
 +    def test_external_cycle_dedupes_and_uses_net_return(self):
 +        fs = [
@@ -7142,10 +7282,10 @@ index 0000000..51d89bf
 
 diff --git a/tests/test_managed_execution.py b/tests/test_managed_execution.py
 new file mode 100644
-index 0000000..59dd05b
+index 0000000..947b808
 --- /dev/null
 +++ b/tests/test_managed_execution.py
-@@ -0,0 +1,361 @@
+@@ -0,0 +1,422 @@
 +import tempfile
 +import unittest
 +from pathlib import Path
@@ -7263,6 +7403,14 @@ index 0000000..59dd05b
 +        del p["max_loss"]
 +        with self.assertRaises(ValueError):
 +            validate_plan(p, 1)
++
++    def test_kis_preview_requires_explicit_verified_tick(self):
++        p = plan()
++        p["instrument"] = "kis:SPY"
++        with self.assertRaisesRegex(ValueError, "verified_price_step"):
++            validate_plan(p, 1)
++        p["verified_price_step"] = "0.01"
++        self.assertEqual(validate_plan(p, 1)["verified_price_step"], "0.01")
 +        p = plan()
 +        p["quantity"] = "NaN"
 +        with self.assertRaises(ValueError):
@@ -7312,6 +7460,59 @@ index 0000000..59dd05b
 +        self.assertEqual(self.g.sent[-1]["price"], "95.04")
 +        self.worker.step(row["id"], 30)
 +        self.assertEqual(self.store.get(row["id"])["state"], "PROTECTED")
++
++    def test_transient_snapshot_failure_recovers_local_protection(self):
++        row = self.queue()
++        self.g.native_sl = False
++        self.worker.step(row["id"], 10)
++        self.g.size = self.g.filled = "1"
++        self.g.orders[self.g.sent[0]["id"]]["status"] = "filled"
++        self.worker.step(row["id"], 20)
++        snapshot = self.g.snapshot
++        self.g.snapshot = lambda *args: (_ for _ in ()).throw(
++            RuntimeError("inquiry unavailable")
++        )
++        self.worker.step(row["id"], 30)
++        self.assertEqual(self.store.get(row["id"])["state"], "DEGRADED")
++        self.g.snapshot = lambda *args: {**snapshot(*args), "price": "90"}
++        self.worker.step(row["id"], 40)
++        self.assertEqual(self.g.sent[-1]["kind"], "exit")
++
++    def test_repeated_read_failure_latches_exit_and_recovers_without_resend(self):
++        row = self.queue()
++        self.g.native_sl = False
++        self.worker.step(row["id"], 10)
++        self.g.size = self.g.filled = "1"
++        self.g.orders[self.g.sent[0]["id"]]["status"] = "filled"
++        self.worker.step(row["id"], 20)
++        snapshot = self.g.snapshot
++        self.g.snapshot = lambda *args: (_ for _ in ()).throw(OSError("unavailable"))
++        for now in (30, 40, 50):
++            self.worker.step(row["id"], now)
++        self.assertTrue(self.store.get(row["id"])["exit_requested_ms"])
++        self.assertEqual(len(self.g.sent), 1)
++        self.g.snapshot = snapshot
++        self.worker.step(row["id"], 60)
++        self.assertEqual(self.g.sent[-1]["kind"], "exit")
++
++    def test_read_outage_does_not_clear_existing_identity_intervention(self):
++        row = self.queue()
++        self.worker.step(row["id"], 10)
++        snapshot = self.g.snapshot
++        self.g.snapshot = lambda *args: (_ for _ in ()).throw(
++            ValueError("identity mismatch")
++        )
++        self.worker.step(row["id"], 20)
++        self.g.snapshot = lambda *args: (_ for _ in ()).throw(
++            RuntimeError("unavailable")
++        )
++        for now in (30, 40, 50):
++            self.worker.step(row["id"], now)
++        self.g.size = self.g.filled = "1"
++        self.g.snapshot = snapshot
++        self.worker.step(row["id"], 60)
++        self.assertEqual(self.store.get(row["id"])["state"], "INTERVENTION")
++        self.assertEqual(len(self.g.sent), 1)
 +
 +    def test_unknown_entry_is_not_resent(self):
 +        row = self.queue()
@@ -7743,10 +7944,10 @@ index 0000000..17441b2
 
 diff --git a/tests/test_operations_cli.py b/tests/test_operations_cli.py
 new file mode 100644
-index 0000000..5ae1ba3
+index 0000000..d016cf7
 --- /dev/null
 +++ b/tests/test_operations_cli.py
-@@ -0,0 +1,141 @@
+@@ -0,0 +1,167 @@
 +import contextlib
 +import io
 +import json
@@ -7805,6 +8006,32 @@ index 0000000..5ae1ba3
 +            self.assertRaises(KeyboardInterrupt),
 +        ):
 +            self.run_cli("journal", "run", "--venue", "hyperliquid")
++
++    def test_incomplete_persistent_sync_waits_for_configured_interval(self):
++        from unittest.mock import Mock
++
++        scope = Scope("hyperliquid", "testnet", "pace-fixture")
++        sleeps = []
++
++        def idle(_):
++            sleeps.append(1)
++            if len(sleeps) == 2:
++                raise KeyboardInterrupt
++
++        sync = Mock(return_value={"run_complete": False, "run_reason": "Retention gap"})
++        with (
++            patch("kis_hl.operations_cli.scope_client", return_value=(scope, None)),
++            patch("kis_hl.operations_cli.sync_hyperliquid", sync),
++            patch("kis_hl.operations_cli.time.sleep", side_effect=idle),
++            self.assertRaises(KeyboardInterrupt),
++        ):
++            self.run_cli("journal", "run", "--venue", "hyperliquid", "--start-ms", "0")
++        self.assertEqual(sync.call_count, 1)
++        from kis_hl.journal_sync import SyncSchedule
++
++        settings = SyncSchedule(JournalLedger(self.db), scope).settings()
++        self.assertIsNone(settings["last_success_ms"])
++        self.assertEqual(settings["last_reason"], "Retention gap")
 +
 +    def test_import_actual_history_without_credentials_and_deduplicate(self):
 +        raw = {
@@ -7982,3 +8209,22 @@ index 0000000..50411c3
 +
 +if __name__ == "__main__":
 +    unittest.main()
+
+diff --git a/tests/test_trading_hours.py b/tests/test_trading_hours.py
+index f749436..0abeefb 100644
+--- a/tests/test_trading_hours.py
++++ b/tests/test_trading_hours.py
+@@ -17,6 +17,13 @@ from kis_hl.trading_hours import (
+ 
+ 
+ class TradingHoursTests(unittest.TestCase):
++    def test_native_eth_perpetual_is_available_on_weekends(self):
++        decision = trading_session_decision_for_symbol(
++            "ETH", now=datetime(2026, 9, 12, 20, tzinfo=ZoneInfo("UTC"))
++        )
++        self.assertTrue(decision.allowed)
++        self.assertEqual(decision.session_group, SESSION_CRYPTO_PERP)
++
+     def test_us_cash_assets_follow_regular_equity_session(self) -> None:
+         new_york = ZoneInfo("America/New_York")
+ 

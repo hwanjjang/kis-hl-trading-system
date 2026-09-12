@@ -1,5 +1,5 @@
 {
-  "candidate": "108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f",
+  "candidate": "ac6f00c728121e5a3e56523e142b2040d1aef3d92cc14ca94a357875182b8820",
   "scenarios": [
     {
       "id": "offline-protected-flow",
@@ -67,13 +67,39 @@
       "intended_failure": true
     },
     {
+      "id": "pr-fixes-red",
+      "phase": "red",
+      "candidate": "pre-fix core review hashes",
+      "command": "python3 -m unittest selected PR behavior regressions",
+      "exit_code": 1,
+      "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",
+      "observed": "Four intended failures for snapshot recovery, ETH sessions and incomplete scheduler pacing",
+      "evidence": "reports/sdlc/protected-trading/pr-fixes-red.txt",
+      "execution_kind": "offline",
+      "status": "passed",
+      "intended_failure": true
+    },
+    {
+      "id": "kis-preview-red",
+      "phase": "red",
+      "candidate": "pre-fix core review hashes",
+      "command": "python3 -m unittest tests.test_managed_execution.ManagedExecutionTests.test_kis_preview_requires_explicit_verified_tick",
+      "exit_code": 1,
+      "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",
+      "observed": "Intended failure: KIS preview accepted missing verified price tick",
+      "evidence": "reports/sdlc/protected-trading/kis-preview-red.txt",
+      "execution_kind": "offline",
+      "status": "passed",
+      "intended_failure": true
+    },
+    {
       "id": "final-green",
       "phase": "green",
-      "candidate": "108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f",
+      "candidate": "ac6f00c728121e5a3e56523e142b2040d1aef3d92cc14ca94a357875182b8820",
       "command": "python3 -m unittest discover -s tests -t . -q",
       "exit_code": 0,
       "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",
-      "observed": "253 tests passed; final source candidate after bounded native stop buffer correction",
+      "observed": "260 tests passed; final source candidate after bounded native stop buffer correction",
       "evidence": "reports/sdlc/protected-trading/green-evidence.txt",
       "execution_kind": "offline",
       "status": "passed",
@@ -82,11 +108,11 @@
     {
       "id": "final-post-refactor",
       "phase": "post-refactor",
-      "candidate": "108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f",
+      "candidate": "ac6f00c728121e5a3e56523e142b2040d1aef3d92cc14ca94a357875182b8820",
       "command": "python3 -m unittest discover -s tests -t . -q",
       "exit_code": 0,
       "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",
-      "observed": "253 tests passed",
+      "observed": "260 tests passed",
       "evidence": "reports/sdlc/protected-trading/post-refactor-evidence.txt",
       "execution_kind": "offline",
       "status": "passed",
@@ -95,7 +121,7 @@
     {
       "id": "functional-cli",
       "phase": "smoke",
-      "candidate": "108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f",
+      "candidate": "ac6f00c728121e5a3e56523e142b2040d1aef3d92cc14ca94a357875182b8820",
       "command": "python3 scripts/smoke_protected_trading.py",
       "exit_code": 0,
       "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",
@@ -109,7 +135,7 @@
     {
       "id": "content",
       "phase": "document",
-      "candidate": "108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f",
+      "candidate": "ac6f00c728121e5a3e56523e142b2040d1aef3d92cc14ca94a357875182b8820",
       "command": "git diff --check and candidate secret/workflow/diagram inspection",
       "exit_code": 0,
       "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",

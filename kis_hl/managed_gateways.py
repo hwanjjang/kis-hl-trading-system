@@ -581,12 +581,15 @@ class ManagedKisGateway:
             "quantity_step": "1",
             "price_step": p.get("verified_price_step", "0"),
             "baseline": baseline,
+            "baseline_start_ms": now,
             "observed_now_ms": int(time.time() * 1000),
         }
 
     def snapshot(self, row, attempts, now):
         asset = self._asset(row["plan"]["instrument"])
-        history = self._history(asset, row["created_ms"], now)
+        history = self._history(
+            asset, row.get("baseline_start_ms", row["created_ms"]), now
+        )
         owned = {
             str(a["order_id"]): a
             for a in attempts

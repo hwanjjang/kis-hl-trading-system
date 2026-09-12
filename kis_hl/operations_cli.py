@@ -448,6 +448,9 @@ def cmd_journal_sync(args):
                         reason="Account history collection failed",
                     )
                     if args.sync_action == "sync" or args.once:
+                        schedule.attempted(
+                            int(time.time() * 1000), "Account history collection failed"
+                        )
                         raise RuntimeError(
                             "Journal synchronization failed; cursor unchanged"
                         ) from None
@@ -456,7 +459,12 @@ def cmd_journal_sync(args):
                         "run_reason": "Collection failed; retry on next poll",
                     }
                 if result.get("run_complete") or result.get("collection_complete"):
-                    schedule.success(end)
+                    schedule.success(int(time.time() * 1000))
+                else:
+                    schedule.attempted(
+                        int(time.time() * 1000),
+                        result.get("run_reason") or "History coverage incomplete",
+                    )
                 if args.sync_action == "sync" or args.once:
                     return result
             elif args.once:

@@ -110,6 +110,10 @@ def validate_plan(plan, now_ms):
             raise ValueError("Positive integer risk budgets required")
     if type(plan["allow_local_sl"]) is not bool:
         raise ValueError("Local SL fallback must be explicit")
+    if plan["instrument"].startswith("kis:"):
+        if "verified_price_step" not in plan:
+            raise ValueError("KIS plans require verified_price_step")
+        decimal(plan["verified_price_step"], positive=True)
     if not 0 < decimal(plan["slippage"]) < 1:
         raise ValueError("Slippage must be between zero and one")
     if plan["expires_ms"] <= now_ms:
@@ -383,6 +387,7 @@ class Supervisor:
             ):
                 current = self.store.get(position_id)
                 if current["version"] == row["version"]:
+                    row.pop("read_failure_exit", None)
                     self._state(
                         row,
                         "INTERVENTION",
@@ -478,6 +483,7 @@ class Supervisor:
             if not self.gateway.native_sl and not p["allow_local_sl"]:
                 raise ValueError("No protective provider available")
             row["baseline"] = snap.get("baseline", {})
+            row["baseline_start_ms"] = snap.get("baseline_start_ms", row["created_ms"])
             row["atr_source"] = snap["atr_source"]
             row["providers"] = {
                 "stop_loss": "native" if self.gateway.native_sl else "local",
@@ -495,7 +501,32 @@ class Supervisor:
             )
             self._send(row, "entry", now, quantity=str(size), price=str(price))
             return
-        snap = self.gateway.snapshot(row, attempts, now)
+        try:
+            snap = self.gateway.snapshot(row, attempts, now)
+        except (RuntimeError, OSError) as exc:
+            row["read_failures"] = row.get("read_failures", 0) + 1
+            row.setdefault("read_failure_since_ms", now)
+            existing_intervention = row["state"] == "INTERVENTION" and not row.get(
+                "read_failure_exit"
+            )
+            exhausted = (
+                row["read_failures"] >= 3
+                or now - row["read_failure_since_ms"] >= p["protection_grace_ms"]
+            )
+            if exhausted and not existing_intervention:
+                row["exit_requested_ms"] = row["exit_requested_ms"] or now
+                row["read_failure_exit"] = True
+            self._state(
+                row,
+                "INTERVENTION" if existing_intervention or exhausted else "DEGRADED",
+                f"Account snapshot unavailable ({type(exc).__name__}); consecutive failures={row['read_failures']}; awaiting readback",
+                now,
+            )
+            return
+        row["read_failures"] = 0
+        row.pop("read_failure_since_ms", None)
+        if row.pop("read_failure_exit", False):
+            row["state"] = "EXITING"
         now = int(snap.get("observed_now_ms", now))
         if not snap["consistent"] or snap["foreign_add"]:
             raise ValueError("External ownership or inconsistent exposure")

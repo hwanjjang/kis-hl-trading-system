@@ -1,114 +1,138 @@
-# Independent implementation verification
+# Independent correction verification
 
 Reviewer: `/root/review_trading_plan`, separate from builder `/root`.
 Date: 2026-09-12. Verdict: **PASS** for frozen candidate
-`108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f`.
+`ac6f00c728121e5a3e56523e142b2040d1aef3d92cc14ca94a357875182b8820`.
 Base: `9360b0cdd2753d5ca94ce052b03fd67d7b0c4af1`.
 
-No remaining Must Fix findings were identified within the reviewed scope.
-This closes the independent implementation verification stage for this candidate;
-it is not the later alternate-provider PR review, live-order acceptance, merge
-approval or deployment authorization.
+No remaining Must Fix findings were identified in this bounded correction review.
+This is independent SDLC verification of the corrections following Anthropic PR
+review 1. The alternate-provider reviewer still needs to assess the corrected PR
+and author dispositions; this report does not replace that review or authorize
+live trading, unattended deployment or merge.
 
-## Identity and scope
+## Inputs and frozen identity
 
-All 53 actual source, test and document files matched `candidate.json` before and
-after this follow-up. Independently computing SHA256 of
-`json.dumps(manifest['files'], sort_keys=True).encode()` reproduced the exact
-candidate ID above. No moving source inputs were detected in this run.
+All 56 actual candidate files matched their manifest SHA256 values before and
+after execution. Independently hashing
+`json.dumps(manifest['files'], sort_keys=True).encode()` reproduced the candidate
+above. No moving candidate input was detected. The complete exact input map is
+`candidate.json`, pinned below.
 
-Review accumulated across the core and final assessments covers the complete
-changed modules/tests and integration diffs, canonical intent/spec/plan, operations
-documentation, relevant venue/journal owner references, build/self-verification,
-test results and artifact records. The focused final follow-up reviewed the
-scheduler lock scope, monotonic attribution revision logic, actual Hyperliquid
-adapter opt-in and final entry transmission boundary. The earlier assessment of
-candidate `12f0febcf9fc5b638366f9f25e723b122e0beac0838597559faaa24ce6462a27`
-is preserved unchanged as `independent-verification-12f0.md`; its verdict remains
-CHANGES_REQUIRED. Its old default-ingest reproduction intentionally remains strict;
-the new follow-up exercises the real automatic adapter path.
+Read `pr-review-1.md`, `pr-finding-dispositions.md`, current correction diffs in
+runtime modules/tests/operations documentation, relevant full supervisor/gateway/
+scheduler control paths, and current build/self-verification records. This follows
+the broader prior source review. Previous report is preserved byte-for-byte as
+`independent-verification-108d.md`; the earlier 12f0 CHANGES_REQUIRED report also
+remains retained. Earlier PASS reports do not certify corrections they predate.
 
-## Actual independent executions
+## Actual independently executed checks
 
-| Command/check | Result |
+| Check | Actual result |
 | --- | --- |
-| `python3 -B -m unittest discover -s tests -t . -q` | Exit 0; 253 tests passed in 17.386 seconds |
+| `python3 -B -m unittest discover -s tests -t . -q` | Exit 0; 260 tests passed in 16.447 seconds |
 | `python3 -B scripts/smoke_protected_trading.py` | Exit 0; 18 actual offline CLI subprocesses passed |
-| `python3 -B reports/sdlc/protected-trading/independent-followup.py` | Exit 0; both retained findings resolved |
-| Frozen manifest validation, repeated after all executions | 53/53 file hashes match; candidate digest matches |
+| `python3 -B reports/sdlc/protected-trading/independent-ac6f-probes.py` | Exit 0; all additional correction probes passed |
+| `python3 -B reports/sdlc/protected-trading/independent-followup.py` | Exit 0; prior IV-1 and IV-2 regressions passed |
+| Repeated candidate verification | 56/56 matches; independently reproduced candidate digest |
 
-The unit suite uses its existing fake venue transports. This reviewer did not
-replace local locks or CLI handlers. Smoke ran actual CLI/parser/SQLite paths;
-the additional scheduler scenario ran an actual idle CLI scheduler and ten real
-lock acquisitions in another process. The automatic history scenario used actual
-`sync_hyperliquid`, `attribute_fill`, execution storage and journal storage with an
-in-memory fixture history provider. No network or account calls were made.
+Real local account locks were used throughout. The unit suite retains its fixture
+venue transports; smoke used actual CLI handlers and temporary SQLite. Supplemental
+failed-sync testing called the actual CLI handler with only fixture transport,
+fixture scope and bounded test sleep. The IV-1 probe used a real idle scheduler
+process and ten actual lock acquisitions. No account/API requests were required.
 
-## Finding dispositions
+## Correction findings and adversarial checks
 
-- **IV-1 closed:** the scheduler acquires its lock inside each iteration, rechecks
-  due state under that lock and releases it before ordinary idle sleep. Contention
-  in persistent mode retries; requested/once mode still reports an active owner.
-  With a future due time, all ten independent real lock acquisitions succeeded
-  while the actual scheduler stayed alive. Collection serialization therefore no
-  longer permanently excludes requested synchronization between scheduled runs.
-- **IV-2 closed:** only the actual Hyperliquid adapter enables attribution
-  enrichment. Initially unassigned fill execution-1 was imported, then a matching
-  managed native order was established locally. A second real adapter sync added
-  exactly one source revision with evidenced strategy/origin, preserving all
-  economic fields. A third sync created no duplicate revision. Changing the
-  execution price was rejected as requiring explicit correction and rolled back;
-  revision count remained two. The suite also checks unknown replay cannot erase
-  known attribution and contradictory strategy attribution stays rejected.
-- **R2-1 closed:** entry enablement is checked after preflight and again inside
-  `_send` after durable attempt creation, immediately before gateway dispatch.
-  Disabled entries are durably rejected without submission. The preflight-change
-  regression passed in the full suite. Signal/grant authority is rechecked after
-  preflight reads, before entry transmission.
-- **C1–C9 remain closed:** reviewed fixes and passing regressions cover queued
-  cancellation, stale-data fill/deadline handling, continued exit reconciliation,
-  cancel rejection, exact stop readback semantics, persisted exit intent across
-  crashes, execution ordering, correction cycle counts and retention evidence.
-- **Native stop execution buffer verified:** configured slippage produces a
-  separate tick-rounded bounded execution price (trigger 96, execution 95.04 at
-  1% in the regression). This checks the intended payload, not actual gap fills.
+**F1 — closed within the documented recovery contract.** Snapshot RuntimeError/
+OSError failures now persist DEGRADED state and retain reconciliation. Three
+consecutive failures or the grace duration latches exit and marks the special
+read-outage intervention. A successful snapshot resumes cancellation/exit for
+that intervention; semantic identity/ownership errors still remain manual.
+The full regressions exercise transient below-stop recovery, repeated failures
+and an existing identity intervention. Independent additional probes crossed
+`protection_grace_ms` with only two failures and restarted the supervisor between
+steps: the exit latch and original first-fill time persisted, and recovery sent
+an exit while retaining the original exit clock. A separate UNKNOWN submission
+survived repeated read failures, supervisor restarts and successful readback with
+one UNKNOWN attempt and no replacement entry. No write uses failed snapshot data.
+Exception class/count is retained without copying sensitive transport payloads.
 
-## Acceptance and limits
+**F2 — closed.** The native perpetual session branch explicitly covers both BTC
+and ETH while retaining the no-dex requirement. The weekend ETH regression passed;
+the trading-hours owner documentation now reflects 24/7 ETH. This does not broaden
+arbitrary non-xyz perpetuals or verify live ETH exchange acceptance.
 
-PT1 has offline account/route/identity and gateway coverage with unverified native
-KIS protection and paper restrictions still gated. PT2 covers actual-fill facts,
-fees/funding, coverage gaps, revisions, deduplication and late attribution. PT3
-covers persistent configurable 10800-second scheduling and collection ownership.
-PT4/PT5 cover durable attempts, UNKNOWN handling, partial protection, stop readback,
-exit/cancel recovery, multi-position ownership and bounded signal/grant authority.
-PT6 local independent verification passes; the separate PR review is still pending.
+**F3 — closed.** Both unsuccessful and incomplete collections set the next attempt
+from completion time using the configured interval, without creating successful
+coverage. Manual synchronization may retry sooner. Full tests cover incomplete
+retention pacing. Additional independent testing made the actual persistent CLI
+handler encounter a transport exception: across two polls it collected once,
+preserved null last-success, and scheduled exactly 10800000 ms after last-attempt.
+A pre-migration four-column SQLite schedule retained its interval, success and due
+time on construction; new failure metadata survived reopening, and interval
+changes anchored to last-attempt. No source coverage was fabricated. The previous
+idle-lock and attribution adapter probes also remain green.
 
-No credentials were read and no venue request/order/cancel/amend, notification,
-commit, deployment or further delegation occurred. Product source and shared SDLC
-state were not edited. Retained writes are reviewer reports and sanitized evidence.
-Generated diagrams were checked in the prior design review; this implementation
-follow-up reuses the builder's rendering receipts and did not run a browser.
+**F7 — accepted portion verified.** Preview validation requires a KIS price step;
+the added test passed and independent probes rejected zero, negative, NaN and
+infinite steps. Read outages retain a safe exception classification. Broader
+classification of semantic/preflight errors remains an explicitly limited
+operator-diagnostics improvement, not a newly claimed feature.
 
-Live partial fills, gaps/halts, exchange acceptance, cancellation reservations and
-quote-clock rollout remain unverified. KIS exact journal completion still requires
-source execution/cost statements. These explicit operational limits are not removed
-by the offline PASS.
+**F8 — closed for new preflights.** The gateway records baseline_start_ms and the
+supervisor persists it; snapshot history uses that same anchor. An independent
+actual KIS history-route probe queued before KST midnight, preflighted after it,
+and checked subsequent snapshot parameters: both queried date_from 20260913.
+Older rows without this field deliberately use created_ms as documented.
 
-## Exact consumed identities and evidence
+Earlier C1–C9, R2-1, IV-1 and IV-2 were not reopened by the reviewed changes. The
+kill-switch send boundary, durable UNKNOWN reservation and strict protective-stop
+readback remain in place.
 
-The complete 53-file input map is the independently checked `candidate.json`.
-The following hashes pin supporting inputs and this verifier's retained evidence.
-Shared stage receipts may subsequently change when the builder records this result.
+## Dispositions and practical limits
 
-| Path | SHA256 at consumption |
+F4 remains a deferred operator-recovery limitation: `order recover` retries native
+readback; it cannot prove non-transmission or bind an arbitrary native ID. The
+operations document now requires broker-side inspection/exposure management,
+retains the intent reservation and prohibits SQLite retry edits. This deferral
+must be assessed by the returning PR reviewer. It does not permit relying on
+unattended KIS entries after ambiguous acknowledgments.
+
+F5's action-expiry coupling is now documented. F6's conservative pending journal
+behavior and F9's target-design diagram status remain documented deferred
+recommendations. This bounded verification neither implements nor certifies those
+future workflows. No browser rendering was repeated for unchanged diagrams.
+
+PT1–PT5 corrections have passing local evidence; PT6 independent correction
+verification passes, while alternate-provider PR reassessment remains pending.
+Live order acceptance, partial fills, gaps/halts, cancellation reservations,
+quote-clock rollout and exact KIS journal completion without source statements
+remain outside these offline checks.
+
+One nonblocking artifact observation: repository-wide `git diff --check` reported
+trailing whitespace in generated `reports/sdlc/protected-trading/change-record.patch`
+at lines 8218, 8219 and 8230, including a terminal blank line. This patch receipt is
+outside the 56-file runtime/document candidate; no candidate-source whitespace
+finding was reported. It is not evidence of a behavior failure.
+
+No credentials, APIs, order/cancel/amend calls, source edits, shared SDLC writes,
+commits or delegation occurred. Writes are this review, preserved reports and
+sanitized local evidence only.
+
+## Input and execution evidence hashes
+
+| Path | SHA256 consumed/retained |
 | --- | --- |
-| `candidate.json` | `1ff6264d3b03f9a4fc0561a7943914896612433c011bde0301c5b1914a345e0a` |
-| `build.md` | `99252a4a81748b94c38442ed16e25c0d0d2fec2ad260343568927bef5dfd611a` |
-| `self-verification.md` | `56f9572af58ad10e86757e028cda74bd26c9d82677530af6c1e40150d5ef7429` |
-| `test-results.json` | `30d6dccc945d18133a095a085101504bf21bef69f807a639f223037806ac5521` |
-| `artifacts.json` | `a98340302c350ed8891fcf31ac239a0543936a38ef6ba3631d1b0c5566f1cc0c` |
+| `candidate.json` | `e2e06d21211afe9b85e7e342c40be6206ea11f433d082fa51812f55f6c4cf811` |
+| `pr-review-1.md` | `d55657e562ebd4d0ed1bdb517c2b48f3b97c5dccc29bf5bb18809342e2d45a1a` |
+| `pr-finding-dispositions.md` | `e891b7e21a4a8b889fe33d495a7316a04c2f615afed42f8b1f014ecd8e288f5b` |
+| `build.md` | `4e0501bf0f04a0c831b7e7df5648b13341436ad776c857d300ebb35e4d0a6300` |
+| `self-verification.md` | `450bf762f88967536b6b12a5f5f4e1222762207d38eed7557c060d6c2e097671` |
+| `test-results.json` | `7a501456f940130d4c43cbcf7de6faef8212b4a1f6f75aa8fb40cf51a775dbce` |
+| `artifacts.json` | `1a7289615a04fe09e92c5c76921d22e237ba6da2f6f907b0f4ae5957a680419d` |
+| `independent-ac6f-probes.py` | `aff7e082a371c5d69552e1025f45d413d0144ca41c5e9c4f21437e11c60486a3` |
 | `independent-followup.py` | `9afb86703765105fae2dfbc7ae184a334ade5652adeb84afc859f31ac69bbb4d` |
-| `independent-reproductions.py` | `252fb093c73bdaf92b9ab8225c51c9c5e98d025f7d8c867d3ec548e3ce612c32` |
-| `independent-verification-12f0.md` | `5ba62f2ae8aedd183156591fab975c8f4083f775d049415e5b46e22afee555c4` |
-| `independent-108d-unittest.txt` | `527bb4c306728b3112572cb69212e5ab0f8c7e9ff5ae3c368deb3323a88b36cc` |
-| `independent-108d-smoke.json` | `1066929385350eec10beeee37d1dbeba4b9e6c7357a0d5800ed11051279f31f7` |
+| `independent-verification-108d.md` | `fc2586e4e6a79a82724e37a5db873e472c337e63c8957952ef1124d17cfcc38f` |
+| `independent-ac6f-unittest.txt` | `f02d1dacc91ffa9fd0af70a12db2075f9477cfd50d4207e2ff0e9f803ebd38a7` |
+| `independent-ac6f-smoke.json` | `1066929385350eec10beeee37d1dbeba4b9e6c7357a0d5800ed11051279f31f7` |

@@ -132,6 +132,17 @@ class JournalLedger:
                 last_success_ms INTEGER, next_due_ms INTEGER NOT NULL DEFAULT 0);
             """
             )
+            columns = {
+                r[1] for r in db.execute("PRAGMA table_info(journal_sync_schedule)")
+            }
+            for name, definition in [
+                ("last_attempt_ms", "INTEGER"),
+                ("last_reason", "TEXT NOT NULL DEFAULT ''"),
+            ]:
+                if name not in columns:
+                    db.execute(
+                        f"ALTER TABLE journal_sync_schedule ADD COLUMN {name} {definition}"
+                    )
 
     @contextmanager
     def connect(self):
@@ -710,7 +721,7 @@ class SyncSchedule:
         with self.store.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             old = db.execute(
-                "SELECT last_success_ms FROM journal_sync_schedule WHERE scope=?",
+                "SELECT COALESCE(last_attempt_ms,last_success_ms) FROM journal_sync_schedule WHERE scope=?",
                 (self.scope.key,),
             ).fetchone()[0]
             due = (old + seconds * 1000) if old is not None else now_ms
@@ -726,6 +737,13 @@ class SyncSchedule:
     def success(self, now_ms):
         with self.store.connect() as db:
             db.execute(
-                "UPDATE journal_sync_schedule SET last_success_ms=?,next_due_ms=?+interval_seconds*1000 WHERE scope=?",
-                (now_ms, now_ms, self.scope.key),
+                "UPDATE journal_sync_schedule SET last_success_ms=?,last_attempt_ms=?,last_reason='',next_due_ms=?+interval_seconds*1000 WHERE scope=?",
+                (now_ms, now_ms, now_ms, self.scope.key),
+            )
+
+    def attempted(self, now_ms, reason):
+        with self.store.connect() as db:
+            db.execute(
+                "UPDATE journal_sync_schedule SET last_attempt_ms=?,last_reason=?,next_due_ms=?+interval_seconds*1000 WHERE scope=?",
+                (now_ms, reason, now_ms, self.scope.key),
             )

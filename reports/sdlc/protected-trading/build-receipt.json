@@ -1,9 +1,9 @@
 {
-  "iteration": 3,
+  "iteration": 4,
   "decision": "PROCEED",
   "reason": "Scoped implementation and applicable local checks completed with explicit venue verification limits.",
   "authority_source": "User requested non-notification functionality through PR creation; no actual trading/merge/deployment.",
-  "candidate": "108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f",
+  "candidate": "ac6f00c728121e5a3e56523e142b2040d1aef3d92cc14ca94a357875182b8820",
   "inputs": [
     {
       "kind": "triage",
@@ -65,17 +65,17 @@
     {
       "kind": "build",
       "path": "reports/sdlc/protected-trading/build.md",
-      "sha256": "99252a4a81748b94c38442ed16e25c0d0d2fec2ad260343568927bef5dfd611a"
+      "sha256": "4e0501bf0f04a0c831b7e7df5648b13341436ad776c857d300ebb35e4d0a6300"
     },
     {
       "kind": "change-record",
       "path": "reports/sdlc/protected-trading/change-record.patch",
-      "sha256": "2b823567639e5f48d18998021dffed2c39df264fd0a7cdb1d68e72d732a2f613"
+      "sha256": "ae73fb3f2d4b5c883d95133217bf0d1386d67cd56754d60c640d6ea3c7997113"
     },
     {
       "kind": "candidate-manifest",
       "path": "reports/sdlc/protected-trading/candidate.json",
-      "sha256": "1ff6264d3b03f9a4fc0561a7943914896612433c011bde0301c5b1914a345e0a"
+      "sha256": "e2e06d21211afe9b85e7e342c40be6206ea11f433d082fa51812f55f6c4cf811"
     },
     {
       "kind": "candidate-source",
@@ -95,7 +95,7 @@
     {
       "kind": "candidate-source",
       "path": ".agents/skills/trade-journal/references/record-contract.md",
-      "sha256": "574145659c29f7bf492b11c13f8e0af4c53fe924cd33074ed6f423c625fb8f15"
+      "sha256": "dbd178604d7145c1a93ffd5e38aa55a62eea7b41ff0889b8c7752cd8395a1f65"
     },
     {
       "kind": "candidate-source",
@@ -165,7 +165,12 @@
     {
       "kind": "candidate-source",
       "path": "docs/trading-operations.md",
-      "sha256": "526073d67020188413a02c94eb580f35b36478cc0953d201b4c469cbf2411672"
+      "sha256": "bb96865f5b2c4d897a79927f780f48c0cc5ff6298852852977d67982d50abd27"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/trading_hours.md",
+      "sha256": "d3fa110b663a50f43b848a58912aa3c1dea6e6b3c120bc086321f29779c7a2e4"
     },
     {
       "kind": "candidate-source",
@@ -215,7 +220,7 @@
     {
       "kind": "candidate-source",
       "path": "kis_hl/journal_sync.py",
-      "sha256": "adb6a9642a63be7cf8a77bdbe91270b463a7d19fa59725ff12cfe3ef369d109e"
+      "sha256": "690a563b6dc5ebf931e0e717905931e3218160c7875ccd369d6a358ad7617a38"
     },
     {
       "kind": "candidate-source",
@@ -230,22 +235,27 @@
     {
       "kind": "candidate-source",
       "path": "kis_hl/managed_execution.py",
-      "sha256": "21c4e4c2af6a8005c06061dcd926c2df3f9d75625629a451b78a5433bf1b35a8"
+      "sha256": "f6bd5e88212815af8efe094e9290a41c644d1a7447776c0c362f3e4ef895b48a"
     },
     {
       "kind": "candidate-source",
       "path": "kis_hl/managed_gateways.py",
-      "sha256": "ee30e7f4c7b0e39026fef8d008875245d9120b500d0b22b5ae8ce26589af92e4"
+      "sha256": "e260f362049b5dee909696ecfaaf34dcecf89891e5b52db7514dcc6cfa15e8f7"
     },
     {
       "kind": "candidate-source",
       "path": "kis_hl/operations_cli.py",
-      "sha256": "d2354be5d164f6ad50c390ac022fc07f070878c9462d12dd1f46db760d1fbde4"
+      "sha256": "a66ff1080c7fdcb74017d01cc0846473cf454e9c65384e64a370fdbf542f41c1"
     },
     {
       "kind": "candidate-source",
       "path": "kis_hl/strategy_signals.py",
       "sha256": "73b062df8edc6e9bf2e4651c768e00444e1037ab46ff790dbd6695312a402a00"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/trading_hours.py",
+      "sha256": "127fcfe4ebcec83bdf55b990d8aaca47c37cad3456dd04bba15398d080a581bd"
     },
     {
       "kind": "candidate-source",
@@ -305,7 +315,7 @@
     {
       "kind": "candidate-source",
       "path": "tests/test_journal_sync.py",
-      "sha256": "beff3a2d106906bdc029a0eb7f540654d72c95a9f24f181ff9dfc24f8e3be948"
+      "sha256": "fa4ff7e27baa778daa7ee2c600ed042953f7face27872fc4795a9baf74c2cfb9"
     },
     {
       "kind": "candidate-source",
@@ -325,7 +335,7 @@
     {
       "kind": "candidate-source",
       "path": "tests/test_managed_execution.py",
-      "sha256": "0c60ee22e6955c1122ad693ce91110d2c35a4e39fc81d17ac8ad017232bb02a3"
+      "sha256": "c7834c5dd694629ffa9f266f1003fe97487f9552917a4eac0ecb25a1f2c1b4b8"
     },
     {
       "kind": "candidate-source",
@@ -335,12 +345,17 @@
     {
       "kind": "candidate-source",
       "path": "tests/test_operations_cli.py",
-      "sha256": "0caf3e205a5a0af55ac6fa4e2733d42f5a3ce9d11c661b89026ea076021b3417"
+      "sha256": "d1dfe60e03b67d880ba0a25280d008c63375eb6c876779cf6d3689cc89acc671"
     },
     {
       "kind": "candidate-source",
       "path": "tests/test_strategy_signals.py",
       "sha256": "9681afdc7c68a08451aa1e1d77a5c6ccd0595d617248ca64c34defa6f8894ab9"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_trading_hours.py",
+      "sha256": "25c0da9339ce36b2419aa2455ea8fc425771d3f70d01bb6ac781a4ec116cc0bd"
     }
   ],
   "next_action": "Independent verification, then commit/push/PR and eligible review",

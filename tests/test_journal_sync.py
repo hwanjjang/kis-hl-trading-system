@@ -28,6 +28,19 @@ class JournalSyncTests(unittest.TestCase):
             **kw,
         )
 
+    def test_incomplete_schedule_attempt_preserves_success_and_delays_next_run(self):
+        schedule = SyncSchedule(self.store, self.scope)
+        schedule.success(100)
+        schedule.attempted(200, "History coverage incomplete")
+        self.assertFalse(schedule.due(201))
+        self.assertEqual(schedule.settings()["last_success_ms"], 100)
+        self.assertEqual(schedule.settings()["last_attempt_ms"], 200)
+        self.assertEqual(
+            schedule.settings()["last_reason"], "History coverage incomplete"
+        )
+        schedule.configure(60, now_ms=300)
+        self.assertEqual(schedule.settings()["next_due_ms"], 60200)
+
     def test_external_cycle_dedupes_and_uses_net_return(self):
         fs = [
             self.fill("a", "buy", 2, 100, 10, position_before="0"),

@@ -1,6 +1,6 @@
 # Self-verification
 
-Candidate `108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f`: 253 unit/regression tests passed; 18-process real offline
+Candidate `ac6f00c728121e5a3e56523e142b2040d1aef3d92cc14ca94a357875182b8820`: 260 unit/regression tests passed; 18-process real offline
 CLI/SQLite functional smoke passed. Required red regressions failed before the
 fixes, followed by green/post-format checks. Exact commands and sanitized evidence
 are in test-results.json. All checks were rerun after native stop, scheduler lock and attribution corrections.

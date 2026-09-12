@@ -88,3 +88,7 @@ Automatic Hyperliquid sync permits append-only enrichment from unknown attributi
 when an exact native order match becomes available. Economic fields must remain
 identical; known attribution conflicts require an explicit correction. Reobserving
 unknown attribution never removes existing evidenced attribution.
+
+The scheduler records every collection attempt and its reason separately from
+last successful collection and verified execution/cost coverage. Incomplete or
+failed attempts wait the configurable interval; explicit sync may retry sooner.

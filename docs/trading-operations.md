@@ -235,3 +235,39 @@ on its next poll. Hyperliquid native-order evidence may enrich unknown attributi
 through an append-only fill revision; a later unknown observation cannot erase it.
 Execution amounts, costs, times and conflicting known attribution still require
 explicit correction imports.
+
+### Read outages and recovery limits
+
+A transient account snapshot `RuntimeError`/`OSError` puts active protection in
+DEGRADED and continues readback. Three consecutive failures, or a read outage lasting
+`protection_grace_ms`, latches an exit and reports INTERVENTION while reads continue.
+Once consistent fresh account data returns, this read-outage intervention resumes
+bounded cancellation/exit automatically. Existing identity/ownership interventions
+remain manual. No order is sent using a failed snapshot; the original protection
+and exit clocks are not reset. Events retain the failed operation, exception class
+and retry count without copying potentially sensitive transport error payloads.
+
+For Hyperliquid, `max_quote_age_ms` also bounds each action's `expiresAfter` from
+its durable attempt creation, including stops and exits. Use a realistic network
+budget: an expired local send can remain UNKNOWN, and the system never guesses
+that it was not transmitted. `order recover` retries reconciliation; it cannot
+attest non-transmission or bind an operator-supplied broker order ID. If native
+readback cannot resolve an UNKNOWN attempt, inspect broker orders/fills/holdings
+and manage any exposure in HTS or the exchange UI. Keep the intent reserved and
+do not edit SQLite to retry it. An audited broker-evidence binding workflow is
+still required before relying on unattended KIS entries after ambiguous acknowledgments.
+
+Every scheduled collection attempt, including incomplete coverage or an API
+failure, advances the next scheduled attempt by the configured interval. It does
+not advance successful coverage or fabricate journal completion. `journal status`
+shows `last_attempt_ms`, `last_reason`, and `last_success_ms`; explicit `journal sync`
+can retry sooner. Interval changes use the last attempt as their scheduling anchor.
+A successful historical collection uses its completion clock for scheduling, not
+its historical end date. KIS snapshots reuse the date window captured with their
+preflight baseline, including intents queued across a day boundary.
+
+Conservative journal discontinuities may leave subsequent cycles pending until a
+source correction or complete backfill reconciles the gap; automatic re-anchoring
+after an already-known position discontinuity is a follow-up. Architecture HTML
+views describe the target design; implementation status and excluded future
+notification nodes are mapped in `docs/architecture.md` and the fidelity report.

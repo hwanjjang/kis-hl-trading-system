@@ -1,6 +1,6 @@
 # Build result
 
-Candidate: `108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f`. Base: `9360b0cdd2753d5ca94ce052b03fd67d7b0c4af1`. File set and exact SHA256 values are in
+Candidate: `ac6f00c728121e5a3e56523e142b2040d1aef3d92cc14ca94a357875182b8820`. Base: `9360b0cdd2753d5ca94ce052b03fd67d7b0c4af1`. File set and exact SHA256 values are in
 candidate.json; actual code/document diff is change-record.patch. Generated HTML
 is separately hashed and mapped to its validated source JSON.
 
