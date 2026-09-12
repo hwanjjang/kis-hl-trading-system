@@ -278,6 +278,10 @@ def enroll_position(store, info, trading, *, symbol, entry_oid, stop_oid, multip
     if slippage >= 1:
         raise ValueError('slippage must be less than one')
     if live:
+        from kis_hl.journal_sync import Scope
+        from kis_hl.managed_execution import guard_external_entry
+        scope=Scope('hyperliquid','testnet' if 'testnet' in info.config.base_url else 'mainnet',info.config.account_address)
+        guard_external_entry(store.path,scope=scope.key,instrument_id='hl:'+resolved.coin)
         trading._require_recent_verification(resolved)
         trading._require_credentials()
     status = info.order_status(oid=entry_oid)

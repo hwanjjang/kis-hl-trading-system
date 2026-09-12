@@ -1,0 +1,14 @@
+{
+  "status": "passed",
+  "cli_processes": 18,
+  "checks": [
+    "explicit instrument identities",
+    "offline preview and paper supervisor",
+    "actual-fact fixture import and duplicate-safe net journal",
+    "persistent 3h default and configurable interval without cursor reset",
+    "versioned signal storage, manual claim deduplication and queued cancellation"
+  ],
+  "network_calls": 0,
+  "exchange_orders": 0,
+  "cleanup": "Temporary database and fixture files removed"
+}

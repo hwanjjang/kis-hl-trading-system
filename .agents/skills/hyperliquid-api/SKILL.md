@@ -100,7 +100,9 @@ Three different names exist for the same market. Keep them straight:
 | `account_asset_info(...)` | composite of the above | `hl-account` |
 | `frontend_open_orders(...)` | `frontendOpenOrders` | trailing protection and ownership checks |
 | `order_status(...)` | `orderStatus` by oid/cloid | trailing attempt and cleanup reconciliation |
-| `user_fills_by_time(...)` | `userFillsByTime`, no aggregation | trailing fill-ledger continuity |
+| `user_fills_by_time(...)` | `userFillsByTime`, no aggregation | trailing / managed reconciliation and journal facts |
+| `user_fills(...)` | `userFills`, no aggregation | Current retained-tail coverage anchor |
+| `user_funding(...)` | `userFunding`, user/start/end | Actual account funding costs for deferred journals |
 
 `HyperliquidTradingClient`: `place_order()`, `place_stop_loss_order()` (reduce-only
 `trigger` with `isMarket: true`, `tpsl: "sl"`), `cancel_order()` (dry-run default), `user_state()`.
@@ -195,3 +197,17 @@ Full rejection list: `references/limits-and-errors.md`.
 Official docs: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
 Append `.md` to any docs URL for machine-readable markdown; `llms.txt` at the docs root
 is the page index.
+
+## Managed multi-instrument execution
+
+Native BTC and ETH perpetuals are allowed; ETH-PERP/ETHUSDC-PERP resolve to ETH.
+The account supervisor in `managed_execution.py` and `managed_gateways.py` is separate
+from legacy single-position enrollment. It uses actual partial fills, strict native
+Stop Market readback, local trailing, and durable client IDs. All trading CLIs must
+use the same SQLite path. A managed owner blocks raw new entries and legacy
+enrollment; only the in-process current entry attempt receives a submission permit.
+
+Journal retention must be anchored by current `userFills`; a short old-window page
+does not prove completeness. Unknown spot/fee-currency identities are retained
+without finalizing performance. See [operations](../../../docs/trading-operations.md)
+and the trade-journal skill for statement backfill and accounting.

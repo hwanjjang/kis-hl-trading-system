@@ -1,0 +1,28 @@
+{
+  "iteration": 1,
+  "decision": "PROCEED",
+  "reason": "Bounded plan-only scope and existing changes identified.",
+  "authority_source": "User requested SDLC planning through Archify, KIS domestic/US ETFs and Hyperliquid; GLD clarification and precise order-semantics correction incorporated. Local, no live mutation.",
+  "candidate": "adf0c401e82d9bb8ff51035fcba8f5b666b99ff469aa0692750241a02c71bc44",
+  "next_action": "Continue plan-only/local delivery",
+  "inputs": [],
+  "outputs": [
+    {
+      "kind": "triage",
+      "path": "reports/sdlc/multi-venue-protection/triage.md",
+      "sha256": "0bcf1d52e4594c619b8f5fbe0633010767981c7d7606456f355c71435df7b6b3"
+    }
+  ],
+  "assessment": {
+    "assessor": "/root",
+    "summary": "Bounded plan-only scope and existing changes identified.",
+    "criteria": [
+      "MV1",
+      "MV2",
+      "MV3",
+      "MV4",
+      "MV5",
+      "MV6"
+    ]
+  }
+}

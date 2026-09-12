@@ -1,0 +1,430 @@
+{
+  "iteration": 3,
+  "decision": "PROCEED",
+  "reason": "Independent QA verified frozen candidate, real locks, full suite, offline smoke and corrected journal paths.",
+  "authority_source": "User requested all non-notification trading functionality through PR creation. No real orders, merge or deployment.",
+  "candidate": "108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f",
+  "inputs": [
+    {
+      "kind": "triage",
+      "path": "reports/sdlc/protected-trading/triage.md",
+      "sha256": "55197b4e69be1f9d9f8c426cf4fa88b668fecc63ac767c24ef5e5d413e35a1bd"
+    },
+    {
+      "kind": "intent",
+      "path": "intent/protected-trading.md",
+      "sha256": "d157a2e6a676d023ccdd9f4aba7aa64c983b9de24411c22e481e49ba072c36b4"
+    },
+    {
+      "kind": "investigation",
+      "path": "reports/sdlc/protected-trading/investigation.md",
+      "sha256": "3ec915a1a5938a2d9f970d28652470390c0193fe42bcbe3aa59335b452554b58"
+    },
+    {
+      "kind": "spec",
+      "path": "specs/protected-trading.md",
+      "sha256": "59fc761d8f444638da5cb2438827922138ce6080a668a683bcbe30dbd8f8a94c"
+    },
+    {
+      "kind": "design",
+      "path": "reports/sdlc/protected-trading/design.md",
+      "sha256": "af511b7dba2e34efc9ad274826c6f29328d0c74f42c04b8ad2cb487f476e6053"
+    },
+    {
+      "kind": "design-source",
+      "path": "docs/architecture/multi-venue-trading.architecture.json",
+      "sha256": "104ffe8ea77fde0834c1060ae9a2a0fc825abd1bd887dfc4f69d2e7edd534fb3"
+    },
+    {
+      "kind": "design-html",
+      "path": "docs/architecture/multi-venue-trading.html",
+      "sha256": "193a151b2f7db84a931f2302af24163ef54f83a87cd6cfcbbb8a40e64dc70413"
+    },
+    {
+      "kind": "design-validation",
+      "path": "reports/sdlc/multi-venue-protection/multi-venue-trading-delivery.json",
+      "sha256": "90d23ec6ef9179f7d6f120662596f6720c33477e143fb8fa46e21a38d0af0fa8"
+    },
+    {
+      "kind": "plan",
+      "path": "plans/protected-trading.md",
+      "sha256": "22d2d988fdc7e7ee2318c0b3dfef08e20b278485d84f90f0980550375eaba4da"
+    },
+    {
+      "kind": "test-design",
+      "path": "reports/sdlc/protected-trading/test-plan.md",
+      "sha256": "a6a3593a901d937e28e33e11acd438aaba2a0a05b65c81afb6352c6e9131aaa2"
+    },
+    {
+      "kind": "test-plan",
+      "path": "reports/sdlc/protected-trading/test-plan.md",
+      "sha256": "a6a3593a901d937e28e33e11acd438aaba2a0a05b65c81afb6352c6e9131aaa2"
+    },
+    {
+      "kind": "build",
+      "path": "reports/sdlc/protected-trading/build.md",
+      "sha256": "99252a4a81748b94c38442ed16e25c0d0d2fec2ad260343568927bef5dfd611a"
+    },
+    {
+      "kind": "change-record",
+      "path": "reports/sdlc/protected-trading/change-record.patch",
+      "sha256": "2b823567639e5f48d18998021dffed2c39df264fd0a7cdb1d68e72d732a2f613"
+    },
+    {
+      "kind": "candidate-manifest",
+      "path": "reports/sdlc/protected-trading/candidate.json",
+      "sha256": "1ff6264d3b03f9a4fc0561a7943914896612433c011bde0301c5b1914a345e0a"
+    },
+    {
+      "kind": "candidate-source",
+      "path": ".agents/skills/hyperliquid-api/SKILL.md",
+      "sha256": "1b13e94756af35c7d610943cdc2a81f92a95054f868ff22fe7f59d7390464995"
+    },
+    {
+      "kind": "candidate-source",
+      "path": ".agents/skills/kis-open-api/SKILL.md",
+      "sha256": "8e29dba12176b1987e192df6f8db2a15198545bde93ed20a043ffd46d2f6bed0"
+    },
+    {
+      "kind": "candidate-source",
+      "path": ".agents/skills/kis-open-api/references/managed-routes.md",
+      "sha256": "8055dff8f618b1f7d7eb92519e273328fd386499f96782347cd1e7d0d0655e57"
+    },
+    {
+      "kind": "candidate-source",
+      "path": ".agents/skills/trade-journal/references/record-contract.md",
+      "sha256": "574145659c29f7bf492b11c13f8e0af4c53fe924cd33074ed6f423c625fb8f15"
+    },
+    {
+      "kind": "candidate-source",
+      "path": ".github/workflows/tests.yml",
+      "sha256": "eb3491f27fdbcbfae357ddab56c920b7b31ed8161b127e76c67ebe2cc7129c61"
+    },
+    {
+      "kind": "candidate-source",
+      "path": ".gitignore",
+      "sha256": "fa9ad77a55608676d7bfd381b36462b47d2ae87a0b1068146bf55d2614004cfe"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "CLAUDE.md",
+      "sha256": "a7d58d6a25c4686031f44e19b0aa128352cec1282016c627878b66f5b20b8bba"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "README.md",
+      "sha256": "7b0b462e1348b4743f07f1fbc4ed9540ad17aa8eedc92dedad55a0d35f88424f"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture.md",
+      "sha256": "0393b14dc9abdc4a1b38fecb981e40394ced550f5eb284a12b8eee67f944c5ad"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/multi-venue-trading.architecture.json",
+      "sha256": "104ffe8ea77fde0834c1060ae9a2a0fc825abd1bd887dfc4f69d2e7edd534fb3"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/multi-venue-trading.html",
+      "sha256": "193a151b2f7db84a931f2302af24163ef54f83a87cd6cfcbbb8a40e64dc70413"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/protected-trade.html",
+      "sha256": "0b73235318b12a64bdd5252791c3efd3a286fbd3c049f1377afb55803aec74f6"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/protected-trade.workflow.json",
+      "sha256": "9e3843de16d2d63793d9b742f14ecd8b8032565174f549376ba8f7fbad164fca"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/signals-and-journal.architecture.json",
+      "sha256": "f41a1fd18597450bce6a645e428da8523a9cd62d6aa64573c8aef12f1b858281"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/signals-and-journal.html",
+      "sha256": "a82597db71af777cd3d9506d5d9548904fa7b83253dff2de971f87760e9b220e"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/product/trading-essentials-discovery.md",
+      "sha256": "191f13cc26fbf5a34fbec12387cefb0a66bbd9f5d91b34dacbe56032d4efd50e"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/product/trading-notifications.md",
+      "sha256": "f871d90d24f49004e223bd689cadc34be3c7158d07afdc42ba4c56be49235105"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/trading-operations.md",
+      "sha256": "526073d67020188413a02c94eb580f35b36478cc0953d201b4c469cbf2411672"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "intent/kis-account.md",
+      "sha256": "fd202cdd2a4ab7e9951ae673000f42ec269a6c73312acc2ca36454c0b6357427"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "intent/multi-venue-protection.md",
+      "sha256": "a1c8693247112b9b5dea79c96d90c3a2c8b6a0300ce09092ec59d0dd6f3018f7"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "intent/protected-trading.md",
+      "sha256": "d157a2e6a676d023ccdd9f4aba7aa64c983b9de24411c22e481e49ba072c36b4"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/assets.py",
+      "sha256": "a427573e584655b7b07088dc3968a9ee163d2b2f13683dcba5a751bd117217a1"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/capabilities.py",
+      "sha256": "91f32936e4879d2aa083a9fa092d8a25341cf3ebc3a84581bb75bebc6550204d"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/cli.py",
+      "sha256": "5f2054fa028b8c8a1d4cb912c9095a06d337c1c717a0972ef443141e3166f624"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/hyperliquid/client.py",
+      "sha256": "21aa77d5b8a6487487e33efef56da250b5bcfb274824548ad93a6fd6ab1e985c"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/instruments.py",
+      "sha256": "1242fd90a3b8c97eea2b2d10f4a8123985824cf9c19ed2e516815100abaabffb"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/journal_history.py",
+      "sha256": "2ab8cf3b03b25927ff56b1c6d4a33e3256f6b4231e20e08584d64361b02b3353"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/journal_sync.py",
+      "sha256": "adb6a9642a63be7cf8a77bdbe91270b463a7d19fa59725ff12cfe3ef369d109e"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/kis/client.py",
+      "sha256": "6c367093ef1dff442c1e41478fe07c871c4a4fc6c31b569ed0cadf44f073ebe9"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/kis/routes.py",
+      "sha256": "99d0d874fb67d7f98dd7f8981a5aa9157e62067acab55bc803d00544bb43d9ca"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/managed_execution.py",
+      "sha256": "21c4e4c2af6a8005c06061dcd926c2df3f9d75625629a451b78a5433bf1b35a8"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/managed_gateways.py",
+      "sha256": "ee30e7f4c7b0e39026fef8d008875245d9120b500d0b22b5ae8ce26589af92e4"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/operations_cli.py",
+      "sha256": "d2354be5d164f6ad50c390ac022fc07f070878c9462d12dd1f46db760d1fbde4"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/strategy_signals.py",
+      "sha256": "73b062df8edc6e9bf2e4651c768e00444e1037ab46ff790dbd6695312a402a00"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/trailing_runner.py",
+      "sha256": "7e0c9a3b64f8ee71d16d565a9c4f70bd88a7692ab357c7e2bd8edfb298c15daf"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "plans/kis-account.md",
+      "sha256": "da99d9096982d7629921a50945dce106b86af5fe286bb3b0509c3da48ead4cf3"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "plans/multi-venue-protection.md",
+      "sha256": "b2ca26ed314ba794c80a96b0344a16f56a049b7c4e3d0f31d474ce9a8bfd6775"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "plans/protected-trading.md",
+      "sha256": "22d2d988fdc7e7ee2318c0b3dfef08e20b278485d84f90f0980550375eaba4da"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "scripts/smoke_protected_trading.py",
+      "sha256": "9f0b98da29d7236c47eb0b1ff16f0e82671acb51a0bb7ed0ad093a0b4181fe46"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "specs/kis-account.md",
+      "sha256": "44afa5aa56c132467a8422633db8b6bb77a4b065491a0e255f8511642d399cc1"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "specs/multi-venue-protection.md",
+      "sha256": "f4e6ac79e25c65ca5b86876c093b9ec7cf9d0680394481e1d92c7edc9edb9843"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "specs/protected-trading.md",
+      "sha256": "59fc761d8f444638da5cb2438827922138ce6080a668a683bcbe30dbd8f8a94c"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_assets.py",
+      "sha256": "5dfffc32a3cefb09a82484cdc89477c84abfa46e58c4b1e7c212eeef949b84e9"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_hyperliquid_client.py",
+      "sha256": "74f8c363690662a21c20bf26116ae7c4039379f6493cb963462c19b035795611"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_journal_history.py",
+      "sha256": "5d15aabc1742d029fada7a0bca61760aa4392cc5c191d6aaf41e64561027ad70"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_journal_sync.py",
+      "sha256": "beff3a2d106906bdc029a0eb7f540654d72c95a9f24f181ff9dfc24f8e3be948"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_kis_account.py",
+      "sha256": "a53ac67ab08746f6291f0778163e2b8074cffa35ba9112fca2fc305597b6fba6"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_kis_client.py",
+      "sha256": "0eaf14115a467711b5836dfe3270fc824b86bc573a6bd816bb61ace87d5385dd"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_kis_trading.py",
+      "sha256": "367136959d565d73d5cad1260514ca7fdda4d42fae72a2976fd3694b0e1809a7"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_managed_execution.py",
+      "sha256": "0c60ee22e6955c1122ad693ce91110d2c35a4e39fc81d17ac8ad017232bb02a3"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_managed_gateways.py",
+      "sha256": "042c3852c36e82d8fc7a2766dfa03b8264a143ac5da5cd6549148c65c332a5be"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_operations_cli.py",
+      "sha256": "0caf3e205a5a0af55ac6fa4e2733d42f5a3ce9d11c661b89026ea076021b3417"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_strategy_signals.py",
+      "sha256": "9681afdc7c68a08451aa1e1d77a5c6ccd0595d617248ca64c34defa6f8894ab9"
+    },
+    {
+      "kind": "self-verification",
+      "path": "reports/sdlc/protected-trading/self-verification.md",
+      "sha256": "56f9572af58ad10e86757e028cda74bd26c9d82677530af6c1e40150d5ef7429"
+    },
+    {
+      "kind": "test-results",
+      "path": "reports/sdlc/protected-trading/test-results.json",
+      "sha256": "30d6dccc945d18133a095a085101504bf21bef69f807a639f223037806ac5521"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/protected-trading/red-evidence.txt",
+      "sha256": "2760c75932a52ab7788faaaba997ca3f2457f873f29c44a319010e3ccd264544"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/protected-trading/stop-buffer-red.txt",
+      "sha256": "4ef037e66741dfbf91f63e900d36df644f3e39219c1fd7c1e405a149c4552e2a"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/protected-trading/attribution-red.txt",
+      "sha256": "e7a1cee975393cac48211c8c2cee006a73d4a5d48b822c67c414e53ab3e2fd5f"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/protected-trading/idle-lock-red.txt",
+      "sha256": "1be25062e81e98a3cd4f496250ddc9be53fdfb6bb3077286764b0021ab62c0d0"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/protected-trading/green-evidence.txt",
+      "sha256": "113c31781468b75efe7d58293b8a436ac15b4c4e4316f44c06a858b17506d8df"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/protected-trading/post-refactor-evidence.txt",
+      "sha256": "a0814fb1212359fbdd17fc45e6561377e1a4c8a8a53935c04f1a8b29da056a03"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/protected-trading/smoke-evidence.json",
+      "sha256": "1066929385350eec10beeee37d1dbeba4b9e6c7357a0d5800ed11051279f31f7"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/protected-trading/content-checks.txt",
+      "sha256": "f74178c5b4c38d9e7cfdb76d59719365dc82bb33888db499516c8e5094f5d288"
+    },
+    {
+      "kind": "read-only-evidence",
+      "path": "reports/sdlc/protected-trading/kis-read-evidence.json",
+      "sha256": "737ff8044743a65fe595fe3463961d76065bd2371ad132cd59fb0a96815d3506"
+    },
+    {
+      "kind": "design-fidelity",
+      "path": "reports/sdlc/protected-trading/diagram-fidelity.md",
+      "sha256": "693880619c0d5413bfb69e584542b2d7fbabc89d917e98d38fc63a4fc878b43e"
+    }
+  ],
+  "outputs": [
+    {
+      "kind": "independent-verification",
+      "path": "reports/sdlc/protected-trading/independent-verification.md",
+      "sha256": "fc2586e4e6a79a82724e37a5db873e472c337e63c8957952ef1124d17cfcc38f"
+    }
+  ],
+  "next_action": "Continue authorized implementation and PR",
+  "assessment": {
+    "assessor": "/root",
+    "summary": "Independent QA verified frozen candidate, real locks, full suite, offline smoke and corrected journal paths.",
+    "criteria": [
+      "PT1",
+      "PT2",
+      "PT3",
+      "PT4",
+      "PT5",
+      "PT6"
+    ]
+  },
+  "verifier": {
+    "independent": true,
+    "context_id": "/root/review_trading_plan",
+    "builder_context_id": "/root",
+    "checks": "Verified all 53 hashes; ran 253 tests and 18 CLI smoke processes; reproduced both journal fixes with actual locks and adapter/storage; inspected unknown order and native stop recovery"
+  }
+}

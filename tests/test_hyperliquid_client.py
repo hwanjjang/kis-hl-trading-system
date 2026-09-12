@@ -308,6 +308,21 @@ class HyperliquidClientTests(unittest.TestCase):
 
         self.assertEqual(extract_hyperliquid_order_id(response), "123")
 
+    def test_user_funding_request_is_account_scoped(self):
+        from unittest.mock import patch
+        client=HyperliquidInfoClient(HyperliquidConfig(base_url='https://example.test',
+            account_address='0xabc',private_key='',key_profile='default'))
+        with patch.object(client,'post_info',return_value=[]) as send:
+            client.user_funding(start_time_ms=1,end_time_ms=2)
+        send.assert_called_once_with({'type':'userFunding','user':'0xabc','startTime':1,'endTime':2})
+
+    def test_recent_fill_anchor_uses_unaggregated_account_history(self):
+        client=HyperliquidInfoClient(HyperliquidConfig(base_url='https://example.test',
+            account_address='0xabc',private_key='',key_profile='default'))
+        with patch.object(client,'post_info',return_value=[]) as send:
+            client.user_fills()
+        send.assert_called_once_with({'type':'userFills','user':'0xabc','aggregateByTime':False})
+
     def test_spot_order_coin_resolves_to_index_from_spot_meta(self) -> None:
         spot_meta = {
             "tokens": [
@@ -321,7 +336,8 @@ class HyperliquidClientTests(unittest.TestCase):
         self.assertEqual(resolve_spot_order_coin(spot_meta, "UBTC/USDC"), "@107")
 
     def test_live_asset_allowlist_rejects_unknown_perp(self) -> None:
-        self.assertFalse(is_supported_live_asset(resolve_hyperliquid_symbol("ETH")))
+        self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("ETH")))
+        self.assertFalse(is_supported_live_asset(resolve_hyperliquid_symbol("SOL")))
         self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("BTCUSDC")))
         self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("BTCUSDC-PERP")))
         self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("xyz:XYZ100")))
@@ -342,7 +358,7 @@ class HyperliquidClientTests(unittest.TestCase):
         )
         with self.assertRaises(RuntimeError):
             client.place_order(
-                symbol="ETH",
+                symbol="SOL",
                 side="buy",
                 order_type="limit",
                 size=Decimal("1"),

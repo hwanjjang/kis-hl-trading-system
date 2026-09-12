@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Signals, Execution and Account-wide Journals \u2014 Proposed",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1220,
+      710
+    ]
+  },
+  "components": [
+    {
+      "id": "skill",
+      "type": "backend",
+      "label": "Future strategy skills",
+      "sublabel": "Versioned evaluation",
+      "pos": [
+        30,
+        60
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "signal",
+      "type": "database",
+      "label": "Signal + alert outbox",
+      "sublabel": "Identity, evidence, expiry",
+      "pos": [
+        330,
+        60
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "notify",
+      "type": "messagebus",
+      "label": "Notification adapter",
+      "sublabel": "Telegram recommended",
+      "pos": [
+        630,
+        60
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "authority",
+      "type": "security",
+      "label": "Execution authority",
+      "sublabel": "Manual request / auto grant",
+      "pos": [
+        930,
+        60
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "harness",
+      "type": "frontend",
+      "label": "Agent harnesses",
+      "sublabel": "Codex / Claude Code / Hermes",
+      "pos": [
+        930,
+        300
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "execute",
+      "type": "backend",
+      "label": "Protected execution",
+      "sublabel": "Shared preflight + coordinator",
+      "pos": [
+        630,
+        300
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "venue",
+      "type": "external",
+      "label": "KIS + Hyperliquid",
+      "sublabel": "Actual orders and fills",
+      "pos": [
+        330,
+        300
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "direct",
+      "type": "frontend",
+      "label": "Direct trading",
+      "sublabel": "KIS HTS / Hyperliquid web",
+      "pos": [
+        30,
+        300
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "sync",
+      "type": "backend",
+      "label": "History sync",
+      "sublabel": "Every 3h / on request",
+      "pos": [
+        330,
+        560
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "Account fill ledger",
+      "sublabel": "All origins; coverage gaps",
+      "pos": [
+        630,
+        560
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "journal",
+      "type": "backend",
+      "label": "Journal reconciliation",
+      "sublabel": "Closed cycles + skill metrics",
+      "pos": [
+        930,
+        560
+      ],
+      "size": [
+        230,
+        76
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "skill-signal",
+      "from": "skill",
+      "to": "signal",
+      "label": "signal"
+    },
+    {
+      "id": "signal-notify",
+      "from": "signal",
+      "to": "notify",
+      "label": "alert"
+    },
+    {
+      "id": "notify-authority",
+      "from": "notify",
+      "to": "authority",
+      "label": "attempt"
+    },
+    {
+      "id": "harness-authority",
+      "from": "harness",
+      "to": "authority",
+      "label": "request"
+    },
+    {
+      "id": "authority-execute",
+      "from": "authority",
+      "to": "execute",
+      "label": "authorized"
+    },
+    {
+      "id": "execute-venue",
+      "from": "execute",
+      "to": "venue",
+      "label": "submit"
+    },
+    {
+      "id": "direct-venue",
+      "from": "direct",
+      "to": "venue",
+      "label": "trade"
+    },
+    {
+      "id": "venue-sync",
+      "from": "venue",
+      "to": "sync",
+      "label": "history",
+      "labelDy": 70
+    },
+    {
+      "id": "sync-ledger",
+      "from": "sync",
+      "to": "ledger",
+      "label": "dedupe"
+    },
+    {
+      "id": "ledger-journal",
+      "from": "ledger",
+      "to": "journal",
+      "label": "reconcile"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "One execution policy",
+      "items": [
+        "Harness requests and configured automation share all risk gates",
+        "Alert delivery is not human acknowledgement or execution permission"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Actual fills, every origin",
+      "items": [
+        "HTS / web trades are included without taking protection ownership",
+        "3h default is adjustable; incomplete history remains pending"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Separate clocks",
+      "items": [
+        "Protection runs continuously; journal sync is deferred",
+        "Strategy attribution is evidenced, unassigned or mixed"
+      ]
+    }
+  ]
+}

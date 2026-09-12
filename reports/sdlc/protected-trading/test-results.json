@@ -1,0 +1,123 @@
+{
+  "candidate": "108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f",
+  "scenarios": [
+    {
+      "id": "offline-protected-flow",
+      "requirement": "PT5",
+      "required": true,
+      "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",
+      "prerequisites": "Repository runtime; no signing credentials or venue order authority",
+      "actions": "Run instrument catalog, plan preview/paper worker, source statement import twice, net report, 3h default/config change, registered signal manual execution twice and queued cancellation",
+      "expected": "Explicit identities, no exchange attempts, one net journal of 18 USD, no duplicates, preserved cursor and 60-second changed interval, one signal-owned intent and canceled unsent entry",
+      "failure": "Any command nonzero, wrong net PnL/coverage/settings, duplicate intent/fill or created exchange attempt",
+      "cleanup": "Temporary fixture files and SQLite removed by context manager"
+    }
+  ],
+  "runs": [
+    {
+      "id": "core-red",
+      "phase": "red",
+      "candidate": "pre-fix core review hashes",
+      "command": "python3 -m unittest tests.test_managed_execution",
+      "exit_code": 1,
+      "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",
+      "observed": "15 tests, 6 intended failures demonstrating cancellation/stale-fill/deadline/readback/crash regressions before fixes",
+      "evidence": "reports/sdlc/protected-trading/red-evidence.txt",
+      "execution_kind": "offline",
+      "status": "passed",
+      "intended_failure": true
+    },
+    {
+      "id": "stop-buffer-red",
+      "phase": "red",
+      "candidate": "pre-fix core review hashes",
+      "command": "python3 -m unittest tests.test_managed_execution.ManagedExecutionTests.test_partial_fill_receives_actual_native_stop",
+      "exit_code": 1,
+      "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",
+      "observed": "Intended failure: execution price equaled trigger rather than explicit bounded slippage",
+      "evidence": "reports/sdlc/protected-trading/stop-buffer-red.txt",
+      "execution_kind": "offline",
+      "status": "passed",
+      "intended_failure": true
+    },
+    {
+      "id": "attribution-red",
+      "phase": "red",
+      "candidate": "pre-fix core review hashes",
+      "command": "python3 -m unittest tests.test_journal_sync.JournalSyncTests.test_evidenced_attribution_enriches_without_changing_execution",
+      "exit_code": 1,
+      "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",
+      "observed": "Intended failure: missing safe attribution enrichment",
+      "evidence": "reports/sdlc/protected-trading/attribution-red.txt",
+      "execution_kind": "offline",
+      "status": "passed",
+      "intended_failure": true
+    },
+    {
+      "id": "idle-lock-red",
+      "phase": "red",
+      "candidate": "pre-fix core review hashes",
+      "command": "python3 -m unittest tests.test_operations_cli.OperationsCliTests.test_idle_scheduler_releases_real_account_lock",
+      "exit_code": 1,
+      "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",
+      "observed": "Intended failure: actual subprocess cannot acquire account lock during scheduler sleep",
+      "evidence": "reports/sdlc/protected-trading/idle-lock-red.txt",
+      "execution_kind": "offline",
+      "status": "passed",
+      "intended_failure": true
+    },
+    {
+      "id": "final-green",
+      "phase": "green",
+      "candidate": "108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f",
+      "command": "python3 -m unittest discover -s tests -t . -q",
+      "exit_code": 0,
+      "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",
+      "observed": "253 tests passed; final source candidate after bounded native stop buffer correction",
+      "evidence": "reports/sdlc/protected-trading/green-evidence.txt",
+      "execution_kind": "offline",
+      "status": "passed",
+      "intended_failure": false
+    },
+    {
+      "id": "final-post-refactor",
+      "phase": "post-refactor",
+      "candidate": "108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f",
+      "command": "python3 -m unittest discover -s tests -t . -q",
+      "exit_code": 0,
+      "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",
+      "observed": "253 tests passed",
+      "evidence": "reports/sdlc/protected-trading/post-refactor-evidence.txt",
+      "execution_kind": "offline",
+      "status": "passed",
+      "intended_failure": false
+    },
+    {
+      "id": "functional-cli",
+      "phase": "smoke",
+      "candidate": "108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f",
+      "command": "python3 scripts/smoke_protected_trading.py",
+      "exit_code": 0,
+      "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",
+      "observed": "18 actual CLI processes passed the integrated scenario",
+      "evidence": "reports/sdlc/protected-trading/smoke-evidence.json",
+      "execution_kind": "real",
+      "status": "passed",
+      "intended_failure": false,
+      "scenario_id": "offline-protected-flow"
+    },
+    {
+      "id": "content",
+      "phase": "document",
+      "candidate": "108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f",
+      "command": "git diff --check and candidate secret/workflow/diagram inspection",
+      "exit_code": 0,
+      "environment": "Python 3.12, local CLI subprocesses, temporary SQLite, fixture identities",
+      "observed": "Passed content and boundary checks",
+      "evidence": "reports/sdlc/protected-trading/content-checks.txt",
+      "execution_kind": "offline",
+      "status": "passed",
+      "intended_failure": false
+    }
+  ]
+}
