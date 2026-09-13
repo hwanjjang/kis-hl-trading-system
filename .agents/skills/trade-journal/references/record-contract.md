@@ -108,3 +108,13 @@ remain pending per cycle while observed account/currency totals stay separate.
 it and it is not a lifetime or deposit-adjusted portfolio return. Existing legacy
 `journal` commands remain compatibility readers/writers for their older tables;
 canonical reports never sum those projections as additional trades.
+
+The canonical `kis-inventory-v1` policy requires a source-backed zero opening
+position or continuous inventory from a previously anchored KIS cycle. Trade-range
+coverage is not an inventory anchor. Unanchored cycles cannot contribute confirmed
+returns or completed-position statistics. A KIS oversell is an inventory gap and
+must be detected before any part is finalized; it never creates a short cycle.
+Contradictory DAY ending holdings invalidate cycles overlapping that day after all
+same-day events have been processed. Earlier verified cycles and genuine
+Hyperliquid reversals remain supported. New runs pin this inventory policy;
+historical report IDs remain frozen, and raw facts/fees are never rewritten.

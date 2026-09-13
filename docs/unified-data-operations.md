@@ -89,6 +89,24 @@ unique path from the broker sell cost basis and day-end inventory. Ambiguous
 paths stay pending. One summary shared by multiple orders requires a more precise
 source allocation; the adapter does not guess.
 
+KIS completed cycles require a source-backed `position_before: "0"` at the first
+entry, or continuous reconciled inventory from an earlier anchored cycle. Import
+this field only when the source establishes it; do not add it merely to finalize
+a report. Complete trade-range coverage alone is insufficient. Without an anchor,
+cycles carry `inventory_unanchored` and confirmed net returns remain unavailable.
+The domestic bundle can supply this evidence through its existing reconciliation;
+overseas DAY rows lacking inventory evidence remain pending. An inferred zero
+balance does not establish a new anchor after unverified opening inventory.
+
+A KIS sell exceeding tracked holdings records `opening_inventory_gap` before
+closing any part of that row. DAY `day_end_quantity` is checked after all events
+for that day, including sell/re-entry. Contradictory balances record
+`ending_inventory_mismatch`. Affected cycles are excluded from completed-position
+statistics; earlier verified cycles remain valid. Raw facts and observed fees are
+retained, while an unreliable computed account net remains null. Inconsistent
+inventory stops reconstruction of that instrument for the report; reconcile the
+source and generate a new report to resume it.
+
 Optional manifest `coverage` entries use `account`, `dataset` (`trade`/`cash`),
 `start_ms`, `end_ms`, `status` and `details`. Complete coverage is an explicit
 source-evidence assertion, not a conclusion from a short page. Use the actually
@@ -182,6 +200,9 @@ separately. Funding shared across cycles remains pending per cycle, and conflict
 daily/hourly representations are quarantined rather than double charged.
 `net_booked_pnl` summarizes observed activity, including fees on open positions;
 it is not a sum of finalized closed-cycle returns or a deposit-adjusted return.
+New reports pin `inventory_policy_version: "kis-inventory-v1"` separately from the
+unchanged metric formulas. Existing report IDs and exports remain immutable;
+generate a new `data journal` run and export it to a new path to apply this policy.
 
 The initial analysis supports a completed-bar close/mean summary. Its JSON spec
 requires `instrument`, `provider`, `timeframe`, `adjustment`, `price_basis`,

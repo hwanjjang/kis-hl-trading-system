@@ -118,6 +118,7 @@ class JournalContractTests(CanonicalTests):
         rows=[]
         for i,(side,q,p) in enumerate([('buy','10','100'),('sell','5','200'),('buy','5','300'),('sell','10','200')]):
             rows.append(dict(source_id=str(i),instrument='kis:X',currency='USD',event_start_ms=100+i*10,event_end_ms=101+i*10,time_precision='MILLISECOND',grain='EXECUTION',side=side,quantity=q,price=p,notional=str(int(q)*int(p)),total_cost='0',costs={}))
+        rows[0]['position_before']='0'
         ingest_rows(self.store,self.account,'statement',rows)
         self.store.coverage('trade',self.account,0,1000,'complete',{})
         report=journal(self.store,[self.account])

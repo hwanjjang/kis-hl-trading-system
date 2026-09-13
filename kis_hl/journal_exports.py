@@ -11,6 +11,7 @@ from kis_hl.data_quality import effective_funding
 from kis_hl.data_store import encode, now_ms
 
 Z=D(0)
+INVENTORY_POLICY_VERSION='kis-inventory-v1'
 
 
 def serial(value):
@@ -43,22 +44,45 @@ def account_cycles(trades):
             issues.append({'kind':'overlapping_trade_grains','instrument':instrument,'fact_ids':sorted({f['id'] for pair in conflicts for f in pair})})
             continue
         position=Z;inventory_cost=Z;active=None;queue=list(rows)
+        is_kis=instrument.startswith('kis:')
+        anchored=not is_kis
+        instrument_cycles=[]
+        ending_by_time=defaultdict(list)
+        if is_kis:
+            for row in rows:
+                if row['payload']['time_precision']=='DAY' and row['payload'].get('day_end_quantity') is not None:
+                    ending_by_time[row['event_start_ms']].append(row)
+
+        def invalidate_overlapping(reason, timestamp):
+            # Exact earlier exits survive later gaps. DAY exits remain ambiguous
+            # until all same-day activity has been reconciled, even on early errors.
+            for cycle in instrument_cycles:
+                if cycle['opened_ms']<=timestamp and (cycle['closed_end_ms'] is None or cycle['closed_end_ms']>timestamp):
+                    cycle['reasons'].append(reason)
+
         while queue:
             t=queue[0]['event_start_ms'];same=[f for f in queue if f['event_start_ms']==t]
             # Native position-before is usable order evidence. Arbitrary order IDs are not.
             candidates=[f for f in same if f['payload'].get('position_before') is not None and D(f['payload']['position_before'])==position]
             if len(same)>1 and len(candidates)!=1:
                 issues.append({'kind':'ambiguous_chronology','instrument':instrument,'fact_ids':[f['id'] for f in same]})
-                if active:active['reasons'].append('ambiguous_chronology')
+                invalidate_overlapping('ambiguous_chronology',t)
                 break
             fact=candidates[0] if len(candidates)==1 else same[0];queue.remove(fact);p=fact['payload']
             if p.get('position_before') is not None and D(p['position_before'])!=position:
                 issues.append({'kind':'opening_inventory_gap','instrument':instrument,'fact_ids':[fact['id']]})
-                if active:active['reasons'].append('opening_inventory_gap')
+                invalidate_overlapping('opening_inventory_gap',t)
                 break
             q=D(p['quantity']);signed=q*(1 if p['side']=='buy' else -1)
-            if position==0 and signed<0 and instrument.startswith('kis:'):
-                issues.append({'kind':'opening_inventory_gap','instrument':instrument,'fact_ids':[fact['id']]});break
+            # A cash-stock oversell is missing inventory evidence, never a short
+            # reversal. Reject the entire row before closing the tracked segment.
+            if is_kis and position+signed<0:
+                issues.append({'kind':'opening_inventory_gap','scope':fact['scope'],
+                               'currency':currency,'instrument':instrument,'fact_ids':[fact['id']]})
+                invalidate_overlapping('opening_inventory_gap',t)
+                break
+            if position==0 and p.get('position_before') is not None:
+                anchored=True
             remaining=signed
             while remaining:
                 if position==0:
@@ -68,6 +92,11 @@ def account_cycles(trades):
                         trading_fee=Z,funding_cashflow=Z,cost_components={},fact_ids=[],shared_funding_ids=[],reasons=[],
                         strategy=p.get('strategy','unassigned'),time_precision=p['time_precision'])
                     cycles.append(active)
+                    instrument_cycles.append(active)
+                    if not anchored:
+                        active['reasons'].append('inventory_unanchored')
+                        issues.append({'kind':'inventory_unanchored','scope':fact['scope'],
+                                       'currency':currency,'instrument':instrument,'fact_ids':[fact['id']]})
                 adding=position==0 or position*remaining>0
                 take=abs(remaining) if adding else min(abs(position),abs(remaining))
                 fraction=take/q;notional=D(p['notional'])*fraction;prefix='entry' if adding else 'exit'
@@ -91,6 +120,18 @@ def account_cycles(trades):
                 if position==0:
                     inventory_cost=Z
                     active['closed_ms']=p['event_start_ms'];active['closed_end_ms']=p['event_end_ms']
+            # A DAY balance describes all activity that day, including re-entry.
+            # Validate only after the last event; conflicting snapshots are not
+            # permission to choose whichever balance matches the reconstruction.
+            if is_kis and t in ending_by_time and not any(f['event_start_ms']==t for f in queue):
+                evidence=ending_by_time[t]
+                endings={D(f['payload']['day_end_quantity']) for f in evidence}
+                if endings!={position}:
+                    issues.append({'kind':'ending_inventory_mismatch','scope':fact['scope'],
+                                   'currency':currency,'instrument':instrument,
+                                   'fact_ids':[f['id'] for f in evidence]})
+                    invalidate_overlapping('ending_inventory_mismatch',t)
+                    break
     return cycles,issues
 
 
@@ -144,11 +185,13 @@ def journal(store, accounts, *, as_of_ms=None):
                     if v is not None:components[k]+=D(v)
             summaries.append(dict(account=account,label=labels[account],currency=currency,gross_booked_pnl=gross,trading_fee=fee,cost_components=dict(components),funding_cashflow=cashflow,
                 net_booked_pnl=None if incomplete else gross-fee+cashflow,closed_cycles=sum(c['closed_ms'] is not None for c in cs),open_cycles=sum(c['closed_ms'] is None for c in cs),
-                coverage_status='verified' if cs and all(not c['reasons'] for c in cs) else 'partial_or_unverified',
+                coverage_status='verified' if cs and not problems and all(not c['reasons'] for c in cs) else 'partial_or_unverified',
                 statistics_by_strategy={s:statistics([c for c in cs if c['strategy']==s]) for s in {c['strategy'] for c in cs}}))
     result=serial(dict(accounts=accounts,as_of_ms=asof,summary_by_account_currency=summaries,cycles=cycles,quality_findings=issues,
-                       currency_conversion=None,capital_return=None,metric_version='canonical-v1',coverage_evidence=coverage))
-    run=store.pin('journal',{'accounts':accounts,'metric_version':'canonical-v1'},[f['id'] for f in allfacts],result,as_of_ms=asof)
+                       currency_conversion=None,capital_return=None,metric_version='canonical-v1',
+                       inventory_policy_version=INVENTORY_POLICY_VERSION,coverage_evidence=coverage))
+    run=store.pin('journal',{'accounts':accounts,'metric_version':'canonical-v1',
+                           'inventory_policy_version':INVENTORY_POLICY_VERSION},[f['id'] for f in allfacts],result,as_of_ms=asof)
     return {'report_id':run,**result}
 
 
