@@ -36,8 +36,10 @@ class HyperliquidInfoClient:
     def __init__(self, config: HyperliquidConfig, *, timeout_seconds: float = 10) -> None:
         self.config = config
         self.timeout_seconds = timeout_seconds
+        self.last_raw_body: bytes | None = None
 
     def post_info(self, payload: dict[str, Any]) -> Any:
+        self.last_raw_body = None
         body = json.dumps(payload, sort_keys=True).encode("utf-8")
         request = urllib.request.Request(
             self.config.base_url.rstrip("/") + "/info",
@@ -47,7 +49,9 @@ class HyperliquidInfoClient:
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as res:
-                text = res.read().decode("utf-8")
+                raw_body = res.read()
+                text = raw_body.decode("utf-8")
+                self.last_raw_body = raw_body
                 return json.loads(text) if text else {}
         except urllib.error.HTTPError as exc:
             text = exc.read().decode("utf-8")

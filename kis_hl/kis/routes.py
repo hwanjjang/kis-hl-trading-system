@@ -80,6 +80,20 @@ def account_route(
                 ORD_GNO_BRNO="",
                 ODNO="",
             )
+    elif kind in {"domestic_trade_profit", "overseas_transactions"}:
+        for value in (date_from, date_to):
+            if len(value) != 8: raise ValueError("History dates must be YYYYMMDD")
+            datetime.strptime(value, "%Y%m%d")
+        if date_from > date_to: raise ValueError("Reversed history dates")
+        width, sim = 100, None
+        if kind == "domestic_trade_profit":
+            path, live = domestic + "inquire-period-trade-profit", "TTTC8715R"
+            q = dict(SORT_DVSN="01", INQR_STRT_DT=date_from, INQR_END_DT=date_to,
+                     CBLC_DVSN="00", PDNO=symbol)
+        else:
+            path, live = overseas + "inquire-period-trans", "CTOS4001R"
+            q = dict(ERLM_STRT_DT=date_from, ERLM_END_DT=date_to, OVRS_EXCG_CD=exchange,
+                     PDNO=symbol, SLL_BUY_DVSN_CD="00", LOAN_DVSN_CD="")
     elif kind == "domestic_orders":
         path, live, sim, width = (
             domestic + "inquire-psbl-rvsecncl",

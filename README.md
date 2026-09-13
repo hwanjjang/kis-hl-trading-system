@@ -345,3 +345,21 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 - trade.xyz specification index for active RWA asset names and session constraints.
 
 Trailing IOC attempts carry a signed `expiresAfter` equal to the source price receive time plus its configured freshness budget. Local age checks include all reconciliation work; the exchange expiry also bounds delayed delivery. An expiry rejection consumes the existing bounded retry budget.
+
+### Canonical trading and market data
+
+The unified store preserves raw evidence, corrected fact revisions, separate
+KIS/tradefi journals and reproducible analysis in `data/kis_hl.sqlite`.
+
+```bash
+python3 -m kis_hl.cli data migrate --apply
+python3 -m kis_hl.cli data status
+python3 -m kis_hl.cli market backfill --instrument kis:069500 --timeframe 1w --years 10
+python3 -m kis_hl.cli market backfill --instrument hl:BTC --timeframe 1m
+python3 -m kis_hl.cli data journal --accounts ACCOUNT_ID
+```
+
+See [unified data operations](docs/unified-data-operations.md) for manifest import,
+cost/funding rules, market coverage, jobs (account default: 10800 seconds),
+exports, analysis and backup/restore. Weekly history targets ten calendar years;
+actual provider/listing coverage may be shorter. Jobs require a running collector.

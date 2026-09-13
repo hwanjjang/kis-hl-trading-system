@@ -102,3 +102,14 @@ See `endpoint-inventory.md` for the remaining ~300 endpoints.
 - Some endpoints need `custtype` and `tr_cont` even when they are empty strings.
 - Paper trading rejects many analysis/ranking endpoints; the upstream docstring says
   "모의투자 미지원" when so.
+
+## Canonical data collection additions (2026-09-13)
+
+- `KisClient.domestic_chart(period=...)` accepts D/W/M/Y; W selects native weekly bars.
+- `KisClient.overseas_stock_chart(period=...)` maps D/W/M to GUBN 0/1/2.
+- `account_pages('domestic_trade_profit')`: `/uapi/domestic-stock/v1/trading/inquire-period-trade-profit`, TTTC8715R, 100-character cursors; live only.
+- `account_pages('overseas_transactions')`: `/uapi/overseas-stock/v1/trading/inquire-period-trans`, CTOS4001R, 100-character cursors; live only.
+- Optional `page_observer` receives each accepted account response. `KisHttpResponse.raw_body` retains original response bytes; collectors never capture authentication responses or headers.
+- Canonical KIS normalization uses daily symbol-scoped buy/sell cost summaries and reconciled order quantities; overseas transaction currency and both-side settlement charges are authoritative. No exact fill times are inferred.
+
+Verified against the official generated [domestic chart](https://github.com/koreainvestment/open-trading-api/tree/main/examples_llm/domestic_stock/inquire_daily_itemchartprice), [overseas chart](https://github.com/koreainvestment/open-trading-api/tree/main/examples_llm/overseas_stock/dailyprice), [domestic trade profit](https://github.com/koreainvestment/open-trading-api/tree/main/examples_llm/domestic_stock/inquire_period_trade_profit), and [overseas transactions](https://github.com/koreainvestment/open-trading-api/tree/main/examples_llm/overseas_stock/inquire_period_trans) samples.

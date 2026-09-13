@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "checks": [
+    "invalid coverage rejected before facts or runs",
+    "coverage-stage runtime failure recorded as failed with committed fact identity",
+    "retry after partial failure deduplicates facts",
+    "optional monetary fields reject nonfinite, float and bool"
+  ],
+  "data": "synthetic temporary directories only"
+}

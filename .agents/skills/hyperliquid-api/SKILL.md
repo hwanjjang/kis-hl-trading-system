@@ -211,3 +211,19 @@ Journal retention must be anchored by current `userFills`; a short old-window pa
 does not prove completeness. Unknown spot/fee-currency identities are retained
 without finalizing performance. See [operations](../../../docs/trading-operations.md)
 and the trade-journal skill for statement backfill and accounting.
+
+## Canonical storage reads
+
+`HyperliquidInfoClient.last_raw_body` exposes the most recent successful `/info`
+response bytes for immutable evidence capture. It resets before each request.
+Canonical collectors verify that these bytes match the decoded response before
+using them; test/legacy decoded objects are labeled `decoded_json` instead.
+`market backfill` supports native 1w/1d/1m candles. The API retains only the latest
+5000 candles per interval; requested ten-year weekly coverage remains separate
+from observed listing/provider history. Account funding identity includes coin,
+time, interval/grain and hash; a zero hash alone is not an event identity.
+
+The 2026-09-13 BTC native 1w probe returned Thursday UTC boundaries (for example,
+2019-08-29 to 2019-09-05), not ISO Monday weeks. Canonical gap checks derive and
+validate the anchor from returned timestamps; they do not re-label native candles
+as derived ISO weeks. Reverify the actual interval if provider behavior changes.

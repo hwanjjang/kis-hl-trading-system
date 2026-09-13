@@ -400,6 +400,8 @@ def build_parser() -> argparse.ArgumentParser:
     xyz_daily_collect.set_defaults(handler=cmd_xyz_assets_daily_collect)
     from kis_hl.operations_cli import add_commands
     add_commands(sub, journal_sub)
+    from kis_hl.data_cli import register
+    register(sub)
     return parser
 
 

@@ -151,3 +151,8 @@ in `references/websocket.md`. This repo's implementation is `kis_hl/kis/ws.py`
 Official docs: https://apiportal.koreainvestment.com (API 문서, 에러코드, 종목정보 다운로드).
 The portal is a JS app; when offline, the upstream GitHub samples are the most
 reliable machine-readable spec.
+
+Canonical storage adds weekly chart period selection, raw response byte capture,
+and live domestic trade-profit / overseas transaction statement routes. Exact
+parameters, units, pagination and adapter constraints are documented in
+[references/endpoints.md](references/endpoints.md#canonical-data-collection-additions-2026-09-13).

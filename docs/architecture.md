@@ -175,3 +175,20 @@ retained. Missing costs, opening inventory, chronology or retention evidence sta
 pending; KIS cumulative order rows need statement supplementation. Same-account
 currencies and strategy populations are reported separately. Operational contracts,
 rollout limits, commands and rollback are in [trading operations](trading-operations.md).
+
+## Unified trading data storage
+
+`data_store.py` and `data_migrations.py` add a versioned canonical schema to the
+same local SQLite path. Immutable compressed payloads and source observations
+feed indexed fact revisions; account ingestion/import, market series, quality
+selection, journals and analysis consume those facts. `analysis_inputs` pins
+transitive dependencies. Jobs and report artifacts have separate operational
+attempt/publication state. Existing managed/trailing/eligibility tables remain
+unchanged. CLI registration lives in `data_cli.py`.
+
+The [data-flow diagram](../reports/sdlc/unified-trading-data/design/dataflow.html)
+and [logical specification](../specs/unified-trading-data.md) describe the broader
+design. The first implementation uses validated dataset payloads in a shared
+fact table rather than every proposed physical table. The actual supported
+adapters, precision/coverage limits, rollout, persistence and maintenance commands
+are documented in [unified data operations](unified-data-operations.md).

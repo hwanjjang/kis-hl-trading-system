@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "checks": [
+    "Thursday native gap enumerates only missing native interval",
+    "original native event intervals preserved",
+    "empty response leaves unknown anchor",
+    "mixed native weekly anchors rejected"
+  ]
+}

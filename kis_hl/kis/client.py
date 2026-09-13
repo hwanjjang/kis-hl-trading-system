@@ -22,6 +22,7 @@ class KisHttpResponse:
     status: int
     body: Any
     headers: dict[str, str]
+    raw_body: bytes | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,23 +148,26 @@ class KisClient:
                 'FID_INPUT_HOUR_1':hour,'FID_PW_DATA_INCU_YN':'N','FID_ETC_CLS_CODE':''})
 
     def domestic_chart(self, *, symbol: str, date_from: str, date_to: str,
-                       index: bool = False, adjusted: bool = True) -> KisHttpResponse:
+                       index: bool = False, adjusted: bool = True, period: str = 'D') -> KisHttpResponse:
+        if period not in {'D', 'W', 'M', 'Y'}: raise ValueError('Invalid chart period')
         query = {'FID_COND_MRKT_DIV_CODE': 'U' if index else 'J', 'FID_INPUT_ISCD': symbol,
-                 'FID_INPUT_DATE_1': date_from, 'FID_INPUT_DATE_2': date_to, 'FID_PERIOD_DIV_CODE': 'D'}
+                 'FID_INPUT_DATE_1': date_from, 'FID_INPUT_DATE_2': date_to, 'FID_PERIOD_DIV_CODE': period}
         if not index: query['FID_ORG_ADJ_PRC'] = '0' if adjusted else '1'
         return self._request_with_auth('GET', '/uapi/domestic-stock/v1/quotations/' +
             ('inquire-daily-indexchartprice' if index else 'inquire-daily-itemchartprice'),
             tr_id='FHKUP03500100' if index else 'FHKST03010100', query=query)
 
     def overseas_stock_chart(self, *, symbol: str, exchange: str, end_date: str = '',
-                             adjusted: bool = True) -> KisHttpResponse:
+                             adjusted: bool = True, period: str = 'D') -> KisHttpResponse:
+        if period not in {'D', 'W', 'M'}: raise ValueError('Invalid chart period')
         return self._request_with_auth('GET', '/uapi/overseas-price/v1/quotations/dailyprice',
             tr_id='HHDFS76240000', query={'AUTH':'','EXCD':exchange,'SYMB':symbol,
-                                        'GUBN':'0','BYMD':end_date,'MODP':'1' if adjusted else '0'})
+                                        'GUBN':{'D':'0','W':'1','M':'2'}[period],'BYMD':end_date,'MODP':'1' if adjusted else '0'})
 
     def account_pages(self, kind: str, *, exchange: str = 'NASD', symbol: str = '',
                       date_from: str = '', date_to: str = '', price: str = '0',
-                      older_history: bool = False, max_pages: int = 100) -> dict[str, Any]:
+                      older_history: bool = False, max_pages: int = 100,
+                      page_observer=None) -> dict[str, Any]:
         """Collect all pages; incomplete pagination is an error, never a partial success."""
         from kis_hl.kis.routes import account_route
         path, live_tr, paper_tr, query, width = account_route(kind, exchange=exchange,
@@ -180,6 +184,8 @@ class KisClient:
             body=response.body
             if response.status>=400 or not isinstance(body,dict) or body.get('rt_cd')!='0':
                 raise RuntimeError('KIS account inquiry failed')
+            if page_observer is not None:
+                page_observer(response)
             for field in result:
                 value=body.get(field,[])
                 if isinstance(value,dict):value=[value]
@@ -404,9 +410,10 @@ class KisClient:
         request = urllib.request.Request(url, data=encoded_body, method=method, headers=headers)
         try:
             with urllib.request.urlopen(request, timeout=self.config.http_timeout_seconds) as res:
-                text = res.read().decode("utf-8")
+                raw_body = res.read()
+                text = raw_body.decode("utf-8")
                 parsed = json.loads(text) if text else {}
-                return KisHttpResponse(res.status, parsed, dict(res.headers.items()))
+                return KisHttpResponse(res.status, parsed, dict(res.headers.items()), raw_body)
         except urllib.error.HTTPError as exc:
             text = exc.read().decode("utf-8")
             try:

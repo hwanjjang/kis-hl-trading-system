@@ -92,3 +92,19 @@ unknown attribution never removes existing evidenced attribution.
 The scheduler records every collection attempt and its reason separately from
 last successful collection and verified execution/cost coverage. Incomplete or
 failed attempts wait the configurable interval; explicit sync may retry sooner.
+
+## Canonical data journals
+
+`data journal --accounts ...` reads `fact_revisions` and freezes exact inputs in
+`analysis_runs/analysis_inputs`. It preserves existing nine-statistic formulas;
+DAY records may contribute to the seven return metrics when monetary and sequence
+evidence is complete, while exact holding-day statistics remain unavailable.
+KIS dated sell cost basis and ending inventory may establish a unique sequence;
+order time alone does not. Partial exits use remaining inventory basis before a
+later add. Hyperliquid builder fees are components of total fees, not extra debits.
+Funding daily/hourly overlap requires explicit equivalence; ambiguous allocations
+remain pending per cycle while observed account/currency totals stay separate.
+`net_booked_pnl` describes observed source activity; coverage status must accompany
+it and it is not a lifetime or deposit-adjusted portfolio return. Existing legacy
+`journal` commands remain compatibility readers/writers for their older tables;
+canonical reports never sum those projections as additional trades.

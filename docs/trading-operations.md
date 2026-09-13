@@ -271,3 +271,12 @@ source correction or complete backfill reconciles the gap; automatic re-anchorin
 after an already-known position discontinuity is a follow-up. Architecture HTML
 views describe the target design; implementation status and excluded future
 notification nodes are mapped in `docs/architecture.md` and the fidelity report.
+
+## Canonical data pipeline
+
+Use the [unified data operations](unified-data-operations.md) for immutable raw
+imports, revised market history, account/currency journals and pinned analysis.
+These read-only exchange collectors do not adopt positions or place orders.
+Keep the same operational database path; existing account execution locks and
+managed/trailing state remain authoritative. Canonical reports use canonical
+facts only; legacy reports are comparison baselines, never additional trades.
