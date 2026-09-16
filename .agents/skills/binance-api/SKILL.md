@@ -19,10 +19,13 @@ CLI commands. Facts below were verified on 2026-09-16 against
   secret, or a `listenKey`. Tests compare emptiness, never values.
 - Public reads need no key. Signed reads fail closed before any network call when the key
   or secret is empty. listenKey calls send only the `X-MBX-APIKEY` header.
-- **This repo places no Binance orders yet.** Adding `POST /fapi/v1/order`, cancel, modify,
-  leverage, or margin-type changes is a scope change under `AGENTS.md` trading safety: it
-  needs a dry-run default, rejecting tests first, `--live` off by default, and demo-environment
-  evidence before a live path.
+- Orders go through `BinanceTradingClient` (`kis_hl/binance/trading.py`): dry-run by default,
+  `--live` explicit, validation and rounding before any signed call, then allowlist
+  (`BINANCE_LIVE_SYMBOLS`) → credentials → one-way position mode → `account_lock` → signed
+  request. Keep that order; add the rejecting test first when you add a guard. Adding modify,
+  leverage, margin-type, or hedge-mode support is a scope change under `AGENTS.md`.
+- `POST /fapi/v1/order/test` (`exchange_test=True`, CLI `--exchange-test`) validates on the
+  exchange without placing; it is the strongest smoke an agent may run. Never run `--live`.
 - Never attach a Binance MCP server (official Agent OS MCP or community) or any
   order-capable vendor tool to an agent session with live keys. Same rule as KIS/Hyperliquid.
 - Every new call needs a unit test in `tests/test_binance_client.py` or
@@ -76,6 +79,20 @@ Full path table and response keys: `references/rest-endpoints.md`.
 | `open_orders(symbol=)` | `GET /fapi/v1/openOrders` (signed) | `binance-orders` |
 | `order_status(symbol, order_id= / client_order_id=)` | `GET /fapi/v1/order` (signed) | reconciliation |
 | `create_listen_key()` / `keepalive_listen_key()` / `close_listen_key()` | `/fapi/v1/listenKey` | `binance-user-stream` |
+
+`BinanceTradingClient` (`kis_hl/binance/trading.py`, subclass of the client above):
+
+| Method | Path | CLI |
+|---|---|---|
+| `place_order(symbol, side, order_type, quantity, price=, tif=, reduce_only=, client_order_id=, dry_run=True, exchange_test=False)` | `POST /fapi/v1/order` (`/order/test`) | `binance-trade` |
+| `place_stop_market(symbol, side, stop_price, quantity=, close_position=True, working_type=)` | `POST /fapi/v1/order` type `STOP_MARKET` | `binance-stop --kind stop-market` |
+| `place_trailing_stop(symbol, side, quantity, callback_rate, activation_price=, working_type=)` | `POST /fapi/v1/order` type `TRAILING_STOP_MARKET` | `binance-stop --kind trailing` |
+| `cancel_order(symbol, order_id= / client_order_id=)` | `DELETE /fapi/v1/order` | `binance-cancel` |
+| `position_mode_is_hedge()` | `GET /fapi/v1/positionSide/dual` (signed) | live guard |
+
+Rounding: quantity ROUND_DOWN to `stepSize`; BUY prices ROUND_DOWN and SELL prices ROUND_UP
+to `tickSize` (entries never more aggressive, stops trigger no later); `MIN_NOTIONAL` checked
+with the limit price or the mark price. Parameter reference: `references/orders.md`.
 
 `kis_hl/binance/ws.py`: `mark_price_stream`, `book_ticker_stream`, `kline_stream`,
 `agg_trade_stream`, `stream_route`, `market_stream_url`, `user_stream_url`, `BinanceMarketStreamClient`,
@@ -150,6 +167,7 @@ Probe a public response shape (read-only): `scripts/fapi_get.sh /fapi/v1/premium
 
 - `references/rest-endpoints.md` — public and signed paths, parameters, weights, response keys.
 - `references/websocket.md` — stream names, payload keys, user-data events and field legend.
+- `references/orders.md` — order placement, stop, trailing, cancel parameters and responses.
 - `references/limits-and-errors.md` — rate limits, HTTP status semantics, error codes.
 - `scripts/fapi_get.sh` — GET a public `/fapi` path for shape checking.
 

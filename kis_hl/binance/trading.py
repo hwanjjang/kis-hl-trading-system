@@ -1,0 +1,391 @@
+from __future__ import annotations
+
+import logging
+import re
+import time
+import uuid
+from dataclasses import dataclass
+from decimal import ROUND_DOWN, ROUND_UP, Decimal, InvalidOperation
+from typing import Any
+
+from kis_hl.binance.client import BinanceFuturesClient
+from kis_hl.config import BinanceConfig
+from kis_hl.execution_lock import account_lock
+
+logger = logging.getLogger(__name__)
+
+ORDER_PATH = "/fapi/v1/order"
+ORDER_TEST_PATH = "/fapi/v1/order/test"
+POSITION_MODE_PATH = "/fapi/v1/positionSide/dual"
+
+SIDES = ("BUY", "SELL")
+ENTRY_TYPES = ("MARKET", "LIMIT")
+TIME_IN_FORCE = ("GTC", "IOC", "FOK", "GTX")
+WORKING_TYPES = ("MARK_PRICE", "CONTRACT_PRICE")
+CLIENT_ORDER_ID_RE = re.compile(r"^[A-Za-z0-9._:/-]{1,36}$")
+CALLBACK_RATE_MIN = Decimal("0.1")
+CALLBACK_RATE_MAX = Decimal("10")
+
+
+def round_to_step(value: Decimal, step: Decimal, *, rounding: str = ROUND_DOWN) -> Decimal:
+    """Quantize ``value`` to a multiple of ``step`` (tick or lot size)."""
+    if step is None or step <= 0:
+        raise ValueError("step must be a positive Decimal")
+    units = (value / step).to_integral_value(rounding=rounding)
+    return (units * step).quantize(step)
+
+
+@dataclass(frozen=True, slots=True)
+class BinanceOrderSubmission:
+    status: str  # dry_run | exchange_test | submitted | rejected
+    dry_run: bool
+    symbol: str
+    request: dict[str, Any]
+    response: Any
+
+
+def submission_to_dict(submission: BinanceOrderSubmission) -> dict[str, Any]:
+    return {
+        "status": submission.status,
+        "dry_run": submission.dry_run,
+        "symbol": submission.symbol,
+        "request": submission.request,
+        "response": submission.response,
+        "submitted_at_ms": int(time.time() * 1000),
+    }
+
+
+def extract_binance_order_id(response: Any) -> str | None:
+    if isinstance(response, dict) and response.get("orderId") is not None:
+        return str(response["orderId"])
+    return None
+
+
+class BinanceTradingClient(BinanceFuturesClient):
+    """Guarded USD(S)-M futures order placement.
+
+    Every order method validates and rounds against exchange filters first, returns a
+    dry-run submission by default without any signed call, and only with ``dry_run=False``
+    walks the live guard chain: symbol allowlist -> credentials -> one-way position mode ->
+    account lock -> signed request. ``exchange_test=True`` sends the same parameters to
+    ``/fapi/v1/order/test``, which validates on the exchange without placing an order.
+    """
+
+    # ---- public order methods -------------------------------------------------------------
+
+    def place_order(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        order_type: str,
+        quantity: Decimal,
+        price: Decimal | None = None,
+        tif: str = "GTC",
+        reduce_only: bool = False,
+        client_order_id: str | None = None,
+        dry_run: bool = True,
+        exchange_test: bool = False,
+        filters: dict[str, Any] | None = None,
+        mark_price: Decimal | None = None,
+    ) -> BinanceOrderSubmission:
+        symbol = _symbol(symbol)
+        side = _choice(side, SIDES, "side")
+        order_type = _choice(order_type, ENTRY_TYPES, "order_type")
+        tif = _choice(tif, TIME_IN_FORCE, "tif")
+        quantity = _positive(quantity, "quantity")
+        if order_type == "LIMIT" and price is None:
+            raise ValueError("LIMIT orders require price")
+        if order_type == "MARKET" and price is not None:
+            raise ValueError("MARKET orders must not set price")
+        client_order_id = _client_order_id(client_order_id)
+
+        rules = filters or self.symbol_filters(symbol)
+        qty = _round_quantity(quantity, rules, market=order_type == "MARKET")
+        params: dict[str, Any] = {
+            "symbol": symbol,
+            "side": side,
+            "type": order_type,
+            "quantity": _text(qty),
+            "newClientOrderId": client_order_id,
+            "newOrderRespType": "RESULT",
+        }
+        if order_type == "LIMIT":
+            limit_price = _round_price(_positive(price, "price"), rules, side=side)
+            _require_notional(qty, limit_price, rules)
+            params["price"] = _text(limit_price)
+            params["timeInForce"] = tif
+        else:
+            mark = mark_price if mark_price is not None else self._mark_price(symbol)
+            _require_notional(qty, mark, rules)
+        if reduce_only:
+            params["reduceOnly"] = "true"
+        return self._submit(ORDER_PATH, params, dry_run=dry_run, exchange_test=exchange_test)
+
+    def place_stop_market(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        stop_price: Decimal,
+        quantity: Decimal | None = None,
+        close_position: bool = True,
+        working_type: str = "MARK_PRICE",
+        client_order_id: str | None = None,
+        dry_run: bool = True,
+        exchange_test: bool = False,
+        filters: dict[str, Any] | None = None,
+        mark_price: Decimal | None = None,
+    ) -> BinanceOrderSubmission:
+        symbol = _symbol(symbol)
+        side = _choice(side, SIDES, "side")
+        working_type = _choice(working_type, WORKING_TYPES, "working_type")
+        stop_price = _positive(stop_price, "stop_price")
+        client_order_id = _client_order_id(client_order_id)
+        if not close_position and quantity is None:
+            raise ValueError("reduce-only STOP_MARKET requires quantity; use close_position=True to close the whole position")
+        if close_position and quantity is not None:
+            raise ValueError("close_position=True closes the whole position; do not pass quantity (use close_position=False for a sized reduce-only stop)")
+
+        rules = filters or self.symbol_filters(symbol)
+        mark = mark_price if mark_price is not None else self._mark_price(symbol)
+        rounded_stop = _round_price(stop_price, rules, side=side)
+        _require_stop_direction(side, rounded_stop, mark)
+        params: dict[str, Any] = {
+            "symbol": symbol,
+            "side": side,
+            "type": "STOP_MARKET",
+            "stopPrice": _text(rounded_stop),
+            "workingType": working_type,
+            "newClientOrderId": client_order_id,
+            "newOrderRespType": "RESULT",
+        }
+        if close_position:
+            params["closePosition"] = "true"
+        else:
+            qty = _round_quantity(_positive(quantity, "quantity"), rules, market=True)
+            params["quantity"] = _text(qty)
+            params["reduceOnly"] = "true"
+        return self._submit(ORDER_PATH, params, dry_run=dry_run, exchange_test=exchange_test)
+
+    def place_trailing_stop(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        quantity: Decimal,
+        callback_rate: Decimal,
+        activation_price: Decimal | None = None,
+        working_type: str = "MARK_PRICE",
+        client_order_id: str | None = None,
+        dry_run: bool = True,
+        exchange_test: bool = False,
+        filters: dict[str, Any] | None = None,
+        mark_price: Decimal | None = None,
+    ) -> BinanceOrderSubmission:
+        symbol = _symbol(symbol)
+        side = _choice(side, SIDES, "side")
+        working_type = _choice(working_type, WORKING_TYPES, "working_type")
+        quantity = _positive(quantity, "quantity")
+        callback_rate = _callback_rate(callback_rate)
+        client_order_id = _client_order_id(client_order_id)
+
+        rules = filters or self.symbol_filters(symbol)
+        qty = _round_quantity(quantity, rules, market=True)
+        params: dict[str, Any] = {
+            "symbol": symbol,
+            "side": side,
+            "type": "TRAILING_STOP_MARKET",
+            "quantity": _text(qty),
+            "callbackRate": _text(callback_rate),
+            "reduceOnly": "true",
+            "workingType": working_type,
+            "newClientOrderId": client_order_id,
+            "newOrderRespType": "RESULT",
+        }
+        if activation_price is not None:
+            activation = _round_price(_positive(activation_price, "activation_price"), rules, side=side)
+            params["activationPrice"] = _text(activation)
+        elif mark_price is None and filters is None:
+            # Touch the public mark price only to fail early on a delisted symbol; no param.
+            self._mark_price(symbol)
+        return self._submit(ORDER_PATH, params, dry_run=dry_run, exchange_test=exchange_test)
+
+    def cancel_order(
+        self,
+        *,
+        symbol: str,
+        order_id: int | None = None,
+        client_order_id: str | None = None,
+        dry_run: bool = True,
+    ) -> BinanceOrderSubmission:
+        symbol = _symbol(symbol)
+        if order_id is None and not client_order_id:
+            raise ValueError("cancel_order requires order_id or client_order_id")
+        params: dict[str, Any] = {"symbol": symbol}
+        if client_order_id:
+            params["origClientOrderId"] = client_order_id
+        else:
+            params["orderId"] = int(order_id)  # type: ignore[arg-type]
+        return self._submit(ORDER_PATH, params, dry_run=dry_run, exchange_test=False, method="DELETE")
+
+    def position_mode_is_hedge(self) -> bool:
+        """Return True for hedge (dual-side) mode; fail closed when the answer is not explicit."""
+        payload = self._request("GET", POSITION_MODE_PATH, signed=True)
+        if not isinstance(payload, dict) or not isinstance(payload.get("dualSidePosition"), bool):
+            raise RuntimeError("Binance position mode could not be determined; refusing to place a live order")
+        return payload["dualSidePosition"]
+
+    # ---- guard chain ----------------------------------------------------------------------
+
+    def _submit(
+        self,
+        path: str,
+        params: dict[str, Any],
+        *,
+        dry_run: bool,
+        exchange_test: bool,
+        method: str = "POST",
+    ) -> BinanceOrderSubmission:
+        symbol = str(params["symbol"])
+        request = {
+            "path": path,
+            "method": method,
+            "params": params,
+            "client_request_id": uuid.uuid4().hex,
+            "base_url": self.config.base_url,
+            "key_profile": self.config.key_profile,
+        }
+        if exchange_test:
+            if method != "POST":
+                raise ValueError("exchange_test is only available for order placement")
+            self._require_credentials(need_secret=True)
+            try:
+                response = self._request("POST", ORDER_TEST_PATH, params, signed=True)
+            except RuntimeError as exc:
+                logger.warning("binance_order_exchange_test_rejected", extra={"symbol": symbol, "error": str(exc)})
+                return BinanceOrderSubmission("rejected", True, symbol, request, {"error": str(exc)})
+            logger.info("binance_order_exchange_test", extra={"symbol": symbol, "type": params.get("type")})
+            return BinanceOrderSubmission("exchange_test", True, symbol, request, response)
+        if dry_run:
+            logger.info("binance_order_dry_run", extra={"symbol": symbol, "type": params.get("type"), "method": method})
+            return BinanceOrderSubmission("dry_run", True, symbol, request, {"skipped": "dry_run"})
+
+        self._require_live_symbol(symbol)
+        self._require_credentials(need_secret=True)
+        if method == "POST" and self.position_mode_is_hedge():
+            raise RuntimeError("Binance account is in hedge (dual-side) position mode; live orders require one-way mode")
+        with account_lock(self.config.base_url, self.config.api_key):
+            try:
+                response = self._request(method, path, params, signed=True)
+            except RuntimeError as exc:
+                logger.warning("binance_order_rejected", extra={"symbol": symbol, "type": params.get("type"), "error": str(exc)})
+                return BinanceOrderSubmission("rejected", False, symbol, request, {"error": str(exc)})
+        logger.info(
+            "binance_order_submitted",
+            extra={"symbol": symbol, "type": params.get("type"), "order_id": extract_binance_order_id(response)},
+        )
+        return BinanceOrderSubmission("submitted", False, symbol, request, response)
+
+    def _require_live_symbol(self, symbol: str) -> None:
+        if symbol not in self.config.live_symbols:
+            raise RuntimeError(
+                f"Live Binance orders are limited to BINANCE_LIVE_SYMBOLS {list(self.config.live_symbols)}; got {symbol}"
+            )
+
+    def _mark_price(self, symbol: str) -> Decimal:
+        payload = self.premium_index(symbol)
+        try:
+            return Decimal(str(payload["markPrice"]))
+        except (KeyError, InvalidOperation, TypeError) as exc:
+            raise RuntimeError(f"Binance premiumIndex for {symbol} did not include a usable markPrice") from exc
+
+
+# ---- validation helpers ---------------------------------------------------------------------
+
+
+def _symbol(symbol: str) -> str:
+    if not symbol or not symbol.strip():
+        raise ValueError("symbol is required")
+    return symbol.strip().upper()
+
+
+def _choice(value: str, allowed: tuple[str, ...], name: str) -> str:
+    upper = str(value).strip().upper()
+    if upper not in allowed:
+        raise ValueError(f"{name} must be one of {', '.join(allowed)}")
+    return upper
+
+
+def _positive(value: Decimal | None, name: str) -> Decimal:
+    if value is None:
+        raise ValueError(f"{name} is required")
+    try:
+        decimal_value = Decimal(str(value))
+    except InvalidOperation as exc:
+        raise ValueError(f"{name} must be a decimal number") from exc
+    if not decimal_value.is_finite() or decimal_value <= 0:
+        raise ValueError(f"{name} must be a positive finite number")
+    return decimal_value
+
+
+def _client_order_id(value: str | None) -> str:
+    if value is None or value == "":
+        return "kh" + uuid.uuid4().hex[:30]
+    if not CLIENT_ORDER_ID_RE.fullmatch(value):
+        raise ValueError("client_order_id must match ^[A-Za-z0-9._:/-]{1,36}$")
+    return value
+
+
+def _callback_rate(value: Decimal) -> Decimal:
+    rate = _positive(value, "callback_rate")
+    if rate < CALLBACK_RATE_MIN or rate > CALLBACK_RATE_MAX:
+        raise ValueError("callback_rate must be between 0.1 and 10 (percent)")
+    if rate != rate.quantize(Decimal("0.1")):
+        raise ValueError("callback_rate supports at most one decimal place")
+    return rate.quantize(Decimal("0.1"))
+
+
+def _round_quantity(quantity: Decimal, rules: dict[str, Any], *, market: bool) -> Decimal:
+    step = rules.get("step_size")
+    qty = round_to_step(quantity, step) if step else quantity
+    min_qty = rules.get("min_qty")
+    if min_qty is not None and qty < min_qty:
+        raise ValueError(f"quantity {qty} is below minQty {min_qty} after rounding to step {step}")
+    max_qty = rules.get("market_max_qty") if market and rules.get("market_max_qty") is not None else rules.get("max_qty")
+    if max_qty is not None and qty > max_qty:
+        raise ValueError(f"quantity {qty} exceeds maxQty {max_qty}")
+    return qty
+
+
+def _round_price(price: Decimal, rules: dict[str, Any], *, side: str) -> Decimal:
+    """Round to tick so a BUY price moves down and a SELL price moves up.
+
+    For entries this never makes the order more aggressive than requested. For stops the
+    same rule makes a SELL stop (protecting a long) trigger slightly earlier and a BUY stop
+    (protecting a short) trigger slightly earlier, which is the conservative direction.
+    """
+    tick = rules.get("tick_size")
+    if not tick:
+        return price
+    return round_to_step(price, tick, rounding=ROUND_DOWN if side == "BUY" else ROUND_UP)
+
+
+def _require_notional(qty: Decimal, price: Decimal, rules: dict[str, Any]) -> None:
+    min_notional = rules.get("min_notional")
+    if min_notional is None:
+        return
+    notional = qty * price
+    if notional < min_notional:
+        raise ValueError(f"notional {notional} is below MIN_NOTIONAL {min_notional} (quantity {qty} x price {price})")
+
+
+def _require_stop_direction(side: str, stop_price: Decimal, mark: Decimal) -> None:
+    if side == "SELL" and stop_price >= mark:
+        raise ValueError(f"SELL stop {stop_price} must be below the mark price {mark}; it would trigger immediately")
+    if side == "BUY" and stop_price <= mark:
+        raise ValueError(f"BUY stop {stop_price} must be above the mark price {mark}; it would trigger immediately")
+
+
+def _text(value: Decimal) -> str:
+    return format(value, "f")

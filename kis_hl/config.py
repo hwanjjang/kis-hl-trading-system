@@ -68,6 +68,7 @@ class BinanceConfig:
     api_secret: str
     key_profile: str
     recv_window_ms: int = 5000
+    live_symbols: tuple[str, ...] = ("BTCUSDT",)
 
 
 def load_env_file(path: str | Path = ".env", *, override: bool = False) -> None:
@@ -167,16 +168,27 @@ def load_hyperliquid_config(env: Mapping[str, str] | None = None) -> Hyperliquid
 def load_binance_config(env: Mapping[str, str] | None = None) -> BinanceConfig:
     source = os.environ if env is None else env
     profile = source.get("BINANCE_KEY_PROFILE", "default").strip().lower()
-    if profile not in {"default", "production"}:
-        raise RuntimeError("BINANCE_KEY_PROFILE must be 'default' or 'production'")
+    if profile not in {"default", "production", "demo"}:
+        raise RuntimeError("BINANCE_KEY_PROFILE must be 'default', 'production', or 'demo'")
     if profile == "production":
         api_key_name = "PRO_BINANCE_APIKEY"
         api_secret_name = "PRO_BINANCE_SECRET"
+    elif profile == "demo":
+        api_key_name = "DEMO_BINANCE_APIKEY"
+        api_secret_name = "DEMO_BINANCE_SECRET"
     else:
         api_key_name = "BINANCE_APIKEY"
         api_secret_name = "BINANCE_SECRET"
 
-    testnet = source.get("BINANCE_TESTNET", "false").strip().lower() == "true"
+    # The demo profile targets the demo environment unless BINANCE_TESTNET is explicitly false.
+    testnet_default = "true" if profile == "demo" else "false"
+    testnet = source.get("BINANCE_TESTNET", testnet_default).strip().lower() == "true"
+    # An explicitly empty BINANCE_LIVE_SYMBOLS disables live orders; the default applies only when unset.
+    live_symbols = tuple(
+        token.strip().upper()
+        for token in source.get("BINANCE_LIVE_SYMBOLS", "BTCUSDT").split(",")
+        if token.strip()
+    )
     rest_default = BINANCE_TESTNET_URL if testnet else BINANCE_MAINNET_URL
     ws_default = BINANCE_TESTNET_WS_URL if testnet else BINANCE_MAINNET_WS_URL
 
@@ -189,6 +201,7 @@ def load_binance_config(env: Mapping[str, str] | None = None) -> BinanceConfig:
         api_secret=source.get(api_secret_name, "").strip(),
         key_profile=profile,
         recv_window_ms=int(source.get("BINANCE_RECV_WINDOW_MS", "5000")),
+        live_symbols=live_symbols,
     )
 
 

@@ -1007,3 +1007,99 @@ class BinanceCliTests(unittest.TestCase):
             self.assertEqual(listed["count"], 1)
             self.assertEqual(listed["events"][0]["order_id"], "7")
             self.assertEqual(listed["events"][0]["payload"]["e"], "ORDER_TRADE_UPDATE")
+
+
+class BinanceOrderCliTests(unittest.TestCase):
+    FILTERS = {
+        "symbol": "BTCUSDT", "status": "TRADING", "tick_size": Decimal("0.10"), "step_size": Decimal("0.001"),
+        "min_qty": Decimal("0.001"), "max_qty": Decimal("1000"), "market_max_qty": Decimal("120"),
+        "min_notional": Decimal("50"), "price_precision": 2, "quantity_precision": 3,
+        "order_types": ["LIMIT", "MARKET", "STOP_MARKET", "TRAILING_STOP_MARKET"], "time_in_force": ["GTC"],
+    }
+
+    def _run(self, argv: list[str]) -> tuple[int, dict]:
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            exit_code = main(argv)
+        text = stdout.getvalue()
+        return exit_code, (json.loads(text) if text.strip() else {})
+
+    def _patched_client(self):
+        from kis_hl.binance.trading import BinanceTradingClient
+
+        filters = self.FILTERS
+
+        class OfflineTradingClient(BinanceTradingClient):
+            def symbol_filters(self_inner, symbol: str) -> dict:  # noqa: N805
+                return filters
+
+            def _mark_price(self_inner, symbol: str) -> Decimal:  # noqa: N805
+                return Decimal("76000")
+
+            def send(self_inner, *args, **kwargs):  # noqa: N805
+                raise AssertionError("network must not be used in dry-run CLI tests")
+
+        return patch("kis_hl.cli.BinanceTradingClient", OfflineTradingClient)
+
+    def test_binance_trade_dry_run_stores_submission_and_hides_credentials(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "t.sqlite")
+            with self._patched_client():
+                exit_code, payload = self._run(
+                    ["--db", db, "binance-trade", "--symbol", "btcusdt", "--side", "buy", "--order-type", "limit",
+                     "--quantity", "0.0104", "--price", "75000.07"]
+                )
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["status"], "dry_run")
+            self.assertTrue(payload["dry_run"])
+            self.assertEqual(payload["request"]["params"]["quantity"], "0.010")
+            self.assertEqual(payload["request"]["params"]["price"], "75000.00")
+            self.assertNotIn("api_key", json.dumps(payload))
+            self.assertNotIn("signature", json.dumps(payload))
+            with closing(sqlite3.connect(db)) as conn:
+                row = conn.execute("SELECT venue, symbol, side, order_type, size, price, dry_run, status FROM order_submissions").fetchone()
+            self.assertEqual(row, ("binance", "BTCUSDT", "BUY", "LIMIT", "0.010", "75000.00", 1, "dry_run"))
+            self.assertEqual(payload["stored_id"], 1)
+
+    def test_binance_stop_stores_submission_and_protective_order(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "t.sqlite")
+            with self._patched_client():
+                exit_code, payload = self._run(
+                    ["--db", db, "binance-stop", "--symbol", "BTCUSDT", "--side", "sell", "--kind", "stop-market",
+                     "--stop-price", "74000"]
+                )
+                self.assertEqual(exit_code, 0)
+                self.assertEqual(payload["request"]["params"]["closePosition"], "true")
+                exit_code, trailing = self._run(
+                    ["--db", db, "binance-stop", "--symbol", "BTCUSDT", "--side", "sell", "--kind", "trailing",
+                     "--quantity", "0.01", "--callback-rate", "1.5", "--activation-price", "77000", "--source-submission-id", "1"]
+                )
+                self.assertEqual(exit_code, 0)
+                self.assertEqual(trailing["request"]["params"]["type"], "TRAILING_STOP_MARKET")
+            with closing(sqlite3.connect(db)) as conn:
+                rows = conn.execute(
+                    "SELECT order_type, trigger_price, covered_size, dry_run, active, source_order_submission_id FROM protective_orders ORDER BY id"
+                ).fetchall()
+            self.assertEqual(rows[0], ("STOP_MARKET", "74000.00", "position", 1, 0, None))
+            self.assertEqual(rows[1], ("TRAILING_STOP_MARKET", "77000.00", "0.010", 1, 0, 1))
+            self.assertEqual(payload["protective_order_id"], 1)
+
+    def test_binance_stop_rejects_missing_arguments(self) -> None:
+        with self._patched_client():
+            exit_code, _ = self._run(["binance-stop", "--symbol", "BTCUSDT", "--side", "sell", "--kind", "stop-market"])
+            self.assertEqual(exit_code, 1)
+            exit_code, _ = self._run(["binance-stop", "--symbol", "BTCUSDT", "--side", "sell", "--kind", "trailing", "--quantity", "0.01"])
+            self.assertEqual(exit_code, 1)
+
+    def test_binance_cancel_dry_run_stores_row(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "t.sqlite")
+            with self._patched_client():
+                exit_code, payload = self._run(["--db", db, "binance-cancel", "--symbol", "BTCUSDT", "--order-id", "42"])
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["status"], "dry_run")
+            self.assertEqual(payload["request"]["params"]["orderId"], 42)
+            with closing(sqlite3.connect(db)) as conn:
+                row = conn.execute("SELECT venue, order_type, side, status FROM order_submissions").fetchone()
+            self.assertEqual(row, ("binance", "cancel", "n/a", "dry_run"))

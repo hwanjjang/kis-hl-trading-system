@@ -125,10 +125,12 @@ BINANCE_SECRET=...
 BINANCE_TESTNET=false
 ```
 
-Set `BINANCE_KEY_PROFILE=production` to use `PRO_BINANCE_APIKEY` and `PRO_BINANCE_SECRET`.
-`BINANCE_TESTNET=true` switches to the futures demo environment. Keys must not have
-withdrawal permission and should be IP-restricted. This iteration only reads: it does not
-place, cancel, or modify Binance orders.
+Set `BINANCE_KEY_PROFILE=production` to use `PRO_BINANCE_APIKEY` and `PRO_BINANCE_SECRET`,
+or `BINANCE_KEY_PROFILE=demo` to use `DEMO_BINANCE_APIKEY` and `DEMO_BINANCE_SECRET` against the
+futures demo environment (`BINANCE_TESTNET=true` selects the demo URLs for any profile). Keys
+must not have withdrawal permission and should be IP-restricted. Live Binance orders are limited
+to `BINANCE_LIVE_SYMBOLS` (default `BTCUSDT`); set it to an empty value to disable live Binance
+orders entirely.
 
 ## Commands
 
@@ -184,6 +186,26 @@ through the user data stream into `order_events`, and list what was stored:
 python -m kis_hl.cli binance-orders --symbol BTCUSDT
 python -m kis_hl.cli binance-user-stream --max-messages 20
 python -m kis_hl.cli binance-order-events --symbol BTCUSDT --limit 20
+```
+
+Place Binance USDⓈ-M futures orders. Every command is a dry-run by default and prints the
+validated, rounded request; `--live` sends the signed order, `--exchange-test` validates on
+the exchange through `/fapi/v1/order/test` without placing anything:
+
+```bash
+python -m kis_hl.cli binance-trade --symbol BTCUSDT --side buy --order-type limit --quantity 0.002 --price 70000
+python -m kis_hl.cli binance-trade --symbol BTCUSDT --side buy --order-type market --quantity 0.002 --exchange-test
+python -m kis_hl.cli binance-trade --symbol BTCUSDT --side buy --order-type market --quantity 0.002 --live
+```
+
+Protect a position with server-side stops. `stop-market` without `--quantity` uses
+`closePosition=true` (closes the whole position at trigger); `trailing` needs `--quantity` and
+`--callback-rate` (percent, 0.1 to 10). Both are stored in `protective_orders`:
+
+```bash
+python -m kis_hl.cli binance-stop --symbol BTCUSDT --side sell --kind stop-market --stop-price 68000 --source-submission-id 1
+python -m kis_hl.cli binance-stop --symbol BTCUSDT --side sell --kind trailing --quantity 0.002 --callback-rate 1.5 --activation-price 74000
+python -m kis_hl.cli binance-cancel --symbol BTCUSDT --order-id 123456 --live
 ```
 
 Create or refresh the local trade.xyz asset mapping table:
@@ -335,7 +357,9 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 - Check `xyz-assets universe-collect` for newly listed `xyz` markets before expanding the curated eligibility table.
 - Review recent funding and spread data before opening or adding to a trade.xyz position, especially for single-name stocks and newly added markets.
 - Use an approved Hyperliquid API wallet per trading process to avoid nonce collisions.
-- Binance integration is a read-only data plane for now: public market data, signed account/order reads, and websocket order-status events. No `binance-*` command places orders, and there is no `--live` flag for Binance.
+- Binance orders (`binance-trade`, `binance-stop`, `binance-cancel`) are dry-run by default and require `--live` to send. Live orders fail closed unless the symbol is in `BINANCE_LIVE_SYMBOLS`, credentials are present, and the account is in one-way position mode; hedge mode is rejected.
+- Binance quantities are rounded down to `stepSize`; buy prices round down and sell prices round up to `tickSize`, so entries are never more aggressive than requested and stops trigger no later than requested. `MIN_NOTIONAL` (50 USDT on BTCUSDT) is enforced before any signed call.
+- Binance stops run on the exchange: `STOP_MARKET` with `closePosition=true` and `TRAILING_STOP_MARKET` with `callbackRate`. They are recorded in `protective_orders`, and fills are confirmed through the user data stream, not the REST acknowledgement.
 - Binance `listenKey` values are treated like credentials: they are never printed or stored. The user stream requests a fresh key on every reconnect and renews it every 30 minutes.
 - Binance kline intervals do not include `3h`; use `1h` bars or tick-built candles for the 3H strategy.
 
