@@ -21,3 +21,12 @@ logs/
 
 .DS_Store
 
+
+# Agent skill working files (planning-with-files notebooks, SDLC state and reports, task observer)
+.planning/
+reports/
+skill-observations/
+skill-updates/
+
+# Archify browser-check evidence (screenshots, contact sheets, receipts); the delivered HTML is the artifact
+docs/architecture/*.visual-check.*

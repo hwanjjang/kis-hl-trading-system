@@ -45,9 +45,13 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.hyperliquid.client` wraps Hyperliquid public info calls with standard HTTP, including wallet asset state reads for the configured address, and uses `hyperliquid-python-sdk` only for signed trading. This avoids custom signing code.
 
+`kis_hl.binance.client` wraps Binance USDⓈ-M futures REST calls with standard HTTP: public exchange info, mark/index price and funding, top of book, and klines, plus HMAC-SHA256 signed read-only account, position, and order reads. It also owns the `listenKey` lifecycle (create, keepalive, close) for the user data stream. It places no orders.
+
+`kis_hl.binance.ws` provides Binance combined-stream URL building for `markPrice`, `bookTicker`, `kline`, and `aggTrade` (routed to `/public` for `bookTicker`/`depth` and `/market` for the rest), a market stream client over `kis_hl.streaming`, a user data stream client that requests a fresh `listenKey` per connection, renews it every 30 minutes, and reconnects on `listenKeyExpired`, and parsers that turn market frames into `PriceTick`s and `ORDER_TRADE_UPDATE` frames into normalized order events.
+
 `kis_hl.assets` normalizes user-facing symbols into Hyperliquid L1 names. `BTCUSDC` resolves to `UBTC/USDC` spot, while explicit futures aliases such as `BTCUSDC-PERP`, `BTC-PERP`, and `BTCPERP` resolve to the Hyperliquid `BTC` perp coin. Live spot orders resolve the pair through `spotMeta` to the `@index` order coin. trade.xyz assets resolve to `xyz:ASSET`.
 
-`kis_hl.storage` persists raw KIS payloads, daily OHLCV bars, order submissions, reduce-only stop-market protective orders, completed trade journal entries, trade.xyz asset rows, Hyperliquid verification checks, KIS market-data mapping rows, secondary reference-data mapping rows, live `xyz` universe snapshots, funding-rate rows, and spread snapshots in SQLite. Raw payloads are stored because vendor schemas and exchange responses can change.
+`kis_hl.storage` persists raw KIS payloads, daily OHLCV bars, order submissions, venue order-status events (`order_events`), reduce-only stop-market protective orders, completed trade journal entries, trade.xyz asset rows, Hyperliquid verification checks, KIS market-data mapping rows, secondary reference-data mapping rows, live `xyz` universe snapshots, funding-rate rows, and spread snapshots in SQLite. Raw payloads are stored because vendor schemas and exchange responses can change.
 
 `kis_hl.trade_xyz_assets` defines the curated trade.xyz asset mapping seed. `trade_xyz_assets` rows in SQLite drive RWA eligibility: non-IPO assets and stocks listed for less than 30 weeks are excluded, `EWY` is excluded in favor of `KR200`, and `EWJ` is excluded in favor of `JP225`. The seed also records Specification Index commodity and FX references. `trade_xyz_asset_checks` records actual Hyperliquid metadata availability and is required for live trade.xyz orders. `trade_xyz_kis_mappings` records which KIS quote route, if any, can provide reference market data for the same trade.xyz asset.
 
@@ -63,6 +67,9 @@ Interactive, code-grounded views generated from repository revision
 - [High-level system architecture](architecture/system-architecture.html)
 - [Live order request sequence](architecture/live-order-sequence.html)
 - [Market data, eligibility, and audit flow](architecture/market-data-flow.html)
+- [Binance user data stream lifecycle](architecture/binance-user-stream-sequence.html)
+- [Binance trading, market stream, and order event flow](architecture/binance-trading-data-flow.html) (order placement is shown as planned)
+- [Binance order round trip](architecture/binance-order-roundtrip-sequence.html) (planned: guard, signed submit, fill confirmation over the user stream)
 
 ```mermaid
 flowchart LR
@@ -95,6 +102,7 @@ flowchart LR
 - Hyperliquid stop-loss trigger orders are reduce-only and require an explicit trigger price.
 - The CLI stores raw order responses and protective-order rows so order IDs, statuses, trigger prices, and covered size remain auditable.
 - Secrets are never logged intentionally and `.env` is ignored by git.
+- Binance is integrated as a read-only data plane first. Signed reads and the user data stream fail closed without credentials, and no Binance order path exists yet.
 
 ## Assumptions
 
@@ -114,6 +122,8 @@ flowchart LR
 - Hyperliquid funding and spread snapshots are stored for suitability review only. They are not yet wired into automatic entry rejection, position sizing changes, or liquidation-risk checks.
 - Hyperliquid SDK behavior for spot market orders should be tested with a small live or testnet order before using spot market orders operationally.
 - The trailing worker consumes Hyperliquid allMids through the maintained connection layer. Persistent raw tick tables and unified KIS/Hyperliquid strategy orchestration remain unimplemented.
+- The Binance user data stream parser follows the documented `ORDER_TRADE_UPDATE` schema and unit tests, but has not yet been exercised against a live or demo Binance session. Verify field names on the futures demo environment before relying on stored `order_events` for reconciliation.
+- Binance futures websocket streams are partitioned by route: `/public` serves only the high-frequency `bookTicker`/`depth` streams and `/market` serves `markPrice`, `aggTrade`, `kline`, and the rest (verified live on 2026-09-16). One connection cannot mix the two, so `binance-stream` rejects a mixed request and the operator runs one process per route. The legacy unprefixed `/stream` root still answers but only delivers public-tier streams, which matches Binance's 2026-04-23 migration notice; URL overrides must use the routed roots. A threaded multi-route client is a possible follow-up.
 
 ## Trailing management components
 

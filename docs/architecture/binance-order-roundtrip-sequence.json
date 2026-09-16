@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Binance Order Round Trip (planned)",
+    "output": "docs/architecture/binance-order-roundtrip-sequence.html",
+    "viewBox": [1080, 560],
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "views": [
+      { "id": "guard", "label": "Guard before any signed call", "focus": ["strategy", "guard", "rest", "binance_rest"], "note": "Filters and account state are read first; dry-run is the default and returns a plan, not an order." },
+      { "id": "submit", "label": "Submit only with --live", "focus": ["guard", "rest", "binance_rest", "sqlite"], "note": "A signed POST with a client order id; the raw acknowledgement is audited in order_submissions." },
+      { "id": "confirm", "label": "Confirm over the user stream", "focus": ["binance_ws", "user_ws", "sqlite", "strategy"], "note": "ORDER_TRADE_UPDATE frames are the fill source of truth and drive stop and trailing management." }
+    ]
+  },
+  "participants": [
+    { "id": "strategy", "type": "frontend", "label": "Strategy / CLI", "sublabel": "entry intent" },
+    { "id": "guard", "type": "security", "label": "Order guard", "sublabel": "dry-run default" },
+    { "id": "rest", "type": "backend", "label": "REST client", "sublabel": "BinanceFuturesClient" },
+    { "id": "binance_rest", "type": "external", "label": "Binance REST", "sublabel": "fapi /order" },
+    { "id": "binance_ws", "type": "external", "label": "Binance WS", "sublabel": "fstream /private" },
+    { "id": "user_ws", "type": "backend", "label": "User stream", "sublabel": "BinanceUserStreamClient" },
+    { "id": "sqlite", "type": "database", "label": "SQLite", "sublabel": "submissions · events" }
+  ],
+  "segments": [
+    { "from": 150, "to": 266, "label": "Guard (dry-run default)" },
+    { "from": 276, "to": 390, "label": "Submit (--live only)" },
+    { "from": 400, "to": 486, "label": "Confirm over WebSocket" }
+  ],
+  "messages": [
+    { "from": "strategy", "to": "guard", "y": 168, "label": "entry intent: symbol, side, size, stop", "variant": "emphasis" },
+    { "from": "guard", "to": "rest", "y": 196, "label": "symbol_filters() + account()", "variant": "default" },
+    { "from": "rest", "to": "guard", "y": 224, "label": "tick · step · min notional · balance", "variant": "return" },
+    { "from": "guard", "to": "strategy", "y": 252, "label": "dry-run plan or rejection (default)", "variant": "return" },
+    { "from": "guard", "to": "rest", "y": 292, "label": "place_order(newClientOrderId) with --live", "variant": "security" },
+    { "from": "rest", "to": "binance_rest", "y": 320, "label": "POST /fapi/v1/order (HMAC signed)", "variant": "security" },
+    { "from": "binance_rest", "to": "rest", "y": 348, "label": "ack: orderId, status NEW", "variant": "return" },
+    { "from": "rest", "to": "sqlite", "y": 376, "label": "store_order_submission(raw ack)", "variant": "emphasis" },
+    { "from": "binance_ws", "to": "user_ws", "y": 416, "label": "ORDER_TRADE_UPDATE: NEW → FILLED", "variant": "dashed" },
+    { "from": "user_ws", "to": "sqlite", "y": 444, "label": "store_order_event(parse_order_event)", "variant": "emphasis" },
+    { "from": "sqlite", "to": "strategy", "y": 472, "label": "fill state → stop / trailing management", "variant": "dashed" }
+  ],
+  "activations": [
+    { "participant": "guard", "from": 162, "to": 258, "type": "security" },
+    { "participant": "rest", "from": 190, "to": 230, "type": "backend" },
+    { "participant": "guard", "from": 286, "to": 298, "type": "security" },
+    { "participant": "rest", "from": 286, "to": 382, "type": "backend" },
+    { "participant": "binance_rest", "from": 314, "to": 354, "type": "external" },
+    { "participant": "user_ws", "from": 410, "to": 450, "type": "backend" },
+    { "participant": "sqlite", "from": 438, "to": 478, "type": "database" }
+  ],
+  "cards": [
+    { "dot": "orange", "title": "Fail-Closed Order Path (planned)", "items": ["Nothing in this diagram is implemented yet; only reads and streams exist", "Validation runs before any credential or signed call, like the Hyperliquid client", "Live submission needs --live, a client order id, and demo-environment evidence first"] },
+    { "dot": "emerald", "title": "Fills Come From the Stream", "items": ["The REST ack only proves acceptance; fills arrive as ORDER_TRADE_UPDATE", "order_submissions and order_events are separate audit tables", "Server-side STOP_MARKET / TRAILING_STOP_MARKET can replace client-side trailing"] }
+  ]
+}

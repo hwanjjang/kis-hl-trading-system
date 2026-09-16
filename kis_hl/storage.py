@@ -112,6 +112,31 @@ def init_db(db_path: str | Path) -> None:
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS order_events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              venue TEXT NOT NULL,
+              symbol TEXT NOT NULL,
+              order_id TEXT,
+              client_order_id TEXT,
+              side TEXT,
+              order_type TEXT,
+              execution_type TEXT,
+              status TEXT,
+              price TEXT,
+              avg_price TEXT,
+              orig_qty TEXT,
+              last_filled_qty TEXT,
+              cum_filled_qty TEXT,
+              stop_price TEXT,
+              reduce_only INTEGER NOT NULL DEFAULT 0,
+              event_time_ms INTEGER,
+              received_at_ms INTEGER NOT NULL,
+              payload_json TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS protective_orders (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               venue TEXT NOT NULL,
@@ -325,6 +350,12 @@ def init_db(db_path: str | Path) -> None:
             """
             CREATE INDEX IF NOT EXISTS idx_trade_xyz_universe_assets_snapshot_symbol
             ON trade_xyz_universe_assets (snapshot_id, symbol)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_order_events_venue_symbol_time
+            ON order_events (venue, symbol, received_at_ms)
             """
         )
         conn.execute(
@@ -627,6 +658,88 @@ def store_order_submission(
         )
         conn.commit()
         return int(cur.lastrowid)
+
+
+def store_order_event(
+    db_path: str | Path,
+    *,
+    venue: str,
+    symbol: str,
+    order_id: str | None,
+    client_order_id: str | None,
+    side: str | None,
+    order_type: str | None,
+    execution_type: str | None,
+    status: str | None,
+    price: str | None,
+    avg_price: str | None,
+    orig_qty: str | None,
+    last_filled_qty: str | None,
+    cum_filled_qty: str | None,
+    stop_price: str | None,
+    reduce_only: bool,
+    event_time_ms: int | None,
+    received_at_ms: int,
+    payload: Any,
+) -> int:
+    """Persist one venue order-status event (websocket user-data update)."""
+    init_db(db_path)
+    payload_json = json.dumps(payload, ensure_ascii=False, default=str, sort_keys=True)
+    with closing(sqlite3.connect(db_path)) as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO order_events (
+              venue, symbol, order_id, client_order_id, side, order_type, execution_type,
+              status, price, avg_price, orig_qty, last_filled_qty, cum_filled_qty, stop_price,
+              reduce_only, event_time_ms, received_at_ms, payload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                venue, symbol, order_id, client_order_id, side, order_type, execution_type,
+                status, price, avg_price, orig_qty, last_filled_qty, cum_filled_qty, stop_price,
+                1 if reduce_only else 0, event_time_ms, received_at_ms, payload_json,
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def list_order_events(
+    db_path: str | Path,
+    *,
+    venue: str | None = None,
+    symbol: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    init_db(db_path)
+    clauses: list[str] = []
+    params: list[Any] = []
+    if venue:
+        clauses.append("venue = ?")
+        params.append(venue)
+    if symbol:
+        clauses.append("symbol = ?")
+        params.append(symbol.upper())
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    params.append(int(limit))
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            f"""
+            SELECT * FROM order_events
+            {where}
+            ORDER BY received_at_ms DESC, id DESC
+            LIMIT ?
+            """,
+            params,
+        ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["reduce_only"] = bool(item.pop("reduce_only"))
+        item["payload"] = json.loads(item.pop("payload_json"))
+        result.append(item)
+    return result
 
 
 def store_protective_order(

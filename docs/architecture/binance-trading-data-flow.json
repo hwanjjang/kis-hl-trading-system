@@ -1,0 +1,337 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Binance Trading, Market Stream, and Order Event Flow",
+    "locale": "en",
+    "output": "docs/architecture/binance-trading-data-flow.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1080,
+      520
+    ],
+    "views": [
+      {
+        "id": "market_stream",
+        "label": "Market data over WebSocket",
+        "focus": [
+          "ws_market",
+          "market_stream",
+          "tick_parser",
+          "sqlite",
+          "strategy"
+        ],
+        "note": "Combined streams arrive per route tier, become PriceTicks, and land in market_ticks for signals."
+      },
+      {
+        "id": "order_events",
+        "label": "Order results over WebSocket",
+        "focus": [
+          "ws_private",
+          "user_stream",
+          "rest_client",
+          "event_parser",
+          "sqlite",
+          "cli"
+        ],
+        "note": "A listenKey from REST opens the private stream; ORDER_TRADE_UPDATE frames become order_events rows."
+      },
+      {
+        "id": "trading",
+        "label": "Trading path (next iteration)",
+        "focus": [
+          "binance_rest",
+          "rest_client",
+          "order_guard",
+          "sqlite",
+          "strategy"
+        ],
+        "note": "Signed orders will pass the fail-closed guard, exit via BinanceFuturesClient, and be audited; not implemented yet."
+      }
+    ]
+  },
+  "stages": [
+    {
+      "label": "Binance"
+    },
+    {
+      "label": "Acquire"
+    },
+    {
+      "label": "Normalize & Guard"
+    },
+    {
+      "label": "Persist"
+    },
+    {
+      "label": "Consume"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "ws_market",
+      "type": "external",
+      "label": "WS /market + /public",
+      "sublabel": "mark · book · kline · trades",
+      "stage": 0,
+      "row": 0,
+      "width": 150,
+      "tag": "public"
+    },
+    {
+      "id": "binance_rest",
+      "type": "external",
+      "label": "REST /fapi",
+      "sublabel": "filters · listenKey · orders",
+      "stage": 0,
+      "row": 1,
+      "width": 150,
+      "tag": "public + signed"
+    },
+    {
+      "id": "ws_private",
+      "type": "external",
+      "label": "WS /private",
+      "sublabel": "order + account events",
+      "stage": 0,
+      "row": 2,
+      "width": 150,
+      "tag": "listenKey"
+    },
+    {
+      "id": "market_stream",
+      "type": "backend",
+      "label": "Market Stream Client",
+      "sublabel": "one route per tier",
+      "stage": 1,
+      "row": 0,
+      "width": 150,
+      "tag": "websocket"
+    },
+    {
+      "id": "rest_client",
+      "type": "backend",
+      "label": "BinanceFuturesClient",
+      "sublabel": "HMAC signed · listenKey",
+      "stage": 1,
+      "row": 1,
+      "width": 150,
+      "tag": "HTTP"
+    },
+    {
+      "id": "user_stream",
+      "type": "backend",
+      "label": "User Stream Client",
+      "sublabel": "fresh key · keepalive",
+      "stage": 1,
+      "row": 2,
+      "width": 150,
+      "tag": "websocket"
+    },
+    {
+      "id": "tick_parser",
+      "type": "backend",
+      "label": "parse_market_ticks",
+      "sublabel": "PriceTick",
+      "stage": 2,
+      "row": 0,
+      "width": 150,
+      "tag": "normalize"
+    },
+    {
+      "id": "order_guard",
+      "type": "security",
+      "label": "Order Guard (planned)",
+      "sublabel": "dry-run · fail closed",
+      "stage": 2,
+      "row": 1,
+      "width": 150,
+      "tag": "live gate"
+    },
+    {
+      "id": "event_parser",
+      "type": "backend",
+      "label": "parse_order_event",
+      "sublabel": "OrderEvent",
+      "stage": 2,
+      "row": 2,
+      "width": 150,
+      "tag": "normalize"
+    },
+    {
+      "id": "sqlite",
+      "type": "database",
+      "label": "SQLite",
+      "sublabel": "ticks · events · orders",
+      "stage": 3,
+      "row": 1,
+      "width": 150,
+      "tag": "local state"
+    },
+    {
+      "id": "strategy",
+      "type": "backend",
+      "label": "Strategy (planned)",
+      "sublabel": "BTC 3H · trailing stops",
+      "stage": 4,
+      "row": 0,
+      "width": 150,
+      "tag": "daemon"
+    },
+    {
+      "id": "cli",
+      "type": "frontend",
+      "label": "CLI JSON",
+      "sublabel": "binance-* commands",
+      "stage": 4,
+      "row": 2,
+      "width": 150,
+      "tag": "operator"
+    }
+  ],
+  "flows": [
+    {
+      "id": "market_frames",
+      "from": "ws_market",
+      "to": "market_stream",
+      "label": "combined stream frames",
+      "classification": "public data",
+      "variant": "emphasis",
+      "labelAt": [
+        208,
+        200
+      ]
+    },
+    {
+      "id": "market_dicts",
+      "from": "market_stream",
+      "to": "tick_parser",
+      "label": "stream + data dicts",
+      "classification": "raw frames",
+      "variant": "emphasis",
+      "labelAt": [
+        423,
+        200
+      ]
+    },
+    {
+      "id": "ticks_store",
+      "from": "tick_parser",
+      "to": "sqlite",
+      "label": "PriceTick rows",
+      "classification": "market_ticks",
+      "variant": "emphasis"
+    },
+    {
+      "id": "rest_reads",
+      "from": "binance_rest",
+      "to": "rest_client",
+      "label": "filters · listenKey · account",
+      "classification": "JSON",
+      "labelAt": [
+        190,
+        316
+      ]
+    },
+    {
+      "id": "listen_key",
+      "from": "rest_client",
+      "to": "user_stream",
+      "label": "listenKey",
+      "classification": "credential-like",
+      "variant": "security",
+      "labelAt": [
+        315,
+        328
+      ]
+    },
+    {
+      "id": "private_frames",
+      "from": "ws_private",
+      "to": "user_stream",
+      "label": "order + account events",
+      "classification": "private data",
+      "variant": "emphasis",
+      "labelAt": [
+        208,
+        428
+      ]
+    },
+    {
+      "id": "event_dicts",
+      "from": "user_stream",
+      "to": "event_parser",
+      "label": "ORDER_TRADE_UPDATE",
+      "classification": "raw frames",
+      "variant": "emphasis",
+      "labelAt": [
+        423,
+        428
+      ]
+    },
+    {
+      "id": "events_store",
+      "from": "event_parser",
+      "to": "sqlite",
+      "label": "OrderEvent rows",
+      "classification": "order_events",
+      "variant": "emphasis"
+    },
+    {
+      "id": "guard_inputs",
+      "from": "rest_client",
+      "to": "order_guard",
+      "label": "filters + account (planned)",
+      "classification": "verification",
+      "variant": "dashed",
+      "labelAt": [
+        444,
+        316
+      ]
+    },
+    {
+      "id": "strategy_read",
+      "from": "sqlite",
+      "to": "strategy",
+      "label": "ticks + order state",
+      "classification": "local query",
+      "variant": "dashed"
+    },
+    {
+      "id": "cli_read",
+      "from": "sqlite",
+      "to": "cli",
+      "label": "order-events + status JSON",
+      "classification": "local query"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Market Stream Evidence",
+      "items": [
+        "ws.py stream_route(): bookTicker/depth → /public, others → /market",
+        "parse_market_ticks() maps mark, book, kline, aggTrade to PriceTick",
+        "binance-stream stores ticks as source=binance, market=usdm_futures"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Order Event Evidence",
+      "items": [
+        "client.py owns listenKey create / keepalive / close",
+        "User stream mints a key per connection; reconnects on listenKeyExpired",
+        "storage.py order_events keeps ids, status, fills, raw payload"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Trading Path Boundary",
+      "items": [
+        "No Binance order placement yet; dashed elements are the next iteration",
+        "Guard: dry-run default, MIN_NOTIONAL / tick / step filters, fail closed",
+        "Server-side STOP_MARKET and TRAILING_STOP_MARKET are trailing candidates"
+      ]
+    }
+  ]
+}

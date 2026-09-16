@@ -10,6 +10,20 @@ from decimal import Decimal
 from typing import Any
 
 from kis_hl.assets import resolve_hyperliquid_symbol
+from kis_hl.binance.client import BinanceFuturesClient, normalize_symbol_filters
+from kis_hl.binance.ws import (
+    BINANCE_MARKET,
+    BINANCE_SOURCE,
+    BinanceMarketStreamClient,
+    BinanceUserStreamClient,
+    agg_trade_stream,
+    book_ticker_stream,
+    kline_stream,
+    mark_price_stream,
+    order_event_to_row,
+    parse_market_ticks,
+    parse_order_event,
+)
 from kis_hl.btc_strategy import (
     DEFAULT_BTC_ENTRY_NOTIONAL_USDC,
     DEFAULT_BTC_STOP_ATR_MULTIPLE,
@@ -17,6 +31,7 @@ from kis_hl.btc_strategy import (
     run_btc_spot_breakout_monitor,
 )
 from kis_hl.config import (
+    load_binance_config,
     load_env_file,
     load_hyperliquid_config,
     load_kis_config,
@@ -50,6 +65,7 @@ from kis_hl.signals import (
 from kis_hl.storage import (
     get_trade_xyz_kis_mapping,
     get_trade_xyz_reference_mapping,
+    list_order_events,
     list_trade_journal_entries,
     list_trade_xyz_kis_mappings,
     list_trade_xyz_reference_mappings,
@@ -58,6 +74,7 @@ from kis_hl.storage import (
     seed_trade_xyz_kis_mappings,
     seed_trade_xyz_assets,
     store_market_payload,
+    store_order_event,
     store_order_submission,
     store_protective_order,
     store_trade_journal_entry,
@@ -216,6 +233,70 @@ def build_parser() -> argparse.ArgumentParser:
         help=argparse.SUPPRESS,
     )
     hl_account.set_defaults(handler=cmd_hl_account)
+
+    binance_info = sub.add_parser(
+        "binance-info",
+        help="Fetch Binance USD(S)-M futures symbol filters and rate limits (public)",
+    )
+    binance_info.add_argument("--symbol", default="BTCUSDT")
+    binance_info.set_defaults(handler=cmd_binance_info)
+
+    binance_mark = sub.add_parser(
+        "binance-mark",
+        help="Fetch Binance USD(S)-M mark/index price, funding, and top of book (public)",
+    )
+    binance_mark.add_argument("--symbol", default="BTCUSDT")
+    binance_mark.set_defaults(handler=cmd_binance_mark)
+
+    binance_candles = sub.add_parser("binance-candles", help="Fetch Binance USD(S)-M klines (public)")
+    binance_candles.add_argument("--symbol", default="BTCUSDT")
+    binance_candles.add_argument("--interval", default="1h")
+    binance_candles.add_argument("--limit", type=int, default=100)
+    binance_candles.add_argument("--start-ms", type=int)
+    binance_candles.add_argument("--end-ms", type=int)
+    binance_candles.set_defaults(handler=cmd_binance_candles)
+
+    binance_orders = sub.add_parser(
+        "binance-orders",
+        help="Read Binance USD(S)-M open orders and non-zero positions (signed, read-only)",
+    )
+    binance_orders.add_argument("--symbol")
+    binance_orders.set_defaults(handler=cmd_binance_orders)
+
+    binance_stream = sub.add_parser(
+        "binance-stream",
+        help="Stream Binance USD(S)-M market data over websocket and store ticks",
+    )
+    binance_stream.add_argument("--symbol", default="BTCUSDT")
+    binance_stream.add_argument(
+        "--streams",
+        default="mark",
+        help=(
+            "Comma list of mark, book, trade, kline:<interval>. Binance serves book (and depth) "
+            "from a separate /public route, so book cannot share a run with the other streams."
+        ),
+    )
+    binance_stream.add_argument("--max-messages", type=int)
+    binance_stream.add_argument("--max-reconnects", type=int)
+    binance_stream.add_argument("--no-store", action="store_true")
+    binance_stream.set_defaults(handler=cmd_binance_stream)
+
+    binance_user_stream = sub.add_parser(
+        "binance-user-stream",
+        help="Stream Binance USD(S)-M order and account events (listenKey) and store order events",
+    )
+    binance_user_stream.add_argument("--max-messages", type=int)
+    binance_user_stream.add_argument("--max-reconnects", type=int)
+    binance_user_stream.add_argument("--no-store", action="store_true")
+    binance_user_stream.set_defaults(handler=cmd_binance_user_stream)
+
+    binance_order_events = sub.add_parser(
+        "binance-order-events",
+        help="List stored Binance order events from the local database",
+    )
+    binance_order_events.add_argument("--symbol")
+    binance_order_events.add_argument("--limit", type=int, default=50)
+    binance_order_events.set_defaults(handler=cmd_binance_order_events)
 
     trade = sub.add_parser("trade", help="Prepare or submit a Hyperliquid order")
     trade.add_argument("--symbol", required=True)
@@ -540,6 +621,150 @@ def cmd_btc_3h_monitor(args: argparse.Namespace) -> dict[str, Any]:
         "stop_atr_multiple": args.stop_atr_multiple,
         "executions": executions,
     }
+
+
+def cmd_binance_info(args: argparse.Namespace) -> dict[str, Any]:
+    client = BinanceFuturesClient(load_binance_config())
+    symbol = args.symbol.strip().upper()
+    info = client.exchange_info(symbol)
+    entry = next((item for item in info.get("symbols", []) if item.get("symbol") == symbol), None)
+    if entry is None:
+        raise RuntimeError(f"Binance symbol {symbol} not found in exchangeInfo")
+    return {
+        "symbol": symbol,
+        "filters": normalize_symbol_filters(entry),
+        "rate_limits": info.get("rateLimits", []),
+        "server_time": info.get("serverTime"),
+    }
+
+
+def cmd_binance_mark(args: argparse.Namespace) -> dict[str, Any]:
+    client = BinanceFuturesClient(load_binance_config())
+    return {
+        "symbol": args.symbol.upper(),
+        "premium_index": client.premium_index(args.symbol),
+        "book_ticker": client.book_ticker(args.symbol),
+        "used_weight_1m": client.last_used_weight,
+    }
+
+
+def cmd_binance_candles(args: argparse.Namespace) -> dict[str, Any]:
+    client = BinanceFuturesClient(load_binance_config())
+    candles = client.klines(
+        args.symbol,
+        args.interval,
+        limit=args.limit,
+        start_time_ms=args.start_ms,
+        end_time_ms=args.end_ms,
+    )
+    return {"symbol": args.symbol.upper(), "interval": args.interval, "count": len(candles), "candles": candles}
+
+
+def cmd_binance_orders(args: argparse.Namespace) -> dict[str, Any]:
+    client = BinanceFuturesClient(load_binance_config())
+    open_orders = client.open_orders(args.symbol)
+    positions = [
+        position
+        for position in client.position_risk(args.symbol)
+        if Decimal(str(position.get("positionAmt", "0") or "0")) != 0
+    ]
+    return {
+        "symbol": args.symbol.upper() if args.symbol else None,
+        "open_orders": open_orders,
+        "positions": positions,
+        "used_weight_1m": client.last_used_weight,
+    }
+
+
+def cmd_binance_stream(args: argparse.Namespace) -> dict[str, Any]:
+    config = load_binance_config()
+    streams = _binance_stream_names(args.symbol, args.streams)
+    counts: dict[str, int] = {}
+    last: dict[str, Any] = {}
+    stored = 0
+
+    def on_message(payload: dict[str, Any]) -> None:
+        nonlocal stored
+        received_at_ms = int(time.time() * 1000)
+        for tick in parse_market_ticks(payload, received_at_ms=received_at_ms):
+            kind = str(tick.raw.get("kind")) if tick.raw else "unknown"
+            counts[kind] = counts.get(kind, 0) + 1
+            last[kind] = {"symbol": tick.symbol, "price": str(tick.price), "event_time": tick.event_time}
+            if not args.no_store:
+                store_market_payload(
+                    args.db,
+                    source=BINANCE_SOURCE,
+                    market=BINANCE_MARKET,
+                    symbol=tick.symbol,
+                    exchange_code=None,
+                    payload=tick.raw,
+                    observed_at_ms=tick.received_at_ms,
+                )
+                stored += 1
+
+    client = BinanceMarketStreamClient(config, streams=streams, on_message=on_message)
+    status = client.run(max_messages=args.max_messages, max_reconnects=args.max_reconnects)
+    return {"status": asdict(status), "streams": streams, "ticks": counts, "stored": stored, "last": last}
+
+
+def cmd_binance_user_stream(args: argparse.Namespace) -> dict[str, Any]:
+    config = load_binance_config()
+    rest = BinanceFuturesClient(config)
+    order_events: list[dict[str, Any]] = []
+    other_events: dict[str, int] = {}
+    stored = 0
+
+    def on_message(payload: dict[str, Any]) -> None:
+        nonlocal stored
+        received_at_ms = int(time.time() * 1000)
+        event = parse_order_event(payload, received_at_ms=received_at_ms)
+        if event is None:
+            name = str(payload.get("e", "unknown"))
+            other_events[name] = other_events.get(name, 0) + 1
+            return
+        row = order_event_to_row(event)
+        if not args.no_store:
+            row_id = store_order_event(args.db, **row)
+            stored += 1
+        else:
+            row_id = None
+        summary = {key: value for key, value in row.items() if key != "payload"}
+        summary["stored_id"] = row_id
+        order_events.append(summary)
+
+    client = BinanceUserStreamClient(config, rest, on_message=on_message)
+    status = client.run(max_messages=args.max_messages, max_reconnects=args.max_reconnects)
+    return {
+        "status": asdict(status),
+        "order_events": order_events,
+        "other_events": other_events,
+        "stored": stored,
+    }
+
+
+def cmd_binance_order_events(args: argparse.Namespace) -> dict[str, Any]:
+    events = list_order_events(args.db, venue=BINANCE_SOURCE, symbol=args.symbol, limit=args.limit)
+    return {"count": len(events), "events": events}
+
+
+def _binance_stream_names(symbol: str, spec: str) -> list[str]:
+    names: list[str] = []
+    for token in (part.strip() for part in spec.split(",")):
+        if not token:
+            continue
+        if token == "mark":
+            names.append(mark_price_stream(symbol, fast=True))
+        elif token == "book":
+            names.append(book_ticker_stream(symbol))
+        elif token == "trade":
+            names.append(agg_trade_stream(symbol))
+        elif token.startswith("kline:"):
+            names.append(kline_stream(symbol, token.split(":", 1)[1]))
+        else:
+            raise ValueError(f"Unknown Binance stream {token!r}; use mark, book, trade, kline:<interval>")
+    if not names:
+        raise ValueError("at least one Binance stream is required")
+    return names
 
 
 def cmd_hl_account(args: argparse.Namespace) -> dict[str, Any]:

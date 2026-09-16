@@ -49,3 +49,71 @@ class ConfigTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BinanceConfigTests(unittest.TestCase):
+    def test_default_profile_uses_plain_keys_and_mainnet_urls(self) -> None:
+        from kis_hl.config import load_binance_config
+
+        config = load_binance_config({"BINANCE_APIKEY": "k1", "BINANCE_SECRET": "s1"})
+        self.assertEqual(config.api_key, "k1")
+        self.assertEqual(config.api_secret, "s1")
+        self.assertEqual(config.key_profile, "default")
+        self.assertEqual(config.base_url, "https://fapi.binance.com")
+        self.assertEqual(config.ws_market_url, "wss://fstream.binance.com/market")
+        self.assertEqual(config.ws_public_url, "wss://fstream.binance.com/public")
+        self.assertEqual(config.ws_user_url, "wss://fstream.binance.com/private")
+        self.assertEqual(config.recv_window_ms, 5000)
+
+    def test_production_profile_uses_pro_keys(self) -> None:
+        from kis_hl.config import load_binance_config
+
+        config = load_binance_config(
+            {
+                "BINANCE_KEY_PROFILE": "production",
+                "BINANCE_APIKEY": "k1",
+                "BINANCE_SECRET": "s1",
+                "PRO_BINANCE_APIKEY": "k2",
+                "PRO_BINANCE_SECRET": "s2",
+            }
+        )
+        self.assertEqual(config.api_key, "k2")
+        self.assertEqual(config.api_secret, "s2")
+        self.assertEqual(config.key_profile, "production")
+
+    def test_rejects_unknown_profile(self) -> None:
+        from kis_hl.config import load_binance_config
+
+        with self.assertRaises(RuntimeError):
+            load_binance_config({"BINANCE_KEY_PROFILE": "pro"})
+
+    def test_testnet_flag_and_overrides(self) -> None:
+        from kis_hl.config import load_binance_config
+
+        testnet = load_binance_config({"BINANCE_TESTNET": "true"})
+        self.assertEqual(testnet.base_url, "https://demo-fapi.binance.com")
+        self.assertEqual(testnet.ws_market_url, "wss://demo-fstream.binance.com/market")
+        self.assertEqual(testnet.ws_public_url, "wss://demo-fstream.binance.com/public")
+        self.assertEqual(testnet.ws_user_url, "wss://demo-fstream.binance.com/private")
+        overridden = load_binance_config(
+            {
+                "BINANCE_BASE_URL": "https://alt.example.test/",
+                "BINANCE_WS_MARKET_URL": "wss://alt.example.test/m",
+                "BINANCE_WS_PUBLIC_URL": "wss://alt.example.test/pub",
+                "BINANCE_WS_USER_URL": "wss://alt.example.test/p",
+                "BINANCE_RECV_WINDOW_MS": "9000",
+            }
+        )
+        self.assertEqual(overridden.base_url, "https://alt.example.test")
+        self.assertEqual(overridden.ws_market_url, "wss://alt.example.test/m")
+        self.assertEqual(overridden.ws_public_url, "wss://alt.example.test/pub")
+        self.assertEqual(overridden.ws_user_url, "wss://alt.example.test/p")
+        self.assertEqual(overridden.recv_window_ms, 9000)
+
+    def test_missing_credentials_default_to_empty(self) -> None:
+        from kis_hl.config import load_binance_config
+
+        config = load_binance_config({})
+        # Compare emptiness only so a failure never prints a real credential.
+        self.assertFalse(config.api_key)
+        self.assertFalse(config.api_secret)
