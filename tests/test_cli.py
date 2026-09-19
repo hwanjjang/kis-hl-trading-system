@@ -923,6 +923,7 @@ class BinanceCliTests(unittest.TestCase):
         with patch("kis_hl.cli.BinanceFuturesClient") as client_cls:
             instance = client_cls.return_value
             instance.open_orders.return_value = [{"orderId": 1}]
+            instance.open_algo_orders.return_value = [{"algoId": 9, "orderType": "STOP_MARKET"}]
             instance.position_risk.return_value = [
                 {"symbol": "BTCUSDT", "positionAmt": "0.010"},
                 {"symbol": "ETHUSDT", "positionAmt": "0"},
@@ -933,6 +934,7 @@ class BinanceCliTests(unittest.TestCase):
         self.assertEqual(payload["symbol"], "BTCUSDT")
         self.assertEqual([p["symbol"] for p in payload["positions"]], ["BTCUSDT"])
         self.assertEqual(payload["open_orders"], [{"orderId": 1}])
+        self.assertEqual(payload["open_algo_orders"], [{"algoId": 9, "orderType": "STOP_MARKET"}])
 
     def test_binance_stream_stores_ticks(self) -> None:
         class FakeMarketClient:
@@ -1091,6 +1093,18 @@ class BinanceOrderCliTests(unittest.TestCase):
             self.assertEqual(exit_code, 1)
             exit_code, _ = self._run(["binance-stop", "--symbol", "BTCUSDT", "--side", "sell", "--kind", "trailing", "--quantity", "0.01"])
             self.assertEqual(exit_code, 1)
+
+    def test_binance_cancel_algo_dry_run_stores_row(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "t.sqlite")
+            with self._patched_client():
+                exit_code, payload = self._run(["--db", db, "binance-cancel", "--symbol", "BTCUSDT", "--algo-id", "77"])
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["request"]["path"], "/fapi/v1/algoOrder")
+            self.assertEqual(payload["request"]["params"], {"algoId": 77})
+            with closing(sqlite3.connect(db)) as conn:
+                row = conn.execute("SELECT order_type, side, status FROM order_submissions").fetchone()
+            self.assertEqual(row, ("cancel-algo", "n/a", "dry_run"))
 
     def test_binance_cancel_dry_run_stores_row(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

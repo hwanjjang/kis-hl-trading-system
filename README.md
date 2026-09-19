@@ -206,6 +206,7 @@ Protect a position with server-side stops. `stop-market` without `--quantity` us
 python -m kis_hl.cli binance-stop --symbol BTCUSDT --side sell --kind stop-market --stop-price 68000 --source-submission-id 1
 python -m kis_hl.cli binance-stop --symbol BTCUSDT --side sell --kind trailing --quantity 0.002 --callback-rate 1.5 --activation-price 74000
 python -m kis_hl.cli binance-cancel --symbol BTCUSDT --order-id 123456 --live
+python -m kis_hl.cli binance-cancel --symbol BTCUSDT --algo-id 2146760 --live
 ```
 
 Create or refresh the local trade.xyz asset mapping table:
@@ -359,7 +360,9 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 - Use an approved Hyperliquid API wallet per trading process to avoid nonce collisions.
 - Binance orders (`binance-trade`, `binance-stop`, `binance-cancel`) are dry-run by default and require `--live` to send. Live orders fail closed unless the symbol is in `BINANCE_LIVE_SYMBOLS`, credentials are present, and the account is in one-way position mode; hedge mode is rejected.
 - Binance quantities are rounded down to `stepSize`; buy prices round down and sell prices round up to `tickSize`, so entries are never more aggressive than requested and stops trigger no later than requested. `MIN_NOTIONAL` (50 USDT on BTCUSDT) is enforced before any signed call.
-- Binance stops run on the exchange: `STOP_MARKET` with `closePosition=true` and `TRAILING_STOP_MARKET` with `callbackRate`. They are recorded in `protective_orders`, and fills are confirmed through the user data stream, not the REST acknowledgement.
+- Binance stops run on the exchange through the Algo Order API (`/fapi/v1/algoOrder`): `STOP_MARKET` with `closePosition=true` and `TRAILING_STOP_MARKET` with `callbackRate`. They are recorded in `protective_orders` with their `algoId`, cancelled with `binance-cancel --algo-id`, and fills are confirmed through the user data stream, not the REST acknowledgement.
+- A 5xx, "Unknown error", or transport failure after a signed order is recorded as `unknown` (after one lookup by client id), never as `rejected`. Check `binance-orders` or the user stream before retrying; a blind retry with a new client id can double a position.
+- Reduce-only exits skip the local `MIN_NOTIONAL` check because Binance exempts them; trigger and activation directions are checked against the mark price (`MARK_PRICE`) or the last price (`CONTRACT_PRICE`).
 - Binance `listenKey` values are treated like credentials: they are never printed or stored. The user stream requests a fresh key on every reconnect and renews it every 30 minutes.
 - Binance kline intervals do not include `3h`; use `1h` bars or tick-built candles for the 3H strategy.
 

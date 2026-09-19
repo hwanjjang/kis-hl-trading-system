@@ -5228,19 +5228,19 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </g>
         </g>
 
-        <g data-edge-from="rest" data-edge-to="binance_rest" data-edge-label="POST /fapi/v1/order (HMAC, newClientOrderId)" data-edge-key="5">
+        <g data-edge-from="rest" data-edge-to="binance_rest" data-edge-label="POST /fapi/v1/order or /algoOrder (HMAC, client id)" data-edge-key="5">
           <path data-composition-edge-from="rest" data-composition-edge-to="binance_rest" data-composition-points="413.8333333333333,320;544,320" d="M 413.8333333333333 320 L 544 320" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
         <g data-detail="context">
-          <rect x="358.51666666666665" y="300" width="240.8" height="16" rx="3" class="c-mask"/>
-          <text x="478.91666666666663" y="310" class="t-security" font-size="9" text-anchor="middle">POST /fapi/v1/order (HMAC, newClientOrderId)</text>
+          <rect x="340.3166666666666" y="300" width="277.2" height="16" rx="3" class="c-mask"/>
+          <text x="478.91666666666663" y="310" class="t-security" font-size="9" text-anchor="middle">POST /fapi/v1/order or /algoOrder (HMAC, client id)</text>
         </g>
         </g>
 
-        <g data-edge-from="binance_rest" data-edge-to="rest" data-edge-label="ack: orderId, status NEW, or error → rejected" data-edge-key="6">
+        <g data-edge-from="binance_rest" data-edge-to="rest" data-edge-label="ack: orderId / algoId, error → rejected, 5xx → unknown" data-edge-key="6">
           <path data-composition-edge-from="binance_rest" data-composition-edge-to="rest" data-composition-points="544,348;413.8333333333333,348" d="M 544 348 L 413.8333333333333 348" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
         <g data-detail="context">
-          <rect x="355.91666666666663" y="328" width="246" height="16" rx="3" class="c-mask"/>
-          <text x="478.91666666666663" y="338" class="t-muted" font-size="9" text-anchor="middle">ack: orderId, status NEW, or error → rejected</text>
+          <rect x="332.51666666666665" y="328" width="292.8" height="16" rx="3" class="c-mask"/>
+          <text x="478.91666666666663" y="338" class="t-muted" font-size="9" text-anchor="middle">ack: orderId / algoId, error → rejected, 5xx → unknown</text>
         </g>
         </g>
 
@@ -5605,7 +5605,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <ul>
           <li>&bull; The REST ack only proves acceptance; fills arrive as ORDER_TRADE_UPDATE</li>
           <li>&bull; order_submissions and order_events are separate audit tables</li>
-          <li>&bull; STOP_MARKET closePosition and TRAILING_STOP_MARKET run server-side</li>
+          <li>&bull; STOP_MARKET closePosition and TRAILING_STOP_MARKET run server-side via the Algo Order API</li>
         </ul>
       </div>
     </div>

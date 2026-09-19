@@ -147,14 +147,14 @@
       "from": "rest",
       "to": "binance_rest",
       "y": 320,
-      "label": "POST /fapi/v1/order (HMAC, newClientOrderId)",
+      "label": "POST /fapi/v1/order or /algoOrder (HMAC, client id)",
       "variant": "security"
     },
     {
       "from": "binance_rest",
       "to": "rest",
       "y": 348,
-      "label": "ack: orderId, status NEW, or error → rejected",
+      "label": "ack: orderId / algoId, error → rejected, 5xx → unknown",
       "variant": "return"
     },
     {
@@ -246,7 +246,7 @@
       "items": [
         "The REST ack only proves acceptance; fills arrive as ORDER_TRADE_UPDATE",
         "order_submissions and order_events are separate audit tables",
-        "STOP_MARKET closePosition and TRAILING_STOP_MARKET run server-side"
+        "STOP_MARKET closePosition and TRAILING_STOP_MARKET run server-side via the Algo Order API"
       ]
     }
   ]

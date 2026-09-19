@@ -47,7 +47,7 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.binance.client` wraps Binance USDⓈ-M futures REST calls with standard HTTP: public exchange info, mark/index price and funding, top of book, and klines, plus HMAC-SHA256 signed read-only account, position, and order reads. It also owns the `listenKey` lifecycle (create, keepalive, close) for the user data stream. It places no orders.
 
-`kis_hl.binance.trading` extends the REST client with guarded order placement for USDⓈ-M futures: MARKET/LIMIT entries, server-side `STOP_MARKET` (closePosition) and `TRAILING_STOP_MARKET`, and cancel. Every method validates and rounds against exchange filters, returns a dry-run submission by default, and only on `--live` walks the allowlist, credential, one-way-mode, and account-lock guards before the signed request. `POST /fapi/v1/order/test` is exposed as an explicit exchange-side validation.
+`kis_hl.binance.trading` extends the REST client with guarded order placement for USDⓈ-M futures: MARKET/LIMIT entries through `/fapi/v1/order`, server-side `STOP_MARKET` (closePosition) and `TRAILING_STOP_MARKET` through the Algo Order API (`/fapi/v1/algoOrder`), and cancel for both. Outcomes are `submitted`, `rejected` (4xx), or `unknown` (5xx / transport failure, reconciled once by client id). Every method validates and rounds against exchange filters, returns a dry-run submission by default, and only on `--live` walks the allowlist, credential, one-way-mode, and account-lock guards before the signed request. `POST /fapi/v1/order/test` is exposed as an explicit exchange-side validation.
 
 `kis_hl.binance.ws` provides Binance combined-stream URL building for `markPrice`, `bookTicker`, `kline`, and `aggTrade` (routed to `/public` for `bookTicker`/`depth` and `/market` for the rest), a market stream client over `kis_hl.streaming`, a user data stream client that requests a fresh `listenKey` per connection, renews it every 30 minutes, and reconnects on `listenKeyExpired`, and parsers that turn market frames into `PriceTick`s and `ORDER_TRADE_UPDATE` frames into normalized order events.
 
@@ -105,7 +105,8 @@ flowchart LR
 - The CLI stores raw order responses and protective-order rows so order IDs, statuses, trigger prices, and covered size remain auditable.
 - Secrets are never logged intentionally and `.env` is ignored by git.
 - Binance orders are dry-run by default; `--live` is explicit. Live placement requires `BINANCE_LIVE_SYMBOLS`, credentials, one-way position mode, and the shared account lock, and exchange rejections are recorded as `rejected` submissions rather than raised.
-- Binance protective orders are exchange-side (`STOP_MARKET` closePosition, `TRAILING_STOP_MARKET`); the client-side trailing runner remains Hyperliquid-only.
+- Binance protective orders are exchange-side algo orders (`STOP_MARKET` closePosition, `TRAILING_STOP_MARKET` via `/fapi/v1/algoOrder`); the client-side trailing runner remains Hyperliquid-only.
+- An ambiguous exchange outcome is stored as `unknown`, not `rejected`, so an operator or daemon cannot mistake a possibly-filled order for a failed one.
 
 ## Assumptions
 
@@ -125,6 +126,7 @@ flowchart LR
 - Hyperliquid funding and spread snapshots are stored for suitability review only. They are not yet wired into automatic entry rejection, position sizing changes, or liquidation-risk checks.
 - Hyperliquid SDK behavior for spot market orders should be tested with a small live or testnet order before using spot market orders operationally.
 - The trailing worker consumes Hyperliquid allMids through the maintained connection layer. Persistent raw tick tables and unified KIS/Hyperliquid strategy orchestration remain unimplemented.
+- Binance `ALGO_UPDATE` user-stream events (conditional order lifecycle) are counted but not yet parsed into `order_events`; protective-order reconciliation currently relies on `binance-orders` (`open_algo_orders`).
 - Binance order placement has been validated with unit tests and the exchange test endpoint, not with a live or demo fill; the first live order should be a minimum-size BTCUSDT order watched through `binance-user-stream`.
 - The Binance user data stream parser follows the documented `ORDER_TRADE_UPDATE` schema and unit tests, but has not yet been exercised against a live or demo Binance session. Verify field names on the futures demo environment before relying on stored `order_events` for reconciliation.
 - Binance futures websocket streams are partitioned by route: `/public` serves only the high-frequency `bookTicker`/`depth` streams and `/market` serves `markPrice`, `aggTrade`, `kline`, and the rest (verified live on 2026-09-16). One connection cannot mix the two, so `binance-stream` rejects a mixed request and the operator runs one process per route. The legacy unprefixed `/stream` root still answers but only delivers public-tier streams, which matches Binance's 2026-04-23 migration notice; URL overrides must use the routed roots. A threaded multi-route client is a possible follow-up.

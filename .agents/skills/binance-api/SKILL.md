@@ -85,14 +85,27 @@ Full path table and response keys: `references/rest-endpoints.md`.
 | Method | Path | CLI |
 |---|---|---|
 | `place_order(symbol, side, order_type, quantity, price=, tif=, reduce_only=, client_order_id=, dry_run=True, exchange_test=False)` | `POST /fapi/v1/order` (`/order/test`) | `binance-trade` |
-| `place_stop_market(symbol, side, stop_price, quantity=, close_position=True, working_type=)` | `POST /fapi/v1/order` type `STOP_MARKET` | `binance-stop --kind stop-market` |
-| `place_trailing_stop(symbol, side, quantity, callback_rate, activation_price=, working_type=)` | `POST /fapi/v1/order` type `TRAILING_STOP_MARKET` | `binance-stop --kind trailing` |
-| `cancel_order(symbol, order_id= / client_order_id=)` | `DELETE /fapi/v1/order` | `binance-cancel` |
+| `place_stop_market(symbol, side, stop_price, quantity=, close_position=True, working_type=)` | `POST /fapi/v1/algoOrder` (`algoType=CONDITIONAL`, type `STOP_MARKET`, `triggerPrice`) | `binance-stop --kind stop-market` |
+| `place_trailing_stop(symbol, side, quantity, callback_rate, activation_price=, working_type=)` | `POST /fapi/v1/algoOrder` (type `TRAILING_STOP_MARKET`, `activatePrice`) | `binance-stop --kind trailing` |
+| `cancel_order(symbol, order_id= / client_order_id=)` | `DELETE /fapi/v1/order` | `binance-cancel --order-id` |
+| `cancel_algo_order(symbol, algo_id= / client_algo_id=)` | `DELETE /fapi/v1/algoOrder` | `binance-cancel --algo-id` |
+| `open_algo_orders(symbol)` / `algo_order_status(algo_id= / client_algo_id=)` | `GET /fapi/v1/algoOpenOrders`, `GET /fapi/v1/algoOrder` (signed) | `binance-orders`, reconciliation |
 | `position_mode_is_hedge()` | `GET /fapi/v1/positionSide/dual` (signed) | live guard |
+
+**Conditional orders use the Algo Order API.** Since 2025-12-09 `POST /fapi/v1/order` rejects
+`STOP_MARKET`, `STOP`, `TAKE_PROFIT*`, and `TRAILING_STOP_MARKET` with `-4120`; they go to
+`/fapi/v1/algoOrder` with `algoType=CONDITIONAL`, `triggerPrice` (not `stopPrice`),
+`activatePrice` (not `activationPrice`), and `clientAlgoId`; responses carry `algoId` and
+`algoStatus`, and the user stream reports them as `ALGO_UPDATE`. There is no test endpoint for
+algo orders. Outcomes: `submitted`, `rejected` (4xx), or `unknown` (5xx / "Unknown error" /
+transport failure) — an unknown outcome is reconciled once by client id and must never be
+retried blindly with a new id.
 
 Rounding: quantity ROUND_DOWN to `stepSize`; BUY prices ROUND_DOWN and SELL prices ROUND_UP
 to `tickSize` (entries never more aggressive, stops trigger no later); `MIN_NOTIONAL` checked
-with the limit price or the mark price. Parameter reference: `references/orders.md`.
+with the limit price or the mark price, except for reduce-only exits (Binance exempts them).
+Trigger and activation directions are checked against the mark price for `MARK_PRICE` and the
+last traded price for `CONTRACT_PRICE`. Parameter reference: `references/orders.md`.
 
 `kis_hl/binance/ws.py`: `mark_price_stream`, `book_ticker_stream`, `kline_stream`,
 `agg_trade_stream`, `stream_route`, `market_stream_url`, `user_stream_url`, `BinanceMarketStreamClient`,

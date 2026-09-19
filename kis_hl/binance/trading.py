@@ -16,7 +16,11 @@ logger = logging.getLogger(__name__)
 
 ORDER_PATH = "/fapi/v1/order"
 ORDER_TEST_PATH = "/fapi/v1/order/test"
+# Conditional orders (STOP_MARKET, TRAILING_STOP_MARKET, ...) moved to the Algo Order API on
+# 2025-12-09; /fapi/v1/order rejects them with -4120.
+ALGO_ORDER_PATH = "/fapi/v1/algoOrder"
 POSITION_MODE_PATH = "/fapi/v1/positionSide/dual"
+UNKNOWN_OUTCOME_RE = re.compile(r"HTTP 5\d\d|Unknown error", re.IGNORECASE)
 
 SIDES = ("BUY", "SELL")
 ENTRY_TYPES = ("MARKET", "LIMIT")
@@ -56,8 +60,11 @@ def submission_to_dict(submission: BinanceOrderSubmission) -> dict[str, Any]:
 
 
 def extract_binance_order_id(response: Any) -> str | None:
-    if isinstance(response, dict) and response.get("orderId") is not None:
-        return str(response["orderId"])
+    """Order id for regular orders, algo id for conditional orders."""
+    if isinstance(response, dict):
+        for key in ("orderId", "algoId"):
+            if response.get(key) is not None:
+                return str(response[key])
     return None
 
 
@@ -112,15 +119,16 @@ class BinanceTradingClient(BinanceFuturesClient):
         }
         if order_type == "LIMIT":
             limit_price = _round_price(_positive(price, "price"), rules, side=side)
-            _require_notional(qty, limit_price, rules)
+            if not reduce_only:  # Binance exempts reduce-only exits from MIN_NOTIONAL.
+                _require_notional(qty, limit_price, rules)
             params["price"] = _text(limit_price)
             params["timeInForce"] = tif
-        else:
+        elif not reduce_only:
             mark = mark_price if mark_price is not None else self._mark_price(symbol)
             _require_notional(qty, mark, rules)
         if reduce_only:
             params["reduceOnly"] = "true"
-        return self._submit(ORDER_PATH, params, dry_run=dry_run, exchange_test=exchange_test)
+        return self._submit(ORDER_PATH, params, symbol=symbol, dry_run=dry_run, exchange_test=exchange_test)
 
     def place_stop_market(
         self,
@@ -148,16 +156,17 @@ class BinanceTradingClient(BinanceFuturesClient):
             raise ValueError("close_position=True closes the whole position; do not pass quantity (use close_position=False for a sized reduce-only stop)")
 
         rules = filters or self.symbol_filters(symbol)
-        mark = mark_price if mark_price is not None else self._mark_price(symbol)
+        reference = self._reference_price(symbol, working_type, mark_price)
         rounded_stop = _round_price(stop_price, rules, side=side)
-        _require_stop_direction(side, rounded_stop, mark)
+        _require_stop_direction(side, rounded_stop, reference, working_type)
         params: dict[str, Any] = {
+            "algoType": "CONDITIONAL",
             "symbol": symbol,
             "side": side,
             "type": "STOP_MARKET",
-            "stopPrice": _text(rounded_stop),
+            "triggerPrice": _text(rounded_stop),
             "workingType": working_type,
-            "newClientOrderId": client_order_id,
+            "clientAlgoId": client_order_id,
             "newOrderRespType": "RESULT",
         }
         if close_position:
@@ -166,7 +175,7 @@ class BinanceTradingClient(BinanceFuturesClient):
             qty = _round_quantity(_positive(quantity, "quantity"), rules, market=True)
             params["quantity"] = _text(qty)
             params["reduceOnly"] = "true"
-        return self._submit(ORDER_PATH, params, dry_run=dry_run, exchange_test=exchange_test)
+        return self._submit(ALGO_ORDER_PATH, params, symbol=symbol, dry_run=dry_run, exchange_test=exchange_test)
 
     def place_trailing_stop(
         self,
@@ -193,6 +202,7 @@ class BinanceTradingClient(BinanceFuturesClient):
         rules = filters or self.symbol_filters(symbol)
         qty = _round_quantity(quantity, rules, market=True)
         params: dict[str, Any] = {
+            "algoType": "CONDITIONAL",
             "symbol": symbol,
             "side": side,
             "type": "TRAILING_STOP_MARKET",
@@ -200,16 +210,15 @@ class BinanceTradingClient(BinanceFuturesClient):
             "callbackRate": _text(callback_rate),
             "reduceOnly": "true",
             "workingType": working_type,
-            "newClientOrderId": client_order_id,
+            "clientAlgoId": client_order_id,
             "newOrderRespType": "RESULT",
         }
         if activation_price is not None:
+            reference = self._reference_price(symbol, working_type, mark_price)
             activation = _round_price(_positive(activation_price, "activation_price"), rules, side=side)
-            params["activationPrice"] = _text(activation)
-        elif mark_price is None and filters is None:
-            # Touch the public mark price only to fail early on a delisted symbol; no param.
-            self._mark_price(symbol)
-        return self._submit(ORDER_PATH, params, dry_run=dry_run, exchange_test=exchange_test)
+            _require_activation_direction(side, activation, reference, working_type)
+            params["activatePrice"] = _text(activation)
+        return self._submit(ALGO_ORDER_PATH, params, symbol=symbol, dry_run=dry_run, exchange_test=exchange_test)
 
     def cancel_order(
         self,
@@ -227,7 +236,22 @@ class BinanceTradingClient(BinanceFuturesClient):
             params["origClientOrderId"] = client_order_id
         else:
             params["orderId"] = int(order_id)  # type: ignore[arg-type]
-        return self._submit(ORDER_PATH, params, dry_run=dry_run, exchange_test=False, method="DELETE")
+        return self._submit(ORDER_PATH, params, symbol=symbol, dry_run=dry_run, exchange_test=False, method="DELETE")
+
+    def cancel_algo_order(
+        self,
+        *,
+        symbol: str,
+        algo_id: int | None = None,
+        client_algo_id: str | None = None,
+        dry_run: bool = True,
+    ) -> BinanceOrderSubmission:
+        """Cancel a conditional (algo) order; the endpoint identifies it by algoId or clientAlgoId."""
+        symbol = _symbol(symbol)
+        if algo_id is None and not client_algo_id:
+            raise ValueError("cancel_algo_order requires algo_id or client_algo_id")
+        params: dict[str, Any] = {"clientAlgoId": client_algo_id} if client_algo_id else {"algoId": int(algo_id)}  # type: ignore[arg-type]
+        return self._submit(ALGO_ORDER_PATH, params, symbol=symbol, dry_run=dry_run, exchange_test=False, method="DELETE")
 
     def position_mode_is_hedge(self) -> bool:
         """Return True for hedge (dual-side) mode; fail closed when the answer is not explicit."""
@@ -243,22 +267,23 @@ class BinanceTradingClient(BinanceFuturesClient):
         path: str,
         params: dict[str, Any],
         *,
+        symbol: str,
         dry_run: bool,
         exchange_test: bool,
         method: str = "POST",
     ) -> BinanceOrderSubmission:
-        symbol = str(params["symbol"])
         request = {
             "path": path,
             "method": method,
+            "symbol": symbol,
             "params": params,
             "client_request_id": uuid.uuid4().hex,
             "base_url": self.config.base_url,
             "key_profile": self.config.key_profile,
         }
         if exchange_test:
-            if method != "POST":
-                raise ValueError("exchange_test is only available for order placement")
+            if method != "POST" or path != ORDER_PATH:
+                raise ValueError("exchange_test is only available for regular order placement; the Algo Order API has no test endpoint")
             self._require_credentials(need_secret=True)
             try:
                 response = self._request("POST", ORDER_TEST_PATH, params, signed=True)
@@ -279,13 +304,53 @@ class BinanceTradingClient(BinanceFuturesClient):
             try:
                 response = self._request(method, path, params, signed=True)
             except RuntimeError as exc:
-                logger.warning("binance_order_rejected", extra={"symbol": symbol, "type": params.get("type"), "error": str(exc)})
-                return BinanceOrderSubmission("rejected", False, symbol, request, {"error": str(exc)})
+                if not UNKNOWN_OUTCOME_RE.search(str(exc)):
+                    logger.warning("binance_order_rejected", extra={"symbol": symbol, "type": params.get("type"), "error": str(exc)})
+                    return BinanceOrderSubmission("rejected", False, symbol, request, {"error": str(exc)})
+                return self._resolve_unknown(path, params, request, symbol, str(exc))
+            except Exception as exc:  # transport failure after the request may have been sent
+                return self._resolve_unknown(path, params, request, symbol, f"{type(exc).__name__}: {exc}")
         logger.info(
             "binance_order_submitted",
             extra={"symbol": symbol, "type": params.get("type"), "order_id": extract_binance_order_id(response)},
         )
         return BinanceOrderSubmission("submitted", False, symbol, request, response)
+
+    def _resolve_unknown(
+        self,
+        path: str,
+        params: dict[str, Any],
+        request: dict[str, Any],
+        symbol: str,
+        error: str,
+    ) -> BinanceOrderSubmission:
+        """A 5xx/"Unknown error"/transport failure may have executed: look the order up before giving up.
+
+        Regular orders are queried by ``newClientOrderId`` and algo orders by ``clientAlgoId``.
+        A found order is reported as ``submitted`` (with ``request["outcome"]`` set); otherwise
+        the submission stays ``unknown`` and must not be retried with a new client id blindly.
+        """
+        logger.warning("binance_order_outcome_unknown", extra={"symbol": symbol, "type": params.get("type"), "error": error})
+        lookup: dict[str, Any] | None = None
+        try:
+            if path == ORDER_PATH and params.get("newClientOrderId"):
+                lookup = self.order_status(symbol, client_order_id=str(params["newClientOrderId"]))
+            elif path == ALGO_ORDER_PATH and params.get("clientAlgoId"):
+                lookup = self.algo_order_status(client_algo_id=str(params["clientAlgoId"]))
+        except Exception as exc:  # noqa: BLE001 - reconciliation is best effort
+            logger.warning("binance_order_reconcile_failed", extra={"symbol": symbol, "error": str(exc)})
+            lookup = None
+        if request["method"] == "POST" and isinstance(lookup, dict) and extract_binance_order_id(lookup):
+            request["outcome"] = "reconciled_after_unknown"
+            logger.info("binance_order_reconciled", extra={"symbol": symbol, "order_id": extract_binance_order_id(lookup)})
+            return BinanceOrderSubmission("submitted", False, symbol, request, lookup)
+        return BinanceOrderSubmission("unknown", False, symbol, request, {"error": error, "lookup": lookup})
+
+    def _reference_price(self, symbol: str, working_type: str, mark_price: Decimal | None) -> Decimal:
+        """Price the exchange will compare a trigger against: mark price or last (contract) price."""
+        if working_type == "CONTRACT_PRICE":
+            return self.last_price(symbol)
+        return mark_price if mark_price is not None else self._mark_price(symbol)
 
     def _require_live_symbol(self, symbol: str) -> None:
         if symbol not in self.config.live_symbols:
@@ -380,11 +445,21 @@ def _require_notional(qty: Decimal, price: Decimal, rules: dict[str, Any]) -> No
         raise ValueError(f"notional {notional} is below MIN_NOTIONAL {min_notional} (quantity {qty} x price {price})")
 
 
-def _require_stop_direction(side: str, stop_price: Decimal, mark: Decimal) -> None:
-    if side == "SELL" and stop_price >= mark:
-        raise ValueError(f"SELL stop {stop_price} must be below the mark price {mark}; it would trigger immediately")
-    if side == "BUY" and stop_price <= mark:
-        raise ValueError(f"BUY stop {stop_price} must be above the mark price {mark}; it would trigger immediately")
+def _require_stop_direction(side: str, stop_price: Decimal, reference: Decimal, working_type: str) -> None:
+    label = "mark price" if working_type == "MARK_PRICE" else "last price"
+    if side == "SELL" and stop_price >= reference:
+        raise ValueError(f"SELL stop {stop_price} must be below the {label} {reference}; it would trigger immediately")
+    if side == "BUY" and stop_price <= reference:
+        raise ValueError(f"BUY stop {stop_price} must be above the {label} {reference}; it would trigger immediately")
+
+
+def _require_activation_direction(side: str, activation: Decimal, reference: Decimal, working_type: str) -> None:
+    # Binance: SELL trailing stops need activatePrice above the current price, BUY below.
+    label = "mark price" if working_type == "MARK_PRICE" else "last price"
+    if side == "SELL" and activation <= reference:
+        raise ValueError(f"SELL trailing activation {activation} must be above the {label} {reference}")
+    if side == "BUY" and activation >= reference:
+        raise ValueError(f"BUY trailing activation {activation} must be below the {label} {reference}")
 
 
 def _text(value: Decimal) -> str:

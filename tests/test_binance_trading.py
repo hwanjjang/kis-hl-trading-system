@@ -272,13 +272,13 @@ class StopMarketTests(unittest.TestCase):
         params = submission.request["params"]
         self.assertEqual(params["type"], "STOP_MARKET")
         self.assertEqual(params["closePosition"], "true")
-        self.assertEqual(params["stopPrice"], "74000.10")  # SELL stop rounds up: triggers earlier
+        self.assertEqual(params["triggerPrice"], "74000.10")  # SELL stop rounds up: triggers earlier
         self.assertEqual(params["workingType"], "MARK_PRICE")
         self.assertNotIn("quantity", params)
         self.assertNotIn("reduceOnly", params)
 
     def test_reduce_only_stop_requires_quantity_and_rounds(self) -> None:
-        client = RecordingTradingClient(make_config())
+        client = RecordingTradingClient(make_config(), {"/fapi/v1/ticker/price": (200, json.dumps({"symbol": "BTCUSDT", "price": "76000.00"}))})
         with self.assertRaises(ValueError):
             client.place_stop_market(symbol="BTCUSDT", side="SELL", stop_price=Decimal("74000"), close_position=False, filters=FILTERS, mark_price=MARK)
         submission = client.place_stop_market(
@@ -288,7 +288,7 @@ class StopMarketTests(unittest.TestCase):
         params = submission.request["params"]
         self.assertEqual(params["reduceOnly"], "true")
         self.assertEqual(params["quantity"], "0.010")
-        self.assertEqual(params["stopPrice"], "78000.00")  # BUY stop rounds down: triggers earlier
+        self.assertEqual(params["triggerPrice"], "78000.00")  # BUY stop rounds down: triggers earlier
         self.assertEqual(params["workingType"], "CONTRACT_PRICE")
         self.assertNotIn("closePosition", params)
 
@@ -311,12 +311,12 @@ class TrailingStopTests(unittest.TestCase):
         params = submission.request["params"]
         self.assertEqual(params["type"], "TRAILING_STOP_MARKET")
         self.assertEqual(params["callbackRate"], "1.5")
-        self.assertEqual(params["activationPrice"], "77000.10")
+        self.assertEqual(params["activatePrice"], "77000.10")
         self.assertEqual(params["quantity"], "0.010")
         self.assertEqual(params["reduceOnly"], "true")
         self.assertEqual(params["workingType"], "MARK_PRICE")
         no_activation = client.place_trailing_stop(symbol="BTCUSDT", side="SELL", quantity=Decimal("0.01"), callback_rate=Decimal("2"), filters=FILTERS, mark_price=MARK)
-        self.assertNotIn("activationPrice", no_activation.request["params"])
+        self.assertNotIn("activatePrice", no_activation.request["params"])
         for bad in (Decimal("0.05"), Decimal("10.1"), Decimal("1.25")):
             with self.assertRaises(ValueError):
                 client.place_trailing_stop(symbol="BTCUSDT", side="SELL", quantity=Decimal("0.01"), callback_rate=bad, filters=FILTERS, mark_price=MARK)
@@ -350,3 +350,148 @@ class CancelTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+ALGO_ACK = json.dumps({"algoId": 2146760, "clientAlgoId": "kh-algo", "algoType": "CONDITIONAL", "orderType": "STOP_MARKET", "algoStatus": "NEW", "symbol": "BTCUSDT"})
+LAST_PRICE = json.dumps({"symbol": "BTCUSDT", "price": "76010.00"})
+
+
+class AlgoOrderRoutingTests(unittest.TestCase):
+    """Conditional orders moved to the Algo Order API on 2025-12-09; /fapi/v1/order returns -4120."""
+
+    def test_stop_market_targets_algo_order_endpoint_with_algo_params(self) -> None:
+        client = RecordingTradingClient(make_config())
+        submission = client.place_stop_market(symbol="BTCUSDT", side="SELL", stop_price=Decimal("74000"), filters=FILTERS, mark_price=MARK)
+        self.assertEqual(submission.request["path"], "/fapi/v1/algoOrder")
+        params = submission.request["params"]
+        self.assertEqual(params["algoType"], "CONDITIONAL")
+        self.assertEqual(params["type"], "STOP_MARKET")
+        self.assertEqual(params["triggerPrice"], "74000.00")
+        self.assertNotIn("stopPrice", params)
+        self.assertNotIn("newClientOrderId", params)
+        self.assertRegex(params["clientAlgoId"], r"^[A-Za-z0-9._:/-]{1,36}$")
+        self.assertEqual(params["closePosition"], "true")
+
+    def test_trailing_stop_targets_algo_order_endpoint_with_activate_price(self) -> None:
+        client = RecordingTradingClient(make_config())
+        submission = client.place_trailing_stop(
+            symbol="BTCUSDT", side="SELL", quantity=Decimal("0.01"), callback_rate=Decimal("1.5"),
+            activation_price=Decimal("77000"), filters=FILTERS, mark_price=MARK,
+        )
+        self.assertEqual(submission.request["path"], "/fapi/v1/algoOrder")
+        params = submission.request["params"]
+        self.assertEqual(params["algoType"], "CONDITIONAL")
+        self.assertEqual(params["activatePrice"], "77000.00")
+        self.assertNotIn("activationPrice", params)
+        self.assertIn("clientAlgoId", params)
+
+    def test_live_stop_posts_to_algo_order_and_extracts_algo_id(self) -> None:
+        client = RecordingTradingClient(make_config(), {"/fapi/v1/positionSide/dual": (200, ONE_WAY), "/fapi/v1/algoOrder": (200, ALGO_ACK)})
+        submission = client.place_stop_market(symbol="BTCUSDT", side="SELL", stop_price=Decimal("74000"), filters=FILTERS, mark_price=MARK, dry_run=False)
+        self.assertEqual(submission.status, "submitted")
+        self.assertEqual(client.paths(), ["GET /fapi/v1/positionSide/dual", "POST /fapi/v1/algoOrder"])
+        self.assertEqual(extract_binance_order_id(submission.response), "2146760")
+
+    def test_exchange_test_is_unavailable_for_algo_orders(self) -> None:
+        client = RecordingTradingClient(make_config())
+        with self.assertRaises(ValueError):
+            client.place_stop_market(symbol="BTCUSDT", side="SELL", stop_price=Decimal("74000"), filters=FILTERS, mark_price=MARK, exchange_test=True)
+        self.assertEqual(client.calls, [])
+
+    def test_cancel_algo_order_uses_algo_endpoint(self) -> None:
+        client = RecordingTradingClient(make_config(), {"/fapi/v1/algoOrder": (200, json.dumps({"algoId": 7, "clientAlgoId": "kh-algo", "code": "200", "msg": "success"}))})
+        dry = client.cancel_algo_order(symbol="BTCUSDT", algo_id=7)
+        self.assertEqual(dry.status, "dry_run")
+        self.assertEqual(dry.request["path"], "/fapi/v1/algoOrder")
+        self.assertEqual(dry.request["params"]["algoId"], 7)
+        live = client.cancel_algo_order(symbol="BTCUSDT", client_algo_id="kh-algo", dry_run=False)
+        self.assertEqual(live.status, "submitted")
+        self.assertEqual(client.paths(), ["DELETE /fapi/v1/algoOrder"])
+        self.assertEqual(client.calls[0]["query"]["clientAlgoId"], ["kh-algo"])
+        with self.assertRaises(ValueError):
+            client.cancel_algo_order(symbol="BTCUSDT")
+
+    def test_open_algo_orders_reads_algo_open_orders(self) -> None:
+        client = RecordingTradingClient(make_config(), {"/fapi/v1/algoOpenOrders": (200, json.dumps({"orders": [{"algoId": 1}]}))})
+        self.assertEqual(client.open_algo_orders("btcusdt"), [{"algoId": 1}])
+        self.assertEqual(client.calls[0]["query"]["symbol"], ["BTCUSDT"])
+
+
+class UnknownOutcomeTests(unittest.TestCase):
+    def test_5xx_unknown_error_reconciles_by_client_order_id(self) -> None:
+        found = json.dumps({"orderId": 99, "clientOrderId": "kh-x", "status": "NEW"})
+        client = RecordingTradingClient(
+            make_config(),
+            {"/fapi/v1/positionSide/dual": (200, ONE_WAY), "/fapi/v1/order": (503, json.dumps({"code": -1000, "msg": "Unknown error, please check your request or try again later."}))},
+        )
+        # The GET reconciliation shares the path; answer it by method.
+        original = client.send
+        def send(method, url, headers, body):
+            if method == "GET" and urlsplit(url).path == "/fapi/v1/order":
+                client.calls.append({"method": method, "path": "/fapi/v1/order", "query": parse_qs(urlsplit(url).query), "headers": headers})
+                return 200, {}, found
+            return original(method, url, headers, body)
+        client.send = send  # type: ignore[method-assign]
+        submission = client.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, client_order_id="kh-x", dry_run=False)
+        self.assertEqual(submission.status, "submitted")
+        self.assertEqual(submission.response["orderId"], 99)
+        self.assertEqual(submission.request["outcome"], "reconciled_after_unknown")
+        self.assertEqual(client.paths()[-2:], ["POST /fapi/v1/order", "GET /fapi/v1/order"])
+        self.assertEqual(client.calls[-1]["query"]["origClientOrderId"], ["kh-x"])
+
+    def test_5xx_without_reconciliation_stays_unknown_not_rejected(self) -> None:
+        client = RecordingTradingClient(
+            make_config(),
+            {"/fapi/v1/positionSide/dual": (200, ONE_WAY), "/fapi/v1/order": (503, json.dumps({"code": -1000, "msg": "Unknown error"}))},
+        )
+        submission = client.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, dry_run=False)
+        self.assertEqual(submission.status, "unknown")
+        self.assertIn("error", submission.response)
+
+    def test_transport_exception_during_signed_send_is_unknown(self) -> None:
+        client = RecordingTradingClient(make_config(), {"/fapi/v1/positionSide/dual": (200, ONE_WAY)})
+        original = client.send
+        def send(method, url, headers, body):
+            if method == "POST":
+                raise TimeoutError("timed out")
+            if method == "GET" and urlsplit(url).path == "/fapi/v1/order":
+                raise TimeoutError("timed out again")
+            return original(method, url, headers, body)
+        client.send = send  # type: ignore[method-assign]
+        submission = client.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, dry_run=False)
+        self.assertEqual(submission.status, "unknown")
+
+    def test_4xx_is_still_rejected(self) -> None:
+        client = RecordingTradingClient(
+            make_config(),
+            {"/fapi/v1/positionSide/dual": (200, ONE_WAY), "/fapi/v1/order": (400, json.dumps({"code": -2019, "msg": "Margin is insufficient."}))},
+        )
+        submission = client.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, dry_run=False)
+        self.assertEqual(submission.status, "rejected")
+
+
+class NotionalAndDirectionTests(unittest.TestCase):
+    def test_reduce_only_entries_skip_min_notional(self) -> None:
+        client = RecordingTradingClient(make_config())
+        submission = client.place_order(symbol="BTCUSDT", side="SELL", order_type="MARKET", quantity=Decimal("0.001"), reduce_only=True, filters=FILTERS, mark_price=Decimal("49000"))
+        self.assertEqual(submission.status, "dry_run")
+        with self.assertRaises(ValueError):
+            client.place_order(symbol="BTCUSDT", side="SELL", order_type="MARKET", quantity=Decimal("0.001"), filters=FILTERS, mark_price=Decimal("49000"))
+
+    def test_contract_price_stops_use_last_price_for_direction(self) -> None:
+        client = RecordingTradingClient(make_config(), {"/fapi/v1/ticker/price": (200, LAST_PRICE)})
+        # mark 76000, last 76010: a SELL stop at 76005 is valid against last price only.
+        submission = client.place_stop_market(symbol="BTCUSDT", side="SELL", stop_price=Decimal("76005"), working_type="CONTRACT_PRICE", filters=FILTERS, mark_price=MARK)
+        self.assertEqual(submission.status, "dry_run")
+        self.assertEqual(client.paths(), ["GET /fapi/v1/ticker/price"])
+        with self.assertRaises(ValueError):
+            client.place_stop_market(symbol="BTCUSDT", side="SELL", stop_price=Decimal("76005"), working_type="MARK_PRICE", filters=FILTERS, mark_price=MARK)
+
+    def test_trailing_activation_direction_is_validated(self) -> None:
+        client = RecordingTradingClient(make_config())
+        with self.assertRaises(ValueError):
+            client.place_trailing_stop(symbol="BTCUSDT", side="SELL", quantity=Decimal("0.01"), callback_rate=Decimal("1"), activation_price=Decimal("75000"), filters=FILTERS, mark_price=MARK)
+        with self.assertRaises(ValueError):
+            client.place_trailing_stop(symbol="BTCUSDT", side="BUY", quantity=Decimal("0.01"), callback_rate=Decimal("1"), activation_price=Decimal("77000"), filters=FILTERS, mark_price=MARK)
+        ok = client.place_trailing_stop(symbol="BTCUSDT", side="BUY", quantity=Decimal("0.01"), callback_rate=Decimal("1"), activation_price=Decimal("75000"), filters=FILTERS, mark_price=MARK)
+        self.assertEqual(ok.request["params"]["activatePrice"], "75000.00")
