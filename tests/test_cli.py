@@ -947,6 +947,8 @@ class BinanceCliTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         instance.open_algo_orders.assert_called_once_with(None)
         self.assertEqual(payload["open_algo_orders"], [{"algoId": 1, "symbol": "DOGEUSDT"}])
+        self.assertTrue(payload["open_algo_orders_complete"])
+        self.assertEqual(payload["open_algo_orders_scope"], "account")
 
     def test_binance_orders_falls_back_to_per_symbol_algo_queries_when_symbol_is_mandatory(self) -> None:
         with patch("kis_hl.cli.BinanceFuturesClient") as client_cls, patch("kis_hl.cli.load_binance_config") as load_cfg:
@@ -965,6 +967,8 @@ class BinanceCliTests(unittest.TestCase):
             exit_code, payload = self._run(["binance-orders"])
         self.assertEqual(exit_code, 0)
         self.assertEqual(sorted(o["symbol"] for o in payload["open_algo_orders"]), ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+        self.assertFalse(payload["open_algo_orders_complete"])
+        self.assertEqual(payload["open_algo_orders_scope"], ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
 
     def test_binance_stream_stores_ticks(self) -> None:
         class FakeMarketClient:

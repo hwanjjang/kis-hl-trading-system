@@ -725,6 +725,8 @@ def cmd_binance_orders(args: argparse.Namespace) -> dict[str, Any]:
         for position in client.position_risk(args.symbol)
         if Decimal(str(position.get("positionAmt", "0") or "0")) != 0
     ]
+    algo_scope: Any = args.symbol.upper() if args.symbol else "account"
+    algo_complete = True
     if args.symbol:
         open_algo_orders = client.open_algo_orders(args.symbol)
     else:
@@ -734,17 +736,21 @@ def cmd_binance_orders(args: argparse.Namespace) -> dict[str, Any]:
             if "-1102" not in str(exc):
                 raise
             # Fallback if the exchange insists on a symbol: query every symbol that has an open
-            # order, a position, or is in the live allowlist.
+            # order, a position, or is in the live allowlist, and say the view is incomplete.
             algo_symbols = sorted(
                 {str(o.get("symbol")).upper() for o in open_orders if o.get("symbol")}
                 | {str(p.get("symbol")).upper() for p in positions if p.get("symbol")}
                 | set(config.live_symbols)
             )
             open_algo_orders = [order for symbol in algo_symbols for order in client.open_algo_orders(symbol)]
+            algo_scope = algo_symbols
+            algo_complete = False
     return {
         "symbol": args.symbol.upper() if args.symbol else None,
         "open_orders": open_orders,
         "open_algo_orders": open_algo_orders,
+        "open_algo_orders_scope": algo_scope,
+        "open_algo_orders_complete": algo_complete,
         "positions": positions,
         "used_weight_1m": client.last_used_weight,
     }

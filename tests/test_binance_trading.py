@@ -602,3 +602,22 @@ class ReconciledStatusTests(unittest.TestCase):
         client2 = self._client(json.dumps({"orderId": 9, "clientOrderId": "x", "status": "FILLED"}), "/fapi/v1/order")
         submission2 = client2.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, dry_run=False)
         self.assertEqual(submission2.status, "submitted")
+
+
+class ReconciledPartialFillTests(unittest.TestCase):
+    def test_expired_ioc_with_executed_quantity_is_not_rejected(self) -> None:
+        client = RecordingTradingClient(make_config(), {"/fapi/v1/positionSide/dual": (200, ONE_WAY)})
+
+        def send(method, url, headers, body):
+            p = urlsplit(url).path
+            client.calls.append({"method": method, "path": p, "query": parse_qs(urlsplit(url).query), "headers": headers})
+            if method == "GET" and p == "/fapi/v1/positionSide/dual":
+                return 200, {}, ONE_WAY
+            if method == "POST":
+                return 503, {}, json.dumps({"code": -1000, "msg": "Unknown error"})
+            return 200, {}, json.dumps({"orderId": 9, "clientOrderId": "x", "status": "EXPIRED", "origQty": "0.010", "executedQty": "0.004"})
+        client.send = send  # type: ignore[method-assign]
+        submission = client.place_order(symbol="BTCUSDT", side="BUY", order_type="LIMIT", quantity=Decimal("0.01"), price=Decimal("75000"), tif="IOC", filters=FILTERS, dry_run=False)
+        self.assertEqual(submission.status, "submitted")
+        self.assertEqual(submission.request["outcome"], "reconciled_partial_fill")
+        self.assertEqual(submission.response["executedQty"], "0.004")

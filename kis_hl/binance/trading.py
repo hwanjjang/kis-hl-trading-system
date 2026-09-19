@@ -360,6 +360,12 @@ class BinanceTradingClient(BinanceFuturesClient):
             lookup = None
         if request["method"] == "POST" and isinstance(lookup, dict) and extract_binance_order_id(lookup):
             state = str(lookup.get("algoStatus") or lookup.get("status") or "").upper()
+            executed = _optional_decimal(lookup.get("executedQty"))
+            if state in TERMINAL_FAILED_STATES and executed is not None and executed > 0:
+                # e.g. an IOC that partially filled and then expired: a position exists.
+                request["outcome"] = "reconciled_partial_fill"
+                logger.warning("binance_order_reconciled_partial_fill", extra={"symbol": symbol, "state": state, "executed_qty": str(executed)})
+                return BinanceOrderSubmission("submitted", False, symbol, request, lookup)
             if state in TERMINAL_FAILED_STATES:
                 request["outcome"] = "reconciled_terminal"
                 logger.warning("binance_order_reconciled_terminal", extra={"symbol": symbol, "state": state})
@@ -483,6 +489,15 @@ def _require_activation_direction(side: str, activation: Decimal, reference: Dec
         raise ValueError(f"SELL trailing activation {activation} must be above the {label} {reference}")
     if side == "BUY" and activation >= reference:
         raise ValueError(f"BUY trailing activation {activation} must be below the {label} {reference}")
+
+
+def _optional_decimal(value: Any) -> Decimal | None:
+    if value is None or value == "":
+        return None
+    try:
+        return Decimal(str(value))
+    except InvalidOperation:
+        return None
 
 
 def _text(value: Decimal) -> str:
