@@ -40,9 +40,8 @@ Response: `algoId`, `clientAlgoId`, `algoType`, `orderType`, `symbol`, `side`, `
 `createTime`, `updateTime`, `triggerTime`. Weight: 1 on the order-count limits, 0 on IP weight.
 No test endpoint exists for algo orders.
 
-Related: `GET /fapi/v1/algoOrder` (`algoId` or `clientAlgoId`), `GET /fapi/v1/algoOpenOrders`
-(`symbol` required; the CLI queries every symbol with an order, a position, or in the live
-allowlist), `DELETE /fapi/v1/algoOrder` (`algoId` or `clientAlgoId`; response `algoId`,
+Related: `GET /fapi/v1/algoOrder` (`algoId` or `clientAlgoId`), `GET /fapi/v1/openAlgoOrders`
+(`symbol` optional; the CLI falls back to per-symbol queries if the exchange answers -1102), `DELETE /fapi/v1/algoOrder` (`algoId` or `clientAlgoId`; response `algoId`,
 `clientAlgoId`, `code`, `msg`). The delete carries no symbol, so this repo looks the order up first
 and refuses to cancel one whose symbol differs from the requested (allowlisted) symbol. The user stream reports these as `ALGO_UPDATE` events.
 

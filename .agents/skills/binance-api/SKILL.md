@@ -89,7 +89,7 @@ Full path table and response keys: `references/rest-endpoints.md`.
 | `place_trailing_stop(symbol, side, quantity, callback_rate, activation_price=, working_type=)` | `POST /fapi/v1/algoOrder` (type `TRAILING_STOP_MARKET`, `activatePrice`) | `binance-stop --kind trailing` |
 | `cancel_order(symbol, order_id= / client_order_id=)` | `DELETE /fapi/v1/order` | `binance-cancel --order-id` |
 | `cancel_algo_order(symbol, algo_id= / client_algo_id=)` | `DELETE /fapi/v1/algoOrder` | `binance-cancel --algo-id` |
-| `open_algo_orders(symbol)` / `algo_order_status(algo_id= / client_algo_id=)` | `GET /fapi/v1/algoOpenOrders`, `GET /fapi/v1/algoOrder` (signed) | `binance-orders`, reconciliation |
+| `open_algo_orders(symbol)` / `algo_order_status(algo_id= / client_algo_id=)` | `GET /fapi/v1/openAlgoOrders`, `GET /fapi/v1/algoOrder` (signed) | `binance-orders`, reconciliation |
 | `position_mode_is_hedge()` | `GET /fapi/v1/positionSide/dual` (signed) | live guard |
 
 **Conditional orders use the Algo Order API.** Since 2025-12-09 `POST /fapi/v1/order` rejects
@@ -167,6 +167,10 @@ Codes and messages: `references/limits-and-errors.md`.
 
 1. Confirm the path, weight, and whether it is signed in `references/rest-endpoints.md`
    or the official docs (`developers.binance.com/docs/derivatives/usds-margined-futures`).
+   For a signed path, prove it exists with an unauthenticated probe:
+   `curl -s -o /dev/null -w '%{http_code}' https://fapi.binance.com/<path>` answers **401**
+   (`-2014`) for a real route and **404** for a wrong one (this caught
+   `/fapi/v1/algoOpenOrders` vs the real `/fapi/v1/openAlgoOrders`).
 2. Add a keyword-only method on `BinanceFuturesClient` that calls `self._request(...)`
    with `signed=True` or `api_key_header=True` as needed. Normalize numbers to `Decimal`.
 3. Add a test in `tests/test_binance_client.py` using `RecordingClient` and assert the exact

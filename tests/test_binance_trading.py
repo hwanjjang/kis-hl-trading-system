@@ -420,10 +420,15 @@ class AlgoOrderRoutingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             client.cancel_algo_order(symbol="BTCUSDT")
 
-    def test_open_algo_orders_reads_algo_open_orders(self) -> None:
-        client = RecordingTradingClient(make_config(), {"/fapi/v1/algoOpenOrders": (200, json.dumps({"orders": [{"algoId": 1}]}))})
+    def test_open_algo_orders_uses_open_algo_orders_path_with_optional_symbol(self) -> None:
+        # Verified 2026-09-19: an unauthenticated GET to /fapi/v1/openAlgoOrders answers 401 -2014
+        # (route exists) while /fapi/v1/algoOpenOrders answers 404.
+        client = RecordingTradingClient(make_config(), {"/fapi/v1/openAlgoOrders": (200, json.dumps([{"algoId": 1}]))})
         self.assertEqual(client.open_algo_orders("btcusdt"), [{"algoId": 1}])
+        self.assertEqual(client.calls[0]["path"], "/fapi/v1/openAlgoOrders")
         self.assertEqual(client.calls[0]["query"]["symbol"], ["BTCUSDT"])
+        self.assertEqual(client.open_algo_orders(), [{"algoId": 1}])
+        self.assertNotIn("symbol", client.calls[1]["query"])
 
 
 class UnknownOutcomeTests(unittest.TestCase):

@@ -197,9 +197,14 @@ class BinanceFuturesClient:
         params = {"symbol": _normalize_symbol(symbol)} if symbol else None
         return self._request("GET", "/fapi/v1/openOrders", params, signed=True)
 
-    def open_algo_orders(self, symbol: str) -> list[dict[str, Any]]:
-        """Open conditional (algo) orders: STOP_MARKET, TRAILING_STOP_MARKET, and friends."""
-        payload = self._request("GET", "/fapi/v1/algoOpenOrders", {"symbol": _normalize_symbol(symbol)}, signed=True)
+    def open_algo_orders(self, symbol: str | None = None) -> list[dict[str, Any]]:
+        """Open conditional (algo) orders: STOP_MARKET, TRAILING_STOP_MARKET, and friends.
+
+        Path verified on 2026-09-19: ``/fapi/v1/openAlgoOrders`` answers an unauthenticated GET
+        with 401 -2014 (route exists); ``/fapi/v1/algoOpenOrders`` answers 404.
+        """
+        params = {"symbol": _normalize_symbol(symbol)} if symbol else None
+        payload = self._request("GET", "/fapi/v1/openAlgoOrders", params, signed=True)
         if isinstance(payload, dict):
             return list(payload.get("orders", []))
         return list(payload) if isinstance(payload, list) else []
