@@ -564,3 +564,41 @@ class CancelAlgoSymbolGuardTests(unittest.TestCase):
         self.assertEqual(submission.status, "submitted")
         self.assertEqual(client.paths(), ["GET /fapi/v1/algoOrder", "DELETE /fapi/v1/algoOrder"])
         self.assertEqual(client.calls[0]["query"]["clientAlgoId"], ["kh-algo"])
+
+
+class ReconciledStatusTests(unittest.TestCase):
+    def _client(self, lookup_body: str, path: str) -> RecordingTradingClient:
+        client = RecordingTradingClient(make_config(), {"/fapi/v1/positionSide/dual": (200, ONE_WAY)})
+
+        def send(method, url, headers, body):
+            p = urlsplit(url).path
+            client.calls.append({"method": method, "path": p, "query": parse_qs(urlsplit(url).query), "headers": headers})
+            if method == "GET" and p == "/fapi/v1/positionSide/dual":
+                return 200, {}, ONE_WAY
+            if method == "POST":
+                return 503, {}, json.dumps({"code": -1000, "msg": "Unknown error"})
+            return 200, {}, lookup_body
+        client.send = send  # type: ignore[method-assign]
+        return client
+
+    def test_reconciled_terminal_algo_status_is_rejected_not_submitted(self) -> None:
+        for status in ("REJECTED", "CANCELED", "EXPIRED"):
+            client = self._client(json.dumps({"algoId": 5, "clientAlgoId": "x", "symbol": "BTCUSDT", "algoStatus": status}), "/fapi/v1/algoOrder")
+            submission = client.place_stop_market(symbol="BTCUSDT", side="SELL", stop_price=Decimal("74000"), filters=FILTERS, mark_price=MARK, dry_run=False)
+            self.assertEqual(submission.status, "rejected", status)
+            self.assertEqual(submission.request["outcome"], "reconciled_terminal")
+            self.assertEqual(submission.response["algoStatus"], status)
+
+    def test_reconciled_live_algo_status_is_submitted(self) -> None:
+        for status in ("NEW", "TRIGGERING", "TRIGGERED"):
+            client = self._client(json.dumps({"algoId": 5, "clientAlgoId": "x", "symbol": "BTCUSDT", "algoStatus": status}), "/fapi/v1/algoOrder")
+            submission = client.place_stop_market(symbol="BTCUSDT", side="SELL", stop_price=Decimal("74000"), filters=FILTERS, mark_price=MARK, dry_run=False)
+            self.assertEqual(submission.status, "submitted", status)
+
+    def test_reconciled_terminal_regular_status_is_rejected(self) -> None:
+        client = self._client(json.dumps({"orderId": 9, "clientOrderId": "x", "status": "EXPIRED"}), "/fapi/v1/order")
+        submission = client.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, dry_run=False)
+        self.assertEqual(submission.status, "rejected")
+        client2 = self._client(json.dumps({"orderId": 9, "clientOrderId": "x", "status": "FILLED"}), "/fapi/v1/order")
+        submission2 = client2.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, dry_run=False)
+        self.assertEqual(submission2.status, "submitted")

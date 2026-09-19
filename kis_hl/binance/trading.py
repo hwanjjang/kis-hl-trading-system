@@ -20,6 +20,8 @@ ORDER_TEST_PATH = "/fapi/v1/order/test"
 # 2025-12-09; /fapi/v1/order rejects them with -4120.
 ALGO_ORDER_PATH = "/fapi/v1/algoOrder"
 POSITION_MODE_PATH = "/fapi/v1/positionSide/dual"
+# Order/algo states that mean nothing is (or will be) working on the exchange.
+TERMINAL_FAILED_STATES = frozenset({"REJECTED", "CANCELED", "CANCELLED", "EXPIRED", "EXPIRED_IN_MATCH"})
 # Outcomes Binance documents as "may have executed": 5xx, HTTP 408, code -1007 (timeout waiting for
 # the backend, execution status unknown), and the generic "Unknown error" wording.
 # The message format is "Binance request failed: HTTP <status> <code>/<msg>", so the code is
@@ -357,8 +359,13 @@ class BinanceTradingClient(BinanceFuturesClient):
             logger.warning("binance_order_reconcile_failed", extra={"symbol": symbol, "error": str(exc)})
             lookup = None
         if request["method"] == "POST" and isinstance(lookup, dict) and extract_binance_order_id(lookup):
+            state = str(lookup.get("algoStatus") or lookup.get("status") or "").upper()
+            if state in TERMINAL_FAILED_STATES:
+                request["outcome"] = "reconciled_terminal"
+                logger.warning("binance_order_reconciled_terminal", extra={"symbol": symbol, "state": state})
+                return BinanceOrderSubmission("rejected", False, symbol, request, lookup)
             request["outcome"] = "reconciled_after_unknown"
-            logger.info("binance_order_reconciled", extra={"symbol": symbol, "order_id": extract_binance_order_id(lookup)})
+            logger.info("binance_order_reconciled", extra={"symbol": symbol, "order_id": extract_binance_order_id(lookup), "state": state})
             return BinanceOrderSubmission("submitted", False, symbol, request, lookup)
         return BinanceOrderSubmission("unknown", False, symbol, request, {"error": error, "lookup": lookup})
 
