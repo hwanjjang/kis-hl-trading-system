@@ -20,7 +20,9 @@ ORDER_TEST_PATH = "/fapi/v1/order/test"
 # 2025-12-09; /fapi/v1/order rejects them with -4120.
 ALGO_ORDER_PATH = "/fapi/v1/algoOrder"
 POSITION_MODE_PATH = "/fapi/v1/positionSide/dual"
-UNKNOWN_OUTCOME_RE = re.compile(r"HTTP 5\d\d|Unknown error", re.IGNORECASE)
+# Outcomes Binance documents as "may have executed": 5xx, HTTP 408, code -1007 (timeout waiting for
+# the backend, execution status unknown), and the generic "Unknown error" wording.
+UNKNOWN_OUTCOME_RE = re.compile(r"HTTP (?:5\d\d|408)\b|\b-1007/|Unknown error|status unknown", re.IGNORECASE)
 
 SIDES = ("BUY", "SELL")
 ENTRY_TYPES = ("MARKET", "LIMIT")
@@ -251,6 +253,18 @@ class BinanceTradingClient(BinanceFuturesClient):
         if algo_id is None and not client_algo_id:
             raise ValueError("cancel_algo_order requires algo_id or client_algo_id")
         params: dict[str, Any] = {"clientAlgoId": client_algo_id} if client_algo_id else {"algoId": int(algo_id)}  # type: ignore[arg-type]
+        if not dry_run:
+            # The delete request carries no symbol, so the allowlist can only be enforced against the
+            # order the id actually points to. Fail closed when it cannot be looked up.
+            self._require_live_symbol(symbol)
+            self._require_credentials(need_secret=True)
+            try:
+                current = self.algo_order_status(algo_id=algo_id, client_algo_id=client_algo_id)
+            except Exception as exc:  # noqa: BLE001 - any lookup failure blocks the cancel
+                raise RuntimeError(f"Binance algo order lookup failed; refusing to cancel blindly: {exc}") from exc
+            actual = str(current.get("symbol", "")).upper() if isinstance(current, dict) else ""
+            if actual != symbol:
+                raise RuntimeError(f"Binance algo order belongs to {actual or 'an unknown symbol'}, not {symbol}; refusing to cancel")
         return self._submit(ALGO_ORDER_PATH, params, symbol=symbol, dry_run=dry_run, exchange_test=False, method="DELETE")
 
     def position_mode_is_hedge(self) -> bool:

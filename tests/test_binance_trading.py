@@ -399,15 +399,24 @@ class AlgoOrderRoutingTests(unittest.TestCase):
         self.assertEqual(client.calls, [])
 
     def test_cancel_algo_order_uses_algo_endpoint(self) -> None:
-        client = RecordingTradingClient(make_config(), {"/fapi/v1/algoOrder": (200, json.dumps({"algoId": 7, "clientAlgoId": "kh-algo", "code": "200", "msg": "success"}))})
+        client = RecordingTradingClient(make_config())
+
+        def send(method, url, headers, body):
+            path = urlsplit(url).path
+            client.calls.append({"method": method, "path": path, "query": parse_qs(urlsplit(url).query), "headers": headers})
+            if method == "GET":
+                return 200, {}, json.dumps({"algoId": 7, "clientAlgoId": "kh-algo", "symbol": "BTCUSDT", "algoStatus": "NEW"})
+            return 200, {}, json.dumps({"algoId": 7, "clientAlgoId": "kh-algo", "code": "200", "msg": "success"})
+        client.send = send  # type: ignore[method-assign]
         dry = client.cancel_algo_order(symbol="BTCUSDT", algo_id=7)
         self.assertEqual(dry.status, "dry_run")
         self.assertEqual(dry.request["path"], "/fapi/v1/algoOrder")
         self.assertEqual(dry.request["params"]["algoId"], 7)
+        self.assertEqual(client.calls, [])
         live = client.cancel_algo_order(symbol="BTCUSDT", client_algo_id="kh-algo", dry_run=False)
         self.assertEqual(live.status, "submitted")
-        self.assertEqual(client.paths(), ["DELETE /fapi/v1/algoOrder"])
-        self.assertEqual(client.calls[0]["query"]["clientAlgoId"], ["kh-algo"])
+        self.assertEqual(client.paths(), ["GET /fapi/v1/algoOrder", "DELETE /fapi/v1/algoOrder"])
+        self.assertEqual(client.calls[1]["query"]["clientAlgoId"], ["kh-algo"])
         with self.assertRaises(ValueError):
             client.cancel_algo_order(symbol="BTCUSDT")
 
@@ -495,3 +504,57 @@ class NotionalAndDirectionTests(unittest.TestCase):
             client.place_trailing_stop(symbol="BTCUSDT", side="BUY", quantity=Decimal("0.01"), callback_rate=Decimal("1"), activation_price=Decimal("77000"), filters=FILTERS, mark_price=MARK)
         ok = client.place_trailing_stop(symbol="BTCUSDT", side="BUY", quantity=Decimal("0.01"), callback_rate=Decimal("1"), activation_price=Decimal("75000"), filters=FILTERS, mark_price=MARK)
         self.assertEqual(ok.request["params"]["activatePrice"], "75000.00")
+
+
+class UnknownOutcomeCodeTests(unittest.TestCase):
+    def _client_with_order_error(self, status: int, body: str) -> RecordingTradingClient:
+        return RecordingTradingClient(make_config(), {"/fapi/v1/positionSide/dual": (200, ONE_WAY), "/fapi/v1/order": (status, body)})
+
+    def test_http_408_and_code_1007_are_unknown_not_rejected(self) -> None:
+        for status, body in (
+            (408, json.dumps({"code": -1007, "msg": "Timeout waiting for response from backend server. Send status unknown; execution status unknown."})),
+            (400, json.dumps({"code": -1007, "msg": "execution status unknown"})),
+        ):
+            client = self._client_with_order_error(status, body)
+            submission = client.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, dry_run=False)
+            self.assertEqual(submission.status, "unknown", body)
+
+
+class CancelAlgoSymbolGuardTests(unittest.TestCase):
+    def test_live_cancel_algo_verifies_the_order_symbol_before_deleting(self) -> None:
+        client = RecordingTradingClient(make_config(live_symbols=("BTCUSDT",)))
+        original = client.send
+
+        def send(method, url, headers, body):
+            path = urlsplit(url).path
+            client.calls.append({"method": method, "path": path, "query": parse_qs(urlsplit(url).query), "headers": headers})
+            if method == "GET" and path == "/fapi/v1/algoOrder":
+                return 200, {}, json.dumps({"algoId": 7, "symbol": "ETHUSDT", "algoStatus": "NEW"})
+            return 200, {}, "{}"
+        client.send = send  # type: ignore[method-assign]
+        with self.assertRaises(RuntimeError) as ctx:
+            client.cancel_algo_order(symbol="BTCUSDT", algo_id=7, dry_run=False)
+        self.assertIn("ETHUSDT", str(ctx.exception))
+        self.assertEqual(client.paths(), ["GET /fapi/v1/algoOrder"])
+
+    def test_live_cancel_algo_fails_closed_when_lookup_fails(self) -> None:
+        client = RecordingTradingClient(make_config(), {"/fapi/v1/algoOrder": (400, json.dumps({"code": -2013, "msg": "Order does not exist."}))})
+        with self.assertRaises(RuntimeError):
+            client.cancel_algo_order(symbol="BTCUSDT", algo_id=7, dry_run=False)
+        self.assertEqual([c["method"] for c in client.calls], ["GET"])
+
+    def test_live_cancel_algo_deletes_when_symbol_matches(self) -> None:
+        client = RecordingTradingClient(make_config())
+        original = client.send
+
+        def send(method, url, headers, body):
+            path = urlsplit(url).path
+            client.calls.append({"method": method, "path": path, "query": parse_qs(urlsplit(url).query), "headers": headers})
+            if method == "GET":
+                return 200, {}, json.dumps({"algoId": 7, "clientAlgoId": "kh-algo", "symbol": "BTCUSDT", "algoStatus": "NEW"})
+            return 200, {}, json.dumps({"algoId": 7, "clientAlgoId": "kh-algo", "code": "200", "msg": "success"})
+        client.send = send  # type: ignore[method-assign]
+        submission = client.cancel_algo_order(symbol="btcusdt", client_algo_id="kh-algo", dry_run=False)
+        self.assertEqual(submission.status, "submitted")
+        self.assertEqual(client.paths(), ["GET /fapi/v1/algoOrder", "DELETE /fapi/v1/algoOrder"])
+        self.assertEqual(client.calls[0]["query"]["clientAlgoId"], ["kh-algo"])

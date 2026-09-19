@@ -41,8 +41,10 @@ Response: `algoId`, `clientAlgoId`, `algoType`, `orderType`, `symbol`, `side`, `
 No test endpoint exists for algo orders.
 
 Related: `GET /fapi/v1/algoOrder` (`algoId` or `clientAlgoId`), `GET /fapi/v1/algoOpenOrders`
-(`symbol`), `DELETE /fapi/v1/algoOrder` (`algoId` or `clientAlgoId`; response `algoId`,
-`clientAlgoId`, `code`, `msg`). The user stream reports these as `ALGO_UPDATE` events.
+(`symbol` required; the CLI queries every symbol with an order, a position, or in the live
+allowlist), `DELETE /fapi/v1/algoOrder` (`algoId` or `clientAlgoId`; response `algoId`,
+`clientAlgoId`, `code`, `msg`). The delete carries no symbol, so this repo looks the order up first
+and refuses to cancel one whose symbol differs from the requested (allowlisted) symbol. The user stream reports these as `ALGO_UPDATE` events.
 
 Response (RESULT): `orderId`, `clientOrderId`, `symbol`, `status` (NEW, PARTIALLY_FILLED, FILLED,
 CANCELED, EXPIRED), `type`, `origType`, `side`, `positionSide`, `price`, `avgPrice`, `origQty`,
@@ -64,7 +66,7 @@ through `DELETE /fapi/v1/algoOrder` instead.
 |---|---|---|
 | 2xx | `submitted` | fills arrive on the user stream |
 | 4xx with Binance code | `rejected` | fix the request; nothing was placed |
-| 5xx, `Unknown error`, timeout after send | `unknown` → looked up once by `newClientOrderId` / `clientAlgoId`; found → `submitted` (`request.outcome = reconciled_after_unknown`) | if still `unknown`, query the order or watch the user stream before any retry |
+| 5xx, HTTP 408, code `-1007`, `Unknown error`, timeout after send | `unknown` → looked up once by `newClientOrderId` / `clientAlgoId`; found → `submitted` (`request.outcome = reconciled_after_unknown`) | if still `unknown`, query the order or watch the user stream before any retry |
 
 ## `GET /fapi/v1/positionSide/dual`
 

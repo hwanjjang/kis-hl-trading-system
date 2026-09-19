@@ -717,14 +717,25 @@ def cmd_binance_candles(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def cmd_binance_orders(args: argparse.Namespace) -> dict[str, Any]:
-    client = BinanceFuturesClient(load_binance_config())
+    config = load_binance_config()
+    client = BinanceFuturesClient(config)
     open_orders = client.open_orders(args.symbol)
-    open_algo_orders = client.open_algo_orders(args.symbol) if args.symbol else []
     positions = [
         position
         for position in client.position_risk(args.symbol)
         if Decimal(str(position.get("positionAmt", "0") or "0")) != 0
     ]
+    # /fapi/v1/algoOpenOrders needs a symbol, so an account-wide view queries every symbol that
+    # has an open order, a position, or is in the live allowlist.
+    if args.symbol:
+        algo_symbols = [args.symbol.upper()]
+    else:
+        algo_symbols = sorted(
+            {str(o.get("symbol")).upper() for o in open_orders if o.get("symbol")}
+            | {str(p.get("symbol")).upper() for p in positions if p.get("symbol")}
+            | set(config.live_symbols)
+        )
+    open_algo_orders = [order for symbol in algo_symbols for order in client.open_algo_orders(symbol)]
     return {
         "symbol": args.symbol.upper() if args.symbol else None,
         "open_orders": open_orders,

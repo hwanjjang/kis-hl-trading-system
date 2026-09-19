@@ -936,6 +936,20 @@ class BinanceCliTests(unittest.TestCase):
         self.assertEqual(payload["open_orders"], [{"orderId": 1}])
         self.assertEqual(payload["open_algo_orders"], [{"algoId": 9, "orderType": "STOP_MARKET"}])
 
+    def test_binance_orders_without_symbol_aggregates_algo_orders_across_symbols(self) -> None:
+        with patch("kis_hl.cli.BinanceFuturesClient") as client_cls, patch("kis_hl.cli.load_binance_config") as load_cfg:
+            load_cfg.return_value.live_symbols = ("BTCUSDT",)
+            instance = client_cls.return_value
+            instance.open_orders.return_value = [{"orderId": 1, "symbol": "ETHUSDT"}]
+            instance.position_risk.return_value = [{"symbol": "SOLUSDT", "positionAmt": "1"}, {"symbol": "XRPUSDT", "positionAmt": "0"}]
+            instance.open_algo_orders.side_effect = lambda symbol: [{"algoId": 1, "symbol": symbol}]
+            instance.last_used_weight = None
+            exit_code, payload = self._run(["binance-orders"])
+        self.assertEqual(exit_code, 0)
+        queried = sorted(call.args[0] for call in instance.open_algo_orders.call_args_list)
+        self.assertEqual(queried, ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+        self.assertEqual(sorted(o["symbol"] for o in payload["open_algo_orders"]), ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+
     def test_binance_stream_stores_ticks(self) -> None:
         class FakeMarketClient:
             def __init__(self, _config: object, *, streams: list[str], on_message: object) -> None:
