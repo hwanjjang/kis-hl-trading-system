@@ -16,6 +16,7 @@ def register(sub):
     for action in ['backup','restore']:
         p=ds.add_parser(action);p.add_argument('--target',required=True);p.set_defaults(handler=cmd_data)
         if action=='restore':p.add_argument('--source',required=True)
+    p=ds.add_parser('reconcile');p.add_argument('--statement',required=True);p.add_argument('--sha256',required=True);p.add_argument('--apply',action='store_true');p.set_defaults(handler=cmd_data)
     p=ds.add_parser('journal');p.add_argument('--accounts',nargs='+',required=True);p.add_argument('--as-of-ms',type=int);p.set_defaults(handler=cmd_data)
     p=ds.add_parser('export');p.add_argument('--report-id',type=int,required=True);p.add_argument('--output',required=True);p.set_defaults(handler=cmd_data)
     p=ds.add_parser('configure');p.add_argument('--job-id',required=True);p.add_argument('--config',required=True);p.add_argument('--interval-seconds',type=int,default=10800);p.set_defaults(handler=cmd_data)
@@ -36,11 +37,17 @@ def cmd_data(args):
     from kis_hl.data_jobs import configure
     from kis_hl.journal_exports import journal,export_report
     if args.data_action=='restore':return restore(args.source,args.target)
-    if args.data_action=='migrate' and not args.apply:
-        return {'path':str(Path(args.db).resolve()),'schema_version':1,'apply':False,'preserves_legacy_tables':True}
+    if args.data_action=='status' or (args.data_action=='migrate' and not args.apply):
+        from kis_hl.data_migrations import inspect_schema
+        schema=inspect_schema(args.db)
+        if args.data_action=='migrate' or schema['schema_version']==0:return schema
+        return DataStore(args.db,readonly=True).status()
     if args.data_action=='import' and not args.apply:
         return import_manifest(None,args.manifest,apply=False,existing_path=args.db)
-    store=DataStore(args.db)
+    store=DataStore(args.db,readonly=args.data_action=='reconcile' and not args.apply)
+    if args.data_action=='reconcile':
+        from kis_hl.data_reconciliation import reconcile
+        return reconcile(store,args.statement,args.sha256,apply=args.apply)
     if args.data_action in {'status','migrate'}:return store.status()
     if args.data_action=='retention':return retention_preview(store)
     if args.data_action=='import':return import_manifest(store,args.manifest,apply=True)
@@ -65,7 +72,12 @@ def execute_job(store,config):
     from kis_hl.market_ingestion import backfill,snapshot
     if config['kind']=='account':
         from kis_hl.data_account_sync import sync_account
-        return sync_account(store,config['venue'],config.get('account'),start_ms=config['start_ms'])
+        start=config['start_ms']
+        overlap=config.get('overlap_ms',86400000)
+        if type(overlap) is not int or overlap<0:raise ValueError('Nonnegative account overlap required')
+        if config.get('_last_success_ms') is not None and not config.get('history_audit',False):
+            start=max(start,config['_last_success_ms']-overlap)
+        return sync_account(store,config['venue'],config.get('account'),start_ms=start)
     key=config['instrument'];client=client_for(key)
     if config['kind']=='bar':
         # Refresh a short overlap; history backfill is an explicit separate operation.

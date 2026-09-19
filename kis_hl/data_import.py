@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import sqlite3
 from kis_hl.journal_sync import Scope
-from kis_hl.data_ingestion import ingest_rows, PARSERS, domestic_bundle
+from kis_hl.data_ingestion import ingest_rows, PARSERS, domestic_bundle, normalize_rows
 from kis_hl.data_store import encode, now_ms, reject_secrets
 
 
@@ -45,8 +45,7 @@ def import_manifest(store, path, *, apply=False, existing_path=None):
             if entry['parser']!='evidence' and not isinstance(rows,list):raise ValueError('Invalid source rows')
             if entry['parser']!='evidence':
                 parser='statement' if entry['parser']=='kis_domestic_bundle' else entry['parser']
-                for row in rows:
-                    dataset,key,payload=PARSERS[parser](row)
+                for dataset,key,payload in normalize_rows(parser,rows):
                     identity=(dataset,scope_ids[entry['account']],key);normalized=encode(payload)
                     if identity in known and known[identity]!=normalized and not entry.get('allow_correction',False):
                         raise ValueError('Manifest contains a conflicting fact; explicit correction required')

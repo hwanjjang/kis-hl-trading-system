@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import tempfile
 from kis_hl.data_quality import effective_funding
+from kis_hl.data_reconciliation import coverage_current
 from kis_hl.data_store import encode, now_ms
 
 Z=D(0)
@@ -26,7 +27,10 @@ def statistics(cycles):
     avg=lambda xs,key:sum((x[key] for x in xs),Z)/len(xs) if xs else None
     aw,al=avg(wins,'net_return_pct'),avg(losses,'net_return_pct')
     holding=lambda xs:avg(xs,'holding_days') if xs and all(c['holding_days'] is not None for c in xs) else None
-    return dict(trade_count=len(rows),success_count=len(wins),failure_count=len(losses),breakeven_count=len(rows)-len(wins)-len(losses),
+    return dict(excluded_count=len(cycles)-len(rows),
+        exclusion_reasons={reason:sum(reason in c['reasons'] for c in cycles) for reason in sorted({r for c in cycles for r in c['reasons']})},
+        holding_eligible_count=sum(c['holding_days'] is not None for c in rows),
+        trade_count=len(rows),success_count=len(wins),failure_count=len(losses),breakeven_count=len(rows)-len(wins)-len(losses),
         average_profit=aw,average_loss=al,success_failure_ratio=aw/abs(al) if wins and losses else None,
         win_rate_pct=D(len(wins))*100/(len(wins)+len(losses)) if wins or losses else None,
         adjusted_success_failure_ratio=aw*len(wins)/(abs(al)*len(losses)) if wins and losses else None,
@@ -72,6 +76,19 @@ def account_cycles(trades):
             if p.get('position_before') is not None and D(p['position_before'])!=position:
                 issues.append({'kind':'opening_inventory_gap','instrument':instrument,'fact_ids':[fact['id']]})
                 invalidate_overlapping('opening_inventory_gap',t)
+                if not is_kis:
+                    # A retained tail may start mid-position. Resume only at a
+                    # later native zero anchor; skipped economics remain issues.
+                    if D(p['position_before'])==0:
+                        queue.insert(0,fact)
+                    else:
+                        queue=[f for f in queue if f['event_start_ms']>t]
+                    while queue and D(queue[0]['payload'].get('position_before') or 'NaN')!=0:
+                        queue.pop(0)
+                    if active is not None and active['closed_ms'] is None and queue:
+                        active['invalidated_end_ms']=queue[0]['event_start_ms']
+                    position=Z;inventory_cost=Z;active=None
+                    continue
                 break
             q=D(p['quantity']);signed=q*(1 if p['side']=='buy' else -1)
             # A cash-stock oversell is missing inventory evidence, never a short
@@ -113,6 +130,7 @@ def account_cycles(trades):
                 else:active['trading_fee']+=D(p['total_cost'])*fraction
                 for kind,amount in p.get('costs',{}).items():
                     if amount is not None:active['cost_components'][kind]=active['cost_components'].get(kind,Z)+D(amount)*fraction
+                active['reasons'].extend(p.get('quality_reasons',[]))
                 if p['time_precision']!='MILLISECOND':active['time_precision']='DAY'
                 if p.get('strategy','unassigned')!=active['strategy']:active['strategy']='mixed'
                 active['fact_ids'].append(fact['id'])
@@ -138,7 +156,8 @@ def account_cycles(trades):
 def journal(store, accounts, *, as_of_ms=None):
     if not accounts or len(set(accounts))!=len(accounts):raise ValueError('Explicit unique account selection required')
     asof=now_ms() if as_of_ms is None else as_of_ms
-    allfacts=[f for f in store.facts(as_of_ms=asof) if f['scope'] in accounts and f['event_start_ms']<=asof]
+    allfacts=[f for account in accounts for dataset in ('trade','cash')
+              for f in store.facts(dataset,scope=account,as_of_ms=asof) if f['event_start_ms']<=asof]
     trades=[f for f in allfacts if f['dataset']=='trade'];cash=[f for f in allfacts if f['dataset']=='cash']
     funding,issues=effective_funding(cash);cycles=[];summaries=[]
     with store.connect() as db:
@@ -148,16 +167,16 @@ def journal(store, accounts, *, as_of_ms=None):
     for account in accounts:
         current,problems=account_cycles([f for f in trades if f['scope']==account]);cycles.extend(current);issues.extend(problems)
         for c in current:
-            end=c['closed_end_ms'] or asof+1
+            end=c.get('invalidated_end_ms') or c['closed_end_ms'] or asof+1
             for dataset in ['trade','cash']:
                 if dataset=='cash' and c['instrument'].startswith('kis:'):continue
-                intervals=sorted((r['requested_start_ms'],r['requested_end_ms']) for r in coverage if r['scope']==account and r['dataset']==dataset and r['status']=='complete')
+                intervals=sorted((r['requested_start_ms'],r['requested_end_ms']) for r in coverage if r['scope']==account and r['dataset']==dataset and r['status']=='complete' and coverage_current(r,allfacts))
                 covered=c['opened_ms']
                 for a,b in intervals:
                     if a<=covered:covered=max(covered,b)
                 if covered<end:c['reasons'].append(dataset+'_coverage_unverified')
         for f in [f for f in funding if f['scope']==account]:
-            candidates=[c for c in current if c['instrument']==f['instrument'] and c['currency']==f['payload']['currency'] and c['opened_ms']<f['event_end_ms'] and (c['closed_end_ms'] or asof+1)>f['event_start_ms']]
+            candidates=[c for c in current if c['instrument']==f['instrument'] and c['currency']==f['payload']['currency'] and c['opened_ms']<f['event_end_ms'] and (c.get('invalidated_end_ms') or c['closed_end_ms'] or asof+1)>f['event_start_ms']]
             if len(candidates)==1:
                 candidates[0]['funding_cashflow']+=D(f['payload']['amount']);candidates[0]['fact_ids'].append(f['id'])
             else:
@@ -165,7 +184,7 @@ def journal(store, accounts, *, as_of_ms=None):
                 for c in candidates:c['shared_funding_ids'].append(f['id'])
         for c in current:
             if any(i.get('kind')=='funding_representation_conflict' and i.get('scope')==account and i.get('instrument')==c['instrument'] for i in issues):c['reasons'].append('funding_representation_conflict')
-            c['status']='OPEN' if c['closed_ms'] is None else ('PENDING' if c['reasons'] or c['shared_funding_ids'] else 'FINALIZED')
+            c['status']='PENDING' if c.get('invalidated_end_ms') is not None else 'OPEN' if c['closed_ms'] is None else ('PENDING' if c['reasons'] or c['shared_funding_ids'] else 'FINALIZED')
             c['net_before_shared_funding']=c['gross_pnl']-c['trading_fee']+c['funding_cashflow']
             c['net_pnl']=c['net_before_shared_funding'] if not c['reasons'] and not c['shared_funding_ids'] else None
             c['net_return_pct']=c['net_pnl']/c['entry_notional']*100 if c['net_pnl'] is not None else None
@@ -184,7 +203,8 @@ def journal(store, accounts, *, as_of_ms=None):
                 for k,v in f['payload'].get('costs',{}).items():
                     if v is not None:components[k]+=D(v)
             summaries.append(dict(account=account,label=labels[account],currency=currency,gross_booked_pnl=gross,trading_fee=fee,cost_components=dict(components),funding_cashflow=cashflow,
-                net_booked_pnl=None if incomplete else gross-fee+cashflow,closed_cycles=sum(c['closed_ms'] is not None for c in cs),open_cycles=sum(c['closed_ms'] is None for c in cs),
+                net_booked_pnl=None if incomplete else gross-fee+cashflow,closed_cycles=sum(c['closed_ms'] is not None for c in cs),open_cycles=sum(c['closed_ms'] is None and c.get('invalidated_end_ms') is None for c in cs),
+                unresolved_segments=sum(c.get('invalidated_end_ms') is not None for c in cs),
                 coverage_status='verified' if cs and not problems and all(not c['reasons'] for c in cs) else 'partial_or_unverified',
                 statistics_by_strategy={s:statistics([c for c in cs if c['strategy']==s]) for s in {c['strategy'] for c in cs}}))
     result=serial(dict(accounts=accounts,as_of_ms=asof,summary_by_account_currency=summaries,cycles=cycles,quality_findings=issues,

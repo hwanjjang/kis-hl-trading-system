@@ -13,6 +13,15 @@ def run_analysis(store, spec, *, as_of_ms=None):
     if type(count) is not int or count<=0:raise ValueError('Positive analysis window required')
     rows=rows[-count:]
     if len(rows)<count:raise ValueError('Insufficient completed bars')
+    # Historical selection must use dependencies effective at that as-of time.
+    effective={f['id']:f for f in store.facts('bar',as_of_ms=asof)}
+    pending=[f['id'] for f in rows];seen=set()
+    while pending:
+        fact_id=pending.pop()
+        if fact_id in seen:continue
+        if fact_id not in effective:raise ValueError('Stale derived input; rebuild before current analysis')
+        seen.add(fact_id)
+        pending.extend(effective[fact_id]['payload'].get('input_ids',[]))
     close=[D(f['payload']['close']) for f in rows]
     result={'last_close':str(close[-1]),'mean_close':str(sum(close,D(0))/len(close)),'bar_count':len(rows),'calculation_version':'close-summary-v1','mode':'retrospective_research'}
     run=store.pin('analysis',spec,[r['id'] for r in rows],result,as_of_ms=asof)

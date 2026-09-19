@@ -1,0 +1,47 @@
+{
+  "gross_pnl_reconciliation": {
+    "applied": false,
+    "rejection": "Statement economics do not match canonical facts",
+    "statement_gross": "10",
+    "canonical_net": null,
+    "status": "PENDING"
+  },
+  "funding_after_recovery": {
+    "cycles": [
+      {
+        "opened_ms": 10,
+        "closed_ms": null,
+        "status": "PENDING",
+        "reasons": [
+          "opening_inventory_gap"
+        ],
+        "shared_funding_ids": []
+      },
+      {
+        "opened_ms": 20,
+        "closed_ms": 30,
+        "status": "FINALIZED",
+        "reasons": [],
+        "shared_funding_ids": []
+      }
+    ],
+    "issues": [
+      {
+        "kind": "opening_inventory_gap",
+        "instrument": "hl:BTC",
+        "fact_ids": [
+          2
+        ]
+      }
+    ]
+  }
+}
+{
+  "append_before_pin": {
+    "before_net": "10",
+    "after_net": "8",
+    "stale_runs": [
+      1
+    ]
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "candidate": "sha256:9ae1292c578dc261fdac3b2d2fe0a120569b629ea3e7b93a2cdc847ad256a34b",
+  "scenarios": [
+    {
+      "id": "correction-cli",
+      "requirement": "AC6",
+      "required": true,
+      "environment": "Local CLI subprocesses and temporary SQLite",
+      "prerequisites": "Installed runtime; no credentials/network",
+      "actions": "Preview/import, source reconciliation, journal/export, status, backup/restore",
+      "expected": "Validated economics, immutable exports, no implicit preview writes and cleanup",
+      "failure": "Incorrect financial eligibility, source mutation, failed CLI or leaked temporary data",
+      "cleanup": "TemporaryDirectory deleted; absence asserted"
+    },
+    {
+      "id": "inventory-cli",
+      "requirement": "AC6",
+      "required": true,
+      "environment": "Local CLI subprocesses and temporary SQLite",
+      "prerequisites": "Installed runtime; no credentials/network",
+      "actions": "Preview/import/replay, inventory eligibility, journal/export immutability",
+      "expected": "Validated economics, immutable exports, no implicit preview writes and cleanup",
+      "failure": "Incorrect financial eligibility, source mutation, failed CLI or leaked temporary data",
+      "cleanup": "TemporaryDirectory deleted; absence asserted"
+    }
+  ],
+  "runs": [
+    {
+      "id": "red-core",
+      "phase": "red",
+      "candidate": "pre-fix:red-core.txt",
+      "command": "python3 -m unittest tests.test_review_corrections -q",
+      "environment": "Local Python, temporary SQLite, synthetic data only",
+      "observed": "Intended failures for existing source/account/analysis/market/status defects",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/full-correction/red-core.txt",
+      "exit_code": 1,
+      "status": "passed",
+      "intended_failure": true
+    },
+    {
+      "id": "red-workflows",
+      "phase": "red",
+      "candidate": "pre-fix:red-workflows.txt",
+      "command": "python3 -m unittest tests.test_review_corrections tests.test_kis_client.OverseasMinuteContractTests -q",
+      "environment": "Local Python, temporary SQLite, synthetic data only",
+      "observed": "Missing minute/reconciliation/workflow behavior exposed",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/full-correction/red-workflows.txt",
+      "exit_code": 1,
+      "status": "passed",
+      "intended_failure": true
+    },
+    {
+      "id": "red-gap-anchor",
+      "phase": "red",
+      "candidate": "pre-fix:red-gap-anchor.txt",
+      "command": "python3 -m unittest tests.test_review_corrections.ReviewCorrections.test_hl_gap_anchor_itself_starts_next_cycle -q",
+      "environment": "Local Python, temporary SQLite, synthetic data only",
+      "observed": "Explicit current zero anchor was dropped",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/full-correction/red-gap-anchor.txt",
+      "exit_code": 1,
+      "status": "passed",
+      "intended_failure": true
+    },
+    {
+      "id": "red-atomic",
+      "phase": "red",
+      "candidate": "pre-fix:red-atomic.txt",
+      "command": "python3 -m unittest tests.test_review_corrections.ReviewCorrections.test_failed_reconciliation_rolls_back_inventory_and_evidence -q",
+      "environment": "Local Python, temporary SQLite, synthetic data only",
+      "observed": "Reconciliation failure left inventory mutation",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/full-correction/red-atomic.txt",
+      "exit_code": 1,
+      "status": "passed",
+      "intended_failure": true
+    },
+    {
+      "id": "full-green",
+      "phase": "green",
+      "candidate": "sha256:9ae1292c578dc261fdac3b2d2fe0a120569b629ea3e7b93a2cdc847ad256a34b",
+      "command": "python3 -m unittest discover -s tests -t . -q",
+      "environment": "Local Python, temporary SQLite, synthetic data only",
+      "observed": "344 tests passed",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/full-correction/full-green.txt",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "id": "post-refactor",
+      "phase": "post-refactor",
+      "candidate": "sha256:9ae1292c578dc261fdac3b2d2fe0a120569b629ea3e7b93a2cdc847ad256a34b",
+      "command": "python3 -m unittest tests.test_review_corrections tests.test_kis_client -q",
+      "environment": "Local Python, temporary SQLite, synthetic data only",
+      "observed": "Correction and transport regressions passed",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/full-correction/post-refactor.txt",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "id": "smoke",
+      "phase": "smoke",
+      "candidate": "sha256:9ae1292c578dc261fdac3b2d2fe0a120569b629ea3e7b93a2cdc847ad256a34b",
+      "command": "python3 scripts/smoke_review_corrections.py",
+      "environment": "Local Python, temporary SQLite, synthetic data only",
+      "observed": "12 real CLI processes passed with bounded reconciliation, immutable export, backup/restore and cleanup",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/full-correction/smoke.txt",
+      "exit_code": 0,
+      "status": "passed",
+      "scenario_id": "correction-cli",
+      "execution_kind": "real"
+    },
+    {
+      "id": "legacy-smoke",
+      "phase": "smoke",
+      "candidate": "sha256:9ae1292c578dc261fdac3b2d2fe0a120569b629ea3e7b93a2cdc847ad256a34b",
+      "command": "python3 scripts/smoke_canonical_inventory.py",
+      "environment": "Local Python, temporary SQLite, synthetic data only",
+      "observed": "7 real CLI processes preserved inventory, fees, immutable exports and cleanup",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/full-correction/legacy-smoke.txt",
+      "exit_code": 0,
+      "status": "passed",
+      "scenario_id": "inventory-cli",
+      "execution_kind": "real"
+    }
+  ]
+}

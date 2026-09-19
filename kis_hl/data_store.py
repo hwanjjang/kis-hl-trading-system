@@ -50,8 +50,14 @@ def reject_secrets(value):
 
 
 class DataStore:
-    def __init__(self, path):
+    def __init__(self, path, *, readonly=False):
         self.path = Path(path).expanduser().resolve()
+        self.readonly=readonly
+        if readonly:
+            from kis_hl.data_migrations import inspect_schema
+            if inspect_schema(self.path)['schema_version']!=1:
+                raise ValueError('Canonical schema is not initialized; run data migrate --apply')
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             mode = db.execute('PRAGMA journal_mode=WAL').fetchone()[0]
@@ -64,7 +70,10 @@ class DataStore:
 
     @contextmanager
     def connect(self):
-        db = sqlite3.connect(self.path, timeout=10)
+        if getattr(self,'_transaction',None) is not None:
+            yield self._transaction
+            return
+        db = sqlite3.connect(self.path.as_uri()+'?mode=ro', uri=True, timeout=10) if self.readonly else sqlite3.connect(self.path, timeout=10)
         db.row_factory = sqlite3.Row
         db.execute('PRAGMA foreign_keys=ON')
         db.execute('PRAGMA synchronous=FULL')
@@ -76,6 +85,19 @@ class DataStore:
             raise
         finally:
             db.close()
+
+    @contextmanager
+    def atomic(self):
+        """Serialize a short local reconciliation; never hold across network IO."""
+        if getattr(self,'_transaction',None) is not None:
+            raise ValueError('Nested data transactions are not supported')
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            self._transaction=db
+            try:
+                yield
+            finally:
+                self._transaction=None
 
     def account(self, venue, environment, native_id, *, label='', parent_id=None):
         scope = Scope(venue, environment, native_id)
@@ -110,7 +132,7 @@ class DataStore:
         digest = hashlib.sha256(body.encode()).hexdigest()
         known = now_ms() if known_ms is None else known_ms
         with self.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
+            if not db.in_transaction:db.execute('BEGIN IMMEDIATE')
             source = db.execute('SELECT scope FROM source_observations WHERE id=?', (observation,)).fetchone()
             if source is None or source['scope'] != scope:
                 raise ValueError('Fact source scope mismatch')
@@ -148,7 +170,7 @@ class DataStore:
     def pin(self, kind, parameters, inputs, result, *, as_of_ms=None):
         asof = now_ms() if as_of_ms is None else as_of_ms
         with self.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
+            if not db.in_transaction:db.execute('BEGIN IMMEDIATE')
             pending=list(set(inputs)); pinned=set()
             while pending:
                 fact_id=pending.pop()
@@ -172,10 +194,35 @@ class DataStore:
                 derived = {key for key, inputs in dependencies.items() if stale.intersection(inputs)}
                 if derived <= stale: break
                 stale.update(derived)
-            stale_runs = sorted({r['run_id'] for r in db.execute('SELECT run_id,fact_id FROM analysis_inputs') if r['fact_id'] in stale})
-            return {'path':str(self.path), 'schema_version':1, 'revision_counts':counts,
+            stale_runs = {r['run_id'] for r in db.execute('SELECT run_id,fact_id FROM analysis_inputs') if r['fact_id'] in stale}
+            for run in db.execute('SELECT * FROM analysis_runs'):
+                parameters=json.loads(run['parameters'])
+                if run['kind']!='journal':
+                    continue
+                accounts=parameters.get('accounts',[])
+                placeholders=','.join('?' for _ in accounts)
+                if not accounts:continue
+                # Compare current effective evidence with the pinned population.
+                # A global append watermark cannot represent a historical as-of
+                # selection or writes interleaved with reading multiple datasets.
+                current=now_ms()
+                new_fact=db.execute(f"""SELECT 1 FROM fact_revisions f
+                    WHERE f.scope IN ({placeholders}) AND f.dataset IN ('trade','cash')
+                    AND f.event_start_ms<=? AND f.known_ms<=?
+                    AND NOT EXISTS (SELECT 1 FROM fact_revisions newer
+                        WHERE newer.dataset=f.dataset AND newer.scope=f.scope
+                        AND newer.business_key=f.business_key AND newer.revision>f.revision
+                        AND newer.known_ms<=?)
+                    AND f.id NOT IN (SELECT fact_id FROM analysis_inputs WHERE run_id=?)
+                    LIMIT 1""",(*accounts,run['as_of_ms'],current,current,run['id'])).fetchone()
+                captured_coverage={r['id'] for r in json.loads(run['result']).get('coverage_evidence',[])}
+                new_coverage=any(r[0] not in captured_coverage for r in db.execute(f"SELECT id FROM dataset_coverage WHERE scope IN ({placeholders}) AND dataset IN ('trade','cash') AND requested_start_ms<=? AND observed_ms<=?",(*accounts,run['as_of_ms'],current)))
+                if new_fact or new_coverage:stale_runs.add(run['id'])
+            stale_runs=sorted(stale_runs)
+            return {'path':str(self.path), 'exists':True, 'schema_version':1, 'revision_counts':counts,
                     'accounts':[dict(r) for r in db.execute('SELECT id,venue,environment,label,parent_id FROM accounts')],
                     'coverage':[{**dict(r),'details':json.loads(r['details'])} for r in db.execute('SELECT * FROM dataset_coverage ORDER BY id DESC LIMIT 100')],
                     'jobs':[dict(r) for r in db.execute('SELECT id,interval_seconds,next_due_ms,last_attempt_ms,last_success_ms,last_reason FROM ingestion_jobs')],
+                    'worker_last_seen_ms':db.execute("SELECT max(finished_ms) FROM collection_runs WHERE job_id='worker-heartbeat'").fetchone()[0],
                     'stale_runs':stale_runs,
                     'bytes':self.path.stat().st_size}

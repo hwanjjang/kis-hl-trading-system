@@ -3,7 +3,7 @@ from datetime import datetime
 import json
 from zoneinfo import ZoneInfo
 from kis_hl.data_store import encode, now_ms
-from kis_hl.data_ingestion import ingest_rows, domestic_bundle
+from kis_hl.data_ingestion import ingest_rows, domestic_bundle, ingest_maturing_rows
 from kis_hl.journal_history import fetch_time_pages
 
 
@@ -48,21 +48,42 @@ def sync_account(store,venue,account,*,start_ms,end_ms=None,client=None,scope=No
             orders.extend(client.account_pages('domestic_history',date_from=start,date_to=end,older_history=older,page_observer=page)['output1'])
         # Same order may appear in overlapping recent/old retention routes.
         unique={encode([r.get('ord_dt'),r.get('pdno'),r.get('odno'),r.get('ord_gno_brno')]):r for r in orders}
-        summaries={}
+        domestic=[];overseas=[];problems=[];valid_days=[];summaries={}
+        # Isolate unresolved domestic day/symbol buckets and exchange pages.
         for day in profit['output1']:
-            data=client.account_pages('domestic_trade_profit',symbol=day['pdno'],date_from=day['trad_dt'],date_to=day['trad_dt'],page_observer=page)
-            if len(data['output2'])!=1:raise ValueError('Ambiguous daily cost summary')
-            summaries[day['trad_dt']+':'+day['pdno']]=data['output2'][0]
-        bundle={'days':profit['output1'],'orders':list(unique.values()),'costs_by_day_symbol':summaries,'source_observation_ids':list(observations)}
-        obs=observe('kis_domestic_bundle',bundle)
-        domestic=ingest_rows(store,aid,'statement',domestic_bundle(bundle),observation=obs)
-        overseas=[]
+            try:
+                data=client.account_pages('domestic_trade_profit',symbol=day['pdno'],date_from=day['trad_dt'],date_to=day['trad_dt'],page_observer=page)
+                if len(data['output2'])!=1:raise ValueError('Ambiguous daily cost summary')
+                bundle={'days':[day],'orders':list(unique.values()),
+                        'costs_by_day_symbol':{day['trad_dt']+':'+day['pdno']:data['output2'][0]},
+                        'source_observation_ids':list(observations)}
+                obs=observe('kis_domestic_bundle',bundle)
+                domestic_bundle(bundle)  # Validate this bucket before shared chronology.
+                valid_days.append(day);summaries.update(bundle['costs_by_day_symbol'])
+            except ValueError as exc:
+                problems.append({'market':'domestic','date':day['trad_dt'],'instrument':day['pdno'],'reason':str(exc)})
+        if valid_days:
+            bundle={'days':valid_days,'orders':list(unique.values()),'costs_by_day_symbol':summaries}
+            obs=observe('kis_domestic_bundle',bundle)
+            for row in domestic_bundle(bundle):
+                try:
+                    domestic.extend(ingest_maturing_rows(store,aid,'statement',[row],observation=obs))
+                except ValueError as exc:
+                    problems.append({'market':'domestic','instrument':row['instrument'],'reason':str(exc)})
         for exchange in ['NASD','NYSE','AMEX']:
-            data=client.account_pages('overseas_transactions',exchange=exchange,date_from=start,date_to=end,page_observer=page)
-            obs=observe('kis_overseas_trans',data)
-            overseas.extend(ingest_rows(store,aid,'kis_overseas_trans',data['output1'],observation=obs))
-        store.coverage('trade',aid,start_ms,end_ms+1,'partial',{'reason':'KIS DAY statements collected for domestic and US listings; exact chronology, other markets and retention require reconciliation'})
-        return {'account_id':aid,'domestic_trades':len(domestic),'overseas_trades':len(set(overseas)),'observations':len(observations),'collection_complete':True,'coverage_complete':False}
+            try:
+                data=client.account_pages('overseas_transactions',exchange=exchange,date_from=start,date_to=end,page_observer=page)
+                obs=observe('kis_overseas_trans',data)
+                overseas.extend(ingest_maturing_rows(store,aid,'kis_overseas_trans',data['output1'],observation=obs))
+            except ValueError as exc:
+                problems.append({'market':exchange,'reason':str(exc)})
+        store.coverage('trade',aid,start_ms,end_ms+1,'partial',{
+            'reason':'DAY statements require bounded source reconciliation for completeness',
+            'collection_complete':not problems,'quality_findings':problems})
+        return {'account_id':aid,'domestic_trades':len(domestic),'overseas_trades':len(set(overseas)),
+                'observations':len(observations),'collection_complete':not problems,
+                'coverage_complete':False,'quality_findings':problems}
+
     except Exception as exc:
         store.coverage('trade',aid,start_ms,end_ms+1,'failed',{'reason':type(exc).__name__,'observations':len(observations)})
         raise

@@ -21,6 +21,14 @@ def kis_ok(response):
     return response.body
 
 
+def require_mainnet(client, venue):
+    """Canonical public HL market collection is mainnet-only in this release."""
+    if venue!='hyperliquid':return
+    endpoint=getattr(getattr(client,'config',None),'base_url',None)
+    if endpoint is not None and endpoint.rstrip('/')!='https://api.hyperliquid.xyz':
+        raise ValueError('Canonical Hyperliquid market collection requires mainnet')
+
+
 def backfill(store, key, timeframe, client, *, years=10, end=None, start=None, start_ms=None, max_pages=256, delay_seconds=0.12):
     asset=instrument(key)
     if timeframe not in {'1w','1d','1m'}:raise ValueError('Supported stored bars: 1w, 1d, 1m')
@@ -32,6 +40,7 @@ def backfill(store, key, timeframe, client, *, years=10, end=None, start=None, s
         if timeframe!='1m' or type(start_ms) is not int or start_ms<0:raise ValueError('Incremental timestamp bound requires minute bars')
         a=start_ms
     if a>=b:raise ValueError('Reversed history range')
+    require_mainnet(client,asset.venue)
     observed=now_ms();ids=[];seen=set();labels=[];pages=0
     try:
         if asset.venue=='hyperliquid':
@@ -48,6 +57,31 @@ def backfill(store, key, timeframe, client, *, years=10, end=None, start=None, s
                     open=r['o'],high=r['h'],low=r['l'],close=r['c'],volume=r['v'],complete=end_ms<=observed),observation=obs))
                 labels.append(t)
             limitation='Hyperliquid retains only the latest 5000 candles per interval; listing history may be shorter.'
+        elif timeframe=='1m' and asset.market=='overseas':
+            cursor='';previous_oldest=None
+            while pages<max_pages:
+                response=client.overseas_intraday_chart(symbol=asset.symbol,exchange=asset.quote_exchange,cursor=cursor)
+                body=kis_ok(response);obs=capture(store,'kis','bars',response)
+                rows=body.get('output2',[]);pages+=1
+                if not rows:break
+                times=[]
+                for r in rows:
+                    dt=datetime.strptime(r['xymd']+r['xhms'],'%Y%m%d%H%M%S').replace(tzinfo=ZoneInfo(zone))
+                    t=int(dt.timestamp()*1000);times.append(dt)
+                    if t in seen or not a<=t<b:continue
+                    seen.add(t)
+                    bar=dict(event_start_ms=t,event_end_ms=t+60000,open=r['open'],high=r['high'],low=r['low'],close=r['last'],volume=r.get('evol'),complete=t+60000<=observed,source_date=r['xymd'],source_time=r['xhms'])
+                    ids.append(store_bar(store,key,'kis','1m',bar,observation=obs,calendar=zone));labels.append(t)
+                oldest=min(times)
+                if previous_oldest is not None and oldest>=previous_oldest:
+                    raise ValueError('KIS minute pagination did not progress')
+                if int(oldest.timestamp()*1000)<=a:break
+                more=body.get('output1',{}).get('next')
+                if more=='0':break
+                previous_oldest=oldest
+                cursor=(oldest-timedelta(minutes=1)).strftime('%Y%m%d%H%M%S')
+                time.sleep(delay_seconds)
+            limitation='Available overseas minute pages only; older sessions and exchange-calendar completeness require independent evidence.'
         elif timeframe=='1m':
             if asset.market!='domestic':raise ValueError('KIS minute backfill is not available for this route')
             # This endpoint provides current-day bars only. Historical request stays partial.
@@ -94,7 +128,7 @@ def backfill(store, key, timeframe, client, *, years=10, end=None, start=None, s
                     else:keys=['stck_oprc','stck_hgpr','stck_lwpr','stck_clpr','acml_vol']
                     bar={k:r.get(v) for k,v in zip(['open','high','low','close','volume'],keys)}
                     bar.update(event_start_ms=t,event_end_ms=stop,complete=stop<=observed,source_date=day.isoformat())
-                    ids.append(store_bar(store,key,'kis',timeframe,bar,observation=obs,adjustment='provider_adjusted' if 'index' not in asset.market else 'index',calendar=zone));labels.append(t)
+                    ids.append(store_bar(store,key,'kis',timeframe,bar,observation=obs,adjustment='provider_adjusted' if 'index' not in asset.market else 'raw',price_basis='index' if 'index' in asset.market else 'trade',calendar=zone));labels.append(t)
                 if not dates or min(dates)>cursor:raise ValueError('KIS candle pagination did not progress')
                 next_cursor=min(dates)-timedelta(days=1)
                 if next_cursor>=cursor:raise ValueError('KIS candle cursor repeated')
@@ -129,6 +163,7 @@ def backfill(store, key, timeframe, client, *, years=10, end=None, start=None, s
 
 def snapshot(store,key,client,*,kind='book'):
     asset=instrument(key);t=now_ms();provider=asset.venue
+    require_mainnet(client,provider)
     if provider=='hyperliquid':
         symbol=asset.symbol if asset.symbol.startswith('xyz:') else asset.symbol+'-PERP'
         if kind=='funding':
@@ -154,7 +189,11 @@ def snapshot(store,key,client,*,kind='book'):
             p=dict(instrument=key,event_start_ms=t,event_end_ms=t+1,received_ms=t,price=number(price),time_precision='RECEIVE_TIME',price_basis='last')
         else:
             response=client.order_book(market=asset.market,symbol=asset.symbol,exchange=asset.quote_exchange)
-            body=kis_ok(response);obs=capture(store,provider,kind,response);r=body.get('output1',body.get('output',{}))
-            p=dict(instrument=key,event_start_ms=t,event_end_ms=t+1,received_ms=t,bid=number(r.get('bidp1',r.get('pbid1'))),ask=number(r.get('askp1',r.get('pask1'))),time_precision='RECEIVE_TIME',price_basis='top_of_book')
+            body=kis_ok(response);obs=capture(store,provider,kind,response)
+            r=body['output2'] if asset.market=='overseas' else body.get('output1',body.get('output',{}))
+            p=dict(instrument=key,event_start_ms=t,event_end_ms=t+1,received_ms=t,bid=number(r.get('bidp1',r.get('pbid1'))),ask=number(r.get('askp1',r.get('pask1'))),time_precision='RECEIVE_TIME',price_basis='top_of_book',
+                bid_size=None if r.get('bidp_rsqn1',r.get('vbid1')) is None else number(r.get('bidp_rsqn1',r.get('vbid1'))),
+                ask_size=None if r.get('askp_rsqn1',r.get('vask1')) is None else number(r.get('askp_rsqn1',r.get('vask1'))),
+                source_clock={k:v for k,v in (body.get('output1',{}) if asset.market=='overseas' else r).items() if k in {'zdate','ztime','xymd','xhms','aspr_acpt_hour'}})
     store.fact(kind,provider,encode([key,t]),p,observation=obs)
     return {'stored':1,'instrument':key,'kind':kind}

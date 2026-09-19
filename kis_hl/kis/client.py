@@ -147,6 +147,15 @@ class KisClient:
             tr_id='FHKST03010200', query={'FID_COND_MRKT_DIV_CODE':'J','FID_INPUT_ISCD':symbol,
                 'FID_INPUT_HOUR_1':hour,'FID_PW_DATA_INCU_YN':'N','FID_ETC_CLS_CODE':''})
 
+    def overseas_intraday_chart(self, *, symbol: str, exchange: str, cursor: str = '') -> KisHttpResponse:
+        """One page of local-time minute bars; KEYB is prior oldest minute minus one."""
+        if cursor and (len(cursor)!=14 or not cursor.isdigit()):
+            raise ValueError('Minute cursor must be YYYYMMDDHHMMSS')
+        return self._request_with_auth('GET', '/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice',
+            tr_id='HHDFS76950200', query={'AUTH':'','EXCD':exchange,'SYMB':symbol,
+                'NMIN':'1','PINC':'1','NEXT':'1' if cursor else '',
+                'NREC':'120','FILL':'','KEYB':cursor})
+
     def domestic_chart(self, *, symbol: str, date_from: str, date_to: str,
                        index: bool = False, adjusted: bool = True, period: str = 'D') -> KisHttpResponse:
         if period not in {'D', 'W', 'M', 'Y'}: raise ValueError('Invalid chart period')

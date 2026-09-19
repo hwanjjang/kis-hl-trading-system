@@ -165,7 +165,7 @@ adjustment, price basis and native/derived variant distinguish series; corrected
 bars append revisions. Incomplete current bars stay out of completed-bar analysis.
 
 KIS domestic minute history is limited to the current-day endpoint. KIS overseas
-minute history is explicitly unavailable in this release. HL retains the latest
+minute history uses bounded local-time pages; available retention remains partial. HL retains the latest
 5000 candles for each interval. Those limits mean a 30-day minute or ten-year
 weekly request may remain partial. Equity native session completeness is not
 independently certified; raw source dates and missing-week candidates remain
@@ -252,3 +252,99 @@ overlap; the first run requests the latest 30 minutes. Failed runs preserve the
 previous successful cursor. Explicit `market backfill --timeframe 1m` retains its
 30-calendar-day request target. Instrument-local dates bound KIS requests, so a
 Korean session after UTC midnight rollover is not clipped by the host timezone.
+
+
+## Review correction workflows
+
+`data status` and `data migrate` without `--apply` use read-only schema discovery.
+They never create a missing database or apply schema changes. Explicit write
+commands still initialize the additive schema when needed; `data migrate --apply`
+is the dedicated initialization command. Preview checks the migration checksum.
+The v1 DDL and historical checksums are unchanged.
+
+KIS recurring account reads use a configurable `overlap_ms` (default one day)
+before the last successful attempt. The initial run starts at `start_ms`. Configure
+a second account job with `history_audit: true` and its own interval to replay the
+older configured range. Its last_success_ms is the last successful audit time.
+Partial collection does not advance the successful cursor. `worker_last_seen_ms`
+is refreshed by each polling pass; a configured job is not proof of a running
+worker. A blocked network request can age the heartbeat. No worker is installed or
+started by these corrections.
+
+KIS source snapshots with reconciled amounts may increase quantity/notional or
+update settled fees. Earlier observations and fact revisions remain readable.
+Decreases, incompatible representations and ambiguous repeated source rows require
+explicit corrections. Domestic multiple-order buckets retain a day/side aggregate
+and total fees with `shared_order_cost_allocation`; individual returns remain
+pending. Valid other groups and US markets continue. Explicit import corrections
+must be based on source evidence, not chosen to make a report look complete.
+
+Canonical Hyperliquid public market collection is mainnet-only. Testnet/custom
+endpoints are rejected before source capture; account sync retains its separate
+network identity. Existing market rows with unknown network provenance are not
+certified mainnet retroactively. Recollect from a verified source where provenance
+matters. Index charts now require `price_basis: "index"`, `adjustment: "raw"` in
+analysis specifications. Old mislabeled series remain historical evidence and are
+not rewritten; recollect the correct series. New current analyses reject derived
+bars with superseded daily inputs; rebuild the weekly variant first.
+
+### Bounded independent-statement reconciliation
+
+API pagination alone does not prove lifetime completeness. Obtain an independent
+complete broker/exchange statement for a bounded half-open interval. Normalize its
+rows to the documented adapter contract, preserve the original source externally,
+and create a JSON document like this sanitized example:
+
+```json
+{
+  "schema_version": 1,
+  "source": "Broker statement export and normalization reference",
+  "complete": true,
+  "account": {"venue": "kis", "environment": "live", "native_id": "ACCOUNT"},
+  "dataset": "trade",
+  "start_ms": 0,
+  "end_ms": 100,
+  "parser": "statement",
+  "rows": [],
+  "opening_inventory": {},
+  "closing_inventory": {}
+}
+```
+
+Replace the example account, period, rows and inventories with actual evidence.
+Rows use `statement`, `kis_overseas_trans` or `hl_fills` for trade; `hl_funding`
+for cash. All records must lie fully within the interval and match the existing
+canonical economic population, including provider-reported realized PnL, both-side fees or funding. Trade sources
+must include opening and closing quantities for every represented instrument.
+A source-backed flat opening quantity may anchor the first unambiguous event;
+nonzero starting inventory still needs basis evidence and stays pending. A period
+with no funding can be certified only from an independently complete empty funding
+statement, never from an empty API response alone.
+
+```bash
+python3 -m kis_hl.cli data reconcile --statement data/statement.json --sha256 SOURCE_SHA256
+python3 -m kis_hl.cli data reconcile --statement data/statement.json --sha256 SOURCE_SHA256 --apply
+python3 -m kis_hl.cli data journal --accounts ACCOUNT_ID
+```
+
+The SHA-256 binds the supplied bytes; it does not authenticate the broker or prove
+the operator's completeness declaration. Do not use a journal from this database
+as independent evidence. Preview does not write. Apply repeats the checks in one
+short SQLite transaction, retains source bytes and links coverage to exact fact
+IDs. Corrections or newly discovered facts invalidate the certified population.
+Late historical evidence flags affected reports for regeneration; prior exports
+stay immutable. The original manifest coverage path remains a trusted operator
+assertion for compatibility; prefer reconciliation for evidence-linked coverage.
+
+For implemented versus outstanding broader-design acceptance, see
+[the release acceptance ledger](unified-data-acceptance.md). Live transport,
+account entitlements and historical depth were not exercised by the offline tests.
+
+
+A recovered Hyperliquid gap segment records `invalidated_end_ms` at the new
+source-backed flat anchor and remains PENDING, with no fabricated close execution.
+Funding after that boundary belongs only to the recovered exposure. Summary
+`unresolved_segments` is separate from currently open cycles. Journal freshness compares the current effective evidence population with
+pinned inputs, so concurrent arrivals still trigger regeneration even if they
+arrive while a historical as-of report is being calculated. Superseded old
+revisions do not falsely invalidate a fresh report.

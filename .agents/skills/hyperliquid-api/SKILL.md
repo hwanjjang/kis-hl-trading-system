@@ -227,3 +227,10 @@ The 2026-09-13 BTC native 1w probe returned Thursday UTC boundaries (for example
 2019-08-29 to 2019-09-05), not ISO Monday weeks. Canonical gap checks derive and
 validate the anchor from returned timestamps; they do not re-label native candles
 as derived ISO weeks. Reverify the actual interval if provider behavior changes.
+
+
+Canonical public market collection currently accepts only the official mainnet
+endpoint. Testnet/custom endpoints are rejected before collecting bars, quotes,
+books or funding so they cannot replace a mainnet series. Account histories remain
+separated by their existing environment/account identity. Old market observations
+without verified endpoint provenance are not relabeled or certified by this guard.

@@ -1,0 +1,3 @@
+# Independent verification iteration 4: failure checkpoint
+
+Verifier /root/codex_full_review_1 confirmed the three original probes corrected, then reproduced another IV3-F3 boundary: funding commits after journal as-of capture but before initial max-ID query, so absent facts are already below the watermark. Old net 10, new net 8, stale_runs empty. Actual verifier probe/output and parent reproduction are retained. Candidate 3dcf4d72. Parent accepts this finding and re-enters build; verifier final narrative will be archived separately when delivered. This is an independent execution result, not a PR-review claim.

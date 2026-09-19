@@ -1,0 +1,194 @@
+{
+  "kind": "independent_implementation_acceptance_revalidation",
+  "iteration": 5,
+  "verdict": "PASS",
+  "scope": "Bounded corrected implementation acceptance only; not PR review PASS, cross-provider gate, overall design completion or merge approval.",
+  "candidate": {
+    "candidate": "sha256:2c84a50ec7b666d04657e4679a86c8a633940829857f6a6894ca2af21ea4835d",
+    "base_head": "6d66b85971b7dfd5c2c7fef2ab2500cf4659f15e",
+    "files": {
+      ".agents/skills/hyperliquid-api/SKILL.md": "ab3db42b890172ff1ff403e035283df4bfeac73316a4c85c7bfa81e32f05bf44",
+      ".agents/skills/kis-open-api/SKILL.md": "43b36f2aa53fd471cd2256b962404b26576dd5fc89c880c94c97d023c02e5b67",
+      ".agents/skills/kis-open-api/references/endpoints.md": "18b7f80ac9c041eb4be332a7fbe503c2a09166f7192c8007e64e98370f7fc959",
+      ".agents/skills/trade-journal/references/record-contract.md": "c4faa3ca831cf57800dfe85b45ca6ad3bd1a13dd143b6eb6dd5db83153464a03",
+      "README.md": "6c59120622d9f47ff45edf040fd1003a92d6c3065e77e83ad6afe7c7ed5f1164",
+      "docs/unified-data-acceptance.md": "4c5316ff6753a13a340c0bdd58fd15dceeae3b37a8164d2488c8ddc4add7aff9",
+      "docs/unified-data-operations.md": "54876f78660957e9dff8c5d22c2d9acc42a7b0f9c0eecd9a6a9a59f6914f50d5",
+      "kis_hl/analysis_store.py": "342dbe55b3df851ce7a80834bb478391b5d9d6d8cbb499742f5b9c18cac72207",
+      "kis_hl/data_account_sync.py": "511871da4efce503351e1613b2442e37a17677f308423a9fcd849232f5e8f3a1",
+      "kis_hl/data_cli.py": "bfbcb04b1ab1afb4053bb9ef2a0451a8f0549775c075531b9fe00837b4d49171",
+      "kis_hl/data_import.py": "21f489ecab489e6e71c5af42d4cba154cdf0c047886682b726592dd6a446f883",
+      "kis_hl/data_ingestion.py": "18e76dbdf1875dc9f241b2e652a916c000b4eefa0c1458ff309bef82563eab71",
+      "kis_hl/data_jobs.py": "c29533ec010428aba7e647ef35233a4a4e1b032f1fdba2f537bf58b76c61971c",
+      "kis_hl/data_migrations.py": "830a7834fb2b13cafba807253f99c843d1c30553b8cd22e573023f1f0a8450b3",
+      "kis_hl/data_reconciliation.py": "89651de5d2cd2ff0c554d8cc4d1ddbac19a886c56fea5a77ad9669036b36ec72",
+      "kis_hl/data_store.py": "068ed2febf47b6147c1d2b169f470c3bf7c5e078a7a74ed99644d3df5a59c803",
+      "kis_hl/journal_exports.py": "b588421d9d0cfca09d4ae25a98ba726fcba8973b7cbd79554b825b5f139d79a7",
+      "kis_hl/kis/client.py": "698ce329b423016693cdd3374ca7c92a0a0791772227f1a1e276d1f21b2cdee4",
+      "kis_hl/market_ingestion.py": "d1ca5a07d5081f0dfd58d11a8068280c1205c29a297df9bcde0d0731fdb299d8",
+      "scripts/smoke_review_corrections.py": "de906644b63f2b3087484a868a7f20e4d22b38f8e5bef041e74ecbd5ea32ff79",
+      "tests/test_kis_client.py": "8b7cda89a5e3cb729c2567e00d8a5af2d71c3afdbcf8d729b2ca41b22a4de376",
+      "tests/test_review_corrections.py": "48f3adfecd9c028fb403bf9bdc19b523a9a6b7133efd192da455dbff4e43435c"
+    }
+  },
+  "identity": {
+    "agent": "/root/codex_full_review_1",
+    "role": "distinct non-builder",
+    "provider": "OpenAI",
+    "model": "Codex based on GPT-6; exact backend ID and reasoning effort not independently surfaced",
+    "mode": "Default tool-enabled, product read-only"
+  },
+  "consumed_inputs": [
+    ".planning/revalidation-3.md",
+    ".planning/candidate.json",
+    "updated data_store.py and journal_exports.py plus changed tests/docs",
+    "retained independent iteration 3 and 4 probes",
+    "unchanged previously inspected corrected modules, validated by file hashes"
+  ],
+  "checks": [
+    {
+      "command": "SHA256 verification before and after checks",
+      "result": "All 22 candidate file hashes match; no product modifications"
+    },
+    {
+      "command": "python3 -m unittest discover -s tests -t . -q",
+      "result": "350 tests passed in 20.432 seconds",
+      "artifact": ".planning/revalidation3-tests.txt"
+    },
+    {
+      "command": "python3 scripts/smoke_review_corrections.py",
+      "result": {
+        "status": "passed",
+        "cli_processes": 12,
+        "network": false,
+        "private_data": false,
+        "preview_read_only": true,
+        "net_pnl": "8",
+        "immutable_export": true,
+        "backup_restore": true,
+        "cleanup": true
+      }
+    },
+    {
+      "command": "python3 scripts/smoke_canonical_inventory.py",
+      "result": {
+        "status": "passed",
+        "cli_processes": 7,
+        "raw_facts": 7,
+        "finalized_cycles": 1,
+        "invalid_returns_excluded": true,
+        "fees_preserved": true,
+        "immutable_export": true,
+        "cleanup": true
+      }
+    },
+    {
+      "command": "PYTHONPATH=. python3 .planning/revalidation_probes.py",
+      "result": "Authoritative PnL discrepancy rejected, recovered funding cycle finalized, append-before-pin old report stale",
+      "artifact": ".planning/revalidation3-probes.txt"
+    },
+    {
+      "command": "PYTHONPATH=. python3 .planning/read_boundary_probe.py",
+      "result": {
+        "old_report_id": 1,
+        "before_net": "10",
+        "after_net": "8",
+        "stale_runs": [
+          1
+        ]
+      }
+    },
+    {
+      "command": "PYTHONPATH=. python3 .planning/freshness_boundaries.py",
+      "result": {
+        "unrelated_account_and_future_event_excluded": true,
+        "late_coverage_detected": true,
+        "captured_coverage_not_false_stale": true,
+        "old_revision_stale_new_revision_fresh": true,
+        "legacy_watermark_values_ignored": true
+      }
+    },
+    {
+      "command": "PYTHONPATH=. python3 .planning/positive_probes.py",
+      "result": {
+        "missing_previews": "PASS",
+        "existing_status_no_db_mutation": "PASS",
+        "idle_worker_heartbeat": "PASS",
+        "endpoint_rejection_before_request": "PASS",
+        "historical_asof_preserved_current_dependency_rejected": "PASS"
+      }
+    }
+  ],
+  "resolutions": [
+    {
+      "id": "IV3-F1",
+      "status": "RESOLVED",
+      "evidence": "Source authoritative gross PnL differs (10 versus 999): reconcile rejects before coverage certification; canonical report remains PENDING."
+    },
+    {
+      "id": "IV3-F2",
+      "status": "RESOLVED",
+      "evidence": "Abandoned invalid segment remains PENDING, closed_ms null, funding after zero anchor no longer shared; later supported cycle FINALIZED."
+    },
+    {
+      "id": "IV3-F3 / IV4-F1",
+      "status": "RESOLVED",
+      "evidence": "Both deterministic append interleavings now show stale_runs=[1], with old net 10/current net 8; fresh rebuilt reports remain fresh. Watermark timing dependency removed."
+    }
+  ],
+  "acceptance": [
+    {
+      "requirement": "Both collector/report interleavings",
+      "status": "PASS",
+      "evidence": "Independent original pre-pin and first-read-boundary probes"
+    },
+    {
+      "requirement": "Historical as-of and current projection freshness",
+      "status": "PASS",
+      "evidence": "Old knowledge snapshot preserved, late current evidence marks old run stale; derived historical inputs preserved/current obsolete dependencies rejected"
+    },
+    {
+      "requirement": "Effective revision population versus obsolete rows",
+      "status": "PASS",
+      "evidence": "Independent corrected revision probe marks previous run stale and keeps rebuilt latest run fresh"
+    },
+    {
+      "requirement": "Coverage and account/event scope",
+      "status": "PASS",
+      "evidence": "Late coverage flags old run; captured coverage does not; unrelated account/future event excluded"
+    },
+    {
+      "requirement": "Legacy reports with no/obsolete watermarks",
+      "status": "PASS",
+      "evidence": "Full regression for missing watermark; independent huge legacy watermark fields do not bypass population comparison"
+    },
+    {
+      "requirement": "PnL reconciliation and atomic failure",
+      "status": "PASS",
+      "evidence": "Independent mismatch probe and full rollback regression"
+    },
+    {
+      "requirement": "Recovery funding boundary and immutable invalid segment",
+      "status": "PASS",
+      "evidence": "Independent funded recovery probe plus both inventory/regression tests"
+    },
+    {
+      "requirement": "Other accepted correction behaviors",
+      "status": "PASS",
+      "evidence": "Prior unchanged-file inspection retained; complete suite rerun covers statement costs, quantity/duplicates, KIS maturation/grouped pending, scoped reads, book/index/minute/network guard, jobs, schema, metrics and reconciliation"
+    },
+    {
+      "requirement": "Operational preservation",
+      "status": "PASS",
+      "evidence": "19 real CLI processes across correction and inventory smokes; independent preview/status, heartbeat/network checks"
+    }
+  ],
+  "findings": [],
+  "limitations": [
+    "No live/account API requests, credentials/private data or product edits.",
+    "Offline synthetic verification does not certify broker entitlement, historical retention/depth or live exchange execution.",
+    "Concurrency cases use deterministic interleavings rather than production-load stress; no claim of a transactionally frozen global read snapshot.",
+    "Broader outstanding accepted-design items remain tracked separately; the PR-review counter and merge authority are outside this result.",
+    "Prior immutable exports remain authoritative as historical knowledge snapshots; staleness only signals current reconstruction changes."
+  ]
+}

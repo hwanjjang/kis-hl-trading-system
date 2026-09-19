@@ -18,6 +18,13 @@ def run_due(store, execute, *, clock=None):
     outcomes=[]
     # The lock covers network time, but SQLite transactions never do.
     with account_lock('data-jobs',str(store.path)):
+        with store.connect() as db:
+            # A dedicated row records liveness even when no jobs are due.
+            heartbeat=db.execute("SELECT id FROM collection_runs WHERE job_id='worker-heartbeat' ORDER BY id DESC LIMIT 1").fetchone()
+            if heartbeat:
+                db.execute('UPDATE collection_runs SET finished_ms=? WHERE id=?',(timestamp,heartbeat[0]))
+            else:
+                db.execute("INSERT INTO collection_runs(job_id,started_ms,finished_ms,status,details) VALUES('worker-heartbeat',?,?, 'heartbeat','{}')",(timestamp,timestamp))
         with store.connect() as db:jobs=[dict(r) for r in db.execute('SELECT * FROM ingestion_jobs WHERE next_due_ms<=? ORDER BY id',(timestamp,))]
         for job in jobs:
             with store.connect() as db:
@@ -26,7 +33,9 @@ def run_due(store, execute, *, clock=None):
             try:
                 config=json.loads(job['config'])
                 config['_last_success_ms']=job['last_success_ms']
-                result=execute(config);status='success';reason=''
+                result=execute(config)
+                status='partial' if result.get('collection_complete') is False else 'success'
+                reason='Unresolved collection evidence' if status=='partial' else ''
             except Exception as exc:
                 result={'error_type':type(exc).__name__};status='failed';reason=type(exc).__name__
             with store.connect() as db:

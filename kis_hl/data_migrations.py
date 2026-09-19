@@ -31,3 +31,24 @@ def migrate(db):
             db.execute(statement)
         db.execute("INSERT INTO schema_migrations VALUES(1,?,CAST(strftime('%s','now') AS INTEGER)*1000)", (checksum,))
     db.commit()
+
+
+def inspect_schema(path):
+    """Discover and validate schema using a read-only connection; never create it."""
+    from pathlib import Path
+    import sqlite3
+    path=Path(path).expanduser().resolve()
+    result={'path':str(path),'exists':path.exists(),'schema_version':0,
+            'pending_versions':[1],'apply':False,'preserves_legacy_tables':True}
+    if not path.exists():return result
+    db=sqlite3.connect(path.as_uri()+'?mode=ro',uri=True)
+    try:
+        tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        result['tables']=sorted(tables)
+        if 'schema_migrations' in tables:
+            rows=db.execute('SELECT version,checksum FROM schema_migrations').fetchall()
+            checksum=hashlib.sha256('\n'.join(DDL).encode()).hexdigest()
+            if any(v!=1 or c!=checksum for v,c in rows):raise ValueError('Unsupported or changed canonical schema migration')
+            if rows:result.update(schema_version=1,pending_versions=[])
+    finally:db.close()
+    return result

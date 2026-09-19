@@ -360,6 +360,7 @@ python3 -m kis_hl.cli data journal --accounts ACCOUNT_ID
 ```
 
 See [unified data operations](docs/unified-data-operations.md) for manifest import,
+bounded independent-statement reconciliation (`data reconcile`),
 cost/funding rules, market coverage, jobs (account default: 10800 seconds),
 exports, analysis and backup/restore. Weekly history targets ten calendar years;
 actual provider/listing coverage may be shorter. Jobs require a running collector.

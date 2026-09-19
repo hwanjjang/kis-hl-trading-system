@@ -113,3 +113,28 @@ See `endpoint-inventory.md` for the remaining ~300 endpoints.
 - Canonical KIS normalization uses daily symbol-scoped buy/sell cost summaries and reconciled order quantities; overseas transaction currency and both-side settlement charges are authoritative. No exact fill times are inferred.
 
 Verified against the official generated [domestic chart](https://github.com/koreainvestment/open-trading-api/tree/main/examples_llm/domestic_stock/inquire_daily_itemchartprice), [overseas chart](https://github.com/koreainvestment/open-trading-api/tree/main/examples_llm/overseas_stock/dailyprice), [domestic trade profit](https://github.com/koreainvestment/open-trading-api/tree/main/examples_llm/domestic_stock/inquire_period_trade_profit), and [overseas transactions](https://github.com/koreainvestment/open-trading-api/tree/main/examples_llm/overseas_stock/inquire_period_trans) samples.
+
+
+## Canonical review corrections (2026-09-19)
+
+- `overseas_intraday_chart(symbol, exchange, cursor='')` wraps
+  `/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice`, TR
+  `HHDFS76950200`. NMIN=1, PINC=1, NREC=120; NEXT is empty initially and 1
+  with KEYB on continuation. KEYB is the oldest returned local minute minus one
+  minute. The collector caps pages and rejects non-progress; it never promises
+  a particular historical depth. output2 contains xymd/xhms, open/high/low/last,
+  evol. US bars use America/New_York; dates are not interpreted as UTC or KST.
+- Overseas book output1 holds identity/clocks; output2 holds pbid1/pask1 and
+  vbid1/vask1. Preserve both source clocks and receive time.
+- Daily index bars use price_basis=index and adjustment=raw. Do not reuse legacy
+  index rows mislabeled trade; recollect using the explicit index variant.
+- Identical daily rows repeated inside one observation are ambiguous, not proof
+  of one execution. Replay of a unique row across observations stays idempotent.
+- Validated day aggregates can mature monotonically; decreasing quantities or
+  notional require explicit source correction. Multi-order fee groups remain
+  grouped/pending, while unrelated account datasets continue collecting.
+
+Verified against the [official overseas minute sample](https://raw.githubusercontent.com/koreainvestment/open-trading-api/main/examples_llm/overseas_stock/inquire_time_itemchartprice/inquire_time_itemchartprice.py)
+and [response fields](https://raw.githubusercontent.com/koreainvestment/open-trading-api/main/examples_llm/overseas_stock/inquire_time_itemchartprice/chk_inquire_time_itemchartprice.py).
+Transport contracts are covered by tests/test_kis_client.py; operational source
+reconciliation is specified in docs/unified-data-operations.md.
