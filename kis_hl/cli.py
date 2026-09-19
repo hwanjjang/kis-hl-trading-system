@@ -79,6 +79,7 @@ from kis_hl.storage import (
     seed_trade_xyz_reference_mappings,
     seed_trade_xyz_kis_mappings,
     seed_trade_xyz_assets,
+    deactivate_protective_orders,
     store_market_payload,
     store_order_event,
     store_order_submission,
@@ -901,7 +902,8 @@ def cmd_binance_stop(args: argparse.Namespace) -> dict[str, Any]:
 
 def cmd_binance_cancel(args: argparse.Namespace) -> dict[str, Any]:
     client = BinanceTradingClient(load_binance_config())
-    if args.algo_id is not None or args.client_algo_id:
+    is_algo = args.algo_id is not None or bool(args.client_algo_id)
+    if is_algo:
         submission = client.cancel_algo_order(
             symbol=args.symbol,
             algo_id=args.algo_id,
@@ -918,6 +920,15 @@ def cmd_binance_cancel(args: argparse.Namespace) -> dict[str, Any]:
     result = binance_submission_to_dict(submission)
     if not args.no_store:
         result["stored_id"] = _store_binance_submission(args.db, submission, result)
+        # Only a confirmed live cancel changes local protective-order state; dry-run, rejected,
+        # and unknown outcomes leave it untouched.
+        if is_algo and not submission.dry_run and submission.status == "submitted":
+            result["deactivated_protective_order_ids"] = deactivate_protective_orders(
+                args.db,
+                venue=BINANCE_SOURCE,
+                order_id=str(args.algo_id) if args.algo_id is not None else None,
+                client_request_id=args.client_algo_id,
+            )
     return result
 
 

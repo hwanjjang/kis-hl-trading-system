@@ -1140,6 +1140,35 @@ class BinanceOrderCliTests(unittest.TestCase):
                 row = conn.execute("SELECT order_type, side, status FROM order_submissions").fetchone()
             self.assertEqual(row, ("cancel-algo", "n/a", "dry_run"))
 
+    def test_binance_cancel_algo_live_success_deactivates_protective_order(self) -> None:
+        from kis_hl.binance.trading import BinanceOrderSubmission
+        from kis_hl.storage import list_protective_orders, store_protective_order
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "t.sqlite")
+            for order_id, client_id in (("2146760", "kh-algo-a"), ("999", "kh-algo-b")):
+                store_protective_order(
+                    db, venue="binance", symbol="BTCUSDT", resolved_symbol="BTCUSDT", side="SELL", order_type="STOP_MARKET",
+                    trigger_price="60000.00", covered_size="position", order_id=order_id, client_request_id=client_id,
+                    source_order_submission_id=None, dry_run=False, active=True, status="submitted", response={}, submitted_at_ms=1,
+                )
+            ack = {"algoId": 2146760, "clientAlgoId": "kh-algo-a", "code": "200", "msg": "success"}
+
+            class FakeTradingClient:
+                def __init__(self, _config: object) -> None: ...
+
+                def cancel_algo_order(self, *, symbol: str, algo_id=None, client_algo_id=None, dry_run=True):
+                    request = {"path": "/fapi/v1/algoOrder", "method": "DELETE", "symbol": symbol, "params": {"algoId": algo_id}}
+                    return BinanceOrderSubmission("submitted", False, symbol, request, ack)
+
+            with patch("kis_hl.cli.BinanceTradingClient", FakeTradingClient):
+                exit_code, payload = self._run(["--db", db, "binance-cancel", "--symbol", "BTCUSDT", "--algo-id", "2146760", "--live"])
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["deactivated_protective_order_ids"], [1])
+            rows = {r["order_id"]: (r["active"], r["status"]) for r in list_protective_orders(db)}
+            self.assertEqual(rows["2146760"], (False, "canceled"))
+            self.assertEqual(rows["999"], (True, "submitted"))
+
     def test_binance_cancel_dry_run_stores_row(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             db = str(Path(tmp) / "t.sqlite")

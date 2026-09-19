@@ -795,6 +795,40 @@ def store_protective_order(
         return int(cur.lastrowid)
 
 
+def deactivate_protective_orders(
+    db_path: str | Path,
+    *,
+    venue: str,
+    order_id: str | None = None,
+    client_request_id: str | None = None,
+    status: str = "canceled",
+) -> list[int]:
+    """Mark active protective orders matching an exchange id or client id as inactive."""
+    if order_id is None and not client_request_id:
+        raise ValueError("deactivate_protective_orders requires order_id or client_request_id")
+    init_db(db_path)
+    clauses = ["venue = ?", "active = 1"]
+    params: list[Any] = [venue]
+    matches: list[str] = []
+    if order_id is not None:
+        matches.append("order_id = ?")
+        params.append(str(order_id))
+    if client_request_id:
+        matches.append("client_request_id = ?")
+        params.append(client_request_id)
+    clauses.append("(" + " OR ".join(matches) + ")")
+    where = " AND ".join(clauses)
+    with closing(sqlite3.connect(db_path)) as conn:
+        ids = [int(row[0]) for row in conn.execute(f"SELECT id FROM protective_orders WHERE {where}", params).fetchall()]
+        if ids:
+            conn.execute(
+                f"UPDATE protective_orders SET active = 0, status = ? WHERE id IN ({','.join('?' * len(ids))})",
+                [status, *ids],
+            )
+            conn.commit()
+    return ids
+
+
 def list_protective_orders(
     db_path: str | Path,
     *,
