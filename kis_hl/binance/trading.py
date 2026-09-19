@@ -22,7 +22,9 @@ ALGO_ORDER_PATH = "/fapi/v1/algoOrder"
 POSITION_MODE_PATH = "/fapi/v1/positionSide/dual"
 # Outcomes Binance documents as "may have executed": 5xx, HTTP 408, code -1007 (timeout waiting for
 # the backend, execution status unknown), and the generic "Unknown error" wording.
-UNKNOWN_OUTCOME_RE = re.compile(r"HTTP (?:5\d\d|408)\b|\b-1007/|Unknown error|status unknown", re.IGNORECASE)
+# The message format is "Binance request failed: HTTP <status> <code>/<msg>", so the code is
+# matched as " -1007/" (no word boundary: space and '-' are both non-word characters).
+UNKNOWN_OUTCOME_RE = re.compile(r"HTTP (?:5\d\d|408)\b|\s-1007/|Unknown error|status unknown", re.IGNORECASE)
 
 SIDES = ("BUY", "SELL")
 ENTRY_TYPES = ("MARKET", "LIMIT")

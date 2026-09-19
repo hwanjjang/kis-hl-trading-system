@@ -519,6 +519,7 @@ class UnknownOutcomeCodeTests(unittest.TestCase):
         for status, body in (
             (408, json.dumps({"code": -1007, "msg": "Timeout waiting for response from backend server. Send status unknown; execution status unknown."})),
             (400, json.dumps({"code": -1007, "msg": "execution status unknown"})),
+            (400, json.dumps({"code": -1007, "msg": "Timeout waiting for response from backend server."})),
         ):
             client = self._client_with_order_error(status, body)
             submission = client.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, dry_run=False)
