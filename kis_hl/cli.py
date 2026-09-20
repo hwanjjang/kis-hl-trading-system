@@ -940,6 +940,9 @@ def cmd_binance_cancel(args: argparse.Namespace) -> dict[str, Any]:
                 venue=BINANCE_SOURCE,
                 order_id=str(confirmed_algo_id) if confirmed_algo_id is not None else None,
                 client_request_id=confirmed_client_id if confirmed_algo_id is None else None,
+                symbol=submission.symbol,
+                base_url=submission.request.get("base_url"),
+                key_profile=submission.request.get("key_profile"),
             )
     return result
 

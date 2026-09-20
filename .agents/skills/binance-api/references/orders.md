@@ -65,7 +65,7 @@ through `DELETE /fapi/v1/algoOrder` instead.
 |---|---|---|
 | 2xx | `submitted` | fills arrive on the user stream |
 | 4xx with Binance code | `rejected` | fix the request; nothing was placed |
-| 5xx, HTTP 408, code `-1007`, `Unknown error`, timeout after send | `unknown` → looked up once by `newClientOrderId` / `clientAlgoId`; found → `submitted` (`request.outcome = reconciled_after_unknown`) | if still `unknown`, query the order or watch the user stream before any retry |
+| 5xx, HTTP 408, code `-1007`, `Unknown error`, timeout after send | `unknown` → looked up once by client id or exchange id; a live order → `submitted` (`reconciled_after_unknown`), a terminal order with fills → `submitted` (`reconciled_partial_fill`), a terminal order without fills → `rejected` (`reconciled_terminal`), a confirmed cancel → `submitted` (`reconciled_cancel`) | if still `unknown`, query the order or watch the user stream before any retry |
 
 ## `GET /fapi/v1/positionSide/dual`
 

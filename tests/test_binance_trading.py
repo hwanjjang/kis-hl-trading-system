@@ -621,3 +621,48 @@ class ReconciledPartialFillTests(unittest.TestCase):
         self.assertEqual(submission.status, "submitted")
         self.assertEqual(submission.request["outcome"], "reconciled_partial_fill")
         self.assertEqual(submission.response["executedQty"], "0.004")
+
+
+class CancelReconciliationTests(unittest.TestCase):
+    def _client(self, lookup_body: str, lookup_status: int = 200) -> RecordingTradingClient:
+        client = RecordingTradingClient(make_config())
+
+        def send(method, url, headers, body):
+            p = urlsplit(url).path
+            client.calls.append({"method": method, "path": p, "query": parse_qs(urlsplit(url).query), "headers": headers})
+            if method == "DELETE":
+                return 503, {}, json.dumps({"code": -1000, "msg": "Unknown error"})
+            if method == "GET" and p == "/fapi/v1/algoOrder" and not client.calls[:-1]:
+                # first GET is the pre-cancel symbol check
+                return 200, {}, json.dumps({"algoId": 7, "clientAlgoId": "kh-algo", "symbol": "BTCUSDT", "algoStatus": "NEW"})
+            return lookup_status, {}, lookup_body
+        client.send = send  # type: ignore[method-assign]
+        return client
+
+    def test_algo_cancel_unknown_is_confirmed_by_lookup(self) -> None:
+        client = self._client(json.dumps({"algoId": 7, "clientAlgoId": "kh-algo", "symbol": "BTCUSDT", "algoStatus": "CANCELED"}))
+        submission = client.cancel_algo_order(symbol="BTCUSDT", algo_id=7, dry_run=False)
+        self.assertEqual(submission.status, "submitted")
+        self.assertEqual(submission.request["outcome"], "reconciled_cancel")
+        self.assertEqual(client.paths(), ["GET /fapi/v1/algoOrder", "DELETE /fapi/v1/algoOrder", "GET /fapi/v1/algoOrder"])
+        self.assertEqual(client.calls[-1]["query"]["algoId"], ["7"])
+
+    def test_algo_cancel_unknown_stays_unknown_when_order_still_live(self) -> None:
+        client = self._client(json.dumps({"algoId": 7, "clientAlgoId": "kh-algo", "symbol": "BTCUSDT", "algoStatus": "NEW"}))
+        submission = client.cancel_algo_order(symbol="BTCUSDT", algo_id=7, dry_run=False)
+        self.assertEqual(submission.status, "unknown")
+
+    def test_regular_cancel_unknown_is_confirmed_by_order_id_lookup(self) -> None:
+        client = RecordingTradingClient(make_config())
+
+        def send(method, url, headers, body):
+            p = urlsplit(url).path
+            client.calls.append({"method": method, "path": p, "query": parse_qs(urlsplit(url).query), "headers": headers})
+            if method == "DELETE":
+                return 503, {}, json.dumps({"code": -1000, "msg": "Unknown error"})
+            return 200, {}, json.dumps({"orderId": 5, "clientOrderId": "c", "status": "CANCELED", "executedQty": "0"})
+        client.send = send  # type: ignore[method-assign]
+        submission = client.cancel_order(symbol="BTCUSDT", order_id=5, dry_run=False)
+        self.assertEqual(submission.status, "submitted")
+        self.assertEqual(submission.request["outcome"], "reconciled_cancel")
+        self.assertEqual(client.calls[-1]["query"]["orderId"], ["5"])

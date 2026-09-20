@@ -802,13 +802,30 @@ def deactivate_protective_orders(
     order_id: str | None = None,
     client_request_id: str | None = None,
     status: str = "canceled",
+    symbol: str | None = None,
+    base_url: str | None = None,
+    key_profile: str | None = None,
 ) -> list[int]:
-    """Mark active protective orders matching an exchange id or client id as inactive."""
+    """Mark active protective orders matching an exchange id or client id as inactive.
+
+    ``symbol``, ``base_url`` and ``key_profile`` narrow the match to one market and one
+    environment/account (read from the stored ``response.request``), so a cancel on mainnet
+    never touches a demo row that happens to reuse the same id.
+    """
     if order_id is None and not client_request_id:
         raise ValueError("deactivate_protective_orders requires order_id or client_request_id")
     init_db(db_path)
     clauses = ["venue = ?", "active = 1"]
     params: list[Any] = [venue]
+    if symbol:
+        clauses.append("resolved_symbol = ?")
+        params.append(symbol.upper())
+    if base_url:
+        clauses.append("json_extract(response_json, '$.request.base_url') = ?")
+        params.append(base_url)
+    if key_profile:
+        clauses.append("json_extract(response_json, '$.request.key_profile') = ?")
+        params.append(key_profile)
     matches: list[str] = []
     if order_id is not None:
         matches.append("order_id = ?")

@@ -1146,11 +1146,13 @@ class BinanceOrderCliTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             db = str(Path(tmp) / "t.sqlite")
-            for order_id, client_id in (("2146760", "kh-algo-a"), ("999", "kh-algo-b")):
+            env = {"request": {"base_url": "https://fapi.binance.com", "key_profile": "default"}}
+            for order_id, client_id, base in (("2146760", "kh-algo-a", "https://fapi.binance.com"), ("999", "kh-algo-b", "https://fapi.binance.com"), ("2146760", "kh-algo-demo", "https://demo-fapi.binance.com")):
                 store_protective_order(
                     db, venue="binance", symbol="BTCUSDT", resolved_symbol="BTCUSDT", side="SELL", order_type="STOP_MARKET",
                     trigger_price="60000.00", covered_size="position", order_id=order_id, client_request_id=client_id,
-                    source_order_submission_id=None, dry_run=False, active=True, status="submitted", response={}, submitted_at_ms=1,
+                    source_order_submission_id=None, dry_run=False, active=True, status="submitted",
+                    response={"request": {"base_url": base, "key_profile": "default"}}, submitted_at_ms=1,
                 )
             ack = {"algoId": 2146760, "clientAlgoId": "kh-algo-a", "code": "200", "msg": "success"}
 
@@ -1158,16 +1160,17 @@ class BinanceOrderCliTests(unittest.TestCase):
                 def __init__(self, _config: object) -> None: ...
 
                 def cancel_algo_order(self, *, symbol: str, algo_id=None, client_algo_id=None, dry_run=True):
-                    request = {"path": "/fapi/v1/algoOrder", "method": "DELETE", "symbol": symbol, "params": {"algoId": algo_id}}
+                    request = {"path": "/fapi/v1/algoOrder", "method": "DELETE", "symbol": symbol, "params": {"algoId": algo_id}, "base_url": "https://fapi.binance.com", "key_profile": "default"}
                     return BinanceOrderSubmission("submitted", False, symbol, request, ack)
 
             with patch("kis_hl.cli.BinanceTradingClient", FakeTradingClient):
                 exit_code, payload = self._run(["--db", db, "binance-cancel", "--symbol", "BTCUSDT", "--algo-id", "2146760", "--live"])
             self.assertEqual(exit_code, 0)
             self.assertEqual(payload["deactivated_protective_order_ids"], [1])
-            rows = {r["order_id"]: (r["active"], r["status"]) for r in list_protective_orders(db)}
-            self.assertEqual(rows["2146760"], (False, "canceled"))
-            self.assertEqual(rows["999"], (True, "submitted"))
+            rows = {r["client_request_id"]: (r["active"], r["status"]) for r in list_protective_orders(db)}
+            self.assertEqual(rows["kh-algo-a"], (False, "canceled"))
+            self.assertEqual(rows["kh-algo-b"], (True, "submitted"))
+            self.assertEqual(rows["kh-algo-demo"], (True, "submitted"))  # same algoId, other environment
 
     def test_binance_cancel_rejects_both_algo_identifiers(self) -> None:
         with self._patched_client():
@@ -1186,14 +1189,15 @@ class BinanceOrderCliTests(unittest.TestCase):
                 store_protective_order(
                     db, venue="binance", symbol="BTCUSDT", resolved_symbol="BTCUSDT", side="SELL", order_type="STOP_MARKET",
                     trigger_price="60000.00", covered_size="position", order_id=order_id, client_request_id=client_id,
-                    source_order_submission_id=None, dry_run=False, active=True, status="submitted", response={}, submitted_at_ms=1,
+                    source_order_submission_id=None, dry_run=False, active=True, status="submitted",
+                    response={"request": {"base_url": "https://fapi.binance.com", "key_profile": "default"}}, submitted_at_ms=1,
                 )
 
             class FakeTradingClient:
                 def __init__(self, _config: object) -> None: ...
 
                 def cancel_algo_order(self, *, symbol: str, algo_id=None, client_algo_id=None, dry_run=True):
-                    request = {"path": "/fapi/v1/algoOrder", "method": "DELETE", "symbol": symbol, "params": {"clientAlgoId": client_algo_id}}
+                    request = {"path": "/fapi/v1/algoOrder", "method": "DELETE", "symbol": symbol, "params": {"clientAlgoId": client_algo_id}, "base_url": "https://fapi.binance.com", "key_profile": "default"}
                     return BinanceOrderSubmission("submitted", False, symbol, request, {"algoId": 2, "clientAlgoId": "stop-b", "code": "200", "msg": "success"})
 
             with patch("kis_hl.cli.BinanceTradingClient", FakeTradingClient):

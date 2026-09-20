@@ -24,6 +24,8 @@ POSITION_MODE_PATH = "/fapi/v1/positionSide/dual"
 TERMINAL_FAILED_STATES = frozenset({"REJECTED", "CANCELED", "CANCELLED", "EXPIRED", "EXPIRED_IN_MATCH"})
 # Algo states in which the exchange still holds the conditional order.
 ACTIVE_ALGO_STATES = frozenset({"NEW", "TRIGGERING", "TRIGGERED"})
+# States that confirm a cancel took effect.
+CANCELED_STATES = frozenset({"CANCELED", "CANCELLED"})
 # Outcomes Binance documents as "may have executed": 5xx, HTTP 408, code -1007 (timeout waiting for
 # the backend, execution status unknown), and the generic "Unknown error" wording.
 # The message format is "Binance request failed: HTTP <status> <code>/<msg>", so the code is
@@ -353,13 +355,23 @@ class BinanceTradingClient(BinanceFuturesClient):
         logger.warning("binance_order_outcome_unknown", extra={"symbol": symbol, "type": params.get("type"), "error": error})
         lookup: dict[str, Any] | None = None
         try:
-            if path == ORDER_PATH and params.get("newClientOrderId"):
-                lookup = self.order_status(symbol, client_order_id=str(params["newClientOrderId"]))
+            if path == ORDER_PATH and (params.get("newClientOrderId") or params.get("origClientOrderId")):
+                lookup = self.order_status(symbol, client_order_id=str(params.get("newClientOrderId") or params.get("origClientOrderId")))
+            elif path == ORDER_PATH and params.get("orderId") is not None:
+                lookup = self.order_status(symbol, order_id=int(params["orderId"]))
             elif path == ALGO_ORDER_PATH and params.get("clientAlgoId"):
                 lookup = self.algo_order_status(client_algo_id=str(params["clientAlgoId"]))
+            elif path == ALGO_ORDER_PATH and params.get("algoId") is not None:
+                lookup = self.algo_order_status(algo_id=int(params["algoId"]))
         except Exception as exc:  # noqa: BLE001 - reconciliation is best effort
             logger.warning("binance_order_reconcile_failed", extra={"symbol": symbol, "error": str(exc)})
             lookup = None
+        if request["method"] == "DELETE" and isinstance(lookup, dict):
+            state = str(lookup.get("algoStatus") or lookup.get("status") or "").upper()
+            if state in CANCELED_STATES:
+                request["outcome"] = "reconciled_cancel"
+                logger.info("binance_cancel_reconciled", extra={"symbol": symbol, "state": state})
+                return BinanceOrderSubmission("submitted", False, symbol, request, lookup)
         if request["method"] == "POST" and isinstance(lookup, dict) and extract_binance_order_id(lookup):
             state = str(lookup.get("algoStatus") or lookup.get("status") or "").upper()
             executed = _optional_decimal(lookup.get("executedQty"))
