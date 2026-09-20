@@ -65,6 +65,18 @@ def kis_overseas(row):
         total_cost=number(broker+foreign),settlement=number(settlement),strategy='unassigned',origin='unknown')
 
 
+def cost_quality(payload):
+    """Check disjoint included costs without inventing unknown charges or credits."""
+    if payload.get('total_cost') is None:return ['unknown_cost']
+    total=D(payload['total_cost']);components=payload.get('costs',{});reasons=[]
+    if components and sum((D(v) for v in components.values() if v is not None),D(0))!=total:
+        reasons.append('cost_components_unreconciled' if any(v is None for v in components.values()) else 'cost_components_mismatch')
+    if payload.get('settlement') is not None:
+        expected=D(payload['notional'])+total*(1 if payload['side']=='buy' else -1)
+        if D(payload['settlement'])!=expected:reasons.append('settlement_cost_mismatch')
+    return reasons
+
+
 def statement(row):
     """Explicit portable statement contract for exact or DAY precision sources."""
     p=dict(row)
@@ -79,16 +91,9 @@ def statement(row):
     for field in ['gross_pnl','position_before','settlement','day_end_quantity']:
         if p.get(field) is not None:p[field]=number(p[field])
     p['costs']={k:None if v is None else number(v) for k,v in p.get('costs',{}).items()}
-    if p.get('total_cost') is not None:
-        total=D(p['total_cost'])
-        components=p['costs']
-        # Components are disjoint included costs. None means unavailable detail.
-        if components and all(v is not None for v in components.values()) and sum((D(v) for v in components.values()),D(0))!=total:
-            raise ValueError('Cost components do not reconcile total_cost')
-        if p.get('settlement') is not None:
-            expected=D(p['notional'])+total*(1 if p['side']=='buy' else -1)
-            if D(p['settlement'])!=expected:
-                raise ValueError('Settlement does not reconcile total_cost')
+    reasons=cost_quality(p)
+    if 'cost_components_mismatch' in reasons:raise ValueError('Cost components do not reconcile total_cost')
+    if 'settlement_cost_mismatch' in reasons:raise ValueError('Settlement does not reconcile total_cost')
     if not p.get('currency') or not p.get('instrument'):raise ValueError('Explicit units required')
     start,end=p['event_start_ms'],p['event_end_ms']
     if type(start) is not int or type(end) is not int or not 0<=start<end:raise ValueError('Invalid statement interval')

@@ -87,7 +87,11 @@ interval. Do not put order timestamps into execution fields. Optional verified
 `position_before` establishes sequence. KIS bundle normalization may establish a
 unique path from the broker sell cost basis and day-end inventory. Ambiguous
 paths stay pending. One summary shared by multiple orders requires a more precise
-source allocation; the adapter does not guess.
+source allocation; the adapter does not guess. For partial cost breakdowns,
+signed rebates and pending returns, follow the [journal cost contract](../.agents/skills/trade-journal/references/record-contract.md#canonical-data-journals).
+If a prior report used an unresolved cost breakdown, generate a new journal after
+this correction; existing report IDs and exported files remain frozen. Resolve
+missing cost detail through an explicit source revision before certifying it.
 
 KIS completed cycles require a source-backed `position_before: "0"` at the first
 entry, or continuous reconciled inventory from an earlier anchored cycle. Import
@@ -129,11 +133,15 @@ An account job JSON is `{"kind":"account","venue":"hyperliquid",
 must match the configured account. Credentials use existing `.env` configuration.
 Each run replays the configured range; use a bounded retained range for routine
 polling and explicit older imports for historical audits. Attempts/success/next
-due are distinct. A process lock serializes job runners; failures wait the
-configured interval and remain visible in `collection_runs`.
+due are distinct. A nonblocking process lock rejects a second concurrent runner; it does not queue
+or wait for the first runner. Collection failures wait the configured interval
+and remain visible in `collection_runs`.
 
 KIS collection captures domestic profit/order summaries and US exchange
-transaction statements. Other overseas markets require explicit source imports
+transaction statements. These KIS statement routes require live account mode
+(`SANDBOX=false`); no verified paper route is available. With the template default
+`SANDBOX=true`, use sourced imports or configure the intended live inquiry account
+before collection. Other overseas markets require explicit source imports
 or a reviewed adapter extension. DAY precision/coverage remain visible. HL
 retained fills anchor execution coverage; funding pagination alone does not
 certify lifetime funding completeness. Position responses are retained and HL
@@ -232,6 +240,9 @@ python3 -m kis_hl.cli data retention
 
 Use a private persistent backup location outside ephemeral worktrees. Online
 backup includes WAL contents consistently and writes a digest/integrity sidecar.
+The source must be an existing initialized canonical database and is opened
+read-only. Missing or uninitialized sources fail without creating a source,
+backup or sidecar; use `data migrate --apply` explicitly to initialize a database.
 Restore requires a new isolated path and never replaces an existing database.
 Run replay/reconciliation on the isolated copy before changing operational readers.
 Do not replace the active DB after authoritative writes: repair forward.

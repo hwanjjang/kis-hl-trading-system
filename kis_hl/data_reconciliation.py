@@ -6,7 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from kis_hl.data_ingestion import normalize_rows
+from kis_hl.data_ingestion import normalize_rows, cost_quality
 from kis_hl.data_store import encode, number, reject_secrets
 from kis_hl.journal_sync import Scope
 
@@ -53,6 +53,8 @@ def _reconcile(store, path, sha256, *, apply=False):
     anchors=[]
     if dataset=='trade':
         if any(p.get('total_cost') is None for p in payloads):raise ValueError('Statement costs are incomplete')
+        if any(cost_quality(p) for p in [*payloads,*(f['payload'] for f in facts)]):
+            raise ValueError('Unresolved costs require source correction before reconciliation')
         opening=document.get('opening_inventory',{});closing=document.get('closing_inventory',{})
         instruments={f['instrument'] for f in facts}
         if set(opening)!=instruments or set(closing)!=instruments:

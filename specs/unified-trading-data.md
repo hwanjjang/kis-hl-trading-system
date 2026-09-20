@@ -1,6 +1,6 @@
 # Unified trading data specification
 
-Status: proposed, not implemented. Task: `unified-trading-data`. Authority: [intent](../intent/unified-trading-data.md). Evidence: [investigation](../reports/sdlc/unified-trading-data/investigation.md). Implementation sequence: [plan](../plans/unified-trading-data.md).
+Status: broader design contract, partially implemented in PR #14. See [implemented/outstanding acceptance](../docs/unified-data-acceptance.md). Task: `unified-trading-data`. Authority: [intent](../intent/unified-trading-data.md). Evidence: [investigation](../reports/sdlc/unified-trading-data/investigation.md). Implementation sequence: [plan](../plans/unified-trading-data.md).
 
 ## 1. Storage decision and ownership — AC1
 
@@ -164,3 +164,9 @@ Names below are design proposals, not commands currently available:
 Rejected for the first release: merging report DB files as authoritative ledgers; destructive overwrite of raw data; immediate PostgreSQL/Timescale migration; permanent exhaustive tick/L2 capture; automatic cross-currency totals; deriving exact fill times from order times; forced allocation of ambiguous daily funding; generic perpetual-versus-index price aliases.
 
 Implementation must prove pagination/retention for each provider, stable source row identity, correction invalidation, period-overlap representation selection, cash-cost conservation, weekly calendar construction, historical adjustment revisions, backup recovery and supervisor write latency. No load result, provider history guarantee, migration, scheduled collection or independent implementation verification is claimed by this design document.
+
+## 2026-09-20 partial-cost correction — AC2, AC4, AC5, AC6
+
+Portable statement costs are disjoint included components, including explicitly signed rebates. Fully known component sums must equal total_cost; supplied settlement must reconcile notional plus buy costs or minus sell costs. Contradictions reject import. If components contain null and their known sum differs from total_cost, preserve the statement as unresolved (including a positive remainder); do not infer the missing charge/credit from the difference, even if settlement agrees. New journal cycles and account/currency net totals remain pending/null and exclude unresolved cycles from confirmed statistics. Equal known sum or absent detail preserves the existing source-total contract; explicit signed components may resolve rebates. Recheck preexisting facts on report generation without rewriting old runs or raw evidence. Independent reconciliation must reject unresolved costs in either supplied rows or stored facts before changing anchors/coverage. No schema migration.
+
+Backup must open an existing initialized source read-only. A missing or uninitialized source must not create a source DB, destination or sidecar. Existing online backup/restore behavior remains. Operator documentation states nonblocking runner lock rejection and live-only KIS statement routes. Broader-design status links to implemented/outstanding acceptance.

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import tempfile
 from kis_hl.data_quality import effective_funding
+from kis_hl.data_ingestion import cost_quality
 from kis_hl.data_reconciliation import coverage_current
 from kis_hl.data_store import encode, now_ms
 
@@ -126,8 +127,8 @@ def account_cycles(trades):
                     if not adding:active['gross_pnl']+=D(p['gross_pnl'])
                 elif not adding:
                     active['gross_pnl']+=(notional-closing_basis*take)*(1 if active['side']=='long' else -1)
-                if p.get('total_cost') is None:active['reasons'].append('unknown_cost')
-                else:active['trading_fee']+=D(p['total_cost'])*fraction
+                active['reasons'].extend(cost_quality(p))
+                if p.get('total_cost') is not None:active['trading_fee']+=D(p['total_cost'])*fraction
                 for kind,amount in p.get('costs',{}).items():
                     if amount is not None:active['cost_components'][kind]=active['cost_components'].get(kind,Z)+D(amount)*fraction
                 active['reasons'].extend(p.get('quality_reasons',[]))
@@ -197,7 +198,7 @@ def journal(store, accounts, *, as_of_ms=None):
             gross=sum((D(f['payload']['gross_pnl']) for f in ts),Z) if ts and all(f['payload'].get('gross_pnl') is not None for f in ts) else sum((c['gross_pnl'] for c in cs),Z)
             fee=sum((D(f['payload']['total_cost']) for f in ts if f['payload'].get('total_cost') is not None),Z)
             cashflow=sum((D(f['payload']['amount']) for f in fs),Z)
-            incomplete=any(f['payload'].get('total_cost') is None for f in ts) or any(i.get('scope')==account and i.get('currency')==currency for i in issues) or bool(problems)
+            incomplete=any(cost_quality(f['payload']) for f in ts) or any(i.get('scope')==account and i.get('currency')==currency for i in issues) or bool(problems)
             components=defaultdict(lambda:Z)
             for f in ts:
                 for k,v in f['payload'].get('costs',{}).items():

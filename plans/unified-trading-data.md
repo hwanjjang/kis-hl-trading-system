@@ -1,6 +1,6 @@
 # Implementation plan: unified trading data
 
-Status: proposed implementation sequence; no application changes executed. Inputs: [intent](../intent/unified-trading-data.md), [spec](../specs/unified-trading-data.md), [diagram](../reports/sdlc/unified-trading-data/design/dataflow.html). Task endpoint remains local design-only.
+Status: original implementation sequence; PR #14 delivers the scope recorded in the [acceptance ledger](../docs/unified-data-acceptance.md). Inputs: [intent](../intent/unified-trading-data.md), [spec](../specs/unified-trading-data.md), [diagram](../reports/sdlc/unified-trading-data/design/dataflow.html). The original design endpoint was local; current correction authority permits PR #14 branch push, with no merge.
 
 ## Sequence and file ownership
 
@@ -77,4 +77,13 @@ Rollback is a reader/feature rollback first. Restore an old database only if no 
 
 ## Definition of implementation readiness
 
-This design is ready for user review after document/link checks and the Archify artifact/browser/image checks. Implementation readiness is not implemented behavior: provider coverage, active-data migration, performance, runtime settings and independent code verification remain future acceptance obligations.
+The original design passed document and diagram checks. Current implementation evidence and remaining provider, migration and operational limits are recorded in the acceptance ledger; this design does not itself certify those outcomes.
+
+## 2026-09-20 G1 correction sequence
+
+1. Add tests for mixed null components in buy/sell, unequal and signed totals, historical stored facts, independent reconciliation on both evidence sets, account isolation, immutable reports and missing-source backup.
+2. Share a small cost-quality helper between ingestion, journal and reconciliation. Reject proved contradictions during statement normalization; derive unresolved status at read time so old facts are covered without mutation. Backup uses readonly DataStore.
+3. Update journal contract and operation docs; preserve formulas and archive bytes. Full unittest suite plus focused post-refactor checks, then separate real CLI import/reconcile/journal/export/backup/restore smoke with synthetic data and no dotenv/network.
+4. Fresh-context non-builder verification before scoped commit/push. Preserve unrelated files and old failed evidence. Formal PR-review attempt limit remains unchanged; no merge readiness claim.
+
+Risk: over-rejecting incomplete but legitimate cost detail or regressing native KIS/HL fee contracts. Retain unresolved rows rather than replacing fees with their subtotal. Do not blanket-reject every incomplete breakdown or manufacture rebate amounts. Rollback is code-only; no DB migrations or data rewrites. Pending reports may be regenerated after explicit source correction.

@@ -1,6 +1,6 @@
 # Intent: unified trading data
 
-Status: proposed design, not implemented. Task: `unified-trading-data`. Owner: /root.
+Status: implementation delivered in PR #14; broader-design acceptance remains partial. See [acceptance ledger](../docs/unified-data-acceptance.md). Task: `unified-trading-data`. Owner: /root.
 Authority: user requests design first; latest clarification requires daily/minute/weekly candles, sampled quotes/funding/order books, and approximately ten years of weekly history. Endpoint: local plan-only.
 
 ## Problem and outcome
@@ -32,3 +32,7 @@ The default operating database and private account-journal snapshots are disconn
 This turn designs the work. It does not alter application behavior, ingest data into the active database, enable a collector, trade, publish private records, commit or open a PR. Notifications remain undecided. Exact fill times, gross hourly funding, older market history and strategy attribution must not be fabricated. SQLite workload isolation, market revisions and safe rollback require explicit tests before implementation.
 
 Related: [spec](../specs/unified-trading-data.md), [plan](../plans/unified-trading-data.md), [SDLC record](../reports/sdlc/unified-trading-data/triage.md).
+
+## 2026-09-20 correction authority
+
+The user authorized fixing PR #14 review G1 and the assessed operation documentation/backup issues, followed by commit and push to `feature/unified-trading-data`. Preserve source evidence and old reports. No live collection, merge or deployment. The existing implementation task and stage counters continue; no new formal PR-review PASS is claimed.

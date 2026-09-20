@@ -44,7 +44,7 @@ def cmd_data(args):
         return DataStore(args.db,readonly=True).status()
     if args.data_action=='import' and not args.apply:
         return import_manifest(None,args.manifest,apply=False,existing_path=args.db)
-    store=DataStore(args.db,readonly=args.data_action=='reconcile' and not args.apply)
+    store=DataStore(args.db,readonly=args.data_action=='backup' or (args.data_action=='reconcile' and not args.apply))
     if args.data_action=='reconcile':
         from kis_hl.data_reconciliation import reconcile
         return reconcile(store,args.statement,args.sha256,apply=args.apply)

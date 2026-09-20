@@ -120,9 +120,19 @@ Hyperliquid reversals remain supported. New runs pin this inventory policy;
 historical report IDs remain frozen, and raw facts/fees are never rewritten.
 
 
-Full-review corrections validate portable statement total_cost against all known,
-disjoint cost components and any supplied settlement. Contradictions are rejected;
-missing data never justifies choosing the more favorable return. Grouped domestic
+Portable statement costs are disjoint included components, including explicitly
+signed rebates. Fully known components must sum to total_cost; any supplied
+settlement must reconcile it. Proved contradictions reject import. When some
+components are null and the known subtotal differs from total_cost, retain the
+source but mark cycles cost_components_unreconciled/PENDING and suppress both
+confirmed net returns and account/currency net_booked_pnl. A positive remainder
+is also unresolved; settlement agreement alone does not explain its allocation.
+Do not infer a missing charge, rebate or zero from the difference. Equal known
+subtotal (or no component breakdown) retains the source-total contract; explicit
+signed components can resolve rebates. New journal runs recheck stored facts,
+while old reports and source evidence remain immutable. Independent-statement
+reconciliation checks costs in both supplied rows and stored facts before
+certifying coverage. Missing detail never justifies choosing a favorable return. Grouped domestic
 orders retain total fees and quantity with shared_order_cost_allocation pending.
 A Hyperliquid retained tail may skip an unanchored segment and resume at a later
 explicit zero position-before. Skipped fees stay in account totals and the gap

@@ -1,0 +1,39 @@
+{
+  "iteration": 2,
+  "decision": "PROCEED",
+  "reason": "Assessed the bounded G1 correction against current upstream contracts and user-authorized push scope.",
+  "authority_source": "User: correct the assessed review and push when complete (2026-09-20).",
+  "candidate": "294e517:G1-contract",
+  "inputs": [
+    {
+      "kind": "triage",
+      "path": "reports/sdlc/unified-trading-data-implementation/triage.md",
+      "sha256": "a68f8b7a2004aa54456f09876dd897571a01052e8821c51f42c3952d7b50b9d4"
+    },
+    {
+      "kind": "intent",
+      "path": "intent/unified-trading-data.md",
+      "sha256": "3ea5483080cbe70fc9b8c834b3081677e6416d9336774b9b02af5e8ba728f49e"
+    }
+  ],
+  "outputs": [
+    {
+      "kind": "investigation",
+      "path": "reports/sdlc/unified-trading-data-implementation/pr14-review/g1-correction/investigation.md",
+      "sha256": "8259880fef34a12bea6f3d25a6c650417d5f84bd02d34e08f9b35c9dac66b600"
+    }
+  ],
+  "assessment": {
+    "assessor": "/root",
+    "summary": "See stage output for acceptance, actual evidence and limits; no merge readiness claimed.",
+    "criteria": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4",
+      "AC5",
+      "AC6"
+    ]
+  },
+  "next_action": "Continue scoped correction, verification and authorized push."
+}
