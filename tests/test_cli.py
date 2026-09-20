@@ -1169,6 +1169,62 @@ class BinanceOrderCliTests(unittest.TestCase):
             self.assertEqual(rows["2146760"], (False, "canceled"))
             self.assertEqual(rows["999"], (True, "submitted"))
 
+    def test_binance_cancel_rejects_both_algo_identifiers(self) -> None:
+        with self._patched_client():
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                with self.assertRaises(SystemExit):
+                    main(["binance-cancel", "--symbol", "BTCUSDT", "--algo-id", "1", "--client-algo-id", "stop-b"])
+
+    def test_binance_cancel_deactivates_only_the_confirmed_identifier(self) -> None:
+        from kis_hl.binance.trading import BinanceOrderSubmission
+        from kis_hl.storage import list_protective_orders, store_protective_order
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "t.sqlite")
+            for order_id, client_id in (("1", "stop-a"), ("2", "stop-b")):
+                store_protective_order(
+                    db, venue="binance", symbol="BTCUSDT", resolved_symbol="BTCUSDT", side="SELL", order_type="STOP_MARKET",
+                    trigger_price="60000.00", covered_size="position", order_id=order_id, client_request_id=client_id,
+                    source_order_submission_id=None, dry_run=False, active=True, status="submitted", response={}, submitted_at_ms=1,
+                )
+
+            class FakeTradingClient:
+                def __init__(self, _config: object) -> None: ...
+
+                def cancel_algo_order(self, *, symbol: str, algo_id=None, client_algo_id=None, dry_run=True):
+                    request = {"path": "/fapi/v1/algoOrder", "method": "DELETE", "symbol": symbol, "params": {"clientAlgoId": client_algo_id}}
+                    return BinanceOrderSubmission("submitted", False, symbol, request, {"algoId": 2, "clientAlgoId": "stop-b", "code": "200", "msg": "success"})
+
+            with patch("kis_hl.cli.BinanceTradingClient", FakeTradingClient):
+                exit_code, payload = self._run(["--db", db, "binance-cancel", "--symbol", "BTCUSDT", "--client-algo-id", "stop-b", "--live"])
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["deactivated_protective_order_ids"], [2])
+            rows = {r["order_id"]: r["active"] for r in list_protective_orders(db)}
+            self.assertEqual(rows, {"1": True, "2": False})
+
+    def test_binance_stop_live_finished_algo_is_stored_inactive(self) -> None:
+        from kis_hl.binance.trading import BinanceOrderSubmission
+        from kis_hl.storage import list_protective_orders
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "t.sqlite")
+
+            class FakeTradingClient:
+                def __init__(self, _config: object) -> None: ...
+
+                def place_stop_market(self, **kwargs):
+                    params = {"algoType": "CONDITIONAL", "symbol": "BTCUSDT", "side": "SELL", "type": "STOP_MARKET", "triggerPrice": "60000.00", "closePosition": "true", "clientAlgoId": "kh-x", "workingType": "MARK_PRICE"}
+                    request = {"path": "/fapi/v1/algoOrder", "method": "POST", "symbol": "BTCUSDT", "params": params, "outcome": "reconciled_after_unknown"}
+                    return BinanceOrderSubmission("submitted", False, "BTCUSDT", request, {"algoId": 5, "clientAlgoId": "kh-x", "algoStatus": "FINISHED"})
+
+            with patch("kis_hl.cli.BinanceTradingClient", FakeTradingClient):
+                exit_code, payload = self._run(["--db", db, "binance-stop", "--symbol", "BTCUSDT", "--side", "sell", "--kind", "stop-market", "--stop-price", "60000", "--live"])
+            self.assertEqual(exit_code, 0)
+            row = list_protective_orders(db)[0]
+            self.assertFalse(row["active"])
+            self.assertEqual(row["status"], "finished")
+
     def test_binance_cancel_dry_run_stores_row(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             db = str(Path(tmp) / "t.sqlite")

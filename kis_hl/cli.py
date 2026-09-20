@@ -12,6 +12,7 @@ from typing import Any
 from kis_hl.assets import resolve_hyperliquid_symbol
 from kis_hl.binance.client import BinanceFuturesClient, normalize_symbol_filters
 from kis_hl.binance.trading import (
+    ACTIVE_ALGO_STATES,
     BinanceOrderSubmission,
     BinanceTradingClient,
     extract_binance_order_id,
@@ -349,8 +350,9 @@ def build_parser() -> argparse.ArgumentParser:
     binance_cancel.add_argument("--symbol", default="BTCUSDT")
     binance_cancel.add_argument("--order-id", type=int, help="Regular order id")
     binance_cancel.add_argument("--client-order-id", help="Regular order client id")
-    binance_cancel.add_argument("--algo-id", type=int, help="Conditional order algoId (stop / trailing)")
-    binance_cancel.add_argument("--client-algo-id", help="Conditional order clientAlgoId")
+    algo_ids = binance_cancel.add_mutually_exclusive_group()
+    algo_ids.add_argument("--algo-id", type=int, help="Conditional order algoId (stop / trailing)")
+    algo_ids.add_argument("--client-algo-id", help="Conditional order clientAlgoId")
     binance_cancel.add_argument("--live", action="store_true", help="Send the signed cancel")
     binance_cancel.add_argument("--no-store", action="store_true")
     binance_cancel.set_defaults(handler=cmd_binance_cancel)
@@ -879,6 +881,12 @@ def cmd_binance_stop(args: argparse.Namespace) -> dict[str, Any]:
         stored_id = _store_binance_submission(args.db, submission, result)
         result["stored_id"] = stored_id
         params = submission.request["params"]
+        # A submitted algo order is only "active" while the exchange still holds it (NEW,
+        # TRIGGERING, TRIGGERED); a reconciled FINISHED/CANCELED/EXPIRED one must not be.
+        exchange_state = str((submission.response or {}).get("algoStatus", "")).upper() if isinstance(submission.response, dict) else ""
+        live_ok = not submission.dry_run and submission.status == "submitted"
+        active = live_ok and (exchange_state == "" or exchange_state in ACTIVE_ALGO_STATES)
+        stored_status = submission.status if active or not live_ok else exchange_state.lower()
         result["protective_order_id"] = store_protective_order(
             args.db,
             venue=BINANCE_SOURCE,
@@ -892,8 +900,8 @@ def cmd_binance_stop(args: argparse.Namespace) -> dict[str, Any]:
             client_request_id=params.get("clientAlgoId") or params.get("newClientOrderId"),
             source_order_submission_id=args.source_submission_id,
             dry_run=submission.dry_run,
-            active=(not submission.dry_run and submission.status == "submitted"),
-            status=submission.status,
+            active=active,
+            status=stored_status,
             response=result,
             submitted_at_ms=result["submitted_at_ms"],
         )
@@ -923,11 +931,15 @@ def cmd_binance_cancel(args: argparse.Namespace) -> dict[str, Any]:
         # Only a confirmed live cancel changes local protective-order state; dry-run, rejected,
         # and unknown outcomes leave it untouched.
         if is_algo and not submission.dry_run and submission.status == "submitted":
+            # Deactivate by the identifier the exchange confirmed, falling back to the one requested.
+            ack = submission.response if isinstance(submission.response, dict) else {}
+            confirmed_algo_id = ack.get("algoId", args.algo_id)
+            confirmed_client_id = ack.get("clientAlgoId") if ack.get("clientAlgoId") else args.client_algo_id
             result["deactivated_protective_order_ids"] = deactivate_protective_orders(
                 args.db,
                 venue=BINANCE_SOURCE,
-                order_id=str(args.algo_id) if args.algo_id is not None else None,
-                client_request_id=args.client_algo_id,
+                order_id=str(confirmed_algo_id) if confirmed_algo_id is not None else None,
+                client_request_id=confirmed_client_id if confirmed_algo_id is None else None,
             )
     return result
 

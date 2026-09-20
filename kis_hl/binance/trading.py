@@ -22,6 +22,8 @@ ALGO_ORDER_PATH = "/fapi/v1/algoOrder"
 POSITION_MODE_PATH = "/fapi/v1/positionSide/dual"
 # Order/algo states that mean nothing is (or will be) working on the exchange.
 TERMINAL_FAILED_STATES = frozenset({"REJECTED", "CANCELED", "CANCELLED", "EXPIRED", "EXPIRED_IN_MATCH"})
+# Algo states in which the exchange still holds the conditional order.
+ACTIVE_ALGO_STATES = frozenset({"NEW", "TRIGGERING", "TRIGGERED"})
 # Outcomes Binance documents as "may have executed": 5xx, HTTP 408, code -1007 (timeout waiting for
 # the backend, execution status unknown), and the generic "Unknown error" wording.
 # The message format is "Binance request failed: HTTP <status> <code>/<msg>", so the code is
