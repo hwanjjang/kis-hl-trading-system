@@ -341,8 +341,7 @@ def build_parser() -> argparse.ArgumentParser:
     binance_stop.add_argument("--working-type", default="MARK_PRICE", help="MARK_PRICE or CONTRACT_PRICE")
     binance_stop.add_argument("--client-order-id")
     binance_stop.add_argument("--source-submission-id", type=int, help="order_submissions id of the entry this protects")
-    binance_stop.add_argument("--live", action="store_true", help="Send the signed order")
-    binance_stop.add_argument("--exchange-test", action="store_true", help="Validate via /fapi/v1/order/test without placing")
+    binance_stop.add_argument("--live", action="store_true", help="Send the signed algo order (no exchange test endpoint exists for conditional orders)")
     binance_stop.add_argument("--no-store", action="store_true")
     binance_stop.set_defaults(handler=cmd_binance_stop)
 
@@ -853,7 +852,6 @@ def cmd_binance_stop(args: argparse.Namespace) -> dict[str, Any]:
         "working_type": args.working_type,
         "client_order_id": args.client_order_id,
         "dry_run": not args.live,
-        "exchange_test": args.exchange_test,
     }
     if args.kind == "stop-market":
         if not args.stop_price:
@@ -911,6 +909,8 @@ def cmd_binance_stop(args: argparse.Namespace) -> dict[str, Any]:
 def cmd_binance_cancel(args: argparse.Namespace) -> dict[str, Any]:
     client = BinanceTradingClient(load_binance_config())
     is_algo = args.algo_id is not None or bool(args.client_algo_id)
+    if is_algo and (args.order_id is not None or args.client_order_id):
+        raise ValueError("pass either a regular order id (--order-id/--client-order-id) or an algo id (--algo-id/--client-algo-id), not both")
     if is_algo:
         submission = client.cancel_algo_order(
             symbol=args.symbol,

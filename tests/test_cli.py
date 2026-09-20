@@ -1172,6 +1172,18 @@ class BinanceOrderCliTests(unittest.TestCase):
             self.assertEqual(rows["kh-algo-b"], (True, "submitted"))
             self.assertEqual(rows["kh-algo-demo"], (True, "submitted"))  # same algoId, other environment
 
+    def test_binance_stop_has_no_exchange_test_flag(self) -> None:
+        with self._patched_client():
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                with self.assertRaises(SystemExit):
+                    main(["binance-stop", "--symbol", "BTCUSDT", "--side", "sell", "--kind", "stop-market", "--stop-price", "60000", "--exchange-test"])
+
+    def test_binance_cancel_rejects_mixed_regular_and_algo_ids(self) -> None:
+        with self._patched_client():
+            exit_code, _ = self._run(["binance-cancel", "--symbol", "BTCUSDT", "--order-id", "1", "--algo-id", "2"])
+            self.assertEqual(exit_code, 1)
+
     def test_binance_cancel_rejects_both_algo_identifiers(self) -> None:
         with self._patched_client():
             stderr = io.StringIO()

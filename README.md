@@ -122,12 +122,12 @@ reads and the user data stream need both values:
 BINANCE_KEY_PROFILE=default
 BINANCE_APIKEY=...
 BINANCE_SECRET=...
-BINANCE_TESTNET=false
 ```
 
 Set `BINANCE_KEY_PROFILE=production` to use `PRO_BINANCE_APIKEY` and `PRO_BINANCE_SECRET`,
 or `BINANCE_KEY_PROFILE=demo` to use `DEMO_BINANCE_APIKEY` and `DEMO_BINANCE_SECRET` against the
-futures demo environment (`BINANCE_TESTNET=true` selects the demo URLs for any profile). Keys
+futures demo environment (leave `BINANCE_TESTNET` unset; the demo profile picks the demo URLs by
+itself, and `BINANCE_TESTNET=true|false` only overrides that choice). Keys
 must not have withdrawal permission and should be IP-restricted. Live Binance orders are limited
 to `BINANCE_LIVE_SYMBOLS` (default `BTCUSDT`); set it to an empty value to disable live Binance
 orders entirely.
@@ -200,7 +200,8 @@ python -m kis_hl.cli binance-trade --symbol BTCUSDT --side buy --order-type mark
 
 Protect a position with server-side stops. `stop-market` without `--quantity` uses
 `closePosition=true` (closes the whole position at trigger); `trailing` needs `--quantity` and
-`--callback-rate` (percent, 0.1 to 10). Both are stored in `protective_orders`:
+`--callback-rate` (percent, 0.1 to 10). Both go through the Algo Order API, which has no test
+endpoint, so `--exchange-test` exists only for `binance-trade`. Both are stored in `protective_orders`:
 
 ```bash
 python -m kis_hl.cli binance-stop --symbol BTCUSDT --side sell --kind stop-market --stop-price 68000 --source-submission-id 1
@@ -361,7 +362,7 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 - Binance orders (`binance-trade`, `binance-stop`, `binance-cancel`) are dry-run by default and require `--live` to send. Live orders fail closed unless the symbol is in `BINANCE_LIVE_SYMBOLS`, credentials are present, and the account is in one-way position mode; hedge mode is rejected.
 - Binance quantities are rounded down to `stepSize`; buy prices round down and sell prices round up to `tickSize`, so entries are never more aggressive than requested and stops trigger no later than requested. `MIN_NOTIONAL` (50 USDT on BTCUSDT) is enforced before any signed call.
 - Binance stops run on the exchange through the Algo Order API (`/fapi/v1/algoOrder`): `STOP_MARKET` with `closePosition=true` and `TRAILING_STOP_MARKET` with `callbackRate`. They are recorded in `protective_orders` with their `algoId`, cancelled with `binance-cancel --algo-id` (the order is looked up first, the cancel is refused if its symbol is not the requested, allowlisted one, and a confirmed live cancel marks the local `protective_orders` row inactive), and fills are confirmed through the user data stream, not the REST acknowledgement.
-- A 5xx, HTTP 408, Binance code `-1007`, "Unknown error", or transport failure after a signed order is recorded as `unknown` (after one lookup by client id), never as `rejected`. Check `binance-orders` or the user stream before retrying; a blind retry with a new client id can double a position.
+- A 5xx, HTTP 408, Binance code `-1007`, "Unknown error", or transport failure after a signed order is recorded as `unknown` (after one lookup by client id), never as `rejected`. Check `binance-orders` or the user stream before retrying; a blind retry with a new client id can double a position. An `unknown` stop is stored in `protective_orders` as inactive with status `unknown` until it is confirmed.
 - Reduce-only exits skip the local `MIN_NOTIONAL` check because Binance exempts them; trigger and activation directions are checked against the mark price (`MARK_PRICE`) or the last price (`CONTRACT_PRICE`).
 - Binance `listenKey` values are treated like credentials: they are never printed or stored. The user stream requests a fresh key on every reconnect and renews it every 30 minutes.
 - Binance kline intervals do not include `3h`; use `1h` bars or tick-built candles for the 3H strategy.

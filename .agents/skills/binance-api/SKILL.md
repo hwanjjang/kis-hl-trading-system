@@ -97,9 +97,10 @@ Full path table and response keys: `references/rest-endpoints.md`.
 `/fapi/v1/algoOrder` with `algoType=CONDITIONAL`, `triggerPrice` (not `stopPrice`),
 `activatePrice` (not `activationPrice`), and `clientAlgoId`; responses carry `algoId` and
 `algoStatus`, and the user stream reports them as `ALGO_UPDATE`. There is no test endpoint for
-algo orders. Outcomes: `submitted`, `rejected` (4xx), or `unknown` (5xx / "Unknown error" /
-transport failure) — an unknown outcome is reconciled once by client id and must never be
-retried blindly with a new id.
+algo orders. Outcomes: `submitted`, `rejected` (4xx), or `unknown` (5xx / HTTP 408 / code
+`-1007` / "Unknown error" / transport failure) — an unknown outcome is reconciled once by client
+or exchange id (live → submitted, terminal with fills → submitted, terminal without fills →
+rejected, confirmed cancel → submitted) and must never be retried blindly with a new id.
 
 Rounding: quantity ROUND_DOWN to `stepSize`; BUY prices ROUND_DOWN and SELL prices ROUND_UP
 to `tickSize` (entries never more aggressive, stops trigger no later); `MIN_NOTIONAL` checked
@@ -140,9 +141,9 @@ Kline intervals: `1m 3m 5m 15m 30m 1h 2h 4h 6h 8h 12h 1d 3d 1w 1M`. There is **n
   account. Response header `x-mbx-used-weight-1m` is surfaced as `client.last_used_weight`.
 - HTTP 429 = limit hit, back off. HTTP 418 = IP ban (2 minutes to 3 days). Never retry
   immediately on either.
-- HTTP 503 with `"Unknown error"` means the request may have executed: verify via
-  `order_status()` or the user stream before retrying. 503 `"Service Unavailable"` is a
-  confirmed failure. Error `-1008` = server overload.
+- Any 5xx, HTTP 408, or Binance code `-1007` after a signed order means the request may
+  have executed: this repo classifies it `unknown`, looks the order up once by client or
+  exchange id, and never retries blindly. Error `-1008` = server overload (4xx, rejected).
 - WebSocket: one connection is valid 24 h; max 1024 streams per connection; max 10 inbound
   messages per second; the server pings every 3 minutes and closes after 10 minutes
   without a pong (`websocket-client` answers pings automatically).
