@@ -21,3 +21,18 @@ logs/
 
 .DS_Store
 
+# Skill-local planning state (named and legacy layouts).
+/.planning/
+/task_plan.md
+/findings.md
+/progress.md
+
+# SDLC runtime locks and raw command logs; retain reports and evidence receipts.
+/reports/sdlc/**/.state.lock
+/reports/sdlc/**/*.log
+
+# Archify staging directories and reproducible browser-check sidecars.
+.archify-delivery-*/
+.archify-compare-*/
+.archify-migration-*/
+/docs/architecture/*.visual-check.*

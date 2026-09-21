@@ -1,0 +1,41 @@
+FFFE
+======================================================================
+ERROR: test_incomplete_schedule_attempt_preserves_success_and_delays_next_run (tests.test_journal_sync.JournalSyncTests.test_incomplete_schedule_attempt_preserves_success_and_delays_next_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_journal_sync.py", line 34, in test_incomplete_schedule_attempt_preserves_success_and_delays_next_run
+    schedule.attempted(200, "History coverage incomplete")
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'SyncSchedule' object has no attribute 'attempted'
+
+======================================================================
+FAIL: test_native_eth_perpetual_is_available_on_weekends (tests.test_trading_hours.TradingHoursTests.test_native_eth_perpetual_is_available_on_weekends)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_trading_hours.py", line 24, in test_native_eth_perpetual_is_available_on_weekends
+    self.assertTrue(decision.allowed)
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_transient_snapshot_failure_recovers_local_protection (tests.test_managed_execution.ManagedExecutionTests.test_transient_snapshot_failure_recovers_local_protection)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_managed_execution.py", line 178, in test_transient_snapshot_failure_recovers_local_protection
+    self.assertEqual(self.store.get(row["id"])["state"], "DEGRADED")
+AssertionError: 'INTERVENTION' != 'DEGRADED'
+- INTERVENTION
++ DEGRADED
+
+
+======================================================================
+FAIL: test_repeated_read_failure_latches_exit_and_recovers_without_resend (tests.test_managed_execution.ManagedExecutionTests.test_repeated_read_failure_latches_exit_and_recovers_without_resend)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_managed_execution.py", line 194, in test_repeated_read_failure_latches_exit_and_recovers_without_resend
+    self.assertTrue(self.store.get(row["id"])["exit_requested_ms"])
+AssertionError: None is not true
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.367s
+
+FAILED (failures=3, errors=1)

@@ -1,8 +1,8 @@
 # KIS Hyperliquid Trading System
 
-This project collects market data through Korea Investment & Securities (KIS) Open API and submits guarded Hyperliquid orders for BTC/USDC and trade.xyz RWA assets.
+This CLI system queries KIS and Hyperliquid, coordinates protected long entries, and maintains source-backed trade journals in SQLite. It supports KIS domestic/US ETFs and eligible Hyperliquid BTC/ETH and trade.xyz perpetuals.
 
-The first implementation is intentionally small:
+Existing collection and trading tools include:
 
 - KIS REST market data collection for domestic, overseas quote, and overseas daily chart endpoints.
 - Hyperliquid public `info` calls for mids, books, and candles.
@@ -15,6 +15,31 @@ The first implementation is intentionally small:
 - A live-order session guard that blocks non-reduce-only trade.xyz orders outside the mapped underlying market session unless explicitly overridden.
 - CLI defaults that never place a live order unless `--live` is passed.
 - Explicitly enrolled long-position trailing management, durable reconciliation, and offline tick replay.
+
+## Multi-venue protected trading
+
+```bash
+python -m kis_hl.cli instrument list
+python -m kis_hl.cli instrument verify --instrument kis:DRAM
+python -m kis_hl.cli chart --instrument index:KOSPI --date-from 20260101 --date-to 20260911
+python -m kis_hl.cli account positions --venue kis --market overseas
+python -m kis_hl.cli order preview --input my-plan.json
+python -m kis_hl.cli journal configure --venue kis --interval-seconds 10800
+python -m kis_hl.cli journal status --venue kis
+```
+
+[Trading operations](docs/trading-operations.md) documents required plan fields,
+protected entry/supervisor controls, actual-history journals, statement imports,
+and future strategy-signal grants. Journal synchronization defaults to **3 hours**
+and is configurable; protection runs separately. KIS order summaries remain pending
+until exact execution/cost statements are supplied. Native KIS protection is not
+inferred from stop-limit names. Notification delivery is not implemented.
+
+Explore the [architecture](docs/architecture/multi-venue-trading.html),
+[protected-trade workflow](docs/architecture/protected-trade.html), and
+[signals/journal flow](docs/architecture/signals-and-journal.html).
+These target-design views include explicitly future components; see the
+[implementation mapping](docs/architecture.md#protected-trading-implementation).
 
 ## Trailing stop management
 
@@ -116,6 +141,21 @@ HYPERLIQUID_WS_URL=wss://api.hyperliquid.xyz/ws
 Set `HYPERLIQUID_KEY_PROFILE=production` to use `PRO_HYPERLIQUID_WALLETADDRESS` and `PRO_HYPERLIQUID_PRIVATEKEY`.
 
 ## Commands
+
+Verify the configured KIS account and read its domestic balance summary:
+
+```bash
+python -m kis_hl.cli kis-account
+```
+
+`SANDBOX=true` selects paper credentials; `SANDBOX=false` selects live credentials.
+This read-only command prints a masked account number, environment and three KRW
+amounts: `dnca_tot_amt` (deposit), `tot_evlu_amt` (total valuation), and
+`scts_evlu_amt` (securities valuation). It does not list holdings or overseas/FX
+details, place orders, or store balances. Failed or malformed responses exit with
+status 1 and a generic error without raw vendor data. Account-check tokens are
+cached in a credential-derived subdirectory of `KIS_TOKEN_DIR` to avoid reusing a
+previous account's token; other commands retain their existing cache behavior.
 
 Fetch a KIS overseas quote and persist the raw payload:
 

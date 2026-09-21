@@ -67,3 +67,7 @@ Remaining requirements before autonomous trading:
 - CME FX futures overview: https://www.cmegroup.com/trading/why-futures/welcome-to-cme-fx-futures.html
 - CME Gold futures fact card: https://www.cmegroup.com/market-regulation/files/gold-futures-and-options-fact-card.pdf
 - CME Copper futures fact card: https://www.cmegroup.com/trading/metals/files/copper-futures-and-options.pdf
+
+Native `ETH`, `ETH-PERP`, and `ETHUSDC-PERP` resolve to the Hyperliquid ETH
+perpetual and use the same explicit 24/7 crypto-perpetual session as BTC. This
+session mapping does not authorize any additional native or HIP-3 asset.

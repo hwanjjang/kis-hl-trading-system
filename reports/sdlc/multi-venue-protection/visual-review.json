@@ -1,0 +1,28 @@
+[
+  {
+    "diagram": "multi-venue-trading",
+    "artifact_sha256": "499fb433f10739715d11facb4f2a193892e1c450ead04655891b9ace24530619",
+    "browser_evidence": "passed",
+    "visual_review": "passed",
+    "correction_rounds": 1,
+    "reviewer": "/root (image-capable)",
+    "inspected": [
+      "1440x900.light",
+      "2048x1320.dark"
+    ],
+    "observations": "Readable node/card text, no clipping or opaque-node route intersections; balanced desktop canvas. Titles/cards explicitly limit scope and KIS semantics."
+  },
+  {
+    "diagram": "protected-trade",
+    "artifact_sha256": "e5a903c0acf3ea52d4fdfe6e497e7ba8dd5943c775d43212e88e1e8c2e6c6d91",
+    "browser_evidence": "passed",
+    "visual_review": "passed",
+    "correction_rounds": 1,
+    "reviewer": "/root (image-capable)",
+    "inspected": [
+      "1440x900.light",
+      "2048x1320.dark"
+    ],
+    "observations": "Readable node/card text, no clipping or opaque-node route intersections; balanced desktop canvas. Titles/cards explicitly limit scope and KIS semantics."
+  }
+]

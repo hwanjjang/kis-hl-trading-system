@@ -146,6 +146,15 @@ class HyperliquidInfoClient:
                                   "startTime": start_time_ms, "endTime": end_time_ms,
                                   "aggregateByTime": False})
 
+    def user_fills(self, *, user: str | None = None) -> list[dict[str, Any]]:
+        return self._object_list({"type":"userFills", "user":self._resolve_user(user),
+                                  "aggregateByTime":False})
+
+    def user_funding(self, *, start_time_ms: int, end_time_ms: int,
+                     user: str | None = None) -> list[dict[str, Any]]:
+        return self._object_list({"type": "userFunding", "user": self._resolve_user(user),
+                                  "startTime": start_time_ms, "endTime": end_time_ms})
+
     def order_status(self, *, oid: int | str, user: str | None = None) -> dict[str, Any]:
         result = self.post_info({"type": "orderStatus", "user": self._resolve_user(user), "oid": oid})
         if not isinstance(result, dict) or result.get("status") not in {"order", "unknownOid"}:
@@ -294,13 +303,17 @@ class HyperliquidTradingClient:
             return OrderSubmission("dry_run", True, resolved, request, {"skipped": "dry_run"})
         if not is_supported_live_asset(resolved):
             raise RuntimeError(
-                "Live trading is limited to BTCUSDC spot and mapped tradable trade.xyz assets; "
+                "Live trading is limited to BTCUSDC spot, BTC/ETH perps and mapped tradable trade.xyz assets; "
                 f"got {symbol}"
             )
         self._require_recent_verification(resolved)
 
         self._require_credentials()
         if not reduce_only:
+            from kis_hl.journal_sync import Scope
+            from kis_hl.managed_execution import guard_external_entry
+            scope=Scope('hyperliquid','testnet' if 'testnet' in self.config.base_url else 'mainnet',self.config.account_address)
+            guard_external_entry(self.verification_db_path,scope=scope.key,instrument_id='hl:'+resolved.coin,attempt_id=cloid)
             if has_managed_position(self.verification_db_path, network=self.config.base_url,
                                     account=self.config.account_address, coin=resolved.coin):
                 raise RuntimeError("Managed trailing position blocks entries until cleanup completes")
@@ -531,7 +544,7 @@ def extract_hyperliquid_order_id(response: Any) -> str | None:
 def is_supported_live_asset(resolved: ResolvedAsset) -> bool:
     if resolved.kind == "spot" and resolved.coin == "UBTC/USDC":
         return True
-    if resolved.kind == "perp" and resolved.coin == "BTC" and resolved.dex is None:
+    if resolved.kind == "perp" and resolved.coin in {"BTC", "ETH"} and resolved.dex is None:
         return True
     if resolved.dex != "xyz" or not resolved.coin.startswith("xyz:"):
         return False

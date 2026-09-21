@@ -37,9 +37,10 @@ other execution costs; `fees` is stored but is not subtracted a second time.
 
 ## Partial fills
 
-The current CLI accepts one entry price, one exit price, and one quantity. It does not
-store individual fills. For a completed position with partial fills, the caller must
-provide quantity-weighted average prices:
+The legacy `journal add` CLI accepts one entry price, one exit price, and one
+quantity. The account-wide `journal import/sync` path stores immutable source fills
+and derives flat-to-flat cycles. For manually aggregated partial fills, provide
+quantity-weighted average prices:
 
 ```text
 weighted_average_price = sum(fill_price * fill_quantity) / sum(fill_quantity)
@@ -65,3 +66,29 @@ provide an exchange-reported net realized PnL with an explanatory note.
 `journal stats` can filter by symbol and strategy. Use the strategy filter for edge and
 risk decisions. An unfiltered report is useful as an account overview but should not be
 used to claim that every included strategy has the same expectancy.
+
+## Account-wide source ledger
+
+`journal_sync.py` stores account/environment-scoped execution revisions, cash costs,
+coverage intervals, pending/finalized cycle revisions and immutable statistics
+snapshots. `journal_history.py` reads HL native fills/funding and retains KIS
+cumulative order snapshots. KIS summaries do not establish exact fill timestamps
+or complete costs: import a sourced execution/cost statement before finalization.
+
+The default sync interval is 10800 seconds, configurable and persistent. Publication
+is independent of order completion. Missing opening history/costs, retention gaps,
+ambiguous equal-time ordering or legacy overlap remain pending. A correction can
+supersede cycle boundaries; new snapshots use the entire corrected effective set,
+while previous snapshots are retained. Partial reversals split at zero and conserve
+quantity/fees. Reports separate currencies and mixed/unassigned strategy populations.
+No formula in the nine-statistic contract changes. See the operations guide for the
+JSON statement schema and explicit coverage/attribution responsibilities.
+
+Automatic Hyperliquid sync permits append-only enrichment from unknown attribution
+when an exact native order match becomes available. Economic fields must remain
+identical; known attribution conflicts require an explicit correction. Reobserving
+unknown attribution never removes existing evidenced attribution.
+
+The scheduler records every collection attempt and its reason separately from
+last successful collection and verified execution/cost coverage. Incomplete or
+failed attempts wait the configurable interval; explicit sync may retry sooner.

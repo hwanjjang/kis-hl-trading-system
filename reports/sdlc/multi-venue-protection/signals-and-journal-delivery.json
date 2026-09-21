@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/root/.paseo/worktrees/1epgz72k/cold-buffalo/docs/architecture/signals-and-journal.architecture.json",
+  "output": "/root/.paseo/worktrees/1epgz72k/cold-buffalo/docs/architecture/signals-and-journal.html",
+  "specification": {
+    "sha256": "f41a1fd18597450bce6a645e428da8523a9cd62d6aa64573c8aef12f1b858281",
+    "bytes": 4864
+  },
+  "artifact": {
+    "sha256": "a82597db71af777cd3d9506d5d9548904fa7b83253dff2de971f87760e9b220e",
+    "bytes": 813233
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

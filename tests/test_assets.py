@@ -18,6 +18,10 @@ class AssetResolutionTests(unittest.TestCase):
                 self.assertEqual(resolved.coin, "BTC")
                 self.assertEqual(resolved.kind, "perp")
 
+    def test_eth_perpetual_aliases(self):
+        for name in ('ETH', 'ETH-PERP', 'ETHUSDC-PERP'):
+            self.assertEqual(resolve_hyperliquid_symbol(name).coin, 'ETH')
+
     def test_xyz_asset_resolves_to_hip3_namespace(self) -> None:
         resolved = resolve_hyperliquid_symbol("XYZ100", dex="xyz")
         self.assertEqual(resolved.coin, "xyz:XYZ100")

@@ -1,0 +1,3 @@
+# Test plan
+
+PT1 uses exact KIS/HL transport fixtures including pagination/rejection and unknown writes. PT2/PT3 use actual-fill fixtures for external cycles, partials/reversal, coverage/cost gaps, duplicate/corrected facts, account separation and adjustable 3h scheduler. PT4/PT5 test native/local preflight, quantity/ownership/risk gates, uncertain attempts, partial coverage and protective exits. Add each slice behavior test before corresponding code; retain red/green logs. Additional local CLI smoke and full regression precede independent verification and PR. No actual exchange order test is authorized.

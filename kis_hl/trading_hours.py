@@ -57,7 +57,7 @@ def trading_session_decision_for_resolved_asset(
             SESSION_CRYPTO_SPOT,
             current.astimezone(UTC_TZ),
         )
-    if resolved.kind == "perp" and resolved.coin == "BTC" and resolved.dex is None:
+    if resolved.kind == "perp" and resolved.coin in {"BTC", "ETH"} and resolved.dex is None:
         return _decision(
             True,
             "crypto_perp_is_24_7",
