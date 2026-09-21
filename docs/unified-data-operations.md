@@ -152,6 +152,31 @@ Configuration persists; **a running `market collect` process is required**.
 Installing or supervising a persistent host service is separate from CLI setup.
 No worker is automatically started by import, migration or configuration.
 
+### Current operating policy: user or agent initiated
+
+Account synchronization is initiated by the user or by an explicitly instructed
+Hermes/agent. Do not install a daemon, cron entry or agent schedule as part of
+ordinary synchronization. The configurable 10,800-second (three-hour) interval
+remains a freshness target and job due-time setting; it does not cause execution
+without a caller. Data can be older when no run is requested.
+
+Before a run, select the absolute operational DB path, inspect `data status`, and
+confirm KIS live mode and the actual `tradefi` subaccount address. Do not substitute
+the configured Master wallet for `tradefi`. Use the one-shot `data sync` commands
+above with explicit history bounds. They read exchange accounts but **write local
+evidence and facts**. Start before the last successful boundary to capture late
+records; use at least the configured overlap (one day by default), with a separate
+broader historical audit when requested. A successful request is not proof of
+lifetime coverage. Check collection failures, coverage and stale reports before
+generating new KIS, tradefi and combined journals with explicit account IDs.
+
+`market collect --once` runs all due configured jobs, including market jobs; use
+direct `data sync` for a request limited to particular accounts. Do not use the
+polling form for an on-demand request. Record the selected accounts, requested
+range, collection result and generated report IDs in a private execution receipt.
+Preserve old reports. Source disagreements require investigation and supported
+revisions, not an invented complete-coverage assertion.
+
 ## Market history and sampling
 
 ```bash
@@ -252,6 +277,61 @@ revisions older than 180 days and quote/book snapshots older than 30 days.
 Account evidence and daily/weekly history are not auto-pruned. Dependencies of
 pinned reports/analysis remain pinned transitively. Encryption/off-host transport
 requires an operator-managed destination; credentials are not stored in backups.
+
+### Backup policy for user, Hermes and agent execution
+
+This policy does not execute or schedule backups. The user or an instructed agent
+performs each operation and records its receipt. Choose one absolute operational
+DB path and a private persistent backup directory outside disposable worktrees;
+changing those paths or operational readers is a separate operation.
+
+| Decision | Policy |
+| --- | --- |
+| Trigger | Before schema application, bulk import/correction or storage cutover; after an important successful account refresh; on each active day when requested |
+| Method | Use `data backup` (SQLite online backup); never copy only the live `.sqlite` file while WAL writes may exist |
+| Naming | A new UTC timestamped filename for every backup; retain its `.sqlite.json` integrity/digest sidecar |
+| Scope | Canonical DB plus a separately inventoried copy of private source files, manifests, report exports and job configuration needed to replay the result |
+| Exclusions | Keep `.env`, private keys and token caches out of the backup bundle; recover credentials separately through the operator's secret store |
+| Retention | Keep all pre-change backups until the change is accepted; thereafter keep the newest seven successful backups, one per available day for 30 days and one per available month for 12 months |
+| Deletion | Manual only, after verifying a newer recoverable backup and required source/report retention; these rules never delete canonical account evidence |
+| Recovery objective | Recover to the most recent verified backup; the data-loss window is time since that backup, not a guaranteed three hours |
+| Off-host copy | An encrypted copy in an operator-selected separate failure domain is required for host-loss recovery; local backups alone do not cover it. Do not upload until that destination is selected and authorized |
+
+The DB contains captured source payloads, but external report/source files and
+operator configuration are not necessarily embedded. Inventory those paths and
+SHA-256 hashes separately. Preserve the code commit and schema version with the
+receipt. Let relevant collection/export jobs finish before capturing the external
+files, or record their separate capture boundaries; an online DB backup alone
+does not make a multi-file bundle atomic. Restrict directories to the owner and
+backup files to owner read/write; keep bundles outside Git.
+
+Example commands for a future instructed operation (replace every placeholder):
+
+```bash
+umask 077
+DB=/ABSOLUTE_OPERATIONAL_PATH/kis_hl.sqlite
+BACKUP=/PERSISTENT_PRIVATE_PATH/kis-hl-YYYYMMDDTHHMMSSZ.sqlite
+RESTORE=/PRIVATE_ISOLATED_PATH/restore-YYYYMMDDTHHMMSSZ.sqlite
+python3 -m kis_hl.cli --db "$DB" data status
+python3 -m kis_hl.cli --db "$DB" data backup --target "$BACKUP"
+python3 -m kis_hl.cli data restore --source "$BACKUP" --target "$RESTORE"
+python3 -m kis_hl.cli --db "$RESTORE" data status
+```
+
+Backup checks SQLite integrity and foreign keys; restore verifies the sidecar
+digest and integrity. Test an isolated restore after the first backup, after a
+schema change, and at least monthly when operations are active. Compare account
+membership, fact counts, coverage, pinned report IDs and representative journal
+totals against the backup receipt. Verify external-file hashes and export
+availability too. Record PASS/FAIL; quarantine failures and keep older verified
+copies. A sidecar hash detects changed bytes, not source authenticity.
+
+Never restore over the active DB or automatically switch readers. In an incident,
+stop local writers, restore to a new path, verify it, then replay available source
+history and reconcile the post-backup gap before a separately instructed cutover.
+If authoritative writes exist after the recovery point, repair forward. API
+retention can prevent reconstructing lost history, so unresolved gaps stay
+explicit. No recovery-time guarantee is claimed until a restore drill is timed.
 
 Native Hyperliquid 1w boundaries observed on 2026-09-13 are Thursday UTC rather
 than ISO Monday. Stored boundaries remain provider-native; weekly gap checks
