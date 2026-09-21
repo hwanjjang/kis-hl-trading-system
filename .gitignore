@@ -26,13 +26,32 @@ logs/
 /task_plan.md
 /findings.md
 /progress.md
+/.plan-attestation
+/.plan-attestation.tmp.*
+/.nonce
+/.stop_blocks
+/.gate_last_ledger
+/ledger-*.jsonl
+
+# Local task-observer records and staged skill updates.
+/skill-observations/
+/skill-updates/
 
 # SDLC runtime locks and raw command logs; retain reports and evidence receipts.
 /reports/sdlc/**/.state.lock
+/reports/sdlc/**/.sdlc-*
 /reports/sdlc/**/*.log
 
-# Archify staging directories and reproducible browser-check sidecars.
+# Archify staging directories and reproducible browser screenshots.
+# Keep delivered HTML, source JSON and browser-check HTML/JSON trackable.
 .archify-delivery-*/
 .archify-compare-*/
 .archify-migration-*/
-/docs/architecture/*.visual-check.*
+/docs/architecture/*.visual-check.png
+/docs/architecture/*.visual-check.jpg
+/docs/architecture/*.visual-check.jpeg
+/docs/architecture/*.visual-check.webp
+/docs/architecture/*.visual-check.*.png
+/docs/architecture/*.visual-check.*.jpg
+/docs/architecture/*.visual-check.*.jpeg
+/docs/architecture/*.visual-check.*.webp
