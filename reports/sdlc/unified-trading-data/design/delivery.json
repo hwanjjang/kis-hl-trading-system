@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "dataflow",
+  "input": "/root/.paseo/worktrees/1epgz72k/cold-buffalo/reports/sdlc/unified-trading-data/design/dataflow.json",
+  "output": "/root/.paseo/worktrees/1epgz72k/cold-buffalo/reports/sdlc/unified-trading-data/design/dataflow.html",
+  "specification": {
+    "sha256": "4f9701ba5677d3a4191d9aed28577d93e357a0f71498f8944c608f0c2bb82c41",
+    "bytes": 5038
+  },
+  "artifact": {
+    "sha256": "f0ae3302873544cb72ba99b9333bbf50dd560c72950b5274ea90403b99217f0e",
+    "bytes": 813942
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

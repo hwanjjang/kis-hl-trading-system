@@ -1,0 +1,251 @@
+{
+  "kind": "independent_implementation_acceptance_verification",
+  "iteration": 3,
+  "verdict": "FAIL",
+  "candidate": {
+    "candidate": "sha256:9ae1292c578dc261fdac3b2d2fe0a120569b629ea3e7b93a2cdc847ad256a34b",
+    "base_head": "6d66b85971b7dfd5c2c7fef2ab2500cf4659f15e",
+    "files": {
+      ".agents/skills/hyperliquid-api/SKILL.md": "ab3db42b890172ff1ff403e035283df4bfeac73316a4c85c7bfa81e32f05bf44",
+      ".agents/skills/kis-open-api/SKILL.md": "43b36f2aa53fd471cd2256b962404b26576dd5fc89c880c94c97d023c02e5b67",
+      ".agents/skills/kis-open-api/references/endpoints.md": "18b7f80ac9c041eb4be332a7fbe503c2a09166f7192c8007e64e98370f7fc959",
+      ".agents/skills/trade-journal/references/record-contract.md": "0840b072943e98de647ea52081d756bea371d0bc852626915e0994839e7c87f8",
+      "README.md": "6c59120622d9f47ff45edf040fd1003a92d6c3065e77e83ad6afe7c7ed5f1164",
+      "docs/unified-data-acceptance.md": "4c5316ff6753a13a340c0bdd58fd15dceeae3b37a8164d2488c8ddc4add7aff9",
+      "docs/unified-data-operations.md": "f844747b5794d8ad502399a3ec647b379fdcfb94d9906f80ab9b6299da855112",
+      "kis_hl/analysis_store.py": "342dbe55b3df851ce7a80834bb478391b5d9d6d8cbb499742f5b9c18cac72207",
+      "kis_hl/data_account_sync.py": "511871da4efce503351e1613b2442e37a17677f308423a9fcd849232f5e8f3a1",
+      "kis_hl/data_cli.py": "bfbcb04b1ab1afb4053bb9ef2a0451a8f0549775c075531b9fe00837b4d49171",
+      "kis_hl/data_import.py": "21f489ecab489e6e71c5af42d4cba154cdf0c047886682b726592dd6a446f883",
+      "kis_hl/data_ingestion.py": "18e76dbdf1875dc9f241b2e652a916c000b4eefa0c1458ff309bef82563eab71",
+      "kis_hl/data_jobs.py": "c29533ec010428aba7e647ef35233a4a4e1b032f1fdba2f537bf58b76c61971c",
+      "kis_hl/data_migrations.py": "830a7834fb2b13cafba807253f99c843d1c30553b8cd22e573023f1f0a8450b3",
+      "kis_hl/data_reconciliation.py": "199dc91509ebb312acded9bc9ca5becbba67bfa6cc42b7d2b14087c9f4542f88",
+      "kis_hl/data_store.py": "2f53fc17c3e810fe8b4c7f21db1cc698df45238cf6249a60af1fc658815a9d43",
+      "kis_hl/journal_exports.py": "54759e671e16502ede1e5d9687a21e35fa17fb383168017f169024b38d6e9e82",
+      "kis_hl/kis/client.py": "698ce329b423016693cdd3374ca7c92a0a0791772227f1a1e276d1f21b2cdee4",
+      "kis_hl/market_ingestion.py": "d1ca5a07d5081f0dfd58d11a8068280c1205c29a297df9bcde0d0731fdb299d8",
+      "scripts/smoke_review_corrections.py": "de906644b63f2b3087484a868a7f20e4d22b38f8e5bef041e74ecbd5ea32ff79",
+      "tests/test_kis_client.py": "8b7cda89a5e3cb729c2567e00d8a5af2d71c3afdbcf8d729b2ca41b22a4de376",
+      "tests/test_review_corrections.py": "77550bcb79c1f1289bcf949c58972c1b9155473ad15ff4a8e23e38e3584dd91f"
+    }
+  },
+  "review_claim": "This is not a PR review, PR PASS, merge-ready result or cross-provider gate.",
+  "identity": {
+    "provider": "OpenAI",
+    "agent": "/root/codex_full_review_1",
+    "role": "distinct non-builder",
+    "model": "Codex based on GPT-6; exact runtime backend ID not surfaced",
+    "effort": "Inherited, not independently observable",
+    "mode": "Default tool-enabled, read-only product scope"
+  },
+  "consumed_inputs": [
+    ".planning/assignment.md",
+    ".planning/candidate.json",
+    ".planning/test-plan.md",
+    "AGENTS.md",
+    "current corrected production modules and their full diff against assigned base",
+    "tests/test_review_corrections.py",
+    "tests/test_kis_client.py",
+    "scripts/smoke_review_corrections.py",
+    "docs/unified-data-operations.md",
+    "docs/unified-data-acceptance.md",
+    "changed skill references",
+    "official KIS overseas-minute sample"
+  ],
+  "checks": [
+    {
+      "command": "sha256 verification of all 22 candidate files",
+      "result": "PASS: zero mismatches"
+    },
+    {
+      "command": "python3 -m unittest discover -s tests -t . -q",
+      "result": "PASS: 344 tests, 19.485 seconds",
+      "evidence": ".planning/independent-tests.txt"
+    },
+    {
+      "command": "python3 scripts/smoke_review_corrections.py",
+      "result": {
+        "status": "passed",
+        "cli_processes": 12,
+        "network": false,
+        "private_data": false,
+        "preview_read_only": true,
+        "net_pnl": "8",
+        "immutable_export": true,
+        "backup_restore": true,
+        "cleanup": true
+      },
+      "evidence": ".planning/independent-smoke.json"
+    },
+    {
+      "command": "PYTHONPATH=. python3 .planning/verification_probes.py",
+      "result": "Three reproduced failures",
+      "evidence": ".planning/probe-results.txt"
+    },
+    {
+      "command": "PYTHONPATH=. python3 .planning/positive_probes.py",
+      "result": {
+        "missing_previews": "PASS",
+        "existing_status_no_db_mutation": "PASS",
+        "idle_worker_heartbeat": "PASS",
+        "endpoint_rejection_before_request": "PASS",
+        "historical_asof_preserved_current_dependency_rejected": "PASS"
+      },
+      "evidence": ".planning/positive-results.json"
+    }
+  ],
+  "acceptance": [
+    {
+      "requirement": "Portable statement cost and settlement contradictions",
+      "status": "PASS",
+      "evidence": "Full regression suite rejects inconsistent component/settlement rows; native numeric handling retained."
+    },
+    {
+      "requirement": "Positive KIS overseas quantities",
+      "status": "PASS",
+      "evidence": "Zero/negative quantities rejected as validation errors."
+    },
+    {
+      "requirement": "Ambiguous duplicate daily identity in one observation",
+      "status": "PASS",
+      "evidence": "Duplicate rows reject before fact writes; raw observation retained; repeated unique observations dedupe."
+    },
+    {
+      "requirement": "Monotonic KIS daily/cumulative maturation",
+      "status": "PASS",
+      "evidence": "Regression polls increase quantity from 1 to 2 as a revision; decreases remain unresolved."
+    },
+    {
+      "requirement": "Domestic multi-order grouped pending and other-market progress",
+      "status": "PASS",
+      "evidence": "Grouped quantity/cost retained with shared allocation reason; overseas collection continues."
+    },
+    {
+      "requirement": "HL recovery at explicit zero anchor and fee conservation",
+      "status": "FAIL",
+      "evidence": "Basic native-flat cases pass, but subsequent funding is contaminated by prior invalid segment: IV3-F2."
+    },
+    {
+      "requirement": "Bounded statement completeness, inventory and trust",
+      "status": "FAIL",
+      "evidence": "Operator trust limit documented, digest/range/quantity checks and rollback tested; authoritative PnL comparison missing: IV3-F1."
+    },
+    {
+      "requirement": "Late facts/coverage freshness and immutable exports",
+      "status": "FAIL",
+      "evidence": "Sequential late facts work and CLI exports stay immutable; concurrent append before pin defeats watermark: IV3-F3."
+    },
+    {
+      "requirement": "Current derived input validation and historical as-of behavior",
+      "status": "PASS",
+      "evidence": "Independent positive probe accepts old as-of input then rejects current superseded dependency."
+    },
+    {
+      "requirement": "KIS overseas book response blocks and clocks",
+      "status": "PASS",
+      "evidence": "Price/size read from output2, clocks retained from output1; regression tested."
+    },
+    {
+      "requirement": "Index price basis isolation",
+      "status": "PASS",
+      "evidence": "New index bars use index basis/raw adjustment; old variants deliberately preserved."
+    },
+    {
+      "requirement": "HL network collision guard",
+      "status": "PASS",
+      "evidence": "Independent probes reject testnet/custom endpoints before any book request or fact write."
+    },
+    {
+      "requirement": "New overseas minute adapter and bounded pagination",
+      "status": "PASS_OFFLINE",
+      "evidence": "New route and NEXT/KEYB semantics match public official sample; timezone, repeat-page rejection and transport tests pass. No live entitlement/history guarantee."
+    },
+    {
+      "requirement": "Scoped journal SQL reads",
+      "status": "PASS",
+      "evidence": "Only selected account trade/cash facts requested; regression asserts query calls."
+    },
+    {
+      "requirement": "Read-only status and schema preview",
+      "status": "PASS",
+      "evidence": "Independent hash/mode check unchanged on existing DB; absent path not created; drift rejection regression passes."
+    },
+    {
+      "requirement": "Recurring overlap, history audits and partial-success cursor",
+      "status": "PASS",
+      "evidence": "Unit regressions verify bounded overlap, independent audit mode and no success advance for partial collections."
+    },
+    {
+      "requirement": "Worker heartbeat without due jobs",
+      "status": "PASS",
+      "evidence": "Independent probe updates heartbeat from 1000 to 2000 without jobs."
+    },
+    {
+      "requirement": "Metric exclusion visibility",
+      "status": "PASS",
+      "evidence": "Code exposes excluded count/reasons and exact holding eligible count while preserving formula contract."
+    },
+    {
+      "requirement": "Operations/docs acceptance ledger",
+      "status": "PASS",
+      "evidence": "Outstanding broader design features are acknowledged as outstanding rather than silently accepted or waived."
+    },
+    {
+      "requirement": "End-to-end local operational smoke",
+      "status": "PASS",
+      "evidence": "12 real CLI processes: absent status, import preview/apply, bounded reconcile preview/apply, journal, export, stale status, backup/restore; credentials/network disabled."
+    }
+  ],
+  "findings": [
+    {
+      "id": "IV3-F1",
+      "severity": "HIGH",
+      "mandatory": true,
+      "location": "kis_hl/data_reconciliation.py:16",
+      "finding": "Bounded reconciliation omits authoritative realized PnL from its economic comparison.",
+      "evidence": "Synthetic native HL buy at 100 and sell at 110: canonical closedPnl=999; independent statement closedPnl=10. All other fields agree. reconcile(apply=True) succeeds; the resulting journal is FINALIZED with net_pnl=999.",
+      "impact": "The newly added evidence-certification path certifies financial economics contradicted by the supplied independent statement.",
+      "required_correction": "Include all authoritative economics used by journal calculations in reconciliation comparison, including gross_pnl/closedPnl; treat absent versus supplied authoritative fields explicitly. Reject disagreement before coverage or anchors are committed.",
+      "confidence": "high",
+      "reproduction": "PYTHONPATH=. python3 .planning/verification_probes.py",
+      "requirement": "Correction acceptance: bounded economic reconciliation / HL explicit-flat recovery / late-input projection freshness respectively"
+    },
+    {
+      "id": "IV3-F2",
+      "severity": "MEDIUM",
+      "mandatory": true,
+      "location": "kis_hl/journal_exports.py:88",
+      "finding": "A recovered flat-anchored HL cycle still shares subsequent funding with the abandoned invalid segment.",
+      "evidence": "Buy at t=10 starts position. Another buy at t=20 reports native position_before=0, proving the previous segment has a gap. Sell at t=30 closes the new cycle. Funding -1 at t=25 is assigned to both the earlier invalid OPEN cycle and the recovered cycle, so the latter remains PENDING despite having no other reasons.",
+      "impact": "The accepted flat-anchor recovery fix fails for ordinary funded perpetual positions; the abandoned invalid cycle has no end bound and contaminates all later funding allocation.",
+      "required_correction": "Bound the invalid segment at the evidenced recovery boundary for allocation purposes without fabricating an economic close or finalized return. Preserve skipped fees and the gap finding. Funding after the new zero anchor must belong only to supported later cycles.",
+      "confidence": "high",
+      "reproduction": "PYTHONPATH=. python3 .planning/verification_probes.py",
+      "requirement": "Correction acceptance: bounded economic reconciliation / HL explicit-flat recovery / late-input projection freshness respectively"
+    },
+    {
+      "id": "IV3-F3",
+      "severity": "MEDIUM",
+      "mandatory": true,
+      "location": "kis_hl/data_store.py:183",
+      "finding": "A collector append between journal reads and pinning is hidden by the post-read input watermark.",
+      "evidence": "A deterministic interleaving adds funding -2 immediately before the journal calls its original pin implementation. The first report has net 10, regenerated report net 8, yet stale_runs remains empty because pin records a max fact ID already including the unread funding.",
+      "impact": "Concurrent scheduled collection can defeat the new late-fact freshness signal. Frozen historical reports must remain immutable; the failure is the missing current-projection stale signal.",
+      "required_correction": "Tie fact/coverage watermarks to the journal input read boundary or a consistent read snapshot, rather than the later pin transaction. Ensure append and coverage changes during calculation still flag the old run; do not introduce long write transactions.",
+      "confidence": "high",
+      "reproduction": "PYTHONPATH=. python3 .planning/verification_probes.py",
+      "requirement": "Correction acceptance: bounded economic reconciliation / HL explicit-flat recovery / late-input projection freshness respectively"
+    }
+  ],
+  "official_sources": [
+    "https://raw.githubusercontent.com/koreainvestment/open-trading-api/main/examples_llm/overseas_stock/inquire_time_itemchartprice/inquire_time_itemchartprice.py"
+  ],
+  "limitations": [
+    "No live/account API requests, secrets/private account data, publication, commits, source edits or shared workflow mutations.",
+    "Tests are offline, using temporary SQLite and synthetic source rows; broker update cadence, entitlement and history depth remain unverified.",
+    "No speculative tr_cont transport defect asserted: official sample explicitly defines NEXT/KEYB but also contains generic continuation recursion; live transport was not exercised.",
+    "Broader outstanding accepted-design work is outside this bounded correction verification; no overall project-complete or PR-review gate claim.",
+    "Prior pass knowledge used only as regression context; builder results were not used in lieu of running checks."
+  ]
+}

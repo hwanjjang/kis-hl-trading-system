@@ -1,0 +1,32 @@
+{
+  "candidate": "sha256:4ae90728d8a54d3df07a0dfa594348fcf97f2308b8a5a52845ff8df3af959516",
+  "base": "623b33392af24c9efeb7acf1c364251e9d7d2ae3",
+  "files": {
+    ".agents/skills/hyperliquid-api/SKILL.md": "f0ecd3a786f65d7d4200cbad2ad4c5d91e089139ca29f5d4163a27a231816508",
+    ".agents/skills/kis-open-api/SKILL.md": "0754023d8bb568e90d045246e3fdf92685ff8eee86a3706bb1ec2de40cbac4a3",
+    ".agents/skills/kis-open-api/references/endpoints.md": "386e4664fc4778d823c237e1f53e4615361df217235cf80730822f21ed9226f4",
+    ".agents/skills/trade-journal/references/record-contract.md": "0b72b1ea01f2929667220fbd825725d16ec013f88def38346e9538589f93aa0b",
+    "README.md": "1d67166afb7a2a4ae40e8f650f5593dfc6bf02fbaedfbedad1b3d84dfd6cd02e",
+    "docs/architecture.md": "89c447c40ce1456513129fc995d7a37e2881f8ef42ab6d342a091cc6986c10a7",
+    "docs/trading-operations.md": "f2225aeab926274830f33e2434f153f164dbbc5fb606175eb9d7acf538275bc0",
+    "docs/unified-data-operations.md": "9a1f84c96b9aaf5f56da36d5d8234f7b4ab4ab369cfef2c86395e6b4636d74fc",
+    "kis_hl/analysis_store.py": "13e93bf5c66390e3bfc0b0ecd1876c1c268bdefbf42ec3f7090e7272f750ca38",
+    "kis_hl/cli.py": "db9b385f8d9700cd449b0a3206a8cf0bf2729c35df9e523fa80f4885cc7cc04e",
+    "kis_hl/data_account_sync.py": "43be42d52ccdb067275ef19230131ca91f84dc6c75301c9545bbde54114d306a",
+    "kis_hl/data_cli.py": "f5662630c3bf4279084629471f620a310ccf83f56fac89bb0fd662ec550aa872",
+    "kis_hl/data_import.py": "beffead1df3b08fdfe98493835331151384e1e2b3998065367f0a6e0948ec17d",
+    "kis_hl/data_ingestion.py": "c8a66ac5edaed868a649e81cc775bb9fd6edcf4193e0f999432b3d0f4b7113e7",
+    "kis_hl/data_jobs.py": "275897170eee948d994a506f82164b5a4b5c9e53244d9204bde4ca2a8b923f6e",
+    "kis_hl/data_maintenance.py": "602c457841adfd7acc339c85132049b23f9ea56faa02228938357c333c344e26",
+    "kis_hl/data_migrations.py": "e270b7b61ee8530a427d3ed5b09a8a4a1d01f6387733a8a4095caadda6d68c03",
+    "kis_hl/data_quality.py": "79e04c0aa627deb16bc21c5a721cfa199727a7fbc9c3ea8699a6b2838d05f304",
+    "kis_hl/data_store.py": "578c4fd20a244b376b50751423d3a8a9a01a9e7aace7784bcf05bdf4ff60fc57",
+    "kis_hl/hyperliquid/client.py": "2fc42e992d6d7bf9bde29e787a3f28c01759d24ef580dc1e27661e3a46507658",
+    "kis_hl/journal_exports.py": "ea32a76bd89cf8674f0b96f3b95bdd37318427d6c757145a929d932f46f53ccb",
+    "kis_hl/kis/client.py": "01c3fa6ea89832b6ed41dc9e3841ccbc79b17d77d2d89cc1869350d15c5c22da",
+    "kis_hl/kis/routes.py": "6c1d1bb33d0bfd4102ba8c1a18fbf6e9783fdf97480476788721e40ff9a03243",
+    "kis_hl/market_ingestion.py": "f3e9fe40783b6c70b98b9f37e2aa8d916e368ca2c7b1ec5b6ea4c5861b2c5c2f",
+    "kis_hl/market_series.py": "923b08fd1981abe942a194be0e580a677e34fe71aa09b050c1457737e58394ee",
+    "tests/test_unified_data.py": "4b0fed5d73da19c6012a40fcd9c4c1c2ee7e486e4db0a1eb78728a162e1c8766"
+  }
+}

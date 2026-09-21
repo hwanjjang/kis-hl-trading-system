@@ -1,0 +1,12 @@
+======================================================================
+FAIL: test_hl_gap_anchor_itself_starts_next_cycle (tests.test_review_corrections.ReviewCorrections.test_hl_gap_anchor_itself_starts_next_cycle)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_review_corrections.py", line 237, in test_hl_gap_anchor_itself_starts_next_cycle
+    self.assertEqual(len(result['cycles']),2)
+AssertionError: 1 != 2
+
+----------------------------------------------------------------------
+Ran 1 test in 0.114s
+
+FAILED (failures=1)

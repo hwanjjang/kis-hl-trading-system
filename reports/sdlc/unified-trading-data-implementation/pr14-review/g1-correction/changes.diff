@@ -1,0 +1,537 @@
+diff --git a/.agents/skills/trade-journal/references/record-contract.md b/.agents/skills/trade-journal/references/record-contract.md
+index 974bc15..fbdc5ba 100644
+--- a/.agents/skills/trade-journal/references/record-contract.md
++++ b/.agents/skills/trade-journal/references/record-contract.md
+@@ -120,9 +120,19 @@ Hyperliquid reversals remain supported. New runs pin this inventory policy;
+ historical report IDs remain frozen, and raw facts/fees are never rewritten.
+ 
+ 
+-Full-review corrections validate portable statement total_cost against all known,
+-disjoint cost components and any supplied settlement. Contradictions are rejected;
+-missing data never justifies choosing the more favorable return. Grouped domestic
++Portable statement costs are disjoint included components, including explicitly
++signed rebates. Fully known components must sum to total_cost; any supplied
++settlement must reconcile it. Proved contradictions reject import. When some
++components are null and the known subtotal differs from total_cost, retain the
++source but mark cycles cost_components_unreconciled/PENDING and suppress both
++confirmed net returns and account/currency net_booked_pnl. A positive remainder
++is also unresolved; settlement agreement alone does not explain its allocation.
++Do not infer a missing charge, rebate or zero from the difference. Equal known
++subtotal (or no component breakdown) retains the source-total contract; explicit
++signed components can resolve rebates. New journal runs recheck stored facts,
++while old reports and source evidence remain immutable. Independent-statement
++reconciliation checks costs in both supplied rows and stored facts before
++certifying coverage. Missing detail never justifies choosing a favorable return. Grouped domestic
+ orders retain total fees and quantity with shared_order_cost_allocation pending.
+ A Hyperliquid retained tail may skip an unanchored segment and resume at a later
+ explicit zero position-before. Skipped fees stay in account totals and the gap
+diff --git a/docs/unified-data-operations.md b/docs/unified-data-operations.md
+index 25196a5..31af365 100644
+--- a/docs/unified-data-operations.md
++++ b/docs/unified-data-operations.md
+@@ -87,7 +87,11 @@ interval. Do not put order timestamps into execution fields. Optional verified
+ `position_before` establishes sequence. KIS bundle normalization may establish a
+ unique path from the broker sell cost basis and day-end inventory. Ambiguous
+ paths stay pending. One summary shared by multiple orders requires a more precise
+-source allocation; the adapter does not guess.
++source allocation; the adapter does not guess. For partial cost breakdowns,
++signed rebates and pending returns, follow the [journal cost contract](../.agents/skills/trade-journal/references/record-contract.md#canonical-data-journals).
++If a prior report used an unresolved cost breakdown, generate a new journal after
++this correction; existing report IDs and exported files remain frozen. Resolve
++missing cost detail through an explicit source revision before certifying it.
+ 
+ KIS completed cycles require a source-backed `position_before: "0"` at the first
+ entry, or continuous reconciled inventory from an earlier anchored cycle. Import
+@@ -129,11 +133,15 @@ An account job JSON is `{"kind":"account","venue":"hyperliquid",
+ must match the configured account. Credentials use existing `.env` configuration.
+ Each run replays the configured range; use a bounded retained range for routine
+ polling and explicit older imports for historical audits. Attempts/success/next
+-due are distinct. A process lock serializes job runners; failures wait the
+-configured interval and remain visible in `collection_runs`.
++due are distinct. A nonblocking process lock rejects a second concurrent runner; it does not queue
++or wait for the first runner. Collection failures wait the configured interval
++and remain visible in `collection_runs`.
+ 
+ KIS collection captures domestic profit/order summaries and US exchange
+-transaction statements. Other overseas markets require explicit source imports
++transaction statements. These KIS statement routes require live account mode
++(`SANDBOX=false`); no verified paper route is available. With the template default
++`SANDBOX=true`, use sourced imports or configure the intended live inquiry account
++before collection. Other overseas markets require explicit source imports
+ or a reviewed adapter extension. DAY precision/coverage remain visible. HL
+ retained fills anchor execution coverage; funding pagination alone does not
+ certify lifetime funding completeness. Position responses are retained and HL
+@@ -232,6 +240,9 @@ python3 -m kis_hl.cli data retention
+ 
+ Use a private persistent backup location outside ephemeral worktrees. Online
+ backup includes WAL contents consistently and writes a digest/integrity sidecar.
++The source must be an existing initialized canonical database and is opened
++read-only. Missing or uninitialized sources fail without creating a source,
++backup or sidecar; use `data migrate --apply` explicitly to initialize a database.
+ Restore requires a new isolated path and never replaces an existing database.
+ Run replay/reconciliation on the isolated copy before changing operational readers.
+ Do not replace the active DB after authoritative writes: repair forward.
+diff --git a/intent/unified-trading-data.md b/intent/unified-trading-data.md
+index beefe6d..4218c40 100644
+--- a/intent/unified-trading-data.md
++++ b/intent/unified-trading-data.md
+@@ -1,6 +1,6 @@
+ # Intent: unified trading data
+ 
+-Status: proposed design, not implemented. Task: `unified-trading-data`. Owner: /root.
++Status: implementation delivered in PR #14; broader-design acceptance remains partial. See [acceptance ledger](../docs/unified-data-acceptance.md). Task: `unified-trading-data`. Owner: /root.
+ Authority: user requests design first; latest clarification requires daily/minute/weekly candles, sampled quotes/funding/order books, and approximately ten years of weekly history. Endpoint: local plan-only.
+ 
+ ## Problem and outcome
+@@ -32,3 +32,7 @@ The default operating database and private account-journal snapshots are disconn
+ This turn designs the work. It does not alter application behavior, ingest data into the active database, enable a collector, trade, publish private records, commit or open a PR. Notifications remain undecided. Exact fill times, gross hourly funding, older market history and strategy attribution must not be fabricated. SQLite workload isolation, market revisions and safe rollback require explicit tests before implementation.
+ 
+ Related: [spec](../specs/unified-trading-data.md), [plan](../plans/unified-trading-data.md), [SDLC record](../reports/sdlc/unified-trading-data/triage.md).
++
++## 2026-09-20 correction authority
++
++The user authorized fixing PR #14 review G1 and the assessed operation documentation/backup issues, followed by commit and push to `feature/unified-trading-data`. Preserve source evidence and old reports. No live collection, merge or deployment. The existing implementation task and stage counters continue; no new formal PR-review PASS is claimed.
+diff --git a/kis_hl/data_cli.py b/kis_hl/data_cli.py
+index dcd3a4f..f86d947 100644
+--- a/kis_hl/data_cli.py
++++ b/kis_hl/data_cli.py
+@@ -44,7 +44,7 @@ def cmd_data(args):
+         return DataStore(args.db,readonly=True).status()
+     if args.data_action=='import' and not args.apply:
+         return import_manifest(None,args.manifest,apply=False,existing_path=args.db)
+-    store=DataStore(args.db,readonly=args.data_action=='reconcile' and not args.apply)
++    store=DataStore(args.db,readonly=args.data_action=='backup' or (args.data_action=='reconcile' and not args.apply))
+     if args.data_action=='reconcile':
+         from kis_hl.data_reconciliation import reconcile
+         return reconcile(store,args.statement,args.sha256,apply=args.apply)
+diff --git a/kis_hl/data_ingestion.py b/kis_hl/data_ingestion.py
+index a25c9e6..00f4636 100644
+--- a/kis_hl/data_ingestion.py
++++ b/kis_hl/data_ingestion.py
+@@ -65,6 +65,18 @@ def kis_overseas(row):
+         total_cost=number(broker+foreign),settlement=number(settlement),strategy='unassigned',origin='unknown')
+ 
+ 
++def cost_quality(payload):
++    """Check disjoint included costs without inventing unknown charges or credits."""
++    if payload.get('total_cost') is None:return ['unknown_cost']
++    total=D(payload['total_cost']);components=payload.get('costs',{});reasons=[]
++    if components and sum((D(v) for v in components.values() if v is not None),D(0))!=total:
++        reasons.append('cost_components_unreconciled' if any(v is None for v in components.values()) else 'cost_components_mismatch')
++    if payload.get('settlement') is not None:
++        expected=D(payload['notional'])+total*(1 if payload['side']=='buy' else -1)
++        if D(payload['settlement'])!=expected:reasons.append('settlement_cost_mismatch')
++    return reasons
++
++
+ def statement(row):
+     """Explicit portable statement contract for exact or DAY precision sources."""
+     p=dict(row)
+@@ -79,16 +91,9 @@ def statement(row):
+     for field in ['gross_pnl','position_before','settlement','day_end_quantity']:
+         if p.get(field) is not None:p[field]=number(p[field])
+     p['costs']={k:None if v is None else number(v) for k,v in p.get('costs',{}).items()}
+-    if p.get('total_cost') is not None:
+-        total=D(p['total_cost'])
+-        components=p['costs']
+-        # Components are disjoint included costs. None means unavailable detail.
+-        if components and all(v is not None for v in components.values()) and sum((D(v) for v in components.values()),D(0))!=total:
+-            raise ValueError('Cost components do not reconcile total_cost')
+-        if p.get('settlement') is not None:
+-            expected=D(p['notional'])+total*(1 if p['side']=='buy' else -1)
+-            if D(p['settlement'])!=expected:
+-                raise ValueError('Settlement does not reconcile total_cost')
++    reasons=cost_quality(p)
++    if 'cost_components_mismatch' in reasons:raise ValueError('Cost components do not reconcile total_cost')
++    if 'settlement_cost_mismatch' in reasons:raise ValueError('Settlement does not reconcile total_cost')
+     if not p.get('currency') or not p.get('instrument'):raise ValueError('Explicit units required')
+     start,end=p['event_start_ms'],p['event_end_ms']
+     if type(start) is not int or type(end) is not int or not 0<=start<end:raise ValueError('Invalid statement interval')
+diff --git a/kis_hl/data_reconciliation.py b/kis_hl/data_reconciliation.py
+index 410fab5..463d55f 100644
+--- a/kis_hl/data_reconciliation.py
++++ b/kis_hl/data_reconciliation.py
+@@ -6,7 +6,7 @@ import hashlib
+ import json
+ from pathlib import Path
+ 
+-from kis_hl.data_ingestion import normalize_rows
++from kis_hl.data_ingestion import normalize_rows, cost_quality
+ from kis_hl.data_store import encode, number, reject_secrets
+ from kis_hl.journal_sync import Scope
+ 
+@@ -53,6 +53,8 @@ def _reconcile(store, path, sha256, *, apply=False):
+     anchors=[]
+     if dataset=='trade':
+         if any(p.get('total_cost') is None for p in payloads):raise ValueError('Statement costs are incomplete')
++        if any(cost_quality(p) for p in [*payloads,*(f['payload'] for f in facts)]):
++            raise ValueError('Unresolved costs require source correction before reconciliation')
+         opening=document.get('opening_inventory',{});closing=document.get('closing_inventory',{})
+         instruments={f['instrument'] for f in facts}
+         if set(opening)!=instruments or set(closing)!=instruments:
+diff --git a/kis_hl/journal_exports.py b/kis_hl/journal_exports.py
+index a6de492..f513d65 100644
+--- a/kis_hl/journal_exports.py
++++ b/kis_hl/journal_exports.py
+@@ -8,6 +8,7 @@ import os
+ from pathlib import Path
+ import tempfile
+ from kis_hl.data_quality import effective_funding
++from kis_hl.data_ingestion import cost_quality
+ from kis_hl.data_reconciliation import coverage_current
+ from kis_hl.data_store import encode, now_ms
+ 
+@@ -126,8 +127,8 @@ def account_cycles(trades):
+                     if not adding:active['gross_pnl']+=D(p['gross_pnl'])
+                 elif not adding:
+                     active['gross_pnl']+=(notional-closing_basis*take)*(1 if active['side']=='long' else -1)
+-                if p.get('total_cost') is None:active['reasons'].append('unknown_cost')
+-                else:active['trading_fee']+=D(p['total_cost'])*fraction
++                active['reasons'].extend(cost_quality(p))
++                if p.get('total_cost') is not None:active['trading_fee']+=D(p['total_cost'])*fraction
+                 for kind,amount in p.get('costs',{}).items():
+                     if amount is not None:active['cost_components'][kind]=active['cost_components'].get(kind,Z)+D(amount)*fraction
+                 active['reasons'].extend(p.get('quality_reasons',[]))
+@@ -197,7 +198,7 @@ def journal(store, accounts, *, as_of_ms=None):
+             gross=sum((D(f['payload']['gross_pnl']) for f in ts),Z) if ts and all(f['payload'].get('gross_pnl') is not None for f in ts) else sum((c['gross_pnl'] for c in cs),Z)
+             fee=sum((D(f['payload']['total_cost']) for f in ts if f['payload'].get('total_cost') is not None),Z)
+             cashflow=sum((D(f['payload']['amount']) for f in fs),Z)
+-            incomplete=any(f['payload'].get('total_cost') is None for f in ts) or any(i.get('scope')==account and i.get('currency')==currency for i in issues) or bool(problems)
++            incomplete=any(cost_quality(f['payload']) for f in ts) or any(i.get('scope')==account and i.get('currency')==currency for i in issues) or bool(problems)
+             components=defaultdict(lambda:Z)
+             for f in ts:
+                 for k,v in f['payload'].get('costs',{}).items():
+diff --git a/plans/unified-trading-data.md b/plans/unified-trading-data.md
+index 7f377e8..448252e 100644
+--- a/plans/unified-trading-data.md
++++ b/plans/unified-trading-data.md
+@@ -1,6 +1,6 @@
+ # Implementation plan: unified trading data
+ 
+-Status: proposed implementation sequence; no application changes executed. Inputs: [intent](../intent/unified-trading-data.md), [spec](../specs/unified-trading-data.md), [diagram](../reports/sdlc/unified-trading-data/design/dataflow.html). Task endpoint remains local design-only.
++Status: original implementation sequence; PR #14 delivers the scope recorded in the [acceptance ledger](../docs/unified-data-acceptance.md). Inputs: [intent](../intent/unified-trading-data.md), [spec](../specs/unified-trading-data.md), [diagram](../reports/sdlc/unified-trading-data/design/dataflow.html). The original design endpoint was local; current correction authority permits PR #14 branch push, with no merge.
+ 
+ ## Sequence and file ownership
+ 
+@@ -77,4 +77,13 @@ Rollback is a reader/feature rollback first. Restore an old database only if no
+ 
+ ## Definition of implementation readiness
+ 
+-This design is ready for user review after document/link checks and the Archify artifact/browser/image checks. Implementation readiness is not implemented behavior: provider coverage, active-data migration, performance, runtime settings and independent code verification remain future acceptance obligations.
++The original design passed document and diagram checks. Current implementation evidence and remaining provider, migration and operational limits are recorded in the acceptance ledger; this design does not itself certify those outcomes.
++
++## 2026-09-20 G1 correction sequence
++
++1. Add tests for mixed null components in buy/sell, unequal and signed totals, historical stored facts, independent reconciliation on both evidence sets, account isolation, immutable reports and missing-source backup.
++2. Share a small cost-quality helper between ingestion, journal and reconciliation. Reject proved contradictions during statement normalization; derive unresolved status at read time so old facts are covered without mutation. Backup uses readonly DataStore.
++3. Update journal contract and operation docs; preserve formulas and archive bytes. Full unittest suite plus focused post-refactor checks, then separate real CLI import/reconcile/journal/export/backup/restore smoke with synthetic data and no dotenv/network.
++4. Fresh-context non-builder verification before scoped commit/push. Preserve unrelated files and old failed evidence. Formal PR-review attempt limit remains unchanged; no merge readiness claim.
++
++Risk: over-rejecting incomplete but legitimate cost detail or regressing native KIS/HL fee contracts. Retain unresolved rows rather than replacing fees with their subtotal. Do not blanket-reject every incomplete breakdown or manufacture rebate amounts. Rollback is code-only; no DB migrations or data rewrites. Pending reports may be regenerated after explicit source correction.
+diff --git a/specs/unified-trading-data.md b/specs/unified-trading-data.md
+index 939f116..624c318 100644
+--- a/specs/unified-trading-data.md
++++ b/specs/unified-trading-data.md
+@@ -1,6 +1,6 @@
+ # Unified trading data specification
+ 
+-Status: proposed, not implemented. Task: `unified-trading-data`. Authority: [intent](../intent/unified-trading-data.md). Evidence: [investigation](../reports/sdlc/unified-trading-data/investigation.md). Implementation sequence: [plan](../plans/unified-trading-data.md).
++Status: broader design contract, partially implemented in PR #14. See [implemented/outstanding acceptance](../docs/unified-data-acceptance.md). Task: `unified-trading-data`. Authority: [intent](../intent/unified-trading-data.md). Evidence: [investigation](../reports/sdlc/unified-trading-data/investigation.md). Implementation sequence: [plan](../plans/unified-trading-data.md).
+ 
+ ## 1. Storage decision and ownership — AC1
+ 
+@@ -164,3 +164,9 @@ Names below are design proposals, not commands currently available:
+ Rejected for the first release: merging report DB files as authoritative ledgers; destructive overwrite of raw data; immediate PostgreSQL/Timescale migration; permanent exhaustive tick/L2 capture; automatic cross-currency totals; deriving exact fill times from order times; forced allocation of ambiguous daily funding; generic perpetual-versus-index price aliases.
+ 
+ Implementation must prove pagination/retention for each provider, stable source row identity, correction invalidation, period-overlap representation selection, cash-cost conservation, weekly calendar construction, historical adjustment revisions, backup recovery and supervisor write latency. No load result, provider history guarantee, migration, scheduled collection or independent implementation verification is claimed by this design document.
++
++## 2026-09-20 partial-cost correction — AC2, AC4, AC5, AC6
++
++Portable statement costs are disjoint included components, including explicitly signed rebates. Fully known component sums must equal total_cost; supplied settlement must reconcile notional plus buy costs or minus sell costs. Contradictions reject import. If components contain null and their known sum differs from total_cost, preserve the statement as unresolved (including a positive remainder); do not infer the missing charge/credit from the difference, even if settlement agrees. New journal cycles and account/currency net totals remain pending/null and exclude unresolved cycles from confirmed statistics. Equal known sum or absent detail preserves the existing source-total contract; explicit signed components may resolve rebates. Recheck preexisting facts on report generation without rewriting old runs or raw evidence. Independent reconciliation must reject unresolved costs in either supplied rows or stored facts before changing anchors/coverage. No schema migration.
++
++Backup must open an existing initialized source read-only. A missing or uninitialized source must not create a source DB, destination or sidecar. Existing online backup/restore behavior remains. Operator documentation states nonblocking runner lock rejection and live-only KIS statement routes. Broader-design status links to implemented/outstanding acceptance.
+diff --git a/tests/test_statement_cost_quality.py b/tests/test_statement_cost_quality.py
+new file mode 100644
+index 0000000..2fc574a
+--- /dev/null
++++ b/tests/test_statement_cost_quality.py
+@@ -0,0 +1,155 @@
++"""Incomplete fee detail must never silently certify a favorable return."""
++import hashlib
++import json
++from pathlib import Path
++import sqlite3
++from tempfile import TemporaryDirectory
++from types import SimpleNamespace
++import unittest
++
++from kis_hl.data_cli import cmd_data
++from kis_hl.data_ingestion import ingest_rows, statement
++from kis_hl.data_reconciliation import reconcile
++from kis_hl.data_store import DataStore
++from kis_hl.journal_exports import journal, export_report
++from tests.test_canonical_inventory import trade
++
++
++class StatementCostQualityTests(unittest.TestCase):
++    def setUp(self):
++        self.tmp = TemporaryDirectory()
++        self.addCleanup(self.tmp.cleanup)
++        self.root = Path(self.tmp.name)
++        self.store = DataStore(self.root / 'state.sqlite')
++        self.account = self.store.account('kis', 'sim', 'synthetic')
++
++    def rows(self, costs, total='1', side='buy'):
++        rows = [trade(1, 'buy', 1, position_before='0'), trade(2, 'sell', 1, 110)]
++        index = 0 if side == 'buy' else 1
++        rows[index] |= {'costs': costs, 'total_cost': total}
++        return rows
++
++    def report(self, rows):
++        ingest_rows(self.store, self.account, 'statement', rows, allow_correction=True)
++        self.store.coverage('trade', self.account, 0, 100, 'complete', {})
++        return journal(self.store, [self.account])
++
++    def assert_pending(self, result):
++        cycle = result['cycles'][0]
++        self.assertEqual(cycle['status'], 'PENDING')
++        self.assertIn('cost_components_unreconciled', cycle['reasons'])
++        self.assertIsNone(cycle['net_pnl'])
++        self.assertIsNone(cycle['net_return_pct'])
++        summary = result['summary_by_account_currency'][0]
++        self.assertIsNone(summary['net_booked_pnl'])
++        self.assertEqual(summary['coverage_status'], 'partial_or_unverified')
++        stats = summary['statistics_by_strategy']['unassigned']
++        self.assertEqual(stats['trade_count'], 0)
++        self.assertEqual(stats['excluded_count'], 1)
++
++    def test_mixed_components_never_finalize_buy_or_sell(self):
++        for side in ['buy', 'sell']:
++            for total in ['1', '11', '-1', '0']:
++                with self.subTest(side=side, total=total):
++                    result = self.report(self.rows({'broker': '10', 'tax': None}, total, side))
++                    self.assert_pending(result)
++                    self.assertEqual(result['cycles'][0]['cost_components'], {'broker': '11'})
++
++    def test_plausible_remainder_is_retained_pending_even_with_settlement(self):
++        rows = self.rows({'broker': '1', 'tax': None}, '2')
++        rows[0]['settlement'] = '102'
++        self.assertEqual(statement(rows[0])[2]['total_cost'], '2')
++        self.assert_pending(self.report(rows))
++        self.assertEqual(self.store.facts('trade', scope=self.account)[0]['payload']['costs']['tax'], None)
++
++    def test_equal_known_sum_and_explicit_rebates_remain_eligible(self):
++        for costs, total in [({'broker': '1', 'tax': None}, '1'),
++                             ({'broker': '10', 'rebate': '-9'}, '1'),
++                             ({'rebate': '-1'}, '-1'), ({'broker': '0', 'tax': None}, '0'),
++                             ({}, '1')]:
++            with self.subTest(costs=costs):
++                result = self.report(self.rows(costs, total))
++                self.assertEqual(result['cycles'][0]['status'], 'FINALIZED')
++                self.assertIsNotNone(result['summary_by_account_currency'][0]['net_booked_pnl'])
++        self.assertEqual(self.report(self.rows({'broker': '10', 'rebate': '-9'}))['cycles'][0]['net_pnl'], '8')
++
++    def test_known_contradictions_still_reject_before_facts(self):
++        for patch in [{'costs': {'broker': '10'}},
++                      {'costs': {'broker': '10', 'tax': None}, 'settlement': '999'}]:
++            with self.subTest(patch=patch), self.assertRaisesRegex(ValueError, 'reconcile'):
++                ingest_rows(self.store, self.account, 'statement', [trade(1, 'buy', 1) | patch])
++        self.assertEqual(self.store.facts('trade', scope=self.account), [])
++
++    def test_old_facts_are_rechecked_without_source_rewrite(self):
++        observation = self.store.observe('statement', self.account, b'[]')
++        for row in self.rows({'broker': '10', 'tax': None}):
++            payload = {k: v for k, v in row.items() if k != 'source_id'}
++            self.store.fact('trade', self.account, row['source_id'], payload, observation=observation)
++        before = self.store.facts('trade', scope=self.account)
++        self.store.coverage('trade', self.account, 0, 100, 'complete', {})
++        self.assert_pending(journal(self.store, [self.account]))
++        self.assertEqual(self.store.facts('trade', scope=self.account), before)
++
++    def test_unresolved_account_does_not_hide_healthy_account_return(self):
++        self.report(self.rows({'broker': '10', 'tax': None}))
++        healthy = self.store.account('kis', 'sim', 'healthy')
++        ingest_rows(self.store, healthy, 'statement', self.rows({'broker': '1'}))
++        self.store.coverage('trade', healthy, 0, 100, 'complete', {})
++        result = journal(self.store, [self.account, healthy])
++        summaries = {r['account']: r for r in result['summary_by_account_currency']}
++        self.assertIsNone(summaries[self.account]['net_booked_pnl'])
++        self.assertEqual(summaries[healthy]['net_booked_pnl'], '8')
++
++    def test_reconciliation_checks_both_evidence_sets_without_writes(self):
++        for unresolved_side in ['source', 'stored']:
++            with self.subTest(unresolved_side=unresolved_side):
++                good = self.rows({'broker': '1'})
++                bad = self.rows({'broker': '10', 'tax': None})
++                stored, source = (good, bad) if unresolved_side == 'source' else (bad, good)
++                ingest_rows(self.store, self.account, 'statement', stored, allow_correction=True)
++                doc = dict(schema_version=1, source='Synthetic independent statement', complete=True,
++                           account=dict(venue='kis', environment='sim', native_id='synthetic'),
++                           dataset='trade', start_ms=0, end_ms=100, parser='statement', rows=source,
++                           opening_inventory={'kis:X': '0'}, closing_inventory={'kis:X': '0'})
++                path = self.root / 'statement.json'
++                path.write_text(json.dumps(doc))
++                digest = hashlib.sha256(path.read_bytes()).hexdigest()
++                with self.store.connect() as db:
++                    before = '\n'.join(db.iterdump())
++                for apply in [False, True]:
++                    with self.assertRaisesRegex(ValueError, '[Cc]ost.*unresolved|[Uu]nresolved.*cost'):
++                        reconcile(self.store, path, digest, apply=apply)
++                with self.store.connect() as db:
++                    self.assertEqual('\n'.join(db.iterdump()), before)
++
++    def test_source_correction_changes_new_report_only(self):
++        before = self.report(self.rows({'broker': '10', 'tax': None}))
++        self.assert_pending(before)
++        path = self.root / 'before.json'
++        export_report(self.store, before['report_id'], path)
++        frozen = path.read_bytes()
++        after = self.report(self.rows({'broker': '10', 'tax': '0'}, '10'))
++        self.assertEqual(after['cycles'][0]['status'], 'FINALIZED')
++        self.assertEqual(after['cycles'][0]['net_pnl'], '-1')
++        self.assertEqual(path.read_bytes(), frozen)
++        self.assertIn(before['report_id'], self.store.status()['stale_runs'])
++        self.assertEqual(len(self.store.facts('trade', scope=self.account)), 2)
++
++    def test_backup_missing_source_creates_nothing(self):
++        source = self.root / 'missing' / 'db.sqlite'
++        target = self.root / 'backups' / 'backup.sqlite'
++        with self.assertRaisesRegex(ValueError, '[Nn]ot initialized'):
++            cmd_data(SimpleNamespace(db=source, data_action='backup', target=target))
++        self.assertFalse(source.parent.exists())
++        self.assertFalse(target.parent.exists())
++
++    def test_backup_uninitialized_source_is_unchanged(self):
++        source = self.root / 'empty.sqlite'
++        with sqlite3.connect(source) as db:
++            db.execute('CREATE TABLE unrelated (id INTEGER)')
++        before = source.read_bytes()
++        target = self.root / 'backup.sqlite'
++        with self.assertRaisesRegex(ValueError, '[Nn]ot initialized'):
++            cmd_data(SimpleNamespace(db=source, data_action='backup', target=target))
++        self.assertEqual(source.read_bytes(), before)
++        self.assertFalse(target.exists())
+diff --git a/scripts/smoke_statement_costs.py b/scripts/smoke_statement_costs.py
+new file mode 100644
+index 0000000..90fa966
+--- /dev/null
++++ b/scripts/smoke_statement_costs.py
+@@ -0,0 +1,118 @@
++"""Offline real-CLI acceptance for unresolved costs, correction and safe backup."""
++import hashlib
++import json
++import os
++from pathlib import Path
++import subprocess
++import sys
++from tempfile import TemporaryDirectory
++
++ROOT = Path(__file__).resolve().parents[1]
++RUNNER = """import sys
++import kis_hl.config as config
++config.load_dotenv=lambda *a,**k:None
++from kis_hl.cli import main
++raise SystemExit(main())
++"""
++
++
++def main():
++    calls = 0
++    with TemporaryDirectory(prefix='statement-cost-smoke-') as tmp:
++        root = Path(tmp)
++        db = root / 'state.sqlite'
++
++        def cli(*args, error=None):
++            nonlocal calls
++            calls += 1
++            result = subprocess.run(
++                [sys.executable, '-c', RUNNER, '--db', str(db), *args],
++                cwd=ROOT, text=True, capture_output=True, timeout=30,
++                env={'PATH': os.environ.get('PATH', ''), 'PYTHONPATH': str(ROOT),
++                     'PYTHONDONTWRITEBYTECODE': '1'})
++            if error is not None:
++                assert result.returncode != 0, result.stdout
++                assert error in result.stderr, result.stderr
++                return
++            assert result.returncode == 0, result.stderr
++            return json.loads(result.stdout)
++
++        backup = root / 'backup' / 'copy.sqlite'
++        cli('data', 'backup', '--target', str(backup), error='not initialized')
++        assert not db.exists() and not backup.parent.exists()
++        rows = [dict(source_id=str(i), instrument='kis:X', currency='USD',
++                     event_start_ms=i * 10, event_end_ms=i * 10 + 1,
++                     time_precision='MILLISECOND', grain='EXECUTION', side=side,
++                     quantity='1', price=price, notional=price, total_cost='1',
++                     costs={'broker': '1'})
++                for i, side, price in [(1, 'buy', '100'), (2, 'sell', '110')]]
++        rows[0] |= {'position_before': '0', 'costs': {'broker': '10', 'tax': None}}
++        account = dict(alias='k', venue='kis', environment='sim', native_id='synthetic')
++        raw = root / 'raw.json'
++        manifest = root / 'manifest.json'
++
++        def write_manifest(correction=False):
++            raw.write_text(json.dumps(rows))
++            manifest.write_text(json.dumps(dict(schema_version=1, accounts=[account],
++                files=[dict(path=raw.name, sha256=hashlib.sha256(raw.read_bytes()).hexdigest(),
++                            account='k', role='raw', parser='statement', allow_correction=correction)],
++                coverage=[dict(account='k', dataset='trade', start_ms=0, end_ms=100,
++                               status='complete', details={'source': 'Synthetic test coverage'})])))
++
++        write_manifest()
++        assert cli('data', 'import', '--manifest', str(manifest))['applied'] is False
++        assert not db.exists()
++        cli('data', 'import', '--manifest', str(manifest), '--apply')
++        aid = cli('data', 'status')['accounts'][0]['id']
++        before = cli('data', 'journal', '--accounts', aid)
++        cycle = before['cycles'][0]
++        assert cycle['status'] == 'PENDING'
++        assert cycle['net_pnl'] is None and cycle['net_return_pct'] is None
++        assert cycle['cost_components'] == {'broker': '11'}
++        summary = before['summary_by_account_currency'][0]
++        assert summary['net_booked_pnl'] is None
++        assert summary['statistics_by_strategy']['unassigned']['trade_count'] == 0
++        output = root / 'before.json'
++        cli('data', 'export', '--report-id', str(before['report_id']), '--output', str(output))
++        frozen = output.read_bytes()
++        source = root / 'statement.json'
++
++        def write_statement():
++            source.write_text(json.dumps(dict(schema_version=1, source='Synthetic independent statement',
++                complete=True, account={k: v for k, v in account.items() if k != 'alias'},
++                dataset='trade', start_ms=0, end_ms=100, parser='statement', rows=rows,
++                opening_inventory={'kis:X': '0'}, closing_inventory={'kis:X': '0'})))
++            return hashlib.sha256(source.read_bytes()).hexdigest()
++
++        digest = write_statement()
++        cli('data', 'reconcile', '--statement', str(source), '--sha256', digest,
++            '--apply', error='Unresolved costs')
++        rows[0] |= {'costs': {'broker': '10', 'tax': '0'}, 'total_cost': '10'}
++        write_manifest(correction=True)
++        cli('data', 'import', '--manifest', str(manifest), '--apply')
++        digest = write_statement()
++        cli('data', 'reconcile', '--statement', str(source), '--sha256', digest, '--apply')
++        after = cli('data', 'journal', '--accounts', aid)
++        assert after['cycles'][0]['status'] == 'FINALIZED'
++        assert after['cycles'][0]['trading_fee'] == '11'
++        assert after['cycles'][0]['net_pnl'] == '-1'
++        assert after['summary_by_account_currency'][0]['net_booked_pnl'] == '-1'
++        assert before['report_id'] in cli('data', 'status')['stale_runs']
++        old_export = root / 'old-again.json'
++        cli('data', 'export', '--report-id', str(before['report_id']), '--output', str(old_export))
++        assert old_export.read_bytes() == frozen == output.read_bytes()
++        cli('data', 'backup', '--target', str(backup))
++        restored = root / 'restored.sqlite'
++        cli('data', 'restore', '--source', str(backup), '--target', str(restored))
++        db = restored
++        restored_report = cli('data', 'journal', '--accounts', aid)
++        assert restored_report['cycles'][0]['net_pnl'] == '-1'
++    assert not root.exists()
++    print(json.dumps(dict(status='passed', cli_processes=calls, network=False, private_data=False,
++                         unresolved_returns_pending=True, corrected_net_pnl='-1',
++                         immutable_export=True, missing_backup_no_files=True,
++                         backup_restore=True, cleanup=True)))
++
++
++if __name__ == '__main__':
++    main()

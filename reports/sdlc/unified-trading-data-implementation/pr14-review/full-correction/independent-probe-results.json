@@ -1,0 +1,53 @@
+{
+  "gross_pnl_reconciliation": {
+    "applied": true,
+    "statement_gross": "10",
+    "canonical_net": "999",
+    "status": "FINALIZED"
+  },
+  "funding_after_recovery": {
+    "cycles": [
+      {
+        "opened_ms": 10,
+        "closed_ms": null,
+        "status": "OPEN",
+        "reasons": [
+          "opening_inventory_gap",
+          "trade_coverage_unverified",
+          "cash_coverage_unverified"
+        ],
+        "shared_funding_ids": [
+          4
+        ]
+      },
+      {
+        "opened_ms": 20,
+        "closed_ms": 30,
+        "status": "PENDING",
+        "reasons": [],
+        "shared_funding_ids": [
+          4
+        ]
+      }
+    ],
+    "issues": [
+      {
+        "kind": "opening_inventory_gap",
+        "instrument": "hl:BTC",
+        "fact_ids": [
+          2
+        ]
+      },
+      {
+        "kind": "funding_allocation_pending",
+        "fact_ids": [
+          4
+        ],
+        "cycle_ids": [
+          "7896557805:1:0",
+          "7896557805:2:1"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "unrelated_account_and_future_event_excluded": true,
+  "late_coverage_detected": true,
+  "captured_coverage_not_false_stale": true,
+  "old_revision_stale_new_revision_fresh": true,
+  "legacy_watermark_values_ignored": true
+}

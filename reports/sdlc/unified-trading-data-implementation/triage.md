@@ -1,0 +1,2 @@
+# Implementation intake
+User proceeded after the completed unified data design. Endpoint: local implementation and verification. Branch: feature/unified-trading-data. Preserve unrelated protected-trading dirty evidence. No trading actions, publication or merge. Accepted AC1–AC6 remain the design acceptance criteria; implementation will verify storage, accounting, market series, backup and reproducible consumers. The completed plan-only task is preserved; this is its implementation follow-on, not a retry of a failed stage.

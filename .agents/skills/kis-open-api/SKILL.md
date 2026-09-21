@@ -82,6 +82,7 @@ Details, pagination, hashkey and error codes: `references/auth-and-transport.md`
 | `overseas_stock_chart` | `/uapi/overseas-price/v1/quotations/dailyprice` | `HHDFS76240000` | Adjusted US ETF daily page |
 | `order_book` | Domestic `inquire-asking-price-exp-ccn` / overseas `inquire-asking-price` | `FHKST01010200` / `HHDFS76200100` | Bid/ask and source clock |
 | `domestic_intraday_chart` | `/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice` | `FHKST03010200` | Verify the domestic quote session date |
+| `overseas_intraday_chart` | `/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice` | `HHDFS76950200` | US minute page; local xymd/xhms and bounded KEYB continuation |
 | `overseas_instrument_info` | `/uapi/overseas-price/v1/quotations/search-info` | `CTPF1702R` | Broker listing route, currency and lot metadata |
 | `account_pages` | Exact paths/parameters in `kis_hl/kis/routes.py` | See [managed routes](references/managed-routes.md) | Fully paginated account reads |
 | `cash_order` | Domestic / overseas `trading/order-cash` / `trading/order` | Domestic `TTTC0012U` buy / `TTTC0011U` sell; US `TTTT1002U` buy / `TTTT1006U` sell | Cash limit only; preview by default |
@@ -151,3 +152,8 @@ in `references/websocket.md`. This repo's implementation is `kis_hl/kis/ws.py`
 Official docs: https://apiportal.koreainvestment.com (API 문서, 에러코드, 종목정보 다운로드).
 The portal is a JS app; when offline, the upstream GitHub samples are the most
 reliable machine-readable spec.
+
+Canonical storage adds weekly chart period selection, raw response byte capture,
+and live domestic trade-profit / overseas transaction statement routes. Exact
+parameters, units, pagination and adapter constraints are documented in
+[references/endpoints.md](references/endpoints.md#canonical-data-collection-additions-2026-09-13).

@@ -1,0 +1,9 @@
+{"level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_order_dry_run", "resolved_coin": "xyz:KR200", "ts": "2026-09-13T04:37:48.292338+00:00"}
+{"kis_market": "domestic", "kis_symbol": "005930", "level": "INFO", "logger": "kis_hl.cli", "message": "trade_xyz_kis_fetch_started", "trade_symbol": "SAMSUNG", "ts": "2026-09-13T04:37:50.184004+00:00"}
+{"level": "INFO", "logger": "kis_hl.cli", "message": "trade_xyz_kis_fetch_stored", "stored_id": 1, "trade_symbol": "SAMSUNG", "ts": "2026-09-13T04:37:50.189363+00:00"}
+{"level": "INFO", "logger": "kis_hl.cli", "message": "trade_xyz_reference_fetch_started", "provider": "yahoo_finance", "provider_symbol": "CL=F", "trade_symbol": "WTIOIL", "ts": "2026-09-13T04:37:50.399339+00:00"}
+{"level": "INFO", "logger": "kis_hl.cli", "message": "trade_xyz_reference_fetch_stored", "stored_id": 1, "trade_symbol": "WTIOIL", "ts": "2026-09-13T04:37:50.409268+00:00"}
+----------------------------------------------------------------------
+Ran 103 tests in 12.351s
+
+OK

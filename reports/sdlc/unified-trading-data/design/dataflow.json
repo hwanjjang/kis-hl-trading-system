@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Unified Trading Data \u2014 Proposed Design",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1080,
+      520
+    ]
+  },
+  "stages": [
+    {
+      "label": "Sources"
+    },
+    {
+      "label": "Raw evidence"
+    },
+    {
+      "label": "Canonical facts"
+    },
+    {
+      "label": "Validation"
+    },
+    {
+      "label": "Consumers"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "account_sources",
+      "type": "external",
+      "label": "Account sources",
+      "sublabel": "KIS / tradefi / imports",
+      "stage": 0,
+      "row": 0,
+      "width": 140,
+      "tag": "3h sync"
+    },
+    {
+      "id": "market_sources",
+      "type": "external",
+      "label": "Market sources",
+      "sublabel": "KIS / HL / references",
+      "stage": 0,
+      "row": 2,
+      "width": 140,
+      "tag": "sampled"
+    },
+    {
+      "id": "account_evidence",
+      "type": "database",
+      "label": "Account evidence",
+      "sublabel": "Raw bytes + observations",
+      "stage": 1,
+      "row": 0,
+      "width": 140,
+      "tag": "immutable"
+    },
+    {
+      "id": "market_evidence",
+      "type": "database",
+      "label": "Market evidence",
+      "sublabel": "Raw bytes + coverage",
+      "stage": 1,
+      "row": 2,
+      "width": 140,
+      "tag": "source clocks"
+    },
+    {
+      "id": "account_facts",
+      "type": "database",
+      "label": "Account ledger",
+      "sublabel": "Trades / costs / balances",
+      "stage": 2,
+      "row": 0,
+      "width": 140,
+      "tag": "scoped revisions"
+    },
+    {
+      "id": "market_facts",
+      "type": "database",
+      "label": "Market series",
+      "sublabel": "1m / 1d / 1w + snapshots",
+      "stage": 2,
+      "row": 2,
+      "width": 140,
+      "tag": "10y weekly target"
+    },
+    {
+      "id": "account_checks",
+      "type": "backend",
+      "label": "Reconciliation",
+      "sublabel": "Cycles + cost allocation",
+      "stage": 3,
+      "row": 0,
+      "width": 140,
+      "tag": "pending stays visible"
+    },
+    {
+      "id": "market_checks",
+      "type": "backend",
+      "label": "Series validation",
+      "sublabel": "Sessions / gaps / revisions",
+      "stage": 3,
+      "row": 2,
+      "width": 140,
+      "tag": "completed bars"
+    },
+    {
+      "id": "journal_exports",
+      "type": "frontend",
+      "label": "Investment journals",
+      "sublabel": "Account + portfolio views",
+      "stage": 4,
+      "row": 0,
+      "width": 140,
+      "tag": "currency separated"
+    },
+    {
+      "id": "analysis_outputs",
+      "type": "frontend",
+      "label": "Analysis results",
+      "sublabel": "Versioned inputs + metrics",
+      "stage": 4,
+      "row": 2,
+      "width": 140,
+      "tag": "as-of evidence"
+    }
+  ],
+  "flows": [
+    {
+      "id": "capture_accounts",
+      "from": "account_sources",
+      "to": "account_evidence",
+      "label": "Responses",
+      "variant": "emphasis"
+    },
+    {
+      "id": "normalize_accounts",
+      "from": "account_evidence",
+      "to": "account_facts",
+      "label": "Normalize",
+      "variant": "emphasis"
+    },
+    {
+      "id": "check_accounts",
+      "from": "account_facts",
+      "to": "account_checks",
+      "label": "Reconcile",
+      "variant": "emphasis"
+    },
+    {
+      "id": "publish_journal",
+      "from": "account_checks",
+      "to": "journal_exports",
+      "label": "Net results",
+      "variant": "emphasis"
+    },
+    {
+      "id": "capture_markets",
+      "from": "market_sources",
+      "to": "market_evidence",
+      "label": "Observations"
+    },
+    {
+      "id": "normalize_markets",
+      "from": "market_evidence",
+      "to": "market_facts",
+      "label": "Normalize"
+    },
+    {
+      "id": "check_markets",
+      "from": "market_facts",
+      "to": "market_checks",
+      "label": "Validate"
+    },
+    {
+      "id": "analyze_markets",
+      "from": "market_checks",
+      "to": "analysis_outputs",
+      "label": "Pinned bars"
+    },
+    {
+      "id": "analyze_trades",
+      "from": "journal_exports",
+      "to": "analysis_outputs",
+      "label": "Pinned trade results",
+      "variant": "dashed",
+      "labelAt": [
+        960,
+        271
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "One canonical SQLite store",
+      "items": [
+        "Evidence, facts and projections share data/kis_hl.sqlite.",
+        "Existing managed/trailing state keeps its database path and locks."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Money and precision remain explicit",
+      "items": [
+        "Keep both-side fees, actual funding and unresolved allocations.",
+        "KIS and tradefi stay separate; Master is excluded from journals."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Weekly history with provenance",
+      "items": [
+        "Target ten years where listing history and provider coverage allow.",
+        "Calendar, adjustment basis and input revisions travel with each bar."
+      ]
+    }
+  ]
+}

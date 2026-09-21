@@ -1,0 +1,89 @@
+{
+  "candidate": "sha256:3dcf4d72ecca4b1e13a41c766eb9e4bd6923e53b8da88c3eadc66574847418a7",
+  "scenarios": [
+    {
+      "id": "correction-cli",
+      "requirement": "AC6",
+      "required": true,
+      "environment": "Local CLI subprocesses and temporary SQLite",
+      "prerequisites": "Installed runtime; no credentials/network",
+      "actions": "Preview/import, source reconciliation, journal/export, status, backup/restore",
+      "expected": "Validated economics, immutable exports, no implicit preview writes and cleanup",
+      "failure": "Incorrect financial eligibility, source mutation, failed CLI or leaked temporary data",
+      "cleanup": "TemporaryDirectory deleted; absence asserted"
+    },
+    {
+      "id": "inventory-cli",
+      "requirement": "AC6",
+      "required": true,
+      "environment": "Local CLI subprocesses and temporary SQLite",
+      "prerequisites": "Installed runtime; no credentials/network",
+      "actions": "Preview/import/replay, inventory eligibility, journal/export immutability",
+      "expected": "Validated economics, immutable exports, no implicit preview writes and cleanup",
+      "failure": "Incorrect financial eligibility, source mutation, failed CLI or leaked temporary data",
+      "cleanup": "TemporaryDirectory deleted; absence asserted"
+    }
+  ],
+  "runs": [
+    {
+      "id": "v2-red.txt",
+      "phase": "red",
+      "candidate": "sha256:9ae1292c578dc261fdac3b2d2fe0a120569b629ea3e7b93a2cdc847ad256a34b",
+      "command": "python3 -m unittest tests.test_review_corrections -q",
+      "environment": "Local Python/temporary SQLite, no credentials/network",
+      "observed": "Four intended failures: provider PnL, funding exposure, append race and legacy freshness",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/full-correction/revision-2/red.txt",
+      "exit_code": 1,
+      "status": "passed",
+      "intended_failure": true
+    },
+    {
+      "id": "v2-full-green.txt",
+      "phase": "green",
+      "candidate": "sha256:3dcf4d72ecca4b1e13a41c766eb9e4bd6923e53b8da88c3eadc66574847418a7",
+      "command": "python3 -m unittest discover -s tests -t . -q",
+      "environment": "Local Python/temporary SQLite, no credentials/network",
+      "observed": "348 tests passed",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/full-correction/revision-2/full-green.txt",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "id": "v2-post-refactor.txt",
+      "phase": "post-refactor",
+      "candidate": "sha256:3dcf4d72ecca4b1e13a41c766eb9e4bd6923e53b8da88c3eadc66574847418a7",
+      "command": "python3 -m unittest tests.test_review_corrections tests.test_kis_client -q",
+      "environment": "Local Python/temporary SQLite, no credentials/network",
+      "observed": "32 tests passed",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/full-correction/revision-2/post-refactor.txt",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "id": "v2-smoke.txt",
+      "phase": "smoke",
+      "candidate": "sha256:3dcf4d72ecca4b1e13a41c766eb9e4bd6923e53b8da88c3eadc66574847418a7",
+      "command": "python3 scripts/smoke_review_corrections.py",
+      "environment": "Local Python/temporary SQLite, no credentials/network",
+      "observed": "12 real CLI processes passed",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/full-correction/revision-2/smoke.txt",
+      "exit_code": 0,
+      "status": "passed",
+      "scenario_id": "correction-cli",
+      "execution_kind": "real"
+    },
+    {
+      "id": "v2-legacy-smoke.txt",
+      "phase": "smoke",
+      "candidate": "sha256:3dcf4d72ecca4b1e13a41c766eb9e4bd6923e53b8da88c3eadc66574847418a7",
+      "command": "python3 scripts/smoke_canonical_inventory.py",
+      "environment": "Local Python/temporary SQLite, no credentials/network",
+      "observed": "7 real CLI processes passed",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/full-correction/revision-2/legacy-smoke.txt",
+      "exit_code": 0,
+      "status": "passed",
+      "scenario_id": "inventory-cli",
+      "execution_kind": "real"
+    }
+  ]
+}

@@ -92,3 +92,62 @@ unknown attribution never removes existing evidenced attribution.
 The scheduler records every collection attempt and its reason separately from
 last successful collection and verified execution/cost coverage. Incomplete or
 failed attempts wait the configurable interval; explicit sync may retry sooner.
+
+## Canonical data journals
+
+`data journal --accounts ...` reads `fact_revisions` and freezes exact inputs in
+`analysis_runs/analysis_inputs`. It preserves existing nine-statistic formulas;
+DAY records may contribute to the seven return metrics when monetary and sequence
+evidence is complete, while exact holding-day statistics remain unavailable.
+KIS dated sell cost basis and ending inventory may establish a unique sequence;
+order time alone does not. Partial exits use remaining inventory basis before a
+later add. Hyperliquid builder fees are components of total fees, not extra debits.
+Funding daily/hourly overlap requires explicit equivalence; ambiguous allocations
+remain pending per cycle while observed account/currency totals stay separate.
+`net_booked_pnl` describes observed source activity; coverage status must accompany
+it and it is not a lifetime or deposit-adjusted portfolio return. Existing legacy
+`journal` commands remain compatibility readers/writers for their older tables;
+canonical reports never sum those projections as additional trades.
+
+The canonical `kis-inventory-v1` policy requires a source-backed zero opening
+position or continuous inventory from a previously anchored KIS cycle. Trade-range
+coverage is not an inventory anchor. Unanchored cycles cannot contribute confirmed
+returns or completed-position statistics. A KIS oversell is an inventory gap and
+must be detected before any part is finalized; it never creates a short cycle.
+Contradictory DAY ending holdings invalidate cycles overlapping that day after all
+same-day events have been processed. Earlier verified cycles and genuine
+Hyperliquid reversals remain supported. New runs pin this inventory policy;
+historical report IDs remain frozen, and raw facts/fees are never rewritten.
+
+
+Portable statement costs are disjoint included components, including explicitly
+signed rebates. Fully known components must sum to total_cost; any supplied
+settlement must reconcile it. Proved contradictions reject import. When some
+components are null and the known subtotal differs from total_cost, retain the
+source but mark cycles cost_components_unreconciled/PENDING and suppress both
+confirmed net returns and account/currency net_booked_pnl. A positive remainder
+is also unresolved; settlement agreement alone does not explain its allocation.
+Do not infer a missing charge, rebate or zero from the difference. Equal known
+subtotal (or no component breakdown) retains the source-total contract; explicit
+signed components can resolve rebates. New journal runs recheck stored facts,
+while old reports and source evidence remain immutable. Independent-statement
+reconciliation checks costs in both supplied rows and stored facts before
+certifying coverage. Missing detail never justifies choosing a favorable return. Grouped domestic
+orders retain total fees and quantity with shared_order_cost_allocation pending.
+A Hyperliquid retained tail may skip an unanchored segment and resume at a later
+explicit zero position-before. Skipped fees stay in account totals and the gap
+remains visible; no opening inventory is invented.
+
+`data reconcile` provides bounded independent-statement coverage and a supplied
+flat opening anchor after exact economic and ending-inventory checks. Completeness
+is an explicit operator assertion about an independently obtained source, not a
+claim derived from successful API pagination. Changed facts invalidate that
+coverage. See docs/unified-data-operations.md for the source format and trust limit.
+New journal freshness checks include late historical facts and changed coverage;
+old as-of reports/exports remain immutable. Statistics expose excluded_count,
+exclusion_reasons and holding_eligible_count in addition to the existing formulas.
+
+Reconciliation also compares provider gross realized PnL; matching fills and fees
+alone cannot certify a conflicting closedPnl. Invalidated HL gap segments retain
+unknown close time and PENDING quality, but their funding exposure ends at the next
+source-backed zero anchor. No later funding is shared with that abandoned segment.
