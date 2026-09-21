@@ -161,3 +161,9 @@ comparison is not independent statement certification: coverage remains partial,
 unknown inventory/costs remain visible, and the existing metric formulas and pending
 return rules continue to apply. See the account audit section of the operations
 guide for exact capture, correction authorization and stale-report semantics.
+
+KIS domestic source normalization rejects positive executed orders without daily
+and cost corroboration or a recognized `01` sell / `02` buy side. Every executed
+order must be represented exactly once by date, symbol, side and order ID in the
+normalized facts. Unknown-side zero-executed orders do not create trades. Capture
+and audit reuse this validation; re-derived apply rejects before journal writes.

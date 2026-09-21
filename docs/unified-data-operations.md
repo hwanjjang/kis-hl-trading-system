@@ -481,6 +481,11 @@ source fee components and signed funding by account/currency. Same-millisecond
 fills are chained using source `startPosition`, never arbitrary trade-ID order.
 Unknown opening inventory remains visible and journal returns remain pending.
 Positive KIS executed orders without their matching daily/cost source are rejected.
+Executed domestic orders also require a recognized buy (`02`) or sell (`01`) side;
+unknown or missing sides abort capture and comparison. The common normalizer
+requires every executed order to appear exactly once in the resulting order IDs,
+scoped by date, symbol and side. Zero-executed orders do not contribute trades.
+Apply repeats these checks before writing any revisions or journals.
 Funding represented as a daily aggregate and hourly points is equivalent only when
 sample count, distinct times and signed amount agree. Unresolved overlaps and
 missing saved records block application; absence never deletes an old fact.

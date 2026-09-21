@@ -6,6 +6,7 @@ import os
 from zoneinfo import ZoneInfo
 
 from kis_hl.data_store import encode, now_ms, number
+from kis_hl.data_ingestion import validate_domestic_orders
 from kis_hl.journal_history import fetch_time_pages
 from kis_hl.journal_sync import Scope
 
@@ -220,11 +221,8 @@ def collect_bundle(venue, account, *, start_ms, end_ms, client=None, scope=None)
             if len(result['output2']) != 1:
                 raise ValueError('Ambiguous daily cost summary')
             costs[key] = result['output2'][0]
-        for order in orders.values():
-            key = order['ord_dt'] + ':' + order['pdno']
-            if Decimal(number(order['tot_ccld_qty'])) > 0 and (key not in days or key not in costs):
-                raise ValueError('Executed KIS order lacks daily profit and cost corroboration')
         domestic = {'days': list(days.values()), 'orders': list(orders.values()), 'costs_by_day_symbol': costs}
+        validate_domestic_orders(domestic)
         bundle['sources'] = [{'parser': 'kis_domestic_bundle', 'data': domestic},
                              {'parser': 'kis_overseas_trans', 'data': list(overseas.values())}]
         positions = {}

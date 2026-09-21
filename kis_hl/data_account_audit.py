@@ -67,11 +67,6 @@ def normalize_bundle(bundle):
     for source in bundle['sources']:
         parser=source['parser'];rows=source['data']
         if parser=='kis_domestic_bundle':
-            day_keys={d['trad_dt']+':'+d['pdno'] for d in rows['days']}
-            for order in rows['orders']:
-                key=order['ord_dt']+':'+order['pdno']
-                if D(number(order['tot_ccld_qty']))>0 and (key not in day_keys or key not in rows['costs_by_day_symbol']):
-                    raise ValueError('Executed order lacks corroborating daily source/cost evidence')
             rows=domestic_bundle(rows);parser='statement'
         if not isinstance(rows,list):raise ValueError('Invalid source rows')
         for dataset,key,payload in normalize_rows(parser,rows):

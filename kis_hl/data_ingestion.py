@@ -1,4 +1,5 @@
 """Validated account source adapters. Dates never become exact execution times."""
+from collections import Counter
 from datetime import datetime, timedelta
 from decimal import Decimal as D
 from itertools import permutations
@@ -153,12 +154,25 @@ def ingest_maturing_rows(store, account, parser, rows, *, observation):
     return result
 
 
+def validate_domestic_orders(bundle):
+    """Require interpretable, corroborated evidence for every executed order."""
+    days={r['trad_dt']+':'+r['pdno'] for r in bundle['days']}
+    executed=[r for r in bundle['orders'] if D(number(r['tot_ccld_qty']))>0]
+    for order in executed:
+        key=order['ord_dt']+':'+order['pdno']
+        if key not in days or key not in bundle['costs_by_day_symbol']:
+            raise ValueError('Executed KIS order lacks daily profit and cost corroboration')
+        if order.get('sll_buy_dvsn_cd') not in ('01','02'):
+            raise ValueError('Unsupported executed KIS order side')
+    return executed
+
+
 def domestic_bundle(bundle):
     """Match daily profit quantities, cumulative orders and symbol-scoped daily fees."""
-    result=[]
+    executed=validate_domestic_orders(bundle);result=[]
     for day in bundle['days']:
         if D(number(day.get('loan_int','0'))) != 0:raise ValueError('Loan interest allocation requires source evidence')
-        matched=[r for r in bundle['orders'] if r['ord_dt']==day['trad_dt'] and r['pdno']==day['pdno'] and D(r['tot_ccld_qty'])>0]
+        matched=[r for r in executed if r['ord_dt']==day['trad_dt'] and r['pdno']==day['pdno']]
         summary=bundle['costs_by_day_symbol'][day['trad_dt']+':'+day['pdno']]
         for code,prefix in [('02','buy'),('01','sll')]:
             rows=[r for r in matched if r['sll_buy_dvsn_cd']==code]
@@ -170,6 +184,12 @@ def domestic_bundle(bundle):
                 event_start_ms=start,event_end_ms=end,time_precision='DAY',grain='DAY_SYMBOL_SIDE_RECONCILED',side='buy' if code=='02' else 'sell',
                 quantity=number(quantity),notional=number(amount),price=number(amount/quantity),total_cost=number(fee+tax),costs={'broker':number(fee),'tax':number(tax),'interest':'0'},
                 settlement=number(amount+(fee+tax)*(1 if code=='02' else -1)),order_ids=sorted(str(item['odno']) for item in rows),quality_reasons=['shared_order_cost_allocation'] if len(rows)>1 else [],day_end_quantity=number(day['hldg_qty']),strategy='unassigned',origin='unknown'))
+    expected=Counter((day_interval(r['ord_dt'],'Asia/Seoul')[0],'kis:'+r['pdno'],
+                      'buy' if r['sll_buy_dvsn_cd']=='02' else 'sell',str(r['odno'])) for r in executed)
+    represented=Counter((r['event_start_ms'],r['instrument'],r['side'],order_id)
+                        for r in result for order_id in r['order_ids'])
+    if represented!=expected:
+        raise ValueError('Executed KIS orders must be represented exactly once in normalized facts')
     # A dated sell cost basis plus day-end inventory can establish sequence without
     # treating order time as execution time. Unresolved paths keep DAY ambiguity.
     balances={};basis={}

@@ -174,7 +174,7 @@ class CaptureTests(unittest.TestCase):
         client = KIS()
         original = client.account_pages
         day = {'trad_dt': '20260921', 'pdno': '005930'}
-        order = {'ord_dt': '20260921', 'pdno': '005930', 'odno': '17', 'ord_gno_brno': '001', 'tot_ccld_qty': '1'}
+        order = {'ord_dt': '20260921', 'pdno': '005930', 'odno': '17', 'ord_gno_brno': '001', 'tot_ccld_qty': '1', 'sll_buy_dvsn_cd': '02'}
         def pages(kind, **kwargs):
             response = original(kind, **kwargs)
             if kind == 'domestic_trade_profit' and not kwargs.get('symbol'):

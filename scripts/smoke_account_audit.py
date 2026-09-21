@@ -46,6 +46,8 @@ def fixture_process():
     orders=[dict(ord_dt=d['trad_dt'],pdno='069500',odno=str(i),ord_gno_brno='synthetic',
                  sll_buy_dvsn_cd='02' if i==1 else '01',tot_ccld_qty='2',tot_ccld_amt='20' if i==1 else '24')
             for i,d in enumerate(days,1)]
+    if os.environ.get('AUDIT_SMOKE_UNKNOWN_SIDE')=='1':
+        orders.append({**orders[0],'odno':'unknown','sll_buy_dvsn_cd':'99'})
     def kis(self,method,path,*,query,**kwargs):
         assert method=='GET'
         body={'rt_cd':'0','output1':[],'output2':[]}
@@ -89,12 +91,27 @@ def main():
         hl=root/'hl.json';kis=root/'kis.json'
         cli('data','audit-collect','--venue','hyperliquid','--account',ADDRESS,'--start-ms',str(START),'--end-ms',str(END),'--output',str(hl))
         cli('data','audit-collect','--venue','kis','--account','1234567801','--start-ms',str(START),'--end-ms',str(END),'--output',str(kis))
+        rejected=root/'rejected-capture.json';env['AUDIT_SMOKE_UNKNOWN_SIDE']='1'
+        cli('data','audit-collect','--venue','kis','--account','1234567801','--start-ms',str(START),'--end-ms',str(END),'--output',str(rejected),error='order side')
+        env.pop('AUDIT_SMOKE_UNKNOWN_SIDE')
+        assert not rejected.exists(),'Rejected collection published an evidence bundle'
         assert not db.exists(),'Collection created operational DB'
         cli('data','migrate','--apply')
         before=counts();report=root/'report.json'
         preview=cli('data','audit-compare','--bundle',str(hl),str(kis),'--output',str(report))
         assert preview['changes']==5 and preview['blockers']==0,preview
         assert counts()==before,'Comparison changed operational state'
+        malformed=json.loads(kis.read_text());malformed['evidence']=[]
+        orders=malformed['sources'][0]['data']['orders']
+        orders.append({**orders[0],'odno':'unknown','sll_buy_dvsn_cd':'99'})
+        bad_source=root/'unknown-side.json';bad_source.write_text(json.dumps(malformed))
+        rejected_report=root/'rejected-report.json'
+        cli('data','audit-compare','--bundle',str(bad_source),'--output',str(rejected_report),error='order side')
+        assert not rejected_report.exists() and counts()==before
+        forged=json.loads(report.read_text());forged['bundles'][1]=malformed
+        forged_path=root/'forged.json';forged_path.write_text(json.dumps(forged))
+        cli('data','audit-apply','--report',str(forged_path),'--sha256',hashlib.sha256(forged_path.read_bytes()).hexdigest(),error='order side')
+        assert counts()==before,'Rejected source changed database through apply'
         cli('data','audit-apply','--report',str(report),'--sha256','0'*64,error='digest')
         assert counts()==before
         applied=cli('data','audit-apply','--report',str(report),'--sha256',preview['sha256'],'--journals')
@@ -127,7 +144,7 @@ def main():
         assert b['blockers']>0 and b['missing']==2
         before=counts();cli('data','audit-apply','--report',str(blocked),'--sha256',b['sha256'],error='unresolved');assert counts()==before
         assert hl.stat().st_mode&0o777==0o600 and report.stat().st_mode&0o777==0o600
-        print(json.dumps({'status':'PASS','cli_subprocesses':calls,'scenarios':['isolated native capture','read-only compare','digest guard','atomic apply and three journals','idempotent replay','net fee/funding totals','explicit correction','stale report rejection','immutable old export','missing-source rejection'],'network':'forbidden','operational_data':'not accessed'}))
+        print(json.dumps({'status':'PASS','cli_subprocesses':calls,'scenarios':['isolated native capture','unknown-side capture rejection','unknown-side compare rejection','unknown-side apply rejection','read-only compare','digest guard','atomic apply and three journals','idempotent replay','net fee/funding totals','explicit correction','stale report rejection','immutable old export','missing-source rejection'],'network':'forbidden','operational_data':'not accessed'}))
 
 
 if __name__=='__main__':
