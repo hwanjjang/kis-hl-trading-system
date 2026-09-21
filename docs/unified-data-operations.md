@@ -439,3 +439,87 @@ Funding after that boundary belongs only to the recovered exposure. Summary
 pinned inputs, so concurrent arrivals still trigger regeneration even if they
 arrive while a historical as-of report is being calculated. Superseded old
 revisions do not falsely invalidate a fresh report.
+
+## Account audit and explicit adjustment
+
+Use this workflow when source collection must be reviewed before changing the
+operational store. Unlike `data sync`, `data audit-collect` never opens the selected
+`--db`: it writes a new private JSON evidence bundle. An account and start boundary
+are required; `--end-ms` defaults to capture time. Boundaries are half-open Unix
+milliseconds. KIS expands them to complete Seoul calendar dates; overseas rows
+retain their native New York day intervals. These different date boundaries do
+not establish exact execution times or interval completeness.
+
+```bash
+python3 -m kis_hl.cli data audit-collect --venue hyperliquid --account ACTUAL_SUBACCOUNT --start-ms START_MS --output data/audit/tradefi-source.json
+python3 -m kis_hl.cli data audit-collect --venue kis --account CONFIGURED_KIS_ACCOUNT --start-ms START_MS --output data/audit/kis-source.json
+python3 -m kis_hl.cli --db /ABSOLUTE_OPERATIONAL_PATH/kis_hl.sqlite data audit-compare --bundle data/audit/tradefi-source.json data/audit/kis-source.json --output data/audit/comparison.json
+```
+
+The operational DB must already exist and have the canonical schema for compare
+and apply. Compare opens it read-only and writes a separate new report. It accepts
+one bundle per distinct account, so Master is included only if explicitly supplied.
+Use new versioned output paths on every capture/compare. Files are created with
+owner-only permissions. Bundles and reports contain account identifiers and raw
+financial data: keep them under ignored `data/`, never attach them to a public PR.
+No Hyperliquid private key is loaded by audit collection. KIS requires the matching
+configured live account (`SANDBOX=false`); its statement routes do not support
+simulated accounts. No exchange trading client is called.
+
+Capture reuses native pagination and source adapters. Hyperliquid records bounded
+fills/funding, the retained fill tail, all discovered perpetual DEX position states
+and spot evidence. KIS records domestic profit/order/cost evidence and US transaction
+statements and balances; profit windows are at most ten calendar years. Missing,
+failed or saturated pages abort collection instead of producing a partial success
+bundle. Provider retention can still truncate a successful response. KIS non-US
+markets remain outside this adapter. A current balance cannot establish a historical
+ending balance; only snapshots close to the requested current boundary are compared.
+KIS inventory comparisons concern the explicitly captured domestic/US population.
+
+The report lists additions, changes, missing saved records, inventory findings,
+source fee components and signed funding by account/currency. Same-millisecond
+fills are chained using source `startPosition`, never arbitrary trade-ID order.
+Unknown opening inventory remains visible and journal returns remain pending.
+Positive KIS executed orders without their matching daily/cost source are rejected.
+Funding represented as a daily aggregate and hourly points is equivalent only when
+sample count, distinct times and signed amount agree. Unresolved overlaps and
+missing saved records block application; absence never deletes an old fact.
+
+Captured native evidence must agree with the decoded adapter inputs, including
+symbol/day KIS costs. An operator-prepared bundle without captured evidence is
+explicitly reported as `operator_supplied_source`; do not present it as an
+independently authenticated broker response. Review its external source separately.
+SHA-256 binds the selected local bytes, not the authenticity of an exchange.
+
+Review the comparison JSON, then supply the exact SHA-256 returned by compare:
+
+```bash
+python3 -m kis_hl.cli --db /ABSOLUTE_OPERATIONAL_PATH/kis_hl.sqlite data audit-apply --report data/audit/comparison.json --sha256 REVIEWED_REPORT_SHA256 --journals
+```
+
+Existing fact changes additionally require `--allow-corrections`. Apply re-derives
+the plan and checks the selected accounts' current revisions/coverage under an
+immediate SQLite transaction. Changed state, altered plans, unresolved findings
+or missing correction authorization reject the entire transaction. Recompare
+before retrying a stale report. Successful apply records source observations,
+append-only fact revisions, partial coverage and a durable receipt. It does not
+claim independent statement completeness or replace `data reconcile`.
+
+`--journals` creates one new journal per selected account, plus a combined journal
+when multiple accounts are supplied, in the same transaction. Any journal failure
+rolls back the adjustment. Existing report IDs and exports remain unchanged;
+returned `journal_ids` can be exported with `data export`. Without that flag, use
+`data journal` explicitly afterward. Reapplying the same report with the same
+journal option returns the prior receipt without adding facts or reports. A replay
+with a different journal option is rejected; generate journals separately instead.
+A prior application receipt is not evidence of current freshness after later runs.
+
+The [audit workflow diagram](diagrams/account-audit.html) and its
+[source JSON](diagrams/account-audit.json) show these boundaries.
+Run `python3 scripts/smoke_account_audit.py` for the standalone offline scenario:
+synthetic native provider responses, real clients/CLI/SQLite, capture, read-only
+comparison, apply, separate/combined journals, replay, corrections, stale rejection,
+missing-source rejection and immutable exports. The runner forbids network and
+uses a temporary working directory with synthetic credentials. It neither reads
+`.env` nor touches the operational DB. This smoke is distinct from unit tests and
+from an actual live-account retention/recoverability check.

@@ -21,6 +21,14 @@ def register(sub):
     p=ds.add_parser('export');p.add_argument('--report-id',type=int,required=True);p.add_argument('--output',required=True);p.set_defaults(handler=cmd_data)
     p=ds.add_parser('configure');p.add_argument('--job-id',required=True);p.add_argument('--config',required=True);p.add_argument('--interval-seconds',type=int,default=10800);p.set_defaults(handler=cmd_data)
     p=ds.add_parser('sync');p.add_argument('--venue',choices=['kis','hyperliquid'],required=True);p.add_argument('--account');p.add_argument('--start-ms',type=int,required=True);p.add_argument('--end-ms',type=int);p.set_defaults(handler=cmd_data)
+    p=ds.add_parser('audit-collect',help='Capture private account evidence without opening the operational DB')
+    p.add_argument('--venue',choices=['kis','hyperliquid'],required=True);p.add_argument('--account',required=True)
+    p.add_argument('--start-ms',type=int,required=True);p.add_argument('--end-ms',type=int);p.add_argument('--output',required=True);p.set_defaults(handler=cmd_data)
+    p=ds.add_parser('audit-compare',help='Write a read-only, source-bound account difference report')
+    p.add_argument('--bundle',nargs='+',required=True);p.add_argument('--output',required=True);p.set_defaults(handler=cmd_data)
+    p=ds.add_parser('audit-apply',help='Explicitly apply a reviewed audit report atomically')
+    p.add_argument('--report',required=True);p.add_argument('--sha256',required=True)
+    p.add_argument('--allow-corrections',action='store_true');p.add_argument('--journals',action='store_true');p.set_defaults(handler=cmd_data)
     market=sub.add_parser('market',help='Collect weekly/daily/minute bars and periodic snapshots')
     ms=market.add_subparsers(dest='market_action',required=True)
     p=ms.add_parser('backfill');p.add_argument('--instrument',required=True);p.add_argument('--timeframe',choices=['1w','1d','1m'],default='1w');p.add_argument('--years',type=int,default=10);p.add_argument('--start',type=date.fromisoformat);p.add_argument('--end',type=date.fromisoformat);p.set_defaults(handler=cmd_market)
@@ -32,6 +40,22 @@ def register(sub):
 
 
 def cmd_data(args):
+    if args.data_action.startswith('audit-'):
+        from kis_hl.data_account_audit import compare_bundles,apply_report,write_private
+        if args.data_action=='audit-collect':
+            from kis_hl.data_audit_capture import collect_bundle
+            if Path(args.output).expanduser().exists():raise ValueError('Audit output must be a new path')
+            bundle=collect_bundle(args.venue,args.account,start_ms=args.start_ms,end_ms=now_ms() if args.end_ms is None else args.end_ms)
+            return {**write_private(args.output,bundle),'collection_complete':bundle['collection_complete'],'coverage_certified':False}
+        # Require an existing canonical database even for explicit apply. Never migrate here.
+        store=DataStore(args.db,readonly=True)
+        if args.data_action=='audit-compare':
+            bundles=[json.loads(Path(path).read_bytes()) for path in args.bundle]
+            report=compare_bundles(store,bundles)
+            return {**write_private(args.output,report),'changes':len(report['changes']),'missing':len(report['missing']),
+                    'blockers':len(report['blockers']),'coverage_certified':False}
+        store.readonly=False
+        return apply_report(store,args.report,args.sha256,allow_corrections=args.allow_corrections,journals=args.journals)
     from kis_hl.data_import import import_manifest
     from kis_hl.data_maintenance import backup,restore,retention_preview
     from kis_hl.data_jobs import configure

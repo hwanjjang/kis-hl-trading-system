@@ -151,3 +151,13 @@ Reconciliation also compares provider gross realized PnL; matching fills and fee
 alone cannot certify a conflicting closedPnl. Invalidated HL gap segments retain
 unknown close time and PENDING quality, but their funding exposure ends at the next
 source-backed zero anchor. No later funding is shared with that abandoned segment.
+
+The account-audit workflow captures native inputs separately, compares them without
+mutating canonical state, and applies a digest-bound reviewed plan in one local
+transaction. It preserves source observations, old revisions and frozen reports;
+`--journals` adds fresh selected-account and combined reports atomically. A replay
+of the same report does not add duplicate economic facts or journal runs. Audit
+comparison is not independent statement certification: coverage remains partial,
+unknown inventory/costs remain visible, and the existing metric formulas and pending
+return rules continue to apply. See the account audit section of the operations
+guide for exact capture, correction authorization and stale-report semantics.
