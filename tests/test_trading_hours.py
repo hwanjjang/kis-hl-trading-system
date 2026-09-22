@@ -17,6 +17,13 @@ from kis_hl.trading_hours import (
 
 
 class TradingHoursTests(unittest.TestCase):
+    def test_native_eth_perpetual_is_available_on_weekends(self):
+        decision = trading_session_decision_for_symbol(
+            "ETH", now=datetime(2026, 9, 12, 20, tzinfo=ZoneInfo("UTC"))
+        )
+        self.assertTrue(decision.allowed)
+        self.assertEqual(decision.session_group, SESSION_CRYPTO_PERP)
+
     def test_us_cash_assets_follow_regular_equity_session(self) -> None:
         new_york = ZoneInfo("America/New_York")
 

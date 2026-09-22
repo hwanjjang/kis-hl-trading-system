@@ -1,0 +1,38 @@
+{
+  "diagram_type": "dataflow",
+  "specification_sha256": "4f9701ba5677d3a4191d9aed28577d93e357a0f71498f8944c608f0c2bb82c41",
+  "artifact_sha256": "f0ae3302873544cb72ba99b9333bbf50dd560c72950b5274ea90403b99217f0e",
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  },
+  "browser_evidence": "passed",
+  "visual_review": "passed",
+  "reviewer": "/root image-capable review",
+  "inspected_screenshots": [
+    "dataflow.visual-check.1440x900.light.png",
+    "dataflow.visual-check.2048x1320.dark.png"
+  ],
+  "correction_rounds": 0,
+  "observations": [
+    "Readable source/evidence/fact/validation/consumer paths.",
+    "Both inspected themes have clear labels and no crossed relationships.",
+    "At large desktop size the diagram and substantive cards fill the available layout without clipping."
+  ],
+  "source_traceability": {
+    "account_sources": "spec sections 2, 4, 8",
+    "market_sources": "spec section 6",
+    "account_evidence": "spec sections 1, 3",
+    "market_evidence": "spec sections 1, 3, 6",
+    "account_facts": "spec sections 2, 3, 5",
+    "market_facts": "spec sections 3, 6",
+    "account_checks": "spec section 5",
+    "market_checks": "spec section 6",
+    "journal_exports": "spec sections 5, 7",
+    "analysis_outputs": "spec section 5"
+  }
+}

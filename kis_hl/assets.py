@@ -59,6 +59,10 @@ def resolve_hyperliquid_symbol(symbol: str, *, dex: str | None = None) -> Resolv
             note="Hyperliquid BTCUSDC futures/perpetual market uses the BTC perp coin",
         )
 
+    if compact_no_slash in {"ETHPERP", "ETHPERPETUAL", "ETHUSDCPERP", "ETHUSDCPERPETUAL"}:
+        return ResolvedAsset(original=symbol, coin="ETH", kind="perp",
+                             note="Hyperliquid ETH perpetual coin")
+
     if "/" in raw:
         return ResolvedAsset(original=symbol, coin=raw.upper(), kind="spot")
 

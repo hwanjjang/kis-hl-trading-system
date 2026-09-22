@@ -1,0 +1,97 @@
+
+import copy,hashlib,json,runpy,sqlite3,subprocess,sys
+from decimal import Decimal as D
+from pathlib import Path
+from types import SimpleNamespace
+from kis_hl.data_store import DataStore
+from kis_hl.data_ingestion import ingest_rows,statement
+from kis_hl.data_reconciliation import reconcile
+from kis_hl.journal_exports import journal,export_report
+from kis_hl.data_cli import cmd_data
+root=Path(sys.argv[1]);checks=[]
+def row(i,side,qty,price,cost='1',components=None,instrument='hl:X',currency='USD',**extra):
+ return dict(source_id=str(i),instrument=instrument,currency=currency,event_start_ms=i*10,event_end_ms=i*10+1,time_precision='MILLISECOND',grain='EXECUTION',side=side,quantity=str(qty),price=str(price),notional=str(D(str(qty))*D(str(price))),total_cost=cost,costs={'broker':cost} if components is None else components,**extra)
+def make(name,rows,venue='hyperliquid'):
+ s=DataStore(root/(name+'.sqlite'));a=s.account(venue,'sim' if venue=='kis' else 'testnet',name)
+ ingest_rows(s,a,'statement',rows)
+ for d in ['trade','cash']:s.coverage(d,a,0,1000,'complete',{})
+ return s,a
+# Independent sign matrix: native total and settlement remain facts; partial nonzero differences never confirm.
+for side in ['buy','sell']:
+ for total,known in [('0','0.01'),('0.01','0'),('-0.01','-0.02'),('-0.02','-0.01'),('100000000000000000000.1','100000000000000000000.2')]:
+  rows=[row(1,'buy',1,100,position_before='0'),row(2,'sell',1,110)]
+  k=0 if side=='buy' else 1
+  rows[k].update(total_cost=total,costs={'broker':known,'rebate':None},settlement=str(D(rows[k]['notional'])+D(total)*(1 if side=='buy' else -1)))
+  s,a=make('matrix-'+str(len(checks)),rows);r=journal(s,[a]);c=r['cycles'][0]
+  assert c['status']=='PENDING' and c['net_pnl'] is None and c['net_return_pct'] is None
+  assert 'cost_components_unreconciled' in c['reasons']
+  assert r['summary_by_account_currency'][0]['net_booked_pnl'] is None
+  assert r['summary_by_account_currency'][0]['statistics_by_strategy']['unassigned']['trade_count']==0
+  assert s.facts('trade',scope=a)[k]['payload']['costs']['rebate'] is None
+  checks.append('signed mixed-null '+side+' '+total+'/'+known)
+# A reversal carries unresolved costs into both resulting closed cycles; healthy currency stays usable.
+rows=[row(1,'buy',2,100,position_before='0'),row(2,'sell',4,110,'2',{'broker':'3','rebate':None}),row(3,'buy',2,100),row(4,'buy',1,50,instrument='hl:Y',currency='EUR',position_before='0'),row(5,'sell',1,60,instrument='hl:Y',currency='EUR')]
+s,a=make('reversal',rows);r=journal(s,[a]);usd=[c for c in r['cycles'] if c['currency']=='USD']
+assert len(usd)==2 and all(c['status']=='PENDING' and c['net_pnl'] is None for c in usd)
+assert sum(D(c['trading_fee']) for c in usd)==4
+assert sum(D(c['cost_components']['broker']) for c in usd)==5
+summaries={x['currency']:x for x in r['summary_by_account_currency']}
+assert summaries['USD']['net_booked_pnl'] is None and summaries['EUR']['net_booked_pnl']=='8'
+assert summaries['USD']['statistics_by_strategy']['unassigned']['excluded_count']==2
+assert summaries['EUR']['statistics_by_strategy']['unassigned']['trade_count']==1
+checks.append('reversal fee conservation and same-account currency isolation')
+# Resolve a signed rebate without changing reported total: both cycles become eligible, economics conserved.
+rows[1]['costs']['rebate']='-1';ingest_rows(s,a,'statement',rows,allow_correction=True)
+r=journal(s,[a]);usd=[c for c in r['cycles'] if c['currency']=='USD']
+assert all(c['status']=='FINALIZED' for c in usd)
+assert sum(D(c['net_pnl']) for c in usd)==36
+assert sum(D(c['cost_components']['rebate']) for c in usd)==-1
+checks.append('explicit signed rebate across reversal resolves both cycles')
+# Partial exit and add: an unresolved closing fill excludes the complete flat-to-flat cycle.
+rows=[row(1,'buy',4,100,position_before='0'),row(2,'sell',1,110,'2',{'broker':'1','tax':None}),row(3,'buy',2,90),row(4,'sell',5,120)]
+s,a=make('partial-exit',rows);r=journal(s,[a]);assert len(r['cycles'])==1
+assert r['cycles'][0]['status']=='PENDING' and D(r['cycles'][0]['trading_fee'])==5
+checks.append('partial exit/add costs remain pending and conserved')
+# Generate an actual old-code favorable frozen run from historical mixed-null facts, then regenerate.
+rows=[row(1,'buy',1,100,'1',{'broker':'10','rebate':None},instrument='kis:X',position_before='0'),row(2,'sell',1,110,instrument='kis:X')]
+s,a=make('old-facts',rows,'kis')
+basefile=root/'baseline_journal_exports.py'
+basefile.write_bytes(subprocess.check_output(['git','show','294e51716d4a85ead1b5cf96d013ed00c09a7a35:kis_hl/journal_exports.py']))
+old=runpy.run_path(str(basefile))['journal'](s,[a]);assert old['cycles'][0]['status']=='FINALIZED' and old['cycles'][0]['net_pnl']=='8'
+export_report(s,old['report_id'],root/'old.json');frozen=(root/'old.json').read_bytes()
+with s.connect() as db: facts_before=list(map(tuple,db.execute('SELECT * FROM fact_revisions')));raw_before=list(map(tuple,db.execute('SELECT * FROM source_observations')))
+new=journal(s,[a]);assert new['cycles'][0]['status']=='PENDING' and new['cycles'][0]['net_pnl'] is None
+export_report(s,old['report_id'],root/'old-again.json');assert frozen==(root/'old-again.json').read_bytes()
+with s.connect() as db:
+ assert facts_before==list(map(tuple,db.execute('SELECT * FROM fact_revisions')))
+ assert raw_before==list(map(tuple,db.execute('SELECT * FROM source_observations')))
+checks.append('baseline favorable frozen report preserved; new report rechecks identical old facts')
+# Both evidence populations reject unresolved costs before any source, anchor, or coverage write.
+for badside in ['stored','source']:
+ clean=[row(1,'buy',1,100,instrument='kis:X'),row(2,'sell',1,110,instrument='kis:X')]
+ dirty=copy.deepcopy(clean);dirty[0]['costs']={'broker':'2','tax':None}
+ s,a=make('reconcile-'+badside,dirty if badside=='stored' else clean,'kis')
+ doc=dict(schema_version=1,complete=True,source='Independent synthetic probe',account=dict(venue='kis',environment='sim',native_id='reconcile-'+badside),dataset='trade',parser='statement',start_ms=0,end_ms=100,rows=clean if badside=='stored' else dirty,opening_inventory={'kis:X':'0'},closing_inventory={'kis:X':'0'})
+ source=root/('independent-'+badside+'.json');source.write_text(json.dumps(doc));digest=hashlib.sha256(source.read_bytes()).hexdigest()
+ with s.connect() as db:before='\n'.join(db.iterdump())
+ for apply in [False,True]:
+  try:reconcile(s,source,digest,apply=apply)
+  except ValueError as e:assert 'Unresolved costs' in str(e)
+  else:raise AssertionError('unresolved reconciliation accepted')
+ with s.connect() as db:assert '\n'.join(db.iterdump())==before
+ checks.append('mutation-free reconciliation rejection: '+badside)
+# Empty and noncanonical sources: byte and filesystem preservation, including nested destination.
+for kind in ['missing','zero-byte','unrelated']:
+ source=root/(kind+'.sqlite');target=root/('backup-'+kind)/'copy.sqlite'
+ if kind=='zero-byte':source.touch()
+ if kind=='unrelated':
+  with sqlite3.connect(source) as db:db.execute('CREATE TABLE untouched (id INTEGER)')
+ before=source.read_bytes() if source.exists() else None
+ try:cmd_data(SimpleNamespace(db=source,data_action='backup',target=target))
+ except ValueError as e:assert 'not initialized' in str(e)
+ else:raise AssertionError('invalid source backed up')
+ assert not target.parent.exists()
+ assert (source.read_bytes() if source.exists() else None)==before
+ assert not Path(str(source)+'-wal').exists() and not Path(str(source)+'-shm').exists()
+ checks.append('backup rejects '+kind+' without files or source mutation')
+print(json.dumps({'status':'passed','checks':checks,'count':len(checks)},indent=2))

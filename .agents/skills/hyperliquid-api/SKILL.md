@@ -100,7 +100,9 @@ Three different names exist for the same market. Keep them straight:
 | `account_asset_info(...)` | composite of the above | `hl-account` |
 | `frontend_open_orders(...)` | `frontendOpenOrders` | trailing protection and ownership checks |
 | `order_status(...)` | `orderStatus` by oid/cloid | trailing attempt and cleanup reconciliation |
-| `user_fills_by_time(...)` | `userFillsByTime`, no aggregation | trailing fill-ledger continuity |
+| `user_fills_by_time(...)` | `userFillsByTime`, no aggregation | trailing / managed reconciliation and journal facts |
+| `user_fills(...)` | `userFills`, no aggregation | Current retained-tail coverage anchor |
+| `user_funding(...)` | `userFunding`, user/start/end | Actual account funding costs for deferred journals |
 
 `HyperliquidTradingClient`: `place_order()`, `place_stop_loss_order()` (reduce-only
 `trigger` with `isMarket: true`, `tpsl: "sl"`), `cancel_order()` (dry-run default), `user_state()`.
@@ -195,3 +197,40 @@ Full rejection list: `references/limits-and-errors.md`.
 Official docs: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
 Append `.md` to any docs URL for machine-readable markdown; `llms.txt` at the docs root
 is the page index.
+
+## Managed multi-instrument execution
+
+Native BTC and ETH perpetuals are allowed; ETH-PERP/ETHUSDC-PERP resolve to ETH.
+The account supervisor in `managed_execution.py` and `managed_gateways.py` is separate
+from legacy single-position enrollment. It uses actual partial fills, strict native
+Stop Market readback, local trailing, and durable client IDs. All trading CLIs must
+use the same SQLite path. A managed owner blocks raw new entries and legacy
+enrollment; only the in-process current entry attempt receives a submission permit.
+
+Journal retention must be anchored by current `userFills`; a short old-window page
+does not prove completeness. Unknown spot/fee-currency identities are retained
+without finalizing performance. See [operations](../../../docs/trading-operations.md)
+and the trade-journal skill for statement backfill and accounting.
+
+## Canonical storage reads
+
+`HyperliquidInfoClient.last_raw_body` exposes the most recent successful `/info`
+response bytes for immutable evidence capture. It resets before each request.
+Canonical collectors verify that these bytes match the decoded response before
+using them; test/legacy decoded objects are labeled `decoded_json` instead.
+`market backfill` supports native 1w/1d/1m candles. The API retains only the latest
+5000 candles per interval; requested ten-year weekly coverage remains separate
+from observed listing/provider history. Account funding identity includes coin,
+time, interval/grain and hash; a zero hash alone is not an event identity.
+
+The 2026-09-13 BTC native 1w probe returned Thursday UTC boundaries (for example,
+2019-08-29 to 2019-09-05), not ISO Monday weeks. Canonical gap checks derive and
+validate the anchor from returned timestamps; they do not re-label native candles
+as derived ISO weeks. Reverify the actual interval if provider behavior changes.
+
+
+Canonical public market collection currently accepts only the official mainnet
+endpoint. Testnet/custom endpoints are rejected before collecting bars, quotes,
+books or funding so they cannot replace a mainnet series. Account histories remain
+separated by their existing environment/account identity. Old market observations
+without verified endpoint provenance are not relabeled or certified by this guard.

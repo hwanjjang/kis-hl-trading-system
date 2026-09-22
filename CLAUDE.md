@@ -17,6 +17,7 @@ link to it instead.
 | Shared agent rules (safety, docs, testing) | `AGENTS.md` | Imported by this file; also read directly by Codex |
 | Claude-specific workflow (skills, tools, session rules) | `CLAUDE.md` | This file only |
 | Setup, environment variables, CLI usage, safety notes | `README.md` | Keep usage-focused |
+| Protected trade plans, supervisor controls, synchronization, signal/grant usage | `docs/trading-operations.md` | Actual implementation and rollout limits |
 | Component responsibilities, data flow, storage design | `docs/architecture.md` | Update when a module's responsibility changes |
 | Strategy sizing, ATR stops, add-up flow, execution design | `docs/strategy_execution_design.md` | Planned daemon design plus what is implemented |
 | Underlying market sessions and live-entry session policy | `docs/trading_hours.md` | Paired with `kis_hl/trading_hours.py` |

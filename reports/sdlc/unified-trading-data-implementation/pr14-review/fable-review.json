@@ -1,0 +1,115 @@
+{
+  "pr": "https://github.com/hwanjjang/kis-hl-trading-system/pull/14",
+  "head": "76d22d4a1aa0ee2ce804bae1aa2d074af5793a51",
+  "base": "623b33392af24c9efeb7acf1c364251e9d7d2ae3",
+  "remote_verified": true,
+  "reviewer": {
+    "model": "claude-fable-5-1",
+    "settings_model": "claude-fable-5-1[1m]",
+    "effort_env": "medium",
+    "mode": "autonomous non-interactive worktree"
+  },
+  "date": "2026-09-13",
+  "checks": [
+    {
+      "id": "remote-head-base",
+      "result": "match"
+    },
+    {
+      "id": "docs-and-reports-read",
+      "result": "done",
+      "note": "raw logs absent from checkout, not read"
+    },
+    {
+      "id": "full-unittest",
+      "command": "python3 -m unittest discover -s tests -t . -q",
+      "result": "PASS 308 tests"
+    },
+    {
+      "id": "probe-P1-kis-zero-crossing",
+      "result": "fabricated FINALIZED short cycle"
+    },
+    {
+      "id": "probe-P3-hl-reversal",
+      "result": "correct"
+    },
+    {
+      "id": "probe-P2-wal-perms",
+      "result": "0600, no finding"
+    },
+    {
+      "id": "probe-P5-status-creates-db",
+      "result": "creates and migrates"
+    },
+    {
+      "id": "code-inspection",
+      "areas": [
+        "correction identity",
+        "as-of selection",
+        "stale propagation",
+        "funding quarantine",
+        "scheduler lock/clocks",
+        "HL/KIS bar timestamps",
+        "backup/restore/export"
+      ],
+      "result": "no additional defects"
+    },
+    {
+      "id": "vendor-field-semantics",
+      "result": "not verified (no network)"
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-1",
+      "severity": "HIGH",
+      "class": "Must Fix",
+      "category": "accounting",
+      "file": "kis_hl/journal_exports.py",
+      "lines": "60-70",
+      "summary": "KIS sell exceeding tracked inventory opens a fabricated FINALIZED short cycle instead of opening_inventory_gap",
+      "verdict": "CONFIRMED",
+      "evidence": "probe P1"
+    },
+    {
+      "id": "F-2",
+      "severity": "MEDIUM",
+      "class": "Recommended",
+      "category": "source-completeness",
+      "file": "kis_hl/journal_exports.py",
+      "lines": "110-117",
+      "summary": "Cycle coverage check starts at opened_ms; KIS adapters lack an inventory anchor so pre-coverage holdings finalize as fresh cycles",
+      "verdict": "CONFIRMED",
+      "evidence": "probe P1 cycle 1"
+    },
+    {
+      "id": "F-3",
+      "severity": "LOW",
+      "class": "Recommended",
+      "category": "scheduler-concurrency-docs",
+      "file": "kis_hl/data_jobs.py",
+      "lines": "96",
+      "summary": "Non-blocking lock raises on contention; doc says 'serializes'",
+      "verdict": "CONFIRMED",
+      "evidence": "execution_lock.py:31-33 code inspection"
+    },
+    {
+      "id": "F-4",
+      "severity": "LOW",
+      "class": "Recommended",
+      "category": "operational-safety",
+      "file": "kis_hl/data_cli.py",
+      "lines": "43-44",
+      "summary": "data status creates and migrates a DB at any --db path",
+      "verdict": "CONFIRMED",
+      "evidence": "probe P5"
+    }
+  ],
+  "limits": [
+    "no live vendor calls",
+    "raw logs unavailable",
+    "single review pass",
+    "no code changes or merge decision"
+  ],
+  "comment_url": "https://github.com/hwanjjang/kis-hl-trading-system/pull/14#issuecomment-5651081887"
+}

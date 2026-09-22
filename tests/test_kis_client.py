@@ -3,6 +3,7 @@ from __future__ import annotations
 import stat
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,24 @@ from kis_hl.kis.client import KisClient, KisHttpResponse, TokenCache
 
 
 class KisClientTests(unittest.TestCase):
+    def test_balance_endpoint_selects_account_and_environment(self):
+        for mode, tr_id in [('sim', 'VTTC8434R'), ('live', 'TTTC8434R')]:
+            with self.subTest(mode=mode):
+                client = RecordingKisClient()
+                client.config = replace(client.config, mode=mode)
+                client.inquire_domestic_balance()
+                self.assertEqual(client.calls, [{
+                    'method': 'GET',
+                    'path': '/uapi/domestic-stock/v1/trading/inquire-balance',
+                    'tr_id': tr_id,
+                    'query': {'CANO': '12345678', 'ACNT_PRDT_CD': '01',
+                              'AFHR_FLPR_YN': 'N', 'OFL_YN': '', 'INQR_DVSN': '02',
+                              'UNPR_DVSN': '01', 'FUND_STTL_ICLD_YN': 'N',
+                              'FNCG_AMT_AUTO_RDPT_YN': 'N', 'PRCS_DVSN': '00',
+                              'CTX_AREA_FK100': '', 'CTX_AREA_NK100': ''},
+                    'body': None,
+                }])
+
     def test_token_cache_is_written_private(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             config = KisConfig(
@@ -147,3 +166,14 @@ class RecordingKisClient(KisClient):
 
 if __name__ == "__main__":
     unittest.main()
+
+class OverseasMinuteContractTests(unittest.TestCase):
+    def test_overseas_minute_route_and_continuation(self):
+        from kis_hl.kis.client import KisClient
+        client=object.__new__(KisClient);calls=[]
+        client._request_with_auth=lambda *a,**kw:calls.append((a,kw))
+        client.overseas_intraday_chart(symbol='SPY',exchange='AMS',cursor='20260102095900')
+        args,kw=calls[0]
+        self.assertEqual(args[1],'/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice')
+        self.assertEqual(kw['tr_id'],'HHDFS76950200')
+        self.assertEqual(kw['query'],dict(AUTH='',EXCD='AMS',SYMB='SPY',NMIN='1',PINC='1',NEXT='1',NREC='120',FILL='',KEYB='20260102095900'))

@@ -1,0 +1,26 @@
+======================================================================
+FAIL: test_later_day_ambiguity_preserves_a_prior_day_completed_cycle (tests.test_canonical_inventory.InventoryBoundaryTests.test_later_day_ambiguity_preserves_a_prior_day_completed_cycle)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_canonical_inventory.py", line 123, in test_later_day_ambiguity_preserves_a_prior_day_completed_cycle
+    self.assertEqual(result['cycles'][0]['status'], 'FINALIZED')
+AssertionError: 'PENDING' != 'FINALIZED'
+- PENDING
++ FINALIZED
+
+
+======================================================================
+FAIL: test_same_day_oversell_cannot_skip_invalidation_of_a_closed_candidate (tests.test_canonical_inventory.InventoryBoundaryTests.test_same_day_oversell_cannot_skip_invalidation_of_a_closed_candidate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_canonical_inventory.py", line 114, in test_same_day_oversell_cannot_skip_invalidation_of_a_closed_candidate
+    self.assertEqual(result['cycles'][0]['status'], 'PENDING')
+AssertionError: 'FINALIZED' != 'PENDING'
+- FINALIZED
++ PENDING
+
+
+----------------------------------------------------------------------
+Ran 13 tests in 1.539s
+
+FAILED (failures=2)

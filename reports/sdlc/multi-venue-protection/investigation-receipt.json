@@ -1,0 +1,44 @@
+{
+  "iteration": 1,
+  "decision": "PROCEED",
+  "reason": "Official capability evidence separates known interfaces from unknown protective semantics.",
+  "authority_source": "User requested SDLC planning through Archify, KIS domestic/US ETFs and Hyperliquid; GLD clarification and precise order-semantics correction incorporated. Local, no live mutation.",
+  "candidate": "adf0c401e82d9bb8ff51035fcba8f5b666b99ff469aa0692750241a02c71bc44",
+  "next_action": "Continue plan-only/local delivery",
+  "inputs": [
+    {
+      "kind": "triage",
+      "path": "reports/sdlc/multi-venue-protection/triage.md",
+      "sha256": "0bcf1d52e4594c619b8f5fbe0633010767981c7d7606456f355c71435df7b6b3"
+    },
+    {
+      "kind": "intent",
+      "path": "intent/multi-venue-protection.md",
+      "sha256": "f5052895bc36d179d53d3a4b9a32f56b0f8809e516c1cd8ed4df0d7750d89872"
+    }
+  ],
+  "outputs": [
+    {
+      "kind": "investigation",
+      "path": "reports/sdlc/multi-venue-protection/investigation.md",
+      "sha256": "5b56fde6dfdc94a6b0f5b775c5ad83179d4bebfa782052e5343a5b869b4d3fb3"
+    },
+    {
+      "kind": "research",
+      "path": "reports/sdlc/multi-venue-protection/research.md",
+      "sha256": "5531340e324af38f71ff3510f78d7af7440b8263d35e8da389fd584b44511497"
+    }
+  ],
+  "assessment": {
+    "assessor": "/root",
+    "summary": "Official capability evidence separates known interfaces from unknown protective semantics.",
+    "criteria": [
+      "MV1",
+      "MV2",
+      "MV3",
+      "MV4",
+      "MV5",
+      "MV6"
+    ]
+  }
+}

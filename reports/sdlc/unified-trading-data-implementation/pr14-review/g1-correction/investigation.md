@@ -1,0 +1,4 @@
+# G1 investigation
+Base candidate: 294e51716d4a85ead1b5cf96d013ed00c09a7a35. Review: PR #14 issuecomment-5749759020.
+Author reproduced FINALIZED net=8, total fee=2, broker components=11 when a buy has total_cost=1, broker=10, tax=null. The all-known control rejects. Existing checks only cover that control. None does not establish zero or the sign of missing credits. Journal readers trust stored totals, and reconciliation signatures omit components; both current facts and independent evidence require validation. Existing reports must remain immutable.
+Backup constructs a writable store before taking its snapshot; readonly construction already checks schema without initialization. No provider APIs, schema or order behavior need to change. Recommendations accepted: lock rejection wording, live-only KIS statement limitation, current design status and missing-source backup. Other tightening/refactoring recommendations deferred to avoid unrelated changes.

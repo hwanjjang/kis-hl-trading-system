@@ -1,0 +1,39 @@
+{
+  "iteration": 1,
+  "decision": "PROCEED",
+  "reason": "Stage deliverable assessed against local design scope and relevant acceptance criteria.",
+  "authority_source": "User design request and weekly ten-year-history clarification; plan-only/local.",
+  "candidate": "623b33392af24c9efeb7acf1c364251e9d7d2ae3 + local unified-trading-data design",
+  "inputs": [
+    {
+      "kind": "triage",
+      "path": "reports/sdlc/unified-trading-data/triage.md",
+      "sha256": "218401ec147396b74168c69dc92edbd58a6ae336c8fadfcad92a3f4bcad3ef7f"
+    },
+    {
+      "kind": "intent",
+      "path": "intent/unified-trading-data.md",
+      "sha256": "06b5be61d324c2bbe7899e5a02551f7ffa9002c273c6657ad1bd10037156c749"
+    }
+  ],
+  "outputs": [
+    {
+      "kind": "investigation",
+      "path": "reports/sdlc/unified-trading-data/investigation.md",
+      "sha256": "02c78ea174e2af24789fcd4545ddf58956b8ae5c8eac361d6ce9606888ecce8d"
+    }
+  ],
+  "assessment": {
+    "assessor": "/root",
+    "summary": "Reviewed stage content, upstream evidence, explicit assumptions and no-implementation boundary. Evidence limitations are retained in deliverables.",
+    "criteria": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4",
+      "AC5",
+      "AC6"
+    ]
+  },
+  "next_action": "Advance only within local plan-only route."
+}

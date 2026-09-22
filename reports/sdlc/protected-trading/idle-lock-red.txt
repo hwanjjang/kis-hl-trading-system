@@ -1,0 +1,13 @@
+F
+======================================================================
+FAIL: test_idle_scheduler_releases_real_account_lock (tests.test_operations_cli.OperationsCliTests.test_idle_scheduler_releases_real_account_lock)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_operations_cli.py", line 48, in test_idle_scheduler_releases_real_account_lock
+    with patch("kis_hl.operations_cli.scope_client", return_value=(scope, None)), patch(
+AssertionError: KeyboardInterrupt not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.326s
+
+FAILED (failures=1)

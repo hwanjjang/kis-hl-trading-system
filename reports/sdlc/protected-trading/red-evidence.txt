@@ -1,0 +1,69 @@
+F.FF.....FFF...
+======================================================================
+FAIL: test_exit_intent_survives_process_death_during_cancel (tests.test_managed_execution.ManagedExecutionTests.test_exit_intent_survives_process_death_during_cancel)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_managed_execution.py", line 140, in test_exit_intent_survives_process_death_during_cancel
+    self.assertIsNotNone(self.store.get(row['id'])['exit_requested_ms'])
+AssertionError: unexpectedly None
+
+======================================================================
+FAIL: test_invalid_native_stop_is_not_coverage (tests.test_managed_execution.ManagedExecutionTests.test_invalid_native_stop_is_not_coverage)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_managed_execution.py", line 131, in test_invalid_native_stop_is_not_coverage
+    self.assertNotEqual(self.store.get(row['id'])['state'],'PROTECTED')
+AssertionError: 'PROTECTED' == 'PROTECTED'
+
+======================================================================
+FAIL: test_last_exit_is_reconciled_even_after_budget_exhaustion (tests.test_managed_execution.ManagedExecutionTests.test_last_exit_is_reconciled_even_after_budget_exhaustion)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_managed_execution.py", line 124, in test_last_exit_is_reconciled_even_after_budget_exhaustion
+    self.assertEqual(self.store.get(row['id'])['state'],'CLOSED')
+AssertionError: 'INTERVENTION' != 'CLOSED'
+- INTERVENTION
++ CLOSED
+
+
+======================================================================
+FAIL: test_queued_cancel_never_sends_entry (tests.test_managed_execution.ManagedExecutionTests.test_queued_cancel_never_sends_entry)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_managed_execution.py", line 101, in test_queued_cancel_never_sends_entry
+    self.assertEqual(self.g.sent,[])
+AssertionError: Lists differ: [{'id': '0x797e80e94c224419aea2335e4df6fcd[139 chars]00'}] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+{'id': '0x797e80e94c224419aea2335e4df6fcdc', 'position_id': '7ad8eddba0494d9b9b4e4726ac3bd737', 'kind': 'entry', 'status': 'UNKNOWN', 'created_ms': 10, 'quantity': '1', 'price': '100'}
+
++ []
+- [{'created_ms': 10,
+-   'id': '0x797e80e94c224419aea2335e4df6fcdc',
+-   'kind': 'entry',
+-   'position_id': '7ad8eddba0494d9b9b4e4726ac3bd737',
+-   'price': '100',
+-   'quantity': '1',
+-   'status': 'UNKNOWN'}]
+
+======================================================================
+FAIL: test_rejected_cancel_has_bounded_retry (tests.test_managed_execution.ManagedExecutionTests.test_rejected_cancel_has_bounded_retry)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_managed_execution.py", line 148, in test_rejected_cancel_has_bounded_retry
+    self.assertEqual(len(attempts),3)
+AssertionError: 1 != 3
+
+======================================================================
+FAIL: test_stale_partial_fill_starts_deadline_and_cancels_remainder (tests.test_managed_execution.ManagedExecutionTests.test_stale_partial_fill_starts_deadline_and_cancels_remainder)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_managed_execution.py", line 110, in test_stale_partial_fill_starts_deadline_and_cancels_remainder
+    self.assertIsNotNone(current['first_fill_ms'])
+AssertionError: unexpectedly None
+
+----------------------------------------------------------------------
+Ran 15 tests in 1.402s
+
+FAILED (failures=6)

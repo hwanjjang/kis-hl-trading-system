@@ -18,9 +18,9 @@ endpoint samples) and this repository's `kis_hl/kis/client.py`.
   keys, never log `appkey`/`appsecret`/tokens, never commit `.env` or `data/kis-tokens/`.
 - `SANDBOX=true` (default) selects paper-trading keys (`KIS_API_ST_*`) and the
   `openapivts` host. `SANDBOX=false` selects live keys (`KIS_API_*`).
-- This repo uses KIS for **market data only**. Adding a KIS order endpoint is a scope
-  change: it must be dry-run by default, fail closed, and follow `AGENTS.md`
-  trading-safety rules. Do not add it silently.
+- This repo supports market/account reads and explicitly authorized cash limit order,
+  cancel and amend adapters. Writes default to dry-run. Managed live entry must use
+  the supervisor risk/ownership checks; a transport method alone is not authorization.
 - Every new endpoint needs a unit test in `tests/test_kis_client.py` (stub the
   transport; never hit the network in tests) and a README/docs note if it changes
   asset coverage or a mapping route.
@@ -59,9 +59,10 @@ Details, pagination, hashkey and error codes: `references/auth-and-transport.md`
 ## 3. TR ID rules you must not get wrong
 
 - The TR ID goes in the `tr_id` **header**, not the query string.
-- Paper trading uses a different TR ID only for account/order APIs: if the live ID
-  starts with `T`, `J`, or `C`, replace the first letter with `V` (`TTTC8434R` →
-  `VTTC8434R`). Quote APIs (`FH…`, `HH…`, `CT…` quotations) are the same in both.
+- Account/order paper TR IDs must be verified endpoint by endpoint. Many replace
+  the first letter with `V`, but this is not a universal rule. US paper sell sample
+  comments and derived IDs disagree, so that signed route is disabled. Some open
+  order/sellable inquiries have no verified paper route. Quote IDs are generally shared.
 - WebSocket TR IDs are identical across environments except execution notices
   (`H0STCNI0` live → `H0STCNI9` paper).
 - Some endpoints choose the TR ID by parameter (buy vs sell, exchange, market).
@@ -76,6 +77,16 @@ Details, pagination, hashkey and error codes: `references/auth-and-transport.md`
 | `inquire_overseas_price` | `/uapi/overseas-price/v1/quotations/price` | `HHDFS00000300` | US stocks/ETFs (`EXCD` NAS/NYS/AMS) |
 | `inquire_overseas_time_indexchartprice` | `/uapi/overseas-price/v1/quotations/inquire-time-indexchartprice` | `FHKST03030200` | `SP500`→`SPX`, `XYZ100`→`NDX`, `JP225`→`JP#NI225` |
 | `inquire_overseas_daily_chartprice` | `/uapi/overseas-price/v1/quotations/inquire-daily-chartprice` | `FHKST03030100` | Index/FX daily bars (`N`/`X`) |
+| `inquire_domestic_balance` | `/uapi/domestic-stock/v1/trading/inquire-balance` | `TTTC8434R` / `VTTC8434R` | First domestic balance page and account summary; read-only |
+| `domestic_chart(index=False/True)` | `/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice` / `inquire-daily-indexchartprice` | `FHKST03010100` / `FHKUP03500100` | Stock / index daily series |
+| `overseas_stock_chart` | `/uapi/overseas-price/v1/quotations/dailyprice` | `HHDFS76240000` | Adjusted US ETF daily page |
+| `order_book` | Domestic `inquire-asking-price-exp-ccn` / overseas `inquire-asking-price` | `FHKST01010200` / `HHDFS76200100` | Bid/ask and source clock |
+| `domestic_intraday_chart` | `/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice` | `FHKST03010200` | Verify the domestic quote session date |
+| `overseas_intraday_chart` | `/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice` | `HHDFS76950200` | US minute page; local xymd/xhms and bounded KEYB continuation |
+| `overseas_instrument_info` | `/uapi/overseas-price/v1/quotations/search-info` | `CTPF1702R` | Broker listing route, currency and lot metadata |
+| `account_pages` | Exact paths/parameters in `kis_hl/kis/routes.py` | See [managed routes](references/managed-routes.md) | Fully paginated account reads |
+| `cash_order` | Domestic / overseas `trading/order-cash` / `trading/order` | Domestic `TTTC0012U` buy / `TTTC0011U` sell; US `TTTT1002U` buy / `TTTT1006U` sell | Cash limit only; preview by default |
+| `revise_cash_order` | Domestic / overseas `trading/order-rvsecncl` | `TTTC0013U` / `TTTT1004U` (verified paper IDs use V) | Explicit original ID, whole quantity and KRX organization |
 | `get_websocket_approval_key` | `/oauth2/Approval` | – | WebSocket auth |
 
 Routes from trade.xyz assets to these methods live in `kis_hl/kis_mappings.py`;
@@ -141,3 +152,8 @@ in `references/websocket.md`. This repo's implementation is `kis_hl/kis/ws.py`
 Official docs: https://apiportal.koreainvestment.com (API 문서, 에러코드, 종목정보 다운로드).
 The portal is a JS app; when offline, the upstream GitHub samples are the most
 reliable machine-readable spec.
+
+Canonical storage adds weekly chart period selection, raw response byte capture,
+and live domestic trade-profit / overseas transaction statement routes. Exact
+parameters, units, pagination and adapter constraints are documented in
+[references/endpoints.md](references/endpoints.md#canonical-data-collection-additions-2026-09-13).

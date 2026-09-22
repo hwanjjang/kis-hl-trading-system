@@ -1,0 +1,60 @@
+======================================================================
+ERROR: test_bounded_statement_reconciliation_and_later_invalidation (tests.test_review_corrections.ReviewCorrections.test_bounded_statement_reconciliation_and_later_invalidation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_review_corrections.py", line 200, in test_bounded_statement_reconciliation_and_later_invalidation
+    from kis_hl.data_reconciliation import reconcile
+ModuleNotFoundError: No module named 'kis_hl.data_reconciliation'
+
+======================================================================
+ERROR: test_overseas_minutes_page_by_source_local_clock (tests.test_review_corrections.ReviewCorrections.test_overseas_minutes_page_by_source_local_clock)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_review_corrections.py", line 170, in test_overseas_minutes_page_by_source_local_clock
+    result=backfill(self.store,'kis:SPY','1m',Client(),start=date(2026,1,2),end=date(2026,1,2),delay_seconds=0)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/kis_hl/market_ingestion.py", line 61, in backfill
+    if asset.market!='domestic':raise ValueError('KIS minute backfill is not available for this route')
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: KIS minute backfill is not available for this route
+
+======================================================================
+ERROR: test_reconciliation_rejects_missing_economics_and_bad_digest (tests.test_review_corrections.ReviewCorrections.test_reconciliation_rejects_missing_economics_and_bad_digest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_review_corrections.py", line 220, in test_reconciliation_rejects_missing_economics_and_bad_digest
+    from kis_hl.data_reconciliation import reconcile
+ModuleNotFoundError: No module named 'kis_hl.data_reconciliation'
+
+======================================================================
+ERROR: test_overseas_minute_route_and_continuation (tests.test_kis_client.OverseasMinuteContractTests.test_overseas_minute_route_and_continuation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_kis_client.py", line 175, in test_overseas_minute_route_and_continuation
+    client.overseas_intraday_chart(symbol='SPY',exchange='AMS',cursor='20260102095900')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'KisClient' object has no attribute 'overseas_intraday_chart'. Did you mean: 'domestic_intraday_chart'?
+
+======================================================================
+FAIL: test_account_jobs_use_overlap_and_separate_audits (tests.test_review_corrections.ReviewCorrections.test_account_jobs_use_overlap_and_separate_audits)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_review_corrections.py", line 180, in test_account_jobs_use_overlap_and_separate_audits
+    self.assertEqual(sync.call_args.kwargs['start_ms'],999990000)
+AssertionError: 1000 != 999990000
+
+======================================================================
+FAIL: test_partial_collection_does_not_advance_success_cursor (tests.test_review_corrections.ReviewCorrections.test_partial_collection_does_not_advance_success_cursor)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_review_corrections.py", line 188, in test_partial_collection_does_not_advance_success_cursor
+    self.assertEqual(result['jobs'][0]['status'],'partial')
+AssertionError: 'success' != 'partial'
+- success
++ partial
+
+
+----------------------------------------------------------------------
+Ran 20 tests in 0.987s
+
+FAILED (failures=2, errors=4)

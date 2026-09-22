@@ -1,0 +1,29 @@
+{
+  "candidate": "108d96a2f15e2825ff0d223db6e33740accc87f8b577f2dceb94c4071aaddd9f",
+  "head": "f88841e4024c2202b9dc5942cb1cab02b77df189",
+  "base": "9360b0cdd2753d5ca94ce052b03fd67d7b0c4af1",
+  "pr_url": "https://github.com/hwanjjang/kis-hl-trading-system/pull/13",
+  "author_provider": "openai",
+  "builder_context_id": "/root",
+  "review_provider": "anthropic",
+  "review_contract": "Read-only independent PR review; no actual trading/merge/deployment",
+  "diff": "reports/sdlc/protected-trading/change-record.patch",
+  "provider": "anthropic",
+  "model": "claude-fable-5-1",
+  "permission_mode": "auto",
+  "context_id": "0f216a67-c068-4697-808b-7c0576ad4466",
+  "tools": [
+    "Glob",
+    "Grep",
+    "Read"
+  ],
+  "mcp_servers": [],
+  "observed_effort_values": [
+    "medium"
+  ],
+  "effort_source": "Actual Claude Code assistant transcript effort fields",
+  "model_selection_source": "https://platform.claude.com/docs/en/models/fable-5-1/overview",
+  "model_selection_time": "2026-09-12T20:24:00Z",
+  "latest_ga_model_verified": true,
+  "boundary": "Sanitized committed snapshot, Read/Grep/Glob only, no API tools or secrets"
+}

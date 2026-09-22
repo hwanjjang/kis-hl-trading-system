@@ -1,0 +1,1 @@
+{"status": "passed", "cli_processes": 12, "network": false, "private_data": false, "preview_read_only": true, "net_pnl": "8", "immutable_export": true, "backup_restore": true, "cleanup": true}

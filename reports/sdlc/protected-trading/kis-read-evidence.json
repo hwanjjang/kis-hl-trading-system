@@ -1,0 +1,66 @@
+{
+  "date": "2026-09-12",
+  "operation": "KIS read-only authenticated GET",
+  "orders_sent": 0,
+  "observations": [
+    {
+      "symbol": "069500",
+      "endpoint": "inquire-asking-price-exp-ccn",
+      "http": 200,
+      "rt_cd": "0",
+      "shape": "output1 bidp1/askp1/aspr_acpt_hour"
+    },
+    {
+      "symbol": "SPY",
+      "endpoint": "inquire-asking-price",
+      "http": 200,
+      "rt_cd": "0",
+      "shape": "output1 identity/dymd/dhms; output2 pbid1/pask1",
+      "observed_quote_date": "20260912",
+      "observed_quote_time": "090000"
+    },
+    {
+      "symbol": "DRAM",
+      "endpoint": "search-info",
+      "http": 200,
+      "rt_cd": "0",
+      "name": "ROUNDHILL ETF TRUST MEMORY ETF",
+      "exchange": "AMEX",
+      "currency": "USD",
+      "listed": "Y",
+      "delisted": "N",
+      "buy_unit": "1",
+      "sell_unit": "1",
+      "listing_date": "20260402"
+    },
+    {
+      "symbol": "QPUX",
+      "endpoint": "search-info",
+      "http": 200,
+      "rt_cd": "0",
+      "exchange": "NASD",
+      "currency": "USD",
+      "listed": "Y",
+      "delisted": "N",
+      "buy_unit": "1",
+      "sell_unit": "1"
+    },
+    {
+      "symbol": "SPY",
+      "endpoint": "search-info",
+      "http": 200,
+      "rt_cd": "0",
+      "exchange": "AMEX",
+      "currency": "USD",
+      "listed": "Y",
+      "delisted": "N",
+      "buy_unit": "1",
+      "sell_unit": "1"
+    }
+  ],
+  "limits": [
+    "No order, cancel or amendment submitted",
+    "Clock timezone inference needs an in-session rollout check",
+    "Empty-account probes cannot validate partial-fill or cancellation behavior"
+  ]
+}
