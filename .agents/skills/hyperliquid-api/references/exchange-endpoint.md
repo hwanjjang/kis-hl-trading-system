@@ -40,17 +40,25 @@ the observed app contract is not a verified live response/acceptance guarantee.
 `place_trailing_stop_order()` is dry-run by default, always reduce-only, validates
 finite positive inputs, perp eligibility, verification freshness, direction/size,
 lot/tick and expiry. Managed plans currently use quote distance rounded down from
-frozen ATR; percentage and delayed activation are low-level adapter options only.
+frozen ATR using the distance's own significant figures and metadata decimal tick,
+not the current quote's price grid. The supervisor persists the normalized distance
+before entry and rejects zero; percentage and delayed activation are low-level
+adapter options only.
 Mark-price extrema are continuous and differ from the local nine-minute policy.
 
 Query/cancel use ordinary `orderStatus` / `cancel` with the acknowledged native
 oid. The app parses `triggerCondition` retracement/best/activation text (`s4`,
 `l4`); our immediate quote-distance managed reader accepts only matching
-retracement and finite positive best price, or `best waiting`. Unknown formats
-fail closed. A submission acknowledgement is never coverage. Missing oid or a
-timeout requires intervention, with no resend or matching-based foreign adoption.
-Fixed native SL stays active; flat cleanup includes both stop kinds. Do not
-recreate a terminal trail automatically because that resets its watermark.
+quote retracement with immediate activation and a finite positive best price, or
+waiting/omitted best. Known percentage and activation clauses are parsed but rejected
+as managed-request semantic mismatches; unknown/duplicate clauses fail closed.
+A submission acknowledgement or waiting readback is never active trailing coverage.
+Missing oid, timeout or explicit rejection requires intervention, with no resend
+or matching-based foreign adoption. This native submission intervention retains
+fixed-SL monitoring and explicit exits. Verified open waiting orders do not cause
+a timeout exit solely for waiting. Fixed native SL stays active; flat cleanup
+includes both stop kinds. Do not recreate a previously accepted terminal trail
+automatically because that resets its watermark; preserve residual-exit handling.
 
 Evidence digest and investigation: `reports/sdlc/hyperliquid-native-trailing/`.
 No live exchange orders were used to verify this integration.

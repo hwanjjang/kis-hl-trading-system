@@ -17,3 +17,7 @@ response/activation/cancellation behavior remain unverified. The PR description
 must distinguish the offline CLI/SQLite/SDK smoke from exchange integration testing.
 Commit/head and PR URL will be recorded in the actual PR rather than recursive
 post-commit evidence commits.
+
+## Corrective continuation
+AK subsequently requested a PR comment and SDLC correction of review findings.
+Comment https://github.com/hwanjjang/kis-hl-trading-system/pull/21#issuecomment-5784046796 records the assessed response. The same task's affected stages are renewed in artifacts.json, retaining every previous iteration/history rather than resetting counters. Original standalone receipts and evidence remain historical; revision-2 contains fresh corrective evidence. Prior PR publication authority covers the corrective branch commit/push and PR update. No merge readiness, reviewer resolution, cross-provider PR review, live order or deployment is implied. External human review remains pending re-examination of the corrected head.

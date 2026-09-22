@@ -20,7 +20,7 @@ from kis_hl.storage import has_recent_successful_trade_xyz_check
 from kis_hl.trade_xyz_assets import is_trade_xyz_symbol_tradable, normalize_trade_symbol
 from kis_hl.trading_hours import trading_session_decision_for_resolved_asset
 
-from kis_hl.hyperliquid.trailing import positive, retracement_wire, send_trailing_action
+from kis_hl.hyperliquid.trailing import positive, price_increment, retracement_wire, send_trailing_action
 
 logger = get_logger(__name__)
 
@@ -472,7 +472,7 @@ class HyperliquidTradingClient:
         if size % Decimal(1).scaleb(-decimals):
             raise ValueError("Trailing size violates the lot increment")
         for price in ([retracement] if retracement_unit == "quote" else []) + ([activation] if activation else []):
-            if price % Decimal(1).scaleb(-(6 - decimals)) or (price != price.to_integral_value() and len(price.normalize().as_tuple().digits) > 5):
+            if price % price_increment(price, Decimal(1).scaleb(-(6 - decimals))):
                 raise ValueError("Trailing price violates tick precision")
         state = HyperliquidInfoClient(self.config).clearinghouse_state(dex=resolved.dex)
         position = next((Decimal(x["position"]["szi"]) for x in state["assetPositions"]

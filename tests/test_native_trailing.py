@@ -88,6 +88,9 @@ class NativeTrailingManagedTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory(); self.addCleanup(tmp.cleanup)
         self.store = ExecutionStore(Path(tmp.name)/"state.sqlite")
         self.g = Gateway(); self.g.native_trailing = True
+        preflight, snapshot = self.g.preflight, self.g.snapshot
+        self.g.preflight = lambda *a: preflight(*a) | {"trailing_price_step": "0.01"}
+        self.g.snapshot = lambda *a: snapshot(*a) | {"trailing_price_step": "0.01"}
         self.worker = Supervisor(self.store, self.g, live=True)
 
     def start(self):
@@ -133,6 +136,124 @@ class NativeTrailingManagedTests(unittest.TestCase):
         self.assertEqual(self.store.get(row["id"])["state"], "INTERVENTION")
         self.assertEqual(self.g.orders[self.g.sent[1]["id"]]["status"], "open")
 
+    def reject_trailing(self):
+        original = self.g.submit
+        def submit(row, a):
+            if a["kind"] == "trailing":
+                self.g.sent.append(dict(a))
+                return {"status": "rejected", "order_id": None}
+            return original(row, a)
+        self.g.submit = submit
+        row = self.start()
+        return row
+
+    def test_rejection_retains_fixed_stop_without_exit_or_retry_after_restart(self):
+        row = self.reject_trailing()
+        for now in (5, 6000, 7000):
+            result = Supervisor(self.store, self.g, live=True).step(row["id"], now)
+            self.assertEqual(result["state"], "INTERVENTION")
+            self.assertIsNone(result["exit_requested_ms"])
+            self.assertEqual(result["covered_size"], "1")
+        self.assertEqual([a["kind"] for a in self.g.sent], ["entry", "stop", "trailing"])
+        self.assertEqual(self.g.orders[self.g.sent[1]["id"]]["status"], "open")
+
+    def test_fixed_stop_loss_after_rejection_still_exits(self):
+        row = self.reject_trailing()
+        self.worker.step(row["id"], 5)
+        self.g.orders[self.g.sent[1]["id"]]["status"] = "canceled"
+        self.worker.step(row["id"], 6000)
+        self.assertEqual(self.g.sent[-1]["kind"], "exit")
+
+    def test_explicit_exit_after_rejection_is_not_blocked(self):
+        row = self.reject_trailing()
+        self.worker.step(row["id"], 5)
+        self.store.request_exit(row["id"], 6)
+        self.worker.step(row["id"], 7)
+        self.assertEqual(self.g.sent[-1]["kind"], "exit")
+
+    def test_rejected_trail_does_not_prevent_fixed_stop_cleanup_when_flat(self):
+        row = self.reject_trailing()
+        self.worker.step(row["id"], 5)
+        self.g.size = "0"
+        self.assertEqual(self.worker.step(row["id"], 6)["state"], "CLEANUP")
+        self.assertEqual(self.worker.step(row["id"], 7)["state"], "CLOSED")
+
+    def test_unrelated_reconciliation_failure_still_freezes_after_rejection(self):
+        row = self.reject_trailing()
+        self.worker.step(row["id"], 5)
+        self.g.foreign = True
+        self.worker.step(row["id"], 6)
+        self.g.foreign = False
+        self.g.orders[self.g.sent[1]["id"]]["status"] = "canceled"
+        result = self.worker.step(row["id"], 6000)
+        self.assertEqual(result["state"], "INTERVENTION")
+        self.assertEqual([a["kind"] for a in self.g.sent], ["entry", "stop", "trailing"])
+
+    def test_waiting_survives_grace_restart_and_becomes_active(self):
+        row = self.start()
+        order = self.g.orders[self.g.sent[-1]["id"]]
+        order.update(active=False, retracement="4", retracement_unit="quote")
+        for now in (5, 6000, 7000):
+            result = Supervisor(self.store, self.g, live=True).step(row["id"], now)
+            self.assertEqual(result["state"], "PROTECTING")
+            self.assertEqual(result["trailing_covered_size"], "0")
+            self.assertIsNone(result["exit_requested_ms"])
+        order.update(active=True, best_price="104", trigger_price="100")
+        self.assertEqual(self.worker.step(row["id"], 7001)["state"], "PROTECTED")
+        self.assertEqual([a["kind"] for a in self.g.sent], ["entry", "stop", "trailing"])
+
+    def test_waiting_does_not_mask_fixed_stop_loss(self):
+        row = self.start()
+        self.g.orders[self.g.sent[-1]["id"]].update(active=False, retracement="4", retracement_unit="quote")
+        self.g.orders[self.g.sent[1]["id"]]["status"] = "canceled"
+        self.worker.step(row["id"], 6000)
+        self.assertEqual(self.g.sent[-1]["kind"], "exit")
+
+    def test_distance_uses_own_precision_and_is_persisted_before_entry(self):
+        p = plan(trailing_provider="native")
+        p.update(limit_price="100000", max_notional="100001", max_portfolio_notional="1000000", max_correlated_notional="500000")
+        preflight, snapshot = self.g.preflight, self.g.snapshot
+        self.g.preflight = lambda *a: preflight(*a) | {"price": "100000", "ask": "100000.1", "price_step": "0.1", "trailing_price_step": "0.1", "available_notional": "1000000"}
+        self.g.snapshot = lambda *a: snapshot(*a) | {"price": "100000", "entry_price": "100000", "price_step": "10", "trailing_price_step": "0.1"}
+        observed_before_entry = []
+        original = self.g.submit
+        def submit(row, attempt):
+            if attempt["kind"] == "entry":
+                observed_before_entry.append(self.store.get(row["id"]).get("native_trailing_distance"))
+            return original(row, attempt)
+        self.g.submit = submit
+        row = self.store.enqueue("scope", p, live=True, now_ms=1)
+        self.worker.step(row["id"], 2)
+        self.assertEqual(observed_before_entry, ["4"])
+        self.g.size = self.g.filled = "1"
+        self.g.orders[self.g.sent[0]["id"]]["status"] = "filled"
+        self.worker.step(row["id"], 3)
+        self.worker.step(row["id"], 4)
+        self.assertEqual(self.g.sent[-1]["kind"], "trailing")
+        self.assertEqual(Decimal(self.g.sent[-1]["retracement"]), Decimal("4"))
+
+    def test_zero_normalized_distance_blocks_entry(self):
+        p = plan(trailing_provider="native")
+        p["atr"] = "0.001"
+        original = self.g.preflight
+        self.g.preflight = lambda *a: original(*a) | {"atr": "0.001", "trailing_price_step": "0.01"}
+        row = self.store.enqueue("scope", p, live=True, now_ms=1)
+        result = self.worker.step(row["id"], 2)
+        self.assertEqual(result["state"], "INTERVENTION")
+        self.assertEqual(self.g.sent, [])
+
+    def test_old_inflight_row_normalizes_before_first_trail(self):
+        row = self.store.enqueue("scope", plan(trailing_provider="native"), live=True, now_ms=1)
+        current = self.worker.step(row["id"], 2)
+        del current["native_trailing_distance"]
+        self.store.save(current, 2)
+        self.g.size = self.g.filled = "1"
+        self.g.orders[self.g.sent[0]["id"]]["status"] = "filled"
+        self.worker.step(row["id"], 3)
+        self.worker.step(row["id"], 4)
+        self.assertEqual(self.g.sent[-1]["kind"], "trailing")
+        self.assertEqual(self.store.get(row["id"])["native_trailing_distance"], "4")
+
     def test_ack_is_not_coverage_and_active_readback_survives_restart(self):
         row = self.start()
         self.assertEqual(self.g.sent[-1]["kind"], "trailing")
@@ -169,6 +290,16 @@ class NativeTrailingManagedTests(unittest.TestCase):
         self.assertEqual(self.g.sent[-1]["kind"], "exit")
         self.assertEqual(len([a for a in self.g.sent if a["kind"] == "trailing"]), 1)
 
+    def test_rejected_established_trail_exits_instead_of_resetting_watermark(self):
+        row = self.start()
+        order = self.g.orders[self.g.sent[-1]["id"]]
+        order.update(active=True, retracement="4", retracement_unit="quote", best_price="104", trigger_price="100")
+        self.assertEqual(self.worker.step(row["id"], 5)["state"], "PROTECTED")
+        order["status"] = "rejected"
+        self.worker.step(row["id"], 6)
+        self.assertEqual(self.g.sent[-1]["kind"], "exit")
+        self.assertEqual(len([a for a in self.g.sent if a["kind"] == "trailing"]), 1)
+
     def test_unverified_native_readback_does_not_claim_protection(self):
         row = self.start()
         result = self.worker.step(row["id"], 5)
@@ -185,6 +316,35 @@ class NativeTrailingManagedTests(unittest.TestCase):
 
 
 class NativeTrailingReadbackTests(unittest.TestCase):
+    def test_known_syntax_is_distinct_from_managed_semantic_matching(self):
+        from kis_hl.hyperliquid.trailing import parse_trailing_condition, trailing_readback
+        result = parse_trailing_condition("retracement 5.0000%, activation above 100, best waiting")
+        self.assertEqual(result["retracement_unit"], "percent")
+        self.assertEqual(result["activation_price"], "100")
+        self.assertFalse(result["active"])
+        order = {"orderType": "Trailing Stop Market", "isTrigger": True, "reduceOnly": True, "side": "A"}
+        result = trailing_readback(order | {"triggerCondition": "retracement 4"}, retracement=Decimal("4"))
+        self.assertFalse(result["active"])
+        for condition, reason in [("retracement 4%, best 104", "retracement mismatch"),
+                                  ("retracement 4, activation below 100, best 104", "activation mismatch")]:
+            with self.subTest(condition=condition), self.assertRaisesRegex(ValueError, reason):
+                trailing_readback(order | {"triggerCondition": condition}, retracement=Decimal("4"))
+        for condition in ("retracement 4, best NaN", "retracement 4, best waiting, best 104",
+                          "retracement 4, activation above 100, activation below 90",
+                          "retracement 4, activation above NaN", "retracement 4, unknown 3",
+                          "retracement 100%, best 104", "best 104"):
+            with self.subTest(condition=condition), self.assertRaises(ValueError):
+                parse_trailing_condition(condition)
+
+    def test_distance_precision_uses_value_not_market_price(self):
+        from kis_hl.hyperliquid.trailing import normalize_quote_retracement
+        for raw, tick, expected in [("4", ".1", "4"), ("4.246912", ".0001", "4.2469"),
+                                    ("123.456", ".0001", "123.45"), ("123456", ".1", "123456")]:
+            with self.subTest(raw=raw):
+                self.assertEqual(normalize_quote_retracement(Decimal(raw), Decimal(tick)), Decimal(expected))
+        with self.assertRaises(ValueError):
+            normalize_quote_retracement(Decimal("0.01"), Decimal("0.1"))
+
     def test_readback_is_strict_and_computes_mark_threshold(self):
         from kis_hl.hyperliquid.trailing import trailing_readback
         order = {"orderType": "Trailing Stop Market", "isTrigger": True, "reduceOnly": True,
@@ -215,6 +375,23 @@ class NativeTrailingGatewayTests(unittest.TestCase):
         self.assertFalse(snap["foreign_add"])
         self.assertEqual(snap["orders"]["43"]["trigger_price"], "100")
         self.assertTrue(snap["orders"]["43"]["active"])
+
+    def test_gateway_keeps_decimal_tick_separate_from_quote_grid(self):
+        g, info, row, attempts, _ = self.fixture()
+        info.meta_and_asset_ctxs.return_value[0]["universe"][0]["szDecimals"] = 5
+        info.l2_book.return_value["levels"] = [[{"px": "100000"}], [{"px": "100000.1"}]]
+        snap = g.snapshot(row, attempts, 20)
+        self.assertEqual(Decimal(snap["price_step"]), Decimal("10"))
+        self.assertEqual(Decimal(snap["trailing_price_step"]), Decimal("0.1"))
+
+    def test_gateway_accepts_omitted_best_as_waiting_but_rejects_activation(self):
+        g, _, row, attempts, trailing = self.fixture()
+        trailing["triggerCondition"] = "retracement 4"
+        self.assertFalse(g.snapshot(row, attempts, 20)["orders"]["43"]["active"])
+        g, _, row, attempts, trailing = self.fixture()
+        trailing["triggerCondition"] = "retracement 4, activation above 100, best waiting"
+        with self.assertRaisesRegex(ValueError, "activation mismatch"):
+            g.snapshot(row, attempts, 20)
 
     def test_unknown_ack_never_adopts_matching_order(self):
         g, info, row, attempts, _ = self.fixture()

@@ -179,6 +179,7 @@ class ManagedHyperliquidGateway:
             },
             "quantity_step": str(lot),
             "price_step": str(tick),
+            "trailing_price_step": str(tick),
             "observed_now_ms": int(time.time() * 1000),
         }
 
@@ -313,6 +314,7 @@ class ManagedHyperliquidGateway:
             "orders": orders,
             "consistent": net == size,
             "price_step": str(max(tick, Decimal(10) ** (bid.adjusted() - 4))),
+            "trailing_price_step": str(tick),
             "quantity_step": str(lot),
             "observed_now_ms": int(time.time() * 1000),
         }
