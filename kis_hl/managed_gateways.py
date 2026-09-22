@@ -33,6 +33,7 @@ def correlated(asset, symbol, venue):
 
 class ManagedHyperliquidGateway:
     native_sl = True
+    native_trailing = True
 
     def __init__(self, info, trading):
         self.info, self.trading = info, trading
@@ -187,6 +188,9 @@ class ManagedHyperliquidGateway:
         for a in attempts:
             if a["kind"] == "cancel":
                 continue
+            # trailingStop has no client ID in the observed official contract.
+            if a["kind"] == "trailing" and not a.get("order_id"):
+                continue
             query = a.get("order_id") or a["id"]
             result = self.info.order_status(
                 oid=int(query) if str(query).isdigit() else query
@@ -217,6 +221,13 @@ class ManagedHyperliquidGateway:
             )
             if a["kind"] == "stop" and kind != "stop":
                 raise ValueError("Native SL semantics did not match")
+            trailing = {}
+            if a["kind"] == "trailing":
+                from kis_hl.hyperliquid.trailing import trailing_readback
+                trailing = trailing_readback(order, retracement=decimal(a["retracement"]))
+                if decimal(order["sz"]) < 0 or decimal(order["sz"]) > decimal(a["quantity"]):
+                    raise ValueError("Trailing order size mismatch")
+                kind = "trailing"
             if status.endswith("Canceled"):
                 status = "canceled"
             if status.endswith("Rejected"):
@@ -231,6 +242,7 @@ class ManagedHyperliquidGateway:
                 "reduce_only": order.get("reduceOnly"),
                 "trigger_type": "sl" if kind == "stop" else None,
             }
+            observed.update(trailing)
             orders[str(query)] = orders[str(order["oid"])] = observed
         fills = fetch_time_pages(
             lambda a, b: self.info.user_fills_by_time(start_time_ms=a, end_time_ms=b),
@@ -309,6 +321,14 @@ class ManagedHyperliquidGateway:
         asset = instrument(row["plan"]["instrument"])
         from kis_hl.managed_execution import entry_permit
 
+        if a["kind"] == "trailing":
+            result = self.trading.place_trailing_stop_order(
+                symbol=asset.symbol, side="sell", size=decimal(a["quantity"]),
+                retracement=decimal(a["retracement"]), dry_run=False,
+                expires_after_ms=a["created_ms"] + row["plan"]["max_quote_age_ms"],
+            )
+            return {"status": result.status,
+                    "order_id": extract_hyperliquid_order_id(result.response) if result.status == "submitted" else None}
         with entry_permit(self.scope, asset.id, a["id"]):
             result = self.trading.place_order(
                 symbol=asset.symbol,

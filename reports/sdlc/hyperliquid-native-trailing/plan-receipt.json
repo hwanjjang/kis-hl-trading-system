@@ -1,0 +1,77 @@
+{
+  "iteration": 1,
+  "decision": "PROCEED",
+  "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+  "authority_source": "AK request to issue and implement, 2026-09-22; no commit/push/merge/live execution",
+  "candidate": "sha256:e11decf17076d5a381bab69bce228cf9a7790546d1ebe6db6b1784bac0d46231",
+  "next_action": "Advance to next applicable stage or local handoff",
+  "inputs": [
+    {
+      "kind": "triage",
+      "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+      "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+    },
+    {
+      "kind": "intent",
+      "path": "intent/hyperliquid-native-trailing.md",
+      "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+    },
+    {
+      "kind": "investigation",
+      "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+      "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+    },
+    {
+      "kind": "spec",
+      "path": "specs/hyperliquid-native-trailing.md",
+      "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+    },
+    {
+      "kind": "design-source",
+      "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.json",
+      "sha256": "7785b66734e399890c3b83cf14ba67a145fa38089cf8aec96487cd10111e3d39"
+    },
+    {
+      "kind": "design-html",
+      "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.html",
+      "sha256": "79a31a91c2b631cfbbe4e710c1c864a2bfa6343c8391916aea7c2bfaa0214cf5"
+    },
+    {
+      "kind": "design-validation",
+      "path": "reports/sdlc/hyperliquid-native-trailing/design/validation.json",
+      "sha256": "92228a4d365c6e70bec7102da8854bac25aeafd771b77973ba12228be53ccecc"
+    },
+    {
+      "kind": "design-delivery",
+      "path": "reports/sdlc/hyperliquid-native-trailing/design/delivery.json",
+      "sha256": "edfa550414e75e82224fc2149f8c7e2e2e24370eeaddb3ca28ef711c03c363b5"
+    },
+    {
+      "kind": "design-browser",
+      "path": "reports/sdlc/hyperliquid-native-trailing/design/browser.json",
+      "sha256": "d2759526587599eb8f155606681b72a5ce98b31908b80bcbd27abd1d63e83b26"
+    },
+    {
+      "kind": "visual-review",
+      "path": "reports/sdlc/hyperliquid-native-trailing/design/visual-review.md",
+      "sha256": "c9754ef72b3d5cb2c5d7028debd76e4a2d2cc774c299e707f374a84fcd917742"
+    }
+  ],
+  "outputs": [
+    {
+      "kind": "plan",
+      "path": "plans/hyperliquid-native-trailing.md",
+      "sha256": "c2c8e9d4ecb27940519c613c6e28e482e612a8e37cd6ab7eec54004cadcdf546"
+    }
+  ],
+  "assessment": {
+    "assessor": "/root",
+    "summary": "Read and verified deliverables, hashes and actual results. Runtime tests and independent checks pass; real exchange acceptance remains unverified.",
+    "criteria": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4"
+    ]
+  }
+}

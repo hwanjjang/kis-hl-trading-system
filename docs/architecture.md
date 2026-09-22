@@ -163,7 +163,13 @@ consumer is needed for local publication. Notification transport and strategy-co
 execution remain future extension points. All three diagrams remain target-design
 views; they do not claim a notification service is deployed.
 
-SL and trailing provider decisions are independent. Native KIS SL/trailing remain
+SL and trailing provider decisions are independent. Hyperliquid managed plans can
+opt into native continuous-mark trailing after terminal entry and verified fixed
+SL coverage. `hyperliquid/trailing.py` owns the observed wire/readback contract;
+`managed_gateways.py` binds native order identity, and `managed_execution.py`
+persists attempts and reconciles separate fixed-SL/trailing coverage. No additional
+database schema or worker is introduced. Missing native IDs require intervention
+because the observed trailing action has no client ID. Native KIS SL/trailing remain
 unverified; local protection requires an active worker. Exact HTS equivalence is not
 assumed. The account supervisor serializes actual attempts while its journal worker
 has a separate account lock and a configurable 10800-second default interval.

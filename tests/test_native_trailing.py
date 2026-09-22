@@ -1,0 +1,241 @@
+"""Native trailing contract and lifecycle tests; no network or real credentials."""
+from decimal import Decimal
+from pathlib import Path
+from types import SimpleNamespace
+import tempfile
+import unittest
+from unittest.mock import Mock, patch
+
+from kis_hl.config import HyperliquidConfig
+from kis_hl.hyperliquid.client import HyperliquidTradingClient
+from kis_hl.instruments import capabilities
+from kis_hl.managed_execution import ExecutionStore, Supervisor, validate_plan
+from tests.test_managed_execution import Gateway, plan
+
+
+class NativeTrailingClientTests(unittest.TestCase):
+    def client(self):
+        c = HyperliquidTradingClient(HyperliquidConfig(
+            base_url="https://api.hyperliquid-testnet.xyz", account_address="fixture",
+            private_key="fixture", key_profile="default"))
+        info = Mock()
+        info.name_to_asset.return_value = 0
+        info.asset_to_sz_decimals = {0: 2}
+        info.user_state.return_value = {"assetPositions": [{"position": {"coin": "BTC", "szi": "1"}}]}
+        exchange = Mock()
+        c._sdk = info, exchange
+        public = patch("kis_hl.hyperliquid.client.HyperliquidInfoClient")
+        public_client = public.start().return_value
+        public_client.clearinghouse_state.return_value = info.user_state.return_value
+        self.addCleanup(public.stop)
+        return c, info, exchange
+
+    def test_dry_run_requires_no_sdk_credentials_or_network(self):
+        c, _, _ = self.client()
+        c._load_sdk = Mock(side_effect=AssertionError("SDK must not load"))
+        result = c.place_trailing_stop_order(symbol="BTC", side="sell", size=Decimal("1"), retracement=Decimal("4"))
+        self.assertTrue(result.dry_run)
+        self.assertEqual(result.request["retracement"], {"px": "4"})
+        self.assertTrue(result.request["reduce_only"])
+
+    def test_invalid_parameters_never_send(self):
+        c, _, _ = self.client()
+        for changes in ({"size": Decimal("NaN")}, {"retracement": Decimal("Infinity")},
+                        {"retracement": Decimal("0")}, {"retracement_unit": "bogus"},
+                        {"retracement_unit": "percent", "retracement": Decimal("100")},
+                        {"retracement_unit": "percent", "retracement": Decimal("0.00001")},
+                        {"activation_price": Decimal("NaN")}, {"symbol": "BTCUSDC"},
+                        {"side": "invalid"}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                c.place_trailing_stop_order(**(dict(symbol="BTC", side="sell", size=Decimal("1"), retracement=Decimal("4")) | changes))
+
+    @patch("kis_hl.hyperliquid.client.send_trailing_action")
+    def test_wire_contract_and_opaque_ack_stays_unknown(self, send):
+        c, info, _ = self.client()
+        send.return_value = {"status": "ok", "response": {"type": "default"}}
+        result = c.place_trailing_stop_order(symbol="BTC", side="sell", size=Decimal("1"),
+            retracement=Decimal("5"), retracement_unit="percent", dry_run=False)
+        self.assertEqual(result.status, "unknown")
+        action = send.call_args.args[1]
+        self.assertEqual(action, {"type": "trailingStop", "asset": 0, "isBuy": False,
+            "sz": "1", "reduceOnly": True, "retracement": {"pct": "5.0000%"}, "activationPx": None})
+        self.assertEqual(list(action), ["type", "asset", "isBuy", "sz", "reduceOnly", "retracement", "activationPx"])
+        self.assertNotIn("cloid", action)
+        info.name_to_asset.assert_called_once_with("BTC")
+        info.user_state.assert_not_called()
+
+    @patch("kis_hl.hyperliquid.client.send_trailing_action")
+    def test_live_guards_lot_side_and_allowlist(self, send):
+        c, _, _ = self.client()
+        for changes in ({"size": Decimal("1.001")}, {"side": "buy"}, {"symbol": "SOL"},
+                        {"symbol": "xyz:SP500"}):
+            with self.subTest(changes=changes), self.assertRaises((ValueError, RuntimeError)):
+                c.place_trailing_stop_order(**(dict(symbol="BTC", side="sell", size=Decimal("1"), retracement=Decimal("4"), dry_run=False) | changes))
+        send.assert_not_called()
+
+    @patch("kis_hl.hyperliquid.client.send_trailing_action")
+    def test_response_rejection_and_native_id(self, send):
+        c, _, _ = self.client()
+        for response, expected in [({"status": "err", "response": "bad request"}, "rejected"),
+            ({"status": "ok", "response": {"type": "order", "data": {"statuses": [{"resting": {"oid": 42}}]}}}, "submitted"),
+            ({"status": "ok", "response": {"data": {"statuses": [{"error": "rejected"}]}}}, "rejected")]:
+            send.return_value = response
+            self.assertEqual(c.place_trailing_stop_order(symbol="BTC", side="sell", size=Decimal("1"), retracement=Decimal("4"), dry_run=False).status, expected)
+
+
+class NativeTrailingManagedTests(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory(); self.addCleanup(tmp.cleanup)
+        self.store = ExecutionStore(Path(tmp.name)/"state.sqlite")
+        self.g = Gateway(); self.g.native_trailing = True
+        self.worker = Supervisor(self.store, self.g, live=True)
+
+    def start(self):
+        row = self.store.enqueue("scope", plan(trailing_provider="native"), live=True, now_ms=1)
+        self.worker.step(row["id"], 2)
+        self.g.size = self.g.filled = "1"
+        self.g.orders[self.g.sent[0]["id"]]["status"] = "filled"
+        self.worker.step(row["id"], 3)  # fixed SL
+        self.worker.step(row["id"], 4)  # native trailing
+        return row
+
+    def test_native_policy_is_explicit_and_venue_limited(self):
+        self.assertEqual(validate_plan(plan(), 1)["trailing_provider"], "local")
+        for changes in ({"trailing_provider": "typo"}, {"trailing_provider": "native", "instrument": "kis:SPY", "verified_price_step": "0.01"}):
+            p = plan(); p.update(changes)
+            with self.assertRaises(ValueError): validate_plan(p, 1)
+        self.assertEqual(capabilities("hl:BTC")["native_trailing"], "documented_requires_readback")
+        self.assertEqual(capabilities("kis:SPY")["native_trailing"], "unverified")
+
+    def test_partial_entry_gets_fixed_sl_before_native_trailing(self):
+        row = self.store.enqueue("scope", plan(trailing_provider="native"), live=True, now_ms=1)
+        self.worker.step(row["id"], 2)
+        self.g.size = self.g.filled = "0.4"
+        self.worker.step(row["id"], 3); self.worker.step(row["id"], 4)
+        self.assertEqual([a["kind"] for a in self.g.sent], ["entry", "stop"])
+        self.assertEqual(self.g.sent[-1]["quantity"], "0.4")
+        self.g.orders[self.g.sent[0]["id"]]["status"] = "canceled"
+        self.worker.step(row["id"], 5)
+        self.assertEqual(self.g.sent[-1]["kind"], "trailing")
+        self.assertEqual(self.g.sent[-1]["quantity"], "0.4")
+
+    def test_unknown_trailing_never_retries_after_restart(self):
+        original = self.g.submit
+        def submit(row, a):
+            if a["kind"] == "trailing":
+                self.g.sent.append(dict(a)); raise TimeoutError()
+            return original(row, a)
+        self.g.submit = submit
+        row = self.start()
+        worker = Supervisor(self.store, self.g, live=True)
+        for t in (5, 6000, 7000): worker.step(row["id"], t)
+        self.assertEqual(len([a for a in self.g.sent if a["kind"] == "trailing"]), 1)
+        self.assertEqual(self.store.get(row["id"])["state"], "INTERVENTION")
+        self.assertEqual(self.g.orders[self.g.sent[1]["id"]]["status"], "open")
+
+    def test_ack_is_not_coverage_and_active_readback_survives_restart(self):
+        row = self.start()
+        self.assertEqual(self.g.sent[-1]["kind"], "trailing")
+        trailing = self.g.sent[-1]
+        self.g.orders[trailing["id"]].update(active=True, retracement="4", retracement_unit="quote", best_price="104", trigger_price="100")
+        result = self.worker.step(row["id"], 5)
+        self.assertEqual(result["providers"]["trailing"], "native")
+        self.assertEqual(result["trailing_covered_size"], "1")
+        result = Supervisor(self.store, self.g, live=True).step(row["id"], 6)
+        self.assertEqual(result["state"], "PROTECTED")
+        self.assertEqual(len([a for a in self.g.sent if a["kind"] == "trailing"]), 1)
+
+    def test_fractional_atr_rounds_distance_tighter_and_readback_uses_it(self):
+        p = plan(trailing_provider="native")
+        p["atr"] = "2.123456"
+        original = self.g.preflight
+        self.g.preflight = lambda *a: original(*a) | {"atr": p["atr"]}
+        row = self.store.enqueue("scope", p, live=True, now_ms=1)
+        self.worker.step(row["id"], 2)
+        self.g.size = self.g.filled = "1"
+        self.g.orders[self.g.sent[0]["id"]]["status"] = "filled"
+        self.worker.step(row["id"], 3)
+        self.worker.step(row["id"], 4)
+        a = self.g.sent[-1]
+        self.assertEqual(a["kind"], "trailing")
+        self.assertEqual(Decimal(a["retracement"]), Decimal("4.24"))
+        self.g.orders[a["id"]].update(active=True, retracement="4.24", retracement_unit="quote", best_price="105", trigger_price="100.76")
+        self.assertEqual(self.worker.step(row["id"], 5)["trailing_covered_size"], "1")
+
+    def test_canceled_native_trail_is_not_recreated_with_a_lower_watermark(self):
+        row = self.start()
+        self.g.orders[self.g.sent[-1]["id"]]["status"] = "canceled"
+        self.worker.step(row["id"], 5)
+        self.assertEqual(self.g.sent[-1]["kind"], "exit")
+        self.assertEqual(len([a for a in self.g.sent if a["kind"] == "trailing"]), 1)
+
+    def test_unverified_native_readback_does_not_claim_protection(self):
+        row = self.start()
+        result = self.worker.step(row["id"], 5)
+        self.assertNotEqual(result["state"], "PROTECTED")
+        self.assertEqual(result["trailing_covered_size"], "0")
+
+    def test_flat_cleans_up_both_protections(self):
+        row = self.start()
+        self.g.size = "0"
+        result = self.worker.step(row["id"], 5)
+        self.assertEqual(result["state"], "CLEANUP")
+        result = self.worker.step(row["id"], 6)
+        self.assertEqual(result["state"], "CLOSED")
+
+
+class NativeTrailingReadbackTests(unittest.TestCase):
+    def test_readback_is_strict_and_computes_mark_threshold(self):
+        from kis_hl.hyperliquid.trailing import trailing_readback
+        order = {"orderType": "Trailing Stop Market", "isTrigger": True, "reduceOnly": True,
+            "side": "A", "triggerCondition": "retracement 4, best 104"}
+        result = trailing_readback(order, retracement=Decimal("4"))
+        self.assertEqual(result["trigger_price"], "100")
+        for change in ({"orderType": "Stop Market"}, {"reduceOnly": False},
+            {"triggerCondition": "retracement 5, best 104"},
+            {"triggerCondition": "retracement 4, best NaN"},
+            {"triggerCondition": "retracement 4, best 104, unknown 3"}):
+            with self.subTest(change=change), self.assertRaises(ValueError): trailing_readback(order | change, retracement=Decimal("4"))
+        self.assertFalse(trailing_readback(order | {"triggerCondition": "retracement 4, best waiting"}, retracement=Decimal("4"))["active"])
+
+class NativeTrailingGatewayTests(unittest.TestCase):
+    def fixture(self):
+        from tests import test_managed_gateways
+        g, info, row, attempts, order = test_managed_gateways.ManagedGatewayTests().hl()
+        attempts.append({"id": "local-attempt", "order_id": "43", "kind": "trailing", "status": "SUBMITTED", "quantity": "1", "retracement": "4"})
+        trailing = {"oid": 43, "coin": "BTC", "side": "A", "sz": "1", "origSz": "1", "reduceOnly": True, "isTrigger": True,
+                    "orderType": "Trailing Stop Market", "triggerCondition": "retracement 4, best 104"}
+        info.order_status.side_effect = lambda **kw: {"status": "order", "order": {"status": "filled" if kw["oid"] == "0x123" else "open", "order": order if kw["oid"] == "0x123" else trailing}}
+        info.frontend_open_orders.return_value = [trailing]
+        return g, info, row, attempts, trailing
+
+    def test_native_oid_readback_without_cloid_and_owned_open_order(self):
+        g, info, row, attempts, trailing = self.fixture()
+        snap = g.snapshot(row, attempts, 20)
+        self.assertFalse(snap["foreign_add"])
+        self.assertEqual(snap["orders"]["43"]["trigger_price"], "100")
+        self.assertTrue(snap["orders"]["43"]["active"])
+
+    def test_unknown_ack_never_adopts_matching_order(self):
+        g, info, row, attempts, _ = self.fixture()
+        attempts[-1]["order_id"] = None
+        snap = g.snapshot(row, attempts, 20)
+        self.assertTrue(snap["foreign_add"])
+        self.assertNotIn("43", snap["orders"])
+        self.assertEqual(info.order_status.call_count, 1)
+
+    def test_wrong_distance_coin_and_oversized_order_are_rejected(self):
+        for changes in ({"coin": "ETH"}, {"triggerCondition": "retracement 5, best 104"}, {"sz": "2"}, {"oid": 44}):
+            g, _, row, attempts, trailing = self.fixture()
+            trailing.update(changes)
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                g.snapshot(row, attempts, 20)
+
+    def test_native_submit_calls_distinct_action_without_cloid(self):
+        g, _, row, attempts, _ = self.fixture()
+        g.trading.place_trailing_stop_order.return_value = SimpleNamespace(status="unknown", response={"status": "ok"})
+        a = attempts[-1] | {"created_ms": 10}
+        result = g.submit(row, a)
+        self.assertEqual(result, {"status": "unknown", "order_id": None})
+        self.assertNotIn("cloid", g.trading.place_trailing_stop_order.call_args.kwargs)
+        g.trading.place_order.assert_not_called()

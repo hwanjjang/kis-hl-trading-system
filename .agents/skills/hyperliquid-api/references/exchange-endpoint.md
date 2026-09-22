@@ -13,8 +13,47 @@
 ```
 
 `nonce` is a millisecond timestamp. `vaultAddress` and `expiresAfter` are optional.
-In this repo the whole envelope is built and signed by `hyperliquid-python-sdk`; never
-construct it by hand.
+Use `hyperliquid-python-sdk` for signing and action hashing. Normal actions use
+its exchange helpers. The trailing adapter assembles the app-observed action and
+envelope using the SDK's `sign_l1_action` and `Exchange.post`; do not implement
+custom EIP-712 or msgpack signing.
+
+## Native trailing stop
+
+Official order types document perpetual trailing stops:
+https://hyperliquid.gitbook.io/hyperliquid-docs/trading/order-types
+
+The 2026-09-22 official app bundle `config-DWLPMyx3.js` constructs the following
+separate action (`ace`), sends it through the normal signed exchange path
+(`mce`, `I6`, `Uoe`, `ws`) and displays `Trailing Stop Market` orders:
+
+```json
+{"type":"trailingStop","asset":0,"isBuy":false,"sz":"1","reduceOnly":true,"retracement":{"px":"4"},"activationPx":null}
+```
+
+Field insertion order matters to the signed msgpack hash. Percentage retracement
+uses `{"pct":"5.0000%"}`; price/size strings have no trailing zeros. Activation
+is null for immediate activation or a price string. The action contains no cloid.
+Public exchange docs and Python SDK 0.24.0 have no dedicated trailing helper;
+the observed app contract is not a verified live response/acceptance guarantee.
+
+`place_trailing_stop_order()` is dry-run by default, always reduce-only, validates
+finite positive inputs, perp eligibility, verification freshness, direction/size,
+lot/tick and expiry. Managed plans currently use quote distance rounded down from
+frozen ATR; percentage and delayed activation are low-level adapter options only.
+Mark-price extrema are continuous and differ from the local nine-minute policy.
+
+Query/cancel use ordinary `orderStatus` / `cancel` with the acknowledged native
+oid. The app parses `triggerCondition` retracement/best/activation text (`s4`,
+`l4`); our immediate quote-distance managed reader accepts only matching
+retracement and finite positive best price, or `best waiting`. Unknown formats
+fail closed. A submission acknowledgement is never coverage. Missing oid or a
+timeout requires intervention, with no resend or matching-based foreign adoption.
+Fixed native SL stays active; flat cleanup includes both stop kinds. Do not
+recreate a terminal trail automatically because that resets its watermark.
+
+Evidence digest and investigation: `reports/sdlc/hyperliquid-native-trailing/`.
+No live exchange orders were used to verify this integration.
 
 ## Order action
 

@@ -35,6 +35,11 @@ and is configurable; protection runs separately. KIS order summaries remain pend
 until exact execution/cost statements are supplied. Native KIS protection is not
 inferred from stop-limit names. Notification delivery is not implemented.
 
+Hyperliquid managed plans support `"trailing_provider": "native"` for continuous
+mark-price trailing. The default remains local nine-minute trailing. Read the
+[protection contract and rollout limits](docs/trading-operations.md#protection-and-controls)
+before selecting a provider.
+
 Explore the [architecture](docs/architecture/multi-venue-trading.html),
 [protected-trade workflow](docs/architecture/protected-trade.html), and
 [signals/journal flow](docs/architecture/signals-and-journal.html).

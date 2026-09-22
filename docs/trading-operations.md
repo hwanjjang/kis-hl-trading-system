@@ -88,10 +88,37 @@ actions or applications using a different database.
 
 SL and trailing providers are selected independently. Eligible HL perpetuals use
 native reduce-only sell Stop Market protection after actual partial fills, with
-local trailing. Coverage requires account/order/instrument/side/trigger readback;
+local trailing by default. Coverage requires account/order/instrument/side/trigger readback;
 an acknowledgement is insufficient. KIS uses local SL and trailing. Neither an HTS
 feature, `CNDT_PRIC`, nor a stop-limit label proves protective Open API SELL support.
-Native trailing remains unverified for both venues.
+Hyperliquid documents native trailing for perpetuals. To select it for a new
+managed plan, set `"trailing_provider": "native"`; omitted or `"local"` preserves
+the existing policy. KIS native trailing remains unverified and is rejected.
+
+Native mode follows the best **continuous mark price** since exchange activation,
+using the plan's frozen ATR distance rounded down to the current price increment.
+This differs from the local nine-minute policy below. The supervisor first covers
+actual partial fills with fixed native SL orders, then submits one reduce-only
+trailing order after the entry is terminal and fixed SL coverage is verified.
+The fixed SL remains active to preserve the original risk floor. Waiting for the
+entry remainder can delay native trailing activation; it does not delay fixed SL.
+Status exposes `providers.trailing` and `trailing_covered_size` separately from
+fixed `covered_size`. An acknowledgement alone does not establish coverage.
+
+The adapter uses the `trailingStop` action observed in the official app on
+2026-09-22, SDK asset resolution and L1 signing, and ordinary order-ID query/cancel.
+The observed action has no client order ID. A timeout or acknowledgement without
+a usable native order ID therefore enters `INTERVENTION`: never blindly resend
+or adopt another order by matching size/time. Retain fixed SL and reconcile in
+the venue before recovery. Native trail cancellation/rejection latches an exit
+instead of recreating a trail with a reset watermark. Flat cleanup requires both
+fixed SL and trailing orders to be confirmed terminal. Live acceptance, response
+shapes and exchange execution have **not** been exercised; unexpected readback
+formats fail closed. See the [API contract](../.agents/skills/hyperliquid-api/references/exchange-endpoint.md#native-trailing-stop).
+
+Existing positions are never migrated automatically. Before rolling back to a
+version without native support, reconcile and close native-managed positions and
+their owned orders. Switching an active plan to local is not a recovery action.
 
 The existing trailing rule is preserved: initial floor equals actual entry minus
 frozen ATR distance; complete continuous nine-minute buckets can raise the

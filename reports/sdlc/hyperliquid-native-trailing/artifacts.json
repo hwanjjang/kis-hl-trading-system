@@ -1,0 +1,2205 @@
+{
+  "schema_version": 1,
+  "task_id": "hyperliquid-native-trailing",
+  "mode": "implementation",
+  "change_kind": "behavior",
+  "endpoint": "local",
+  "criteria": [
+    "AC1",
+    "AC2",
+    "AC3",
+    "AC4"
+  ],
+  "created_at": "2026-09-22T10:19:51.105501+00:00",
+  "events": [
+    {
+      "at": "2026-09-22T10:19:51.105566+00:00",
+      "action": "initialized",
+      "stage": null
+    },
+    {
+      "at": "2026-09-22T10:25:22.539930+00:00",
+      "action": "iteration-started",
+      "stage": "triage",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-22T10:25:22.643272+00:00",
+      "action": "iteration-finished",
+      "stage": "triage",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "# Triage\nOwner: /root; 2026-09-22; implementation / behavior / local.\nSource: AK requested issue creation and implementation. Issue #20 created at https://github.com/hwanjjang/kis-hl-trading-system/issues/20 . Initial worktree was clean. No commit, push, PR, merge, deployment or live order execution authorized. Base recorded in base.txt. Existing provider is local trailing with native fixed SL. All behavior work requires tests, smoke and an independent fresh-context verifier.\n"
+    },
+    {
+      "at": "2026-09-22T10:25:22.912217+00:00",
+      "action": "iteration-started",
+      "stage": "intent",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-22T10:25:23.015333+00:00",
+      "action": "iteration-finished",
+      "stage": "intent",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "# Intent: Hyperliquid Native Trailing\nOwner: /root. Authority: AK's 2026-09-22 issue + implementation request. Endpoint: local.\nProblem: documented exchange trailing support is not integrated. Desired outcome: opt-in exchange trailing with explicit continuous-mark semantics and conservative reconciliation.\nAC1: distinguish documented native functionality, available adapter and actual account-scoped readback.\nAC2: prepare/submit evidenced trailingStop actions with dry-run default and eligibility guards; reuse ordinary orderStatus/cancel by native ID.\nAC3: preserve native fixed SL for partial entries; opt-in trailing after entry terminality and full SL coverage; persist before send; unknown ou"
+    },
+    {
+      "at": "2026-09-22T10:25:23.279613+00:00",
+      "action": "iteration-started",
+      "stage": "investigation",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-22T10:25:23.378795+00:00",
+      "action": "iteration-finished",
+      "stage": "investigation",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "# Investigation\nRead 2026-09-22. Official order-types page lists continuous mark-based perp trailing with quote/percentage retracement. Public exchange docs and official Python SDK lack a dedicated helper.\nOfficial app config-DWLPMyx3.js ace() constructs ordered action: type=trailingStop, asset, isBuy, sz (decimal string), reduceOnly, retracement={pct:\"5.0000%\"} or {px:\"...\"}, activationPx=null/string. mce() sends through I6/Uoe to /exchange; ws() signs the standard L1 Agent payload with optional expiresAfter. No cloid in this observed action. The app tests status=err; it does not prove an oid response contract. Unrecognized success must remain unknown.\nApp bM order schema contains oid, coin"
+    },
+    {
+      "at": "2026-09-22T10:25:23.632913+00:00",
+      "action": "iteration-started",
+      "stage": "spec",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-22T10:25:23.725972+00:00",
+      "action": "iteration-finished",
+      "stage": "spec",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "# Specification\nPlan gains trailing_provider=local|native (default local); native restricted to catalogued Hyperliquid perps. Local policy unchanged. Native management freezes ATR quote distance, activation immediately; fixed entry SL retained independently. Low-level method supports protective buy/sell, quote or percent retracement, optional activation; always reduceOnly. Reject nonfinite/invalid values, unsupported assets, stale verification, invalid precision, missing credentials and invalid environment before signed I/O.\nPersist a trailing attempt before a single transmission after terminal entry and verified full fixed-SL coverage. Read trailing only by acknowledged native oid. Missing "
+    },
+    {
+      "at": "2026-09-22T10:49:13.376126+00:00",
+      "action": "iteration-started",
+      "stage": "design",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-22T10:49:13.493626+00:00",
+      "action": "iteration-finished",
+      "stage": "design",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports."
+    },
+    {
+      "at": "2026-09-22T10:49:13.774821+00:00",
+      "action": "iteration-started",
+      "stage": "plan",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-22T10:49:13.892791+00:00",
+      "action": "iteration-finished",
+      "stage": "plan",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports."
+    },
+    {
+      "at": "2026-09-22T10:49:14.187880+00:00",
+      "action": "iteration-started",
+      "stage": "test-design",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-22T10:49:14.307773+00:00",
+      "action": "iteration-finished",
+      "stage": "test-design",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports."
+    },
+    {
+      "at": "2026-09-22T10:49:14.605450+00:00",
+      "action": "iteration-started",
+      "stage": "build",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-22T10:49:14.738985+00:00",
+      "action": "iteration-finished",
+      "stage": "build",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports."
+    },
+    {
+      "at": "2026-09-22T10:49:15.079069+00:00",
+      "action": "iteration-started",
+      "stage": "self-verification",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-22T10:49:15.215987+00:00",
+      "action": "iteration-finished",
+      "stage": "self-verification",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports."
+    },
+    {
+      "at": "2026-09-22T10:49:15.572447+00:00",
+      "action": "iteration-started",
+      "stage": "independent-verification",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-22T10:49:43.981052+00:00",
+      "action": "iteration-finished",
+      "stage": "independent-verification",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports."
+    },
+    {
+      "at": "2026-09-22T10:51:10.665511+00:00",
+      "action": "iteration-started",
+      "stage": "completion",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-22T10:51:10.845421+00:00",
+      "action": "iteration-finished",
+      "stage": "completion",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports."
+    }
+  ],
+  "stages": {
+    "triage": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "# Triage\nOwner: /root; 2026-09-22; implementation / behavior / local.\nSource: AK requested issue creation and implementation. Issue #20 created at https://github.com/hwanjjang/kis-hl-trading-system/issues/20 . Initial worktree was clean. No commit, push, PR, merge, deployment or live order execution authorized. Base recorded in base.txt. Existing provider is local trailing with native fixed SL. All behavior work requires tests, smoke and an independent fresh-context verifier.\n",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-22T10:25:22.539898+00:00",
+          "objective": "Implement issue #20 within authorized local scope; triage",
+          "resolution": null,
+          "inputs": [],
+          "finished_at": "2026-09-22T10:25:22.643247+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "# Triage\nOwner: /root; 2026-09-22; implementation / behavior / local.\nSource: AK requested issue creation and implementation. Issue #20 created at https://github.com/hwanjjang/kis-hl-trading-system/issues/20 . Initial worktree was clean. No commit, push, PR, merge, deployment or live order execution authorized. Base recorded in base.txt. Existing provider is local trailing with native fixed SL. All behavior work requires tests, smoke and an independent fresh-context verifier.\n",
+            "authority_source": "AK request: issue creation and implementation, 2026-09-22",
+            "candidate": "94e8e9d15c28f37d91d2b8c1f82e593aaeb7f0e5",
+            "next_action": "Continue next applicable stage",
+            "inputs": [],
+            "outputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+                "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Read and assessed referenced artifact against issue #20 and fail-closed constraints.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "intent": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "# Intent: Hyperliquid Native Trailing\nOwner: /root. Authority: AK's 2026-09-22 issue + implementation request. Endpoint: local.\nProblem: documented exchange trailing support is not integrated. Desired outcome: opt-in exchange trailing with explicit continuous-mark semantics and conservative reconciliation.\nAC1: distinguish documented native functionality, available adapter and actual account-scoped readback.\nAC2: prepare/submit evidenced trailingStop actions with dry-run default and eligibility guards; reuse ordinary orderStatus/cancel by native ID.\nAC3: preserve native fixed SL for partial entries; opt-in trailing after entry terminality and full SL coverage; persist before send; unknown ou",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-22T10:25:22.912179+00:00",
+          "objective": "Implement issue #20 within authorized local scope; intent",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+              "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+            }
+          ],
+          "finished_at": "2026-09-22T10:25:23.015295+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "# Intent: Hyperliquid Native Trailing\nOwner: /root. Authority: AK's 2026-09-22 issue + implementation request. Endpoint: local.\nProblem: documented exchange trailing support is not integrated. Desired outcome: opt-in exchange trailing with explicit continuous-mark semantics and conservative reconciliation.\nAC1: distinguish documented native functionality, available adapter and actual account-scoped readback.\nAC2: prepare/submit evidenced trailingStop actions with dry-run default and eligibility guards; reuse ordinary orderStatus/cancel by native ID.\nAC3: preserve native fixed SL for partial entries; opt-in trailing after entry terminality and full SL coverage; persist before send; unknown ou",
+            "authority_source": "AK request: issue creation and implementation, 2026-09-22",
+            "candidate": "94e8e9d15c28f37d91d2b8c1f82e593aaeb7f0e5",
+            "next_action": "Continue next applicable stage",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+                "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "intent",
+                "path": "intent/hyperliquid-native-trailing.md",
+                "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Read and assessed referenced artifact against issue #20 and fail-closed constraints.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "investigation": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "# Investigation\nRead 2026-09-22. Official order-types page lists continuous mark-based perp trailing with quote/percentage retracement. Public exchange docs and official Python SDK lack a dedicated helper.\nOfficial app config-DWLPMyx3.js ace() constructs ordered action: type=trailingStop, asset, isBuy, sz (decimal string), reduceOnly, retracement={pct:\"5.0000%\"} or {px:\"...\"}, activationPx=null/string. mce() sends through I6/Uoe to /exchange; ws() signs the standard L1 Agent payload with optional expiresAfter. No cloid in this observed action. The app tests status=err; it does not prove an oid response contract. Unrecognized success must remain unknown.\nApp bM order schema contains oid, coin",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-22T10:25:23.279584+00:00",
+          "objective": "Implement issue #20 within authorized local scope; investigation",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+              "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/hyperliquid-native-trailing.md",
+              "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+            }
+          ],
+          "finished_at": "2026-09-22T10:25:23.378766+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "# Investigation\nRead 2026-09-22. Official order-types page lists continuous mark-based perp trailing with quote/percentage retracement. Public exchange docs and official Python SDK lack a dedicated helper.\nOfficial app config-DWLPMyx3.js ace() constructs ordered action: type=trailingStop, asset, isBuy, sz (decimal string), reduceOnly, retracement={pct:\"5.0000%\"} or {px:\"...\"}, activationPx=null/string. mce() sends through I6/Uoe to /exchange; ws() signs the standard L1 Agent payload with optional expiresAfter. No cloid in this observed action. The app tests status=err; it does not prove an oid response contract. Unrecognized success must remain unknown.\nApp bM order schema contains oid, coin",
+            "authority_source": "AK request: issue creation and implementation, 2026-09-22",
+            "candidate": "94e8e9d15c28f37d91d2b8c1f82e593aaeb7f0e5",
+            "next_action": "Continue next applicable stage",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+                "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/hyperliquid-native-trailing.md",
+                "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+                "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Read and assessed referenced artifact against issue #20 and fail-closed constraints.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "spec": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "# Specification\nPlan gains trailing_provider=local|native (default local); native restricted to catalogued Hyperliquid perps. Local policy unchanged. Native management freezes ATR quote distance, activation immediately; fixed entry SL retained independently. Low-level method supports protective buy/sell, quote or percent retracement, optional activation; always reduceOnly. Reject nonfinite/invalid values, unsupported assets, stale verification, invalid precision, missing credentials and invalid environment before signed I/O.\nPersist a trailing attempt before a single transmission after terminal entry and verified full fixed-SL coverage. Read trailing only by acknowledged native oid. Missing ",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-22T10:25:23.632877+00:00",
+          "objective": "Implement issue #20 within authorized local scope; spec",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+              "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/hyperliquid-native-trailing.md",
+              "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+              "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+            }
+          ],
+          "finished_at": "2026-09-22T10:25:23.725924+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "# Specification\nPlan gains trailing_provider=local|native (default local); native restricted to catalogued Hyperliquid perps. Local policy unchanged. Native management freezes ATR quote distance, activation immediately; fixed entry SL retained independently. Low-level method supports protective buy/sell, quote or percent retracement, optional activation; always reduceOnly. Reject nonfinite/invalid values, unsupported assets, stale verification, invalid precision, missing credentials and invalid environment before signed I/O.\nPersist a trailing attempt before a single transmission after terminal entry and verified full fixed-SL coverage. Read trailing only by acknowledged native oid. Missing ",
+            "authority_source": "AK request: issue creation and implementation, 2026-09-22",
+            "candidate": "94e8e9d15c28f37d91d2b8c1f82e593aaeb7f0e5",
+            "next_action": "Continue next applicable stage",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+                "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/hyperliquid-native-trailing.md",
+                "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+                "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "spec",
+                "path": "specs/hyperliquid-native-trailing.md",
+                "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Read and assessed referenced artifact against issue #20 and fail-closed constraints.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "design": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-22T10:49:13.376091+00:00",
+          "objective": "Assess and persist concrete design evidence for issue #20; local endpoint",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+              "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/hyperliquid-native-trailing.md",
+              "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+              "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/hyperliquid-native-trailing.md",
+              "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+            }
+          ],
+          "finished_at": "2026-09-22T10:49:13.493583+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+            "authority_source": "AK request to issue and implement, 2026-09-22; no commit/push/merge/live execution",
+            "candidate": "sha256:e11decf17076d5a381bab69bce228cf9a7790546d1ebe6db6b1784bac0d46231",
+            "next_action": "Advance to next applicable stage or local handoff",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+                "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/hyperliquid-native-trailing.md",
+                "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+                "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/hyperliquid-native-trailing.md",
+                "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "design-source",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.json",
+                "sha256": "7785b66734e399890c3b83cf14ba67a145fa38089cf8aec96487cd10111e3d39"
+              },
+              {
+                "kind": "design-html",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.html",
+                "sha256": "79a31a91c2b631cfbbe4e710c1c864a2bfa6343c8391916aea7c2bfaa0214cf5"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/validation.json",
+                "sha256": "92228a4d365c6e70bec7102da8854bac25aeafd771b77973ba12228be53ccecc"
+              },
+              {
+                "kind": "design-delivery",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/delivery.json",
+                "sha256": "edfa550414e75e82224fc2149f8c7e2e2e24370eeaddb3ca28ef711c03c363b5"
+              },
+              {
+                "kind": "design-browser",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/browser.json",
+                "sha256": "d2759526587599eb8f155606681b72a5ce98b31908b80bcbd27abd1d63e83b26"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/visual-review.md",
+                "sha256": "c9754ef72b3d5cb2c5d7028debd76e4a2d2cc774c299e707f374a84fcd917742"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Read and verified deliverables, hashes and actual results. Runtime tests and independent checks pass; real exchange acceptance remains unverified.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "plan": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-22T10:49:13.774775+00:00",
+          "objective": "Assess and persist concrete plan evidence for issue #20; local endpoint",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+              "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/hyperliquid-native-trailing.md",
+              "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+              "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/hyperliquid-native-trailing.md",
+              "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+            },
+            {
+              "kind": "design-source",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.json",
+              "sha256": "7785b66734e399890c3b83cf14ba67a145fa38089cf8aec96487cd10111e3d39"
+            },
+            {
+              "kind": "design-html",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.html",
+              "sha256": "79a31a91c2b631cfbbe4e710c1c864a2bfa6343c8391916aea7c2bfaa0214cf5"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/validation.json",
+              "sha256": "92228a4d365c6e70bec7102da8854bac25aeafd771b77973ba12228be53ccecc"
+            },
+            {
+              "kind": "design-delivery",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/delivery.json",
+              "sha256": "edfa550414e75e82224fc2149f8c7e2e2e24370eeaddb3ca28ef711c03c363b5"
+            },
+            {
+              "kind": "design-browser",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/browser.json",
+              "sha256": "d2759526587599eb8f155606681b72a5ce98b31908b80bcbd27abd1d63e83b26"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/visual-review.md",
+              "sha256": "c9754ef72b3d5cb2c5d7028debd76e4a2d2cc774c299e707f374a84fcd917742"
+            }
+          ],
+          "finished_at": "2026-09-22T10:49:13.892738+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+            "authority_source": "AK request to issue and implement, 2026-09-22; no commit/push/merge/live execution",
+            "candidate": "sha256:e11decf17076d5a381bab69bce228cf9a7790546d1ebe6db6b1784bac0d46231",
+            "next_action": "Advance to next applicable stage or local handoff",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+                "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/hyperliquid-native-trailing.md",
+                "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+                "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/hyperliquid-native-trailing.md",
+                "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+              },
+              {
+                "kind": "design-source",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.json",
+                "sha256": "7785b66734e399890c3b83cf14ba67a145fa38089cf8aec96487cd10111e3d39"
+              },
+              {
+                "kind": "design-html",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.html",
+                "sha256": "79a31a91c2b631cfbbe4e710c1c864a2bfa6343c8391916aea7c2bfaa0214cf5"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/validation.json",
+                "sha256": "92228a4d365c6e70bec7102da8854bac25aeafd771b77973ba12228be53ccecc"
+              },
+              {
+                "kind": "design-delivery",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/delivery.json",
+                "sha256": "edfa550414e75e82224fc2149f8c7e2e2e24370eeaddb3ca28ef711c03c363b5"
+              },
+              {
+                "kind": "design-browser",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/browser.json",
+                "sha256": "d2759526587599eb8f155606681b72a5ce98b31908b80bcbd27abd1d63e83b26"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/visual-review.md",
+                "sha256": "c9754ef72b3d5cb2c5d7028debd76e4a2d2cc774c299e707f374a84fcd917742"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "plan",
+                "path": "plans/hyperliquid-native-trailing.md",
+                "sha256": "c2c8e9d4ecb27940519c613c6e28e482e612a8e37cd6ab7eec54004cadcdf546"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Read and verified deliverables, hashes and actual results. Runtime tests and independent checks pass; real exchange acceptance remains unverified.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "test-design": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-22T10:49:14.187827+00:00",
+          "objective": "Assess and persist concrete test-design evidence for issue #20; local endpoint",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+              "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/hyperliquid-native-trailing.md",
+              "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+              "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/hyperliquid-native-trailing.md",
+              "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+            },
+            {
+              "kind": "design-source",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.json",
+              "sha256": "7785b66734e399890c3b83cf14ba67a145fa38089cf8aec96487cd10111e3d39"
+            },
+            {
+              "kind": "design-html",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.html",
+              "sha256": "79a31a91c2b631cfbbe4e710c1c864a2bfa6343c8391916aea7c2bfaa0214cf5"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/validation.json",
+              "sha256": "92228a4d365c6e70bec7102da8854bac25aeafd771b77973ba12228be53ccecc"
+            },
+            {
+              "kind": "design-delivery",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/delivery.json",
+              "sha256": "edfa550414e75e82224fc2149f8c7e2e2e24370eeaddb3ca28ef711c03c363b5"
+            },
+            {
+              "kind": "design-browser",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/browser.json",
+              "sha256": "d2759526587599eb8f155606681b72a5ce98b31908b80bcbd27abd1d63e83b26"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/visual-review.md",
+              "sha256": "c9754ef72b3d5cb2c5d7028debd76e4a2d2cc774c299e707f374a84fcd917742"
+            },
+            {
+              "kind": "plan",
+              "path": "plans/hyperliquid-native-trailing.md",
+              "sha256": "c2c8e9d4ecb27940519c613c6e28e482e612a8e37cd6ab7eec54004cadcdf546"
+            }
+          ],
+          "finished_at": "2026-09-22T10:49:14.307717+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+            "authority_source": "AK request to issue and implement, 2026-09-22; no commit/push/merge/live execution",
+            "candidate": "sha256:e11decf17076d5a381bab69bce228cf9a7790546d1ebe6db6b1784bac0d46231",
+            "next_action": "Advance to next applicable stage or local handoff",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+                "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/hyperliquid-native-trailing.md",
+                "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+                "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/hyperliquid-native-trailing.md",
+                "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+              },
+              {
+                "kind": "design-source",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.json",
+                "sha256": "7785b66734e399890c3b83cf14ba67a145fa38089cf8aec96487cd10111e3d39"
+              },
+              {
+                "kind": "design-html",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.html",
+                "sha256": "79a31a91c2b631cfbbe4e710c1c864a2bfa6343c8391916aea7c2bfaa0214cf5"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/validation.json",
+                "sha256": "92228a4d365c6e70bec7102da8854bac25aeafd771b77973ba12228be53ccecc"
+              },
+              {
+                "kind": "design-delivery",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/delivery.json",
+                "sha256": "edfa550414e75e82224fc2149f8c7e2e2e24370eeaddb3ca28ef711c03c363b5"
+              },
+              {
+                "kind": "design-browser",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/browser.json",
+                "sha256": "d2759526587599eb8f155606681b72a5ce98b31908b80bcbd27abd1d63e83b26"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/visual-review.md",
+                "sha256": "c9754ef72b3d5cb2c5d7028debd76e4a2d2cc774c299e707f374a84fcd917742"
+              },
+              {
+                "kind": "plan",
+                "path": "plans/hyperliquid-native-trailing.md",
+                "sha256": "c2c8e9d4ecb27940519c613c6e28e482e612a8e37cd6ab7eec54004cadcdf546"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/hyperliquid-native-trailing/test-plan.md",
+                "sha256": "0b8e6d8f0a2785ae4a59a52b7a2c6981c84f58d26719620c9d721967fb44a07c"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Read and verified deliverables, hashes and actual results. Runtime tests and independent checks pass; real exchange acceptance remains unverified.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "build": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-22T10:49:14.605366+00:00",
+          "objective": "Assess and persist concrete build evidence for issue #20; local endpoint",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+              "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/hyperliquid-native-trailing.md",
+              "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+              "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/hyperliquid-native-trailing.md",
+              "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+            },
+            {
+              "kind": "design-source",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.json",
+              "sha256": "7785b66734e399890c3b83cf14ba67a145fa38089cf8aec96487cd10111e3d39"
+            },
+            {
+              "kind": "design-html",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.html",
+              "sha256": "79a31a91c2b631cfbbe4e710c1c864a2bfa6343c8391916aea7c2bfaa0214cf5"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/validation.json",
+              "sha256": "92228a4d365c6e70bec7102da8854bac25aeafd771b77973ba12228be53ccecc"
+            },
+            {
+              "kind": "design-delivery",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/delivery.json",
+              "sha256": "edfa550414e75e82224fc2149f8c7e2e2e24370eeaddb3ca28ef711c03c363b5"
+            },
+            {
+              "kind": "design-browser",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/browser.json",
+              "sha256": "d2759526587599eb8f155606681b72a5ce98b31908b80bcbd27abd1d63e83b26"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/visual-review.md",
+              "sha256": "c9754ef72b3d5cb2c5d7028debd76e4a2d2cc774c299e707f374a84fcd917742"
+            },
+            {
+              "kind": "plan",
+              "path": "plans/hyperliquid-native-trailing.md",
+              "sha256": "c2c8e9d4ecb27940519c613c6e28e482e612a8e37cd6ab7eec54004cadcdf546"
+            },
+            {
+              "kind": "test-plan",
+              "path": "reports/sdlc/hyperliquid-native-trailing/test-plan.md",
+              "sha256": "0b8e6d8f0a2785ae4a59a52b7a2c6981c84f58d26719620c9d721967fb44a07c"
+            }
+          ],
+          "finished_at": "2026-09-22T10:49:14.738939+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+            "authority_source": "AK request to issue and implement, 2026-09-22; no commit/push/merge/live execution",
+            "candidate": "sha256:e11decf17076d5a381bab69bce228cf9a7790546d1ebe6db6b1784bac0d46231",
+            "next_action": "Advance to next applicable stage or local handoff",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+                "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/hyperliquid-native-trailing.md",
+                "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+                "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/hyperliquid-native-trailing.md",
+                "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+              },
+              {
+                "kind": "design-source",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.json",
+                "sha256": "7785b66734e399890c3b83cf14ba67a145fa38089cf8aec96487cd10111e3d39"
+              },
+              {
+                "kind": "design-html",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.html",
+                "sha256": "79a31a91c2b631cfbbe4e710c1c864a2bfa6343c8391916aea7c2bfaa0214cf5"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/validation.json",
+                "sha256": "92228a4d365c6e70bec7102da8854bac25aeafd771b77973ba12228be53ccecc"
+              },
+              {
+                "kind": "design-delivery",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/delivery.json",
+                "sha256": "edfa550414e75e82224fc2149f8c7e2e2e24370eeaddb3ca28ef711c03c363b5"
+              },
+              {
+                "kind": "design-browser",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/browser.json",
+                "sha256": "d2759526587599eb8f155606681b72a5ce98b31908b80bcbd27abd1d63e83b26"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/visual-review.md",
+                "sha256": "c9754ef72b3d5cb2c5d7028debd76e4a2d2cc774c299e707f374a84fcd917742"
+              },
+              {
+                "kind": "plan",
+                "path": "plans/hyperliquid-native-trailing.md",
+                "sha256": "c2c8e9d4ecb27940519c613c6e28e482e612a8e37cd6ab7eec54004cadcdf546"
+              },
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/hyperliquid-native-trailing/test-plan.md",
+                "sha256": "0b8e6d8f0a2785ae4a59a52b7a2c6981c84f58d26719620c9d721967fb44a07c"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "build",
+                "path": "reports/sdlc/hyperliquid-native-trailing/build.md",
+                "sha256": "efb1635314d9f856df61b145181119bcadd972ae8fd91873d7812834af120e4b"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/hyperliquid-native-trailing/changes.diff",
+                "sha256": "f7e8156e84d85569e2aa00abc9e4bbbf37f9d6d595801e3d0a9e3b739d8c332d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/client.py",
+                "sha256": "be88397638aa886bf7cc56168b364a5cde339bec8a4350cce004d2cfd907f586"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/trailing.py",
+                "sha256": "a0e1c2df18043fae9901065f681725b70c5048106e2420b3549645c2531658c8"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/instruments.py",
+                "sha256": "5f45ee75dfcb1e89ed785e9260484ce76fed37070784e88d443ad13e4433564c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_gateways.py",
+                "sha256": "2e4865c5205c16390f0b6c9a056a564def11c124a639112950761497b2fd9f6b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_execution.py",
+                "sha256": "5dfb2825b4e77a7b64becd91b5de4cabed6fbc21546eb606a6f07e41cf2a653c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_native_trailing.py",
+                "sha256": "3cb8a76ed191008cf731812c119d79617b03a99cd7658d808c9d30ecd186a12c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "scripts/smoke_native_trailing.py",
+                "sha256": "fe8a7821c6213af3b1e4a941406dbaa345ac6c1dfbd16f2d9673c8d607a89a9c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/SKILL.md",
+                "sha256": "64a51be89f491258552d8fc5ec469787e3d10a439332b2ff2c0627e522eafee3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/exchange-endpoint.md",
+                "sha256": "f07db9d5f8ef3ed0db3883c5085844345dd193baa42453e45b550b29a6b5f3a8"
+              },
+              {
+                "kind": "documentation",
+                "path": "README.md",
+                "sha256": "e048c52358d00bc4846bc994bb36bbee1a7783a0f0c6947427680622b3cb84e6"
+              },
+              {
+                "kind": "documentation",
+                "path": "docs/architecture.md",
+                "sha256": "09e9055d5c04b4462a6e4ae7ef62c384111d1238f506c8b61a3476ed38cb3916"
+              },
+              {
+                "kind": "documentation",
+                "path": "docs/trading-operations.md",
+                "sha256": "874538c3b422085731038eba177e9445a10268658b632d2cb689f921ffb576f7"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Read and verified deliverables, hashes and actual results. Runtime tests and independent checks pass; real exchange acceptance remains unverified.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "self-verification": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-22T10:49:15.079006+00:00",
+          "objective": "Assess and persist concrete self-verification evidence for issue #20; local endpoint",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+              "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/hyperliquid-native-trailing.md",
+              "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+              "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/hyperliquid-native-trailing.md",
+              "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+            },
+            {
+              "kind": "design-source",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.json",
+              "sha256": "7785b66734e399890c3b83cf14ba67a145fa38089cf8aec96487cd10111e3d39"
+            },
+            {
+              "kind": "design-html",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.html",
+              "sha256": "79a31a91c2b631cfbbe4e710c1c864a2bfa6343c8391916aea7c2bfaa0214cf5"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/validation.json",
+              "sha256": "92228a4d365c6e70bec7102da8854bac25aeafd771b77973ba12228be53ccecc"
+            },
+            {
+              "kind": "design-delivery",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/delivery.json",
+              "sha256": "edfa550414e75e82224fc2149f8c7e2e2e24370eeaddb3ca28ef711c03c363b5"
+            },
+            {
+              "kind": "design-browser",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/browser.json",
+              "sha256": "d2759526587599eb8f155606681b72a5ce98b31908b80bcbd27abd1d63e83b26"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/visual-review.md",
+              "sha256": "c9754ef72b3d5cb2c5d7028debd76e4a2d2cc774c299e707f374a84fcd917742"
+            },
+            {
+              "kind": "plan",
+              "path": "plans/hyperliquid-native-trailing.md",
+              "sha256": "c2c8e9d4ecb27940519c613c6e28e482e612a8e37cd6ab7eec54004cadcdf546"
+            },
+            {
+              "kind": "test-plan",
+              "path": "reports/sdlc/hyperliquid-native-trailing/test-plan.md",
+              "sha256": "0b8e6d8f0a2785ae4a59a52b7a2c6981c84f58d26719620c9d721967fb44a07c"
+            },
+            {
+              "kind": "build",
+              "path": "reports/sdlc/hyperliquid-native-trailing/build.md",
+              "sha256": "efb1635314d9f856df61b145181119bcadd972ae8fd91873d7812834af120e4b"
+            },
+            {
+              "kind": "change-record",
+              "path": "reports/sdlc/hyperliquid-native-trailing/changes.diff",
+              "sha256": "f7e8156e84d85569e2aa00abc9e4bbbf37f9d6d595801e3d0a9e3b739d8c332d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/hyperliquid/client.py",
+              "sha256": "be88397638aa886bf7cc56168b364a5cde339bec8a4350cce004d2cfd907f586"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/hyperliquid/trailing.py",
+              "sha256": "a0e1c2df18043fae9901065f681725b70c5048106e2420b3549645c2531658c8"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/instruments.py",
+              "sha256": "5f45ee75dfcb1e89ed785e9260484ce76fed37070784e88d443ad13e4433564c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_gateways.py",
+              "sha256": "2e4865c5205c16390f0b6c9a056a564def11c124a639112950761497b2fd9f6b"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_execution.py",
+              "sha256": "5dfb2825b4e77a7b64becd91b5de4cabed6fbc21546eb606a6f07e41cf2a653c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_native_trailing.py",
+              "sha256": "3cb8a76ed191008cf731812c119d79617b03a99cd7658d808c9d30ecd186a12c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "scripts/smoke_native_trailing.py",
+              "sha256": "fe8a7821c6213af3b1e4a941406dbaa345ac6c1dfbd16f2d9673c8d607a89a9c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/SKILL.md",
+              "sha256": "64a51be89f491258552d8fc5ec469787e3d10a439332b2ff2c0627e522eafee3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/exchange-endpoint.md",
+              "sha256": "f07db9d5f8ef3ed0db3883c5085844345dd193baa42453e45b550b29a6b5f3a8"
+            },
+            {
+              "kind": "documentation",
+              "path": "README.md",
+              "sha256": "e048c52358d00bc4846bc994bb36bbee1a7783a0f0c6947427680622b3cb84e6"
+            },
+            {
+              "kind": "documentation",
+              "path": "docs/architecture.md",
+              "sha256": "09e9055d5c04b4462a6e4ae7ef62c384111d1238f506c8b61a3476ed38cb3916"
+            },
+            {
+              "kind": "documentation",
+              "path": "docs/trading-operations.md",
+              "sha256": "874538c3b422085731038eba177e9445a10268658b632d2cb689f921ffb576f7"
+            }
+          ],
+          "finished_at": "2026-09-22T10:49:15.215940+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+            "authority_source": "AK request to issue and implement, 2026-09-22; no commit/push/merge/live execution",
+            "candidate": "sha256:e11decf17076d5a381bab69bce228cf9a7790546d1ebe6db6b1784bac0d46231",
+            "next_action": "Advance to next applicable stage or local handoff",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+                "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/hyperliquid-native-trailing.md",
+                "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+                "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/hyperliquid-native-trailing.md",
+                "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+              },
+              {
+                "kind": "design-source",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.json",
+                "sha256": "7785b66734e399890c3b83cf14ba67a145fa38089cf8aec96487cd10111e3d39"
+              },
+              {
+                "kind": "design-html",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.html",
+                "sha256": "79a31a91c2b631cfbbe4e710c1c864a2bfa6343c8391916aea7c2bfaa0214cf5"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/validation.json",
+                "sha256": "92228a4d365c6e70bec7102da8854bac25aeafd771b77973ba12228be53ccecc"
+              },
+              {
+                "kind": "design-delivery",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/delivery.json",
+                "sha256": "edfa550414e75e82224fc2149f8c7e2e2e24370eeaddb3ca28ef711c03c363b5"
+              },
+              {
+                "kind": "design-browser",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/browser.json",
+                "sha256": "d2759526587599eb8f155606681b72a5ce98b31908b80bcbd27abd1d63e83b26"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/visual-review.md",
+                "sha256": "c9754ef72b3d5cb2c5d7028debd76e4a2d2cc774c299e707f374a84fcd917742"
+              },
+              {
+                "kind": "plan",
+                "path": "plans/hyperliquid-native-trailing.md",
+                "sha256": "c2c8e9d4ecb27940519c613c6e28e482e612a8e37cd6ab7eec54004cadcdf546"
+              },
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/hyperliquid-native-trailing/test-plan.md",
+                "sha256": "0b8e6d8f0a2785ae4a59a52b7a2c6981c84f58d26719620c9d721967fb44a07c"
+              },
+              {
+                "kind": "build",
+                "path": "reports/sdlc/hyperliquid-native-trailing/build.md",
+                "sha256": "efb1635314d9f856df61b145181119bcadd972ae8fd91873d7812834af120e4b"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/hyperliquid-native-trailing/changes.diff",
+                "sha256": "f7e8156e84d85569e2aa00abc9e4bbbf37f9d6d595801e3d0a9e3b739d8c332d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/client.py",
+                "sha256": "be88397638aa886bf7cc56168b364a5cde339bec8a4350cce004d2cfd907f586"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/trailing.py",
+                "sha256": "a0e1c2df18043fae9901065f681725b70c5048106e2420b3549645c2531658c8"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/instruments.py",
+                "sha256": "5f45ee75dfcb1e89ed785e9260484ce76fed37070784e88d443ad13e4433564c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_gateways.py",
+                "sha256": "2e4865c5205c16390f0b6c9a056a564def11c124a639112950761497b2fd9f6b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_execution.py",
+                "sha256": "5dfb2825b4e77a7b64becd91b5de4cabed6fbc21546eb606a6f07e41cf2a653c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_native_trailing.py",
+                "sha256": "3cb8a76ed191008cf731812c119d79617b03a99cd7658d808c9d30ecd186a12c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "scripts/smoke_native_trailing.py",
+                "sha256": "fe8a7821c6213af3b1e4a941406dbaa345ac6c1dfbd16f2d9673c8d607a89a9c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/SKILL.md",
+                "sha256": "64a51be89f491258552d8fc5ec469787e3d10a439332b2ff2c0627e522eafee3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/exchange-endpoint.md",
+                "sha256": "f07db9d5f8ef3ed0db3883c5085844345dd193baa42453e45b550b29a6b5f3a8"
+              },
+              {
+                "kind": "documentation",
+                "path": "README.md",
+                "sha256": "e048c52358d00bc4846bc994bb36bbee1a7783a0f0c6947427680622b3cb84e6"
+              },
+              {
+                "kind": "documentation",
+                "path": "docs/architecture.md",
+                "sha256": "09e9055d5c04b4462a6e4ae7ef62c384111d1238f506c8b61a3476ed38cb3916"
+              },
+              {
+                "kind": "documentation",
+                "path": "docs/trading-operations.md",
+                "sha256": "874538c3b422085731038eba177e9445a10268658b632d2cb689f921ffb576f7"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "self-verification",
+                "path": "reports/sdlc/hyperliquid-native-trailing/self-verification.md",
+                "sha256": "a8c9b98acf53dabe58f987ff9e88ecebdd76702fe8180bf481aa5201715c9900"
+              },
+              {
+                "kind": "test-results",
+                "path": "reports/sdlc/hyperliquid-native-trailing/test-results.json",
+                "sha256": "f6659bad8efd0a186e0e6f2bb02cdc3d405e1ea19c2ed9339da9b90849631dfb"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/red.log",
+                "sha256": "4735bd7a5184e289920590347f1736f6ece709ecb88b95ca02bc983e94ddb761"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/precision-red.log",
+                "sha256": "3553ba0962b515a42ff901f2e9945d106ef9596a9e01caf78b9ff0fe9521c64e"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/public-read-red.log",
+                "sha256": "5cddb2007d85ef656bb00e52f45cdb91eed08397fafe50a156984556fe421d65"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/green.log",
+                "sha256": "0049b9612efa706f8f88d529f0f285ef86e94ad797be1d3a0b9c3136ab13a22a"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/post-refactor.log",
+                "sha256": "154efac30938d7fe965d0a653a1221655a42d615eb9764671e2308921d6d552c"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/smoke.log",
+                "sha256": "ef05c3ec6616bf94b50220d1dc7c2b582458704752b412b3a9bfbe3488fe15ca"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Read and verified deliverables, hashes and actual results. Runtime tests and independent checks pass; real exchange acceptance remains unverified.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "independent-verification": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-22T10:49:15.572349+00:00",
+          "objective": "Assess and persist concrete independent-verification evidence for issue #20; local endpoint",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+              "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/hyperliquid-native-trailing.md",
+              "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+              "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/hyperliquid-native-trailing.md",
+              "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+            },
+            {
+              "kind": "design-source",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.json",
+              "sha256": "7785b66734e399890c3b83cf14ba67a145fa38089cf8aec96487cd10111e3d39"
+            },
+            {
+              "kind": "design-html",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.html",
+              "sha256": "79a31a91c2b631cfbbe4e710c1c864a2bfa6343c8391916aea7c2bfaa0214cf5"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/validation.json",
+              "sha256": "92228a4d365c6e70bec7102da8854bac25aeafd771b77973ba12228be53ccecc"
+            },
+            {
+              "kind": "design-delivery",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/delivery.json",
+              "sha256": "edfa550414e75e82224fc2149f8c7e2e2e24370eeaddb3ca28ef711c03c363b5"
+            },
+            {
+              "kind": "design-browser",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/browser.json",
+              "sha256": "d2759526587599eb8f155606681b72a5ce98b31908b80bcbd27abd1d63e83b26"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/visual-review.md",
+              "sha256": "c9754ef72b3d5cb2c5d7028debd76e4a2d2cc774c299e707f374a84fcd917742"
+            },
+            {
+              "kind": "plan",
+              "path": "plans/hyperliquid-native-trailing.md",
+              "sha256": "c2c8e9d4ecb27940519c613c6e28e482e612a8e37cd6ab7eec54004cadcdf546"
+            },
+            {
+              "kind": "test-plan",
+              "path": "reports/sdlc/hyperliquid-native-trailing/test-plan.md",
+              "sha256": "0b8e6d8f0a2785ae4a59a52b7a2c6981c84f58d26719620c9d721967fb44a07c"
+            },
+            {
+              "kind": "build",
+              "path": "reports/sdlc/hyperliquid-native-trailing/build.md",
+              "sha256": "efb1635314d9f856df61b145181119bcadd972ae8fd91873d7812834af120e4b"
+            },
+            {
+              "kind": "change-record",
+              "path": "reports/sdlc/hyperliquid-native-trailing/changes.diff",
+              "sha256": "f7e8156e84d85569e2aa00abc9e4bbbf37f9d6d595801e3d0a9e3b739d8c332d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/hyperliquid/client.py",
+              "sha256": "be88397638aa886bf7cc56168b364a5cde339bec8a4350cce004d2cfd907f586"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/hyperliquid/trailing.py",
+              "sha256": "a0e1c2df18043fae9901065f681725b70c5048106e2420b3549645c2531658c8"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/instruments.py",
+              "sha256": "5f45ee75dfcb1e89ed785e9260484ce76fed37070784e88d443ad13e4433564c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_gateways.py",
+              "sha256": "2e4865c5205c16390f0b6c9a056a564def11c124a639112950761497b2fd9f6b"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_execution.py",
+              "sha256": "5dfb2825b4e77a7b64becd91b5de4cabed6fbc21546eb606a6f07e41cf2a653c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_native_trailing.py",
+              "sha256": "3cb8a76ed191008cf731812c119d79617b03a99cd7658d808c9d30ecd186a12c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "scripts/smoke_native_trailing.py",
+              "sha256": "fe8a7821c6213af3b1e4a941406dbaa345ac6c1dfbd16f2d9673c8d607a89a9c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/SKILL.md",
+              "sha256": "64a51be89f491258552d8fc5ec469787e3d10a439332b2ff2c0627e522eafee3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/exchange-endpoint.md",
+              "sha256": "f07db9d5f8ef3ed0db3883c5085844345dd193baa42453e45b550b29a6b5f3a8"
+            },
+            {
+              "kind": "documentation",
+              "path": "README.md",
+              "sha256": "e048c52358d00bc4846bc994bb36bbee1a7783a0f0c6947427680622b3cb84e6"
+            },
+            {
+              "kind": "documentation",
+              "path": "docs/architecture.md",
+              "sha256": "09e9055d5c04b4462a6e4ae7ef62c384111d1238f506c8b61a3476ed38cb3916"
+            },
+            {
+              "kind": "documentation",
+              "path": "docs/trading-operations.md",
+              "sha256": "874538c3b422085731038eba177e9445a10268658b632d2cb689f921ffb576f7"
+            },
+            {
+              "kind": "self-verification",
+              "path": "reports/sdlc/hyperliquid-native-trailing/self-verification.md",
+              "sha256": "a8c9b98acf53dabe58f987ff9e88ecebdd76702fe8180bf481aa5201715c9900"
+            },
+            {
+              "kind": "test-results",
+              "path": "reports/sdlc/hyperliquid-native-trailing/test-results.json",
+              "sha256": "f6659bad8efd0a186e0e6f2bb02cdc3d405e1ea19c2ed9339da9b90849631dfb"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/hyperliquid-native-trailing/red.log",
+              "sha256": "4735bd7a5184e289920590347f1736f6ece709ecb88b95ca02bc983e94ddb761"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/hyperliquid-native-trailing/precision-red.log",
+              "sha256": "3553ba0962b515a42ff901f2e9945d106ef9596a9e01caf78b9ff0fe9521c64e"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/hyperliquid-native-trailing/public-read-red.log",
+              "sha256": "5cddb2007d85ef656bb00e52f45cdb91eed08397fafe50a156984556fe421d65"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/hyperliquid-native-trailing/green.log",
+              "sha256": "0049b9612efa706f8f88d529f0f285ef86e94ad797be1d3a0b9c3136ab13a22a"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/hyperliquid-native-trailing/post-refactor.log",
+              "sha256": "154efac30938d7fe965d0a653a1221655a42d615eb9764671e2308921d6d552c"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/hyperliquid-native-trailing/smoke.log",
+              "sha256": "ef05c3ec6616bf94b50220d1dc7c2b582458704752b412b3a9bfbe3488fe15ca"
+            }
+          ],
+          "finished_at": "2026-09-22T10:49:43.980998+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+            "authority_source": "AK request to issue and implement, 2026-09-22; no commit/push/merge/live execution",
+            "candidate": "sha256:e11decf17076d5a381bab69bce228cf9a7790546d1ebe6db6b1784bac0d46231",
+            "next_action": "Advance to next applicable stage or local handoff",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+                "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/hyperliquid-native-trailing.md",
+                "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+                "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/hyperliquid-native-trailing.md",
+                "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+              },
+              {
+                "kind": "design-source",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.json",
+                "sha256": "7785b66734e399890c3b83cf14ba67a145fa38089cf8aec96487cd10111e3d39"
+              },
+              {
+                "kind": "design-html",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.html",
+                "sha256": "79a31a91c2b631cfbbe4e710c1c864a2bfa6343c8391916aea7c2bfaa0214cf5"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/validation.json",
+                "sha256": "92228a4d365c6e70bec7102da8854bac25aeafd771b77973ba12228be53ccecc"
+              },
+              {
+                "kind": "design-delivery",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/delivery.json",
+                "sha256": "edfa550414e75e82224fc2149f8c7e2e2e24370eeaddb3ca28ef711c03c363b5"
+              },
+              {
+                "kind": "design-browser",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/browser.json",
+                "sha256": "d2759526587599eb8f155606681b72a5ce98b31908b80bcbd27abd1d63e83b26"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/visual-review.md",
+                "sha256": "c9754ef72b3d5cb2c5d7028debd76e4a2d2cc774c299e707f374a84fcd917742"
+              },
+              {
+                "kind": "plan",
+                "path": "plans/hyperliquid-native-trailing.md",
+                "sha256": "c2c8e9d4ecb27940519c613c6e28e482e612a8e37cd6ab7eec54004cadcdf546"
+              },
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/hyperliquid-native-trailing/test-plan.md",
+                "sha256": "0b8e6d8f0a2785ae4a59a52b7a2c6981c84f58d26719620c9d721967fb44a07c"
+              },
+              {
+                "kind": "build",
+                "path": "reports/sdlc/hyperliquid-native-trailing/build.md",
+                "sha256": "efb1635314d9f856df61b145181119bcadd972ae8fd91873d7812834af120e4b"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/hyperliquid-native-trailing/changes.diff",
+                "sha256": "f7e8156e84d85569e2aa00abc9e4bbbf37f9d6d595801e3d0a9e3b739d8c332d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/client.py",
+                "sha256": "be88397638aa886bf7cc56168b364a5cde339bec8a4350cce004d2cfd907f586"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/trailing.py",
+                "sha256": "a0e1c2df18043fae9901065f681725b70c5048106e2420b3549645c2531658c8"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/instruments.py",
+                "sha256": "5f45ee75dfcb1e89ed785e9260484ce76fed37070784e88d443ad13e4433564c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_gateways.py",
+                "sha256": "2e4865c5205c16390f0b6c9a056a564def11c124a639112950761497b2fd9f6b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_execution.py",
+                "sha256": "5dfb2825b4e77a7b64becd91b5de4cabed6fbc21546eb606a6f07e41cf2a653c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_native_trailing.py",
+                "sha256": "3cb8a76ed191008cf731812c119d79617b03a99cd7658d808c9d30ecd186a12c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "scripts/smoke_native_trailing.py",
+                "sha256": "fe8a7821c6213af3b1e4a941406dbaa345ac6c1dfbd16f2d9673c8d607a89a9c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/SKILL.md",
+                "sha256": "64a51be89f491258552d8fc5ec469787e3d10a439332b2ff2c0627e522eafee3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/exchange-endpoint.md",
+                "sha256": "f07db9d5f8ef3ed0db3883c5085844345dd193baa42453e45b550b29a6b5f3a8"
+              },
+              {
+                "kind": "documentation",
+                "path": "README.md",
+                "sha256": "e048c52358d00bc4846bc994bb36bbee1a7783a0f0c6947427680622b3cb84e6"
+              },
+              {
+                "kind": "documentation",
+                "path": "docs/architecture.md",
+                "sha256": "09e9055d5c04b4462a6e4ae7ef62c384111d1238f506c8b61a3476ed38cb3916"
+              },
+              {
+                "kind": "documentation",
+                "path": "docs/trading-operations.md",
+                "sha256": "874538c3b422085731038eba177e9445a10268658b632d2cb689f921ffb576f7"
+              },
+              {
+                "kind": "self-verification",
+                "path": "reports/sdlc/hyperliquid-native-trailing/self-verification.md",
+                "sha256": "a8c9b98acf53dabe58f987ff9e88ecebdd76702fe8180bf481aa5201715c9900"
+              },
+              {
+                "kind": "test-results",
+                "path": "reports/sdlc/hyperliquid-native-trailing/test-results.json",
+                "sha256": "f6659bad8efd0a186e0e6f2bb02cdc3d405e1ea19c2ed9339da9b90849631dfb"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/red.log",
+                "sha256": "4735bd7a5184e289920590347f1736f6ece709ecb88b95ca02bc983e94ddb761"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/precision-red.log",
+                "sha256": "3553ba0962b515a42ff901f2e9945d106ef9596a9e01caf78b9ff0fe9521c64e"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/public-read-red.log",
+                "sha256": "5cddb2007d85ef656bb00e52f45cdb91eed08397fafe50a156984556fe421d65"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/green.log",
+                "sha256": "0049b9612efa706f8f88d529f0f285ef86e94ad797be1d3a0b9c3136ab13a22a"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/post-refactor.log",
+                "sha256": "154efac30938d7fe965d0a653a1221655a42d615eb9764671e2308921d6d552c"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/smoke.log",
+                "sha256": "ef05c3ec6616bf94b50220d1dc7c2b582458704752b412b3a9bfbe3488fe15ca"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "independent-verification",
+                "path": "reports/sdlc/hyperliquid-native-trailing/independent-verification.md",
+                "sha256": "87ffa1bb1a28a70814a0e82c20f032e0ef7e780deb2554a9214cdfabc7d9a73a"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Read and verified deliverables, hashes and actual results. Runtime tests and independent checks pass; real exchange acceptance remains unverified.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            },
+            "verifier": {
+              "independent": true,
+              "context_id": "/root/native_trailing_review",
+              "builder_context_id": "/root",
+              "checks": "84 final focused tests passed; 7 separately authored scenarios passed; actual SDK signature recovery / CLI / SQLite smoke passed; source and documentation digests verified; precision finding resolved"
+            }
+          }
+        }
+      ]
+    },
+    "pr-review": {
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "Excluded by implementation/local route",
+      "iteration_limit": 10,
+      "iterations_started": 0,
+      "history": []
+    },
+    "correction": {
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No correction requested",
+      "iteration_limit": 10,
+      "iterations_started": 0,
+      "history": []
+    },
+    "merge": {
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "Excluded by implementation/local route",
+      "iteration_limit": 10,
+      "iterations_started": 0,
+      "history": []
+    },
+    "completion": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-22T10:51:10.665447+00:00",
+          "objective": "Assess and persist concrete completion evidence for issue #20; local endpoint",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+              "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/hyperliquid-native-trailing.md",
+              "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+              "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/hyperliquid-native-trailing.md",
+              "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+            },
+            {
+              "kind": "design-source",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.json",
+              "sha256": "7785b66734e399890c3b83cf14ba67a145fa38089cf8aec96487cd10111e3d39"
+            },
+            {
+              "kind": "design-html",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.html",
+              "sha256": "79a31a91c2b631cfbbe4e710c1c864a2bfa6343c8391916aea7c2bfaa0214cf5"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/validation.json",
+              "sha256": "92228a4d365c6e70bec7102da8854bac25aeafd771b77973ba12228be53ccecc"
+            },
+            {
+              "kind": "design-delivery",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/delivery.json",
+              "sha256": "edfa550414e75e82224fc2149f8c7e2e2e24370eeaddb3ca28ef711c03c363b5"
+            },
+            {
+              "kind": "design-browser",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/browser.json",
+              "sha256": "d2759526587599eb8f155606681b72a5ce98b31908b80bcbd27abd1d63e83b26"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/hyperliquid-native-trailing/design/visual-review.md",
+              "sha256": "c9754ef72b3d5cb2c5d7028debd76e4a2d2cc774c299e707f374a84fcd917742"
+            },
+            {
+              "kind": "plan",
+              "path": "plans/hyperliquid-native-trailing.md",
+              "sha256": "c2c8e9d4ecb27940519c613c6e28e482e612a8e37cd6ab7eec54004cadcdf546"
+            },
+            {
+              "kind": "test-plan",
+              "path": "reports/sdlc/hyperliquid-native-trailing/test-plan.md",
+              "sha256": "0b8e6d8f0a2785ae4a59a52b7a2c6981c84f58d26719620c9d721967fb44a07c"
+            },
+            {
+              "kind": "build",
+              "path": "reports/sdlc/hyperliquid-native-trailing/build.md",
+              "sha256": "efb1635314d9f856df61b145181119bcadd972ae8fd91873d7812834af120e4b"
+            },
+            {
+              "kind": "change-record",
+              "path": "reports/sdlc/hyperliquid-native-trailing/changes.diff",
+              "sha256": "f7e8156e84d85569e2aa00abc9e4bbbf37f9d6d595801e3d0a9e3b739d8c332d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/hyperliquid/client.py",
+              "sha256": "be88397638aa886bf7cc56168b364a5cde339bec8a4350cce004d2cfd907f586"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/hyperliquid/trailing.py",
+              "sha256": "a0e1c2df18043fae9901065f681725b70c5048106e2420b3549645c2531658c8"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/instruments.py",
+              "sha256": "5f45ee75dfcb1e89ed785e9260484ce76fed37070784e88d443ad13e4433564c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_gateways.py",
+              "sha256": "2e4865c5205c16390f0b6c9a056a564def11c124a639112950761497b2fd9f6b"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_execution.py",
+              "sha256": "5dfb2825b4e77a7b64becd91b5de4cabed6fbc21546eb606a6f07e41cf2a653c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_native_trailing.py",
+              "sha256": "3cb8a76ed191008cf731812c119d79617b03a99cd7658d808c9d30ecd186a12c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "scripts/smoke_native_trailing.py",
+              "sha256": "fe8a7821c6213af3b1e4a941406dbaa345ac6c1dfbd16f2d9673c8d607a89a9c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/SKILL.md",
+              "sha256": "64a51be89f491258552d8fc5ec469787e3d10a439332b2ff2c0627e522eafee3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/exchange-endpoint.md",
+              "sha256": "f07db9d5f8ef3ed0db3883c5085844345dd193baa42453e45b550b29a6b5f3a8"
+            },
+            {
+              "kind": "documentation",
+              "path": "README.md",
+              "sha256": "e048c52358d00bc4846bc994bb36bbee1a7783a0f0c6947427680622b3cb84e6"
+            },
+            {
+              "kind": "documentation",
+              "path": "docs/architecture.md",
+              "sha256": "09e9055d5c04b4462a6e4ae7ef62c384111d1238f506c8b61a3476ed38cb3916"
+            },
+            {
+              "kind": "documentation",
+              "path": "docs/trading-operations.md",
+              "sha256": "874538c3b422085731038eba177e9445a10268658b632d2cb689f921ffb576f7"
+            },
+            {
+              "kind": "self-verification",
+              "path": "reports/sdlc/hyperliquid-native-trailing/self-verification.md",
+              "sha256": "a8c9b98acf53dabe58f987ff9e88ecebdd76702fe8180bf481aa5201715c9900"
+            },
+            {
+              "kind": "test-results",
+              "path": "reports/sdlc/hyperliquid-native-trailing/test-results.json",
+              "sha256": "f6659bad8efd0a186e0e6f2bb02cdc3d405e1ea19c2ed9339da9b90849631dfb"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/hyperliquid-native-trailing/red.log",
+              "sha256": "4735bd7a5184e289920590347f1736f6ece709ecb88b95ca02bc983e94ddb761"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/hyperliquid-native-trailing/precision-red.log",
+              "sha256": "3553ba0962b515a42ff901f2e9945d106ef9596a9e01caf78b9ff0fe9521c64e"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/hyperliquid-native-trailing/public-read-red.log",
+              "sha256": "5cddb2007d85ef656bb00e52f45cdb91eed08397fafe50a156984556fe421d65"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/hyperliquid-native-trailing/green.log",
+              "sha256": "0049b9612efa706f8f88d529f0f285ef86e94ad797be1d3a0b9c3136ab13a22a"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/hyperliquid-native-trailing/post-refactor.log",
+              "sha256": "154efac30938d7fe965d0a653a1221655a42d615eb9764671e2308921d6d552c"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/hyperliquid-native-trailing/smoke.log",
+              "sha256": "ef05c3ec6616bf94b50220d1dc7c2b582458704752b412b3a9bfbe3488fe15ca"
+            },
+            {
+              "kind": "independent-verification",
+              "path": "reports/sdlc/hyperliquid-native-trailing/independent-verification.md",
+              "sha256": "87ffa1bb1a28a70814a0e82c20f032e0ef7e780deb2554a9214cdfabc7d9a73a"
+            }
+          ],
+          "finished_at": "2026-09-22T10:51:10.845349+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Concrete deliverables assessed against AC1-AC4, actual test/source evidence and local authority. Limitations are retained in reports.",
+            "authority_source": "AK request to issue and implement, 2026-09-22; no commit/push/merge/live execution",
+            "candidate": "sha256:e11decf17076d5a381bab69bce228cf9a7790546d1ebe6db6b1784bac0d46231",
+            "next_action": "Advance to next applicable stage or local handoff",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+                "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/hyperliquid-native-trailing.md",
+                "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+                "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/hyperliquid-native-trailing.md",
+                "sha256": "4f8f3ec8010b80e29aa9238796a97060445eebaae3ef939c077917eed37971a8"
+              },
+              {
+                "kind": "design-source",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.json",
+                "sha256": "7785b66734e399890c3b83cf14ba67a145fa38089cf8aec96487cd10111e3d39"
+              },
+              {
+                "kind": "design-html",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/native-trailing.html",
+                "sha256": "79a31a91c2b631cfbbe4e710c1c864a2bfa6343c8391916aea7c2bfaa0214cf5"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/validation.json",
+                "sha256": "92228a4d365c6e70bec7102da8854bac25aeafd771b77973ba12228be53ccecc"
+              },
+              {
+                "kind": "design-delivery",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/delivery.json",
+                "sha256": "edfa550414e75e82224fc2149f8c7e2e2e24370eeaddb3ca28ef711c03c363b5"
+              },
+              {
+                "kind": "design-browser",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/browser.json",
+                "sha256": "d2759526587599eb8f155606681b72a5ce98b31908b80bcbd27abd1d63e83b26"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/hyperliquid-native-trailing/design/visual-review.md",
+                "sha256": "c9754ef72b3d5cb2c5d7028debd76e4a2d2cc774c299e707f374a84fcd917742"
+              },
+              {
+                "kind": "plan",
+                "path": "plans/hyperliquid-native-trailing.md",
+                "sha256": "c2c8e9d4ecb27940519c613c6e28e482e612a8e37cd6ab7eec54004cadcdf546"
+              },
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/hyperliquid-native-trailing/test-plan.md",
+                "sha256": "0b8e6d8f0a2785ae4a59a52b7a2c6981c84f58d26719620c9d721967fb44a07c"
+              },
+              {
+                "kind": "build",
+                "path": "reports/sdlc/hyperliquid-native-trailing/build.md",
+                "sha256": "efb1635314d9f856df61b145181119bcadd972ae8fd91873d7812834af120e4b"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/hyperliquid-native-trailing/changes.diff",
+                "sha256": "f7e8156e84d85569e2aa00abc9e4bbbf37f9d6d595801e3d0a9e3b739d8c332d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/client.py",
+                "sha256": "be88397638aa886bf7cc56168b364a5cde339bec8a4350cce004d2cfd907f586"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/trailing.py",
+                "sha256": "a0e1c2df18043fae9901065f681725b70c5048106e2420b3549645c2531658c8"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/instruments.py",
+                "sha256": "5f45ee75dfcb1e89ed785e9260484ce76fed37070784e88d443ad13e4433564c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_gateways.py",
+                "sha256": "2e4865c5205c16390f0b6c9a056a564def11c124a639112950761497b2fd9f6b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_execution.py",
+                "sha256": "5dfb2825b4e77a7b64becd91b5de4cabed6fbc21546eb606a6f07e41cf2a653c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_native_trailing.py",
+                "sha256": "3cb8a76ed191008cf731812c119d79617b03a99cd7658d808c9d30ecd186a12c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "scripts/smoke_native_trailing.py",
+                "sha256": "fe8a7821c6213af3b1e4a941406dbaa345ac6c1dfbd16f2d9673c8d607a89a9c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/SKILL.md",
+                "sha256": "64a51be89f491258552d8fc5ec469787e3d10a439332b2ff2c0627e522eafee3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/exchange-endpoint.md",
+                "sha256": "f07db9d5f8ef3ed0db3883c5085844345dd193baa42453e45b550b29a6b5f3a8"
+              },
+              {
+                "kind": "documentation",
+                "path": "README.md",
+                "sha256": "e048c52358d00bc4846bc994bb36bbee1a7783a0f0c6947427680622b3cb84e6"
+              },
+              {
+                "kind": "documentation",
+                "path": "docs/architecture.md",
+                "sha256": "09e9055d5c04b4462a6e4ae7ef62c384111d1238f506c8b61a3476ed38cb3916"
+              },
+              {
+                "kind": "documentation",
+                "path": "docs/trading-operations.md",
+                "sha256": "874538c3b422085731038eba177e9445a10268658b632d2cb689f921ffb576f7"
+              },
+              {
+                "kind": "self-verification",
+                "path": "reports/sdlc/hyperliquid-native-trailing/self-verification.md",
+                "sha256": "a8c9b98acf53dabe58f987ff9e88ecebdd76702fe8180bf481aa5201715c9900"
+              },
+              {
+                "kind": "test-results",
+                "path": "reports/sdlc/hyperliquid-native-trailing/test-results.json",
+                "sha256": "f6659bad8efd0a186e0e6f2bb02cdc3d405e1ea19c2ed9339da9b90849631dfb"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/red.log",
+                "sha256": "4735bd7a5184e289920590347f1736f6ece709ecb88b95ca02bc983e94ddb761"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/precision-red.log",
+                "sha256": "3553ba0962b515a42ff901f2e9945d106ef9596a9e01caf78b9ff0fe9521c64e"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/public-read-red.log",
+                "sha256": "5cddb2007d85ef656bb00e52f45cdb91eed08397fafe50a156984556fe421d65"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/green.log",
+                "sha256": "0049b9612efa706f8f88d529f0f285ef86e94ad797be1d3a0b9c3136ab13a22a"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/post-refactor.log",
+                "sha256": "154efac30938d7fe965d0a653a1221655a42d615eb9764671e2308921d6d552c"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hyperliquid-native-trailing/smoke.log",
+                "sha256": "ef05c3ec6616bf94b50220d1dc7c2b582458704752b412b3a9bfbe3488fe15ca"
+              },
+              {
+                "kind": "independent-verification",
+                "path": "reports/sdlc/hyperliquid-native-trailing/independent-verification.md",
+                "sha256": "87ffa1bb1a28a70814a0e82c20f032e0ef7e780deb2554a9214cdfabc7d9a73a"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "completion",
+                "path": "reports/sdlc/hyperliquid-native-trailing/completion.md",
+                "sha256": "21416c835b0016679b6a28283a0dd01a869edfa4f867b96bfa1770694e6244b9"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Read and verified deliverables, hashes and actual results. Runtime tests and independent checks pass; real exchange acceptance remains unverified.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

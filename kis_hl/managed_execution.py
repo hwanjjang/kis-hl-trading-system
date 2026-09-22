@@ -128,8 +128,16 @@ def validate_plan(plan, now_ms):
         raise ValueError(
             "Plan exceeds loss/notional limits or has an invalid initial stop"
         )
+    provider = plan.get("trailing_provider", "local")
+    if provider not in {"local", "native"}:
+        raise ValueError("trailing_provider must be local or native")
+    if provider == "native":
+        from kis_hl.instruments import instrument
+        asset = instrument(plan["instrument"])
+        if asset.venue != "hyperliquid" or asset.market != "perp":
+            raise ValueError("Native trailing is available only for Hyperliquid perpetuals")
     # No signal price is copied into execution pricing.
-    return {**plan, "stop_distance": str(distance)}
+    return {**plan, "stop_distance": str(distance), "trailing_provider": provider}
 
 
 class ExecutionStore:
@@ -345,7 +353,7 @@ class Supervisor:
                 if kind == "cancel"
                 else self.gateway.submit(row, a)
             )
-            status = "REJECTED" if result.get("status") == "rejected" else "SUBMITTED"
+            status = {"rejected": "REJECTED", "unknown": "UNKNOWN"}.get(result.get("status"), "SUBMITTED")
             self.store.update_attempt(
                 a,
                 status=status,
@@ -400,6 +408,7 @@ class Supervisor:
     def _step(self, row, now):
         p = row["plan"]
         attempts = self.store.attempts(row["id"])
+        native_trailing = p.get("trailing_provider", "local") == "native"
         if row["state"] == "ENTERING" and not attempts:
             # Every network write is preceded by an attempt commit; none means unsent.
             self._state(
@@ -482,12 +491,14 @@ class Supervisor:
                 raise ValueError("Invalid order lot/tick")
             if not self.gateway.native_sl and not p["allow_local_sl"]:
                 raise ValueError("No protective provider available")
+            if native_trailing and not getattr(self.gateway, "native_trailing", False):
+                raise ValueError("Native trailing provider unavailable")
             row["baseline"] = snap.get("baseline", {})
             row["baseline_start_ms"] = snap.get("baseline_start_ms", row["created_ms"])
             row["atr_source"] = snap["atr_source"]
             row["providers"] = {
                 "stop_loss": "native" if self.gateway.native_sl else "local",
-                "trailing": "local",
+                "trailing": "native" if native_trailing else "local",
             }
             if p.get("signal_id") or p.get("grant_id"):
                 from kis_hl.strategy_signals import Signals
@@ -572,7 +583,7 @@ class Supervisor:
         stops = [
             a
             for a in attempts
-            if a["kind"] == "stop" and a["status"].lower() not in TERMINAL
+            if a["kind"] in {"stop", "trailing"} and a["status"].lower() not in TERMINAL
         ]
         exits = [a for a in attempts if a["kind"] == "exit"]
         unresolved_exits = [a for a in exits if a["status"].lower() not in TERMINAL]
@@ -612,7 +623,7 @@ class Supervisor:
             trail.threshold = max(
                 trail.threshold, decimal(snap["entry_price"]) - trail.distance
             )
-            if fresh and trail.tick(
+            if not native_trailing and fresh and trail.tick(
                 now,
                 decimal(snap["price"], positive=True),
                 max_gap_ms=p["max_quote_age_ms"],
@@ -622,6 +633,8 @@ class Supervisor:
             if self.gateway.native_sl:
                 covered = Decimal(0)
                 for a in stops:
+                    if a["kind"] != "stop":
+                        continue
                     order = orders.get(a.get("order_id") or a["id"], {})
                     if (
                         order.get("status") == "open"
@@ -650,7 +663,7 @@ class Supervisor:
                             self.store.update_attempt(a, coverage_recorded=order)
                 row["covered_size"] = str(min(size, covered))
                 pending_stops = any(
-                    not orders.get(a.get("order_id") or a["id"]) for a in stops
+                    not orders.get(a.get("order_id") or a["id"]) for a in stops if a["kind"] == "stop"
                 )
                 if covered < size and (
                     now - row["first_fill_ms"] >= p["protection_grace_ms"]
@@ -692,12 +705,43 @@ class Supervisor:
                 row["covered_size"] = str(size if protected else 0)
             if not protected and now - row["first_fill_ms"] >= p["protection_grace_ms"]:
                 row["exit_requested_ms"] = row["exit_requested_ms"] or now
+            if native_trailing:
+                trails = [a for a in attempts if a["kind"] == "trailing"]
+                row["trailing_covered_size"] = "0"
+                if trails:
+                    a = trails[0]
+                    if not a.get("order_id") and a["status"] != "REJECTED":
+                        self._state(row, "INTERVENTION", "Native trailing outcome unknown; retain fixed SL and reconcile manually", now)
+                        return
+                    order = orders.get(a.get("order_id"), {})
+                    if a["status"].lower() in TERMINAL:
+                        # Re-creation would reset the exchange watermark.
+                        row["exit_requested_ms"] = row["exit_requested_ms"] or now
+                    elif (order.get("status") == "open" and order.get("kind") == "trailing"
+                          and order.get("side") == "sell" and order.get("reduce_only") is True
+                          and order.get("active") is True
+                          and order.get("retracement_unit") == "quote"
+                          and decimal(order.get("retracement", "0")) == decimal(a["retracement"])):
+                        row["trailing_covered_size"] = str(min(size, decimal(order["size"], positive=True)))
+                    if decimal(row["trailing_covered_size"]) < size and now - a["created_ms"] >= p["protection_grace_ms"]:
+                        row["exit_requested_ms"] = row["exit_requested_ms"] or now
+                elif protected and fresh and not entry_active and not row["exit_requested_ms"]:
+                    tick = decimal(snap["price_step"], positive=True)
+                    distance = (trail.distance / tick).to_integral_value(rounding=ROUND_DOWN) * tick
+                    if distance <= 0:
+                        raise ValueError("Native trailing distance is below the price increment")
+                    self._state(row, "PROTECTING", "Fixed SL verified; awaiting native trailing readback", now)
+                    self._send(row, "trailing", now, quantity=str(size), price="0", retracement=str(distance))
+                    return
+                protected = protected and decimal(row["trailing_covered_size"]) >= size
+                if not protected and not row["exit_requested_ms"]:
+                    row["state"], row["reason"] = "PROTECTING", "Await entry terminality and verified native trailing coverage"
             if protected and fresh and not row["exit_requested_ms"]:
                 row["state"], row["reason"] = (
                     "PROTECTED",
-                    "Coverage verified; local trailing active",
+                    "Coverage verified; native trailing active" if native_trailing else "Coverage verified; local trailing active",
                 )
-        if any(a["kind"] == "stop" and a["status"] == "FILLED" for a in attempts):
+        if any(a["kind"] in {"stop", "trailing"} and a["status"] == "FILLED" for a in attempts):
             row["exit_requested_ms"] = row["exit_requested_ms"] or now
         if row["cancel_entry"] or row["exit_requested_ms"] or now >= p["expires_ms"]:
             row["cancel_started_ms"] = row.get("cancel_started_ms") or now
