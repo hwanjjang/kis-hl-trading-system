@@ -364,3 +364,13 @@ bounded independent-statement reconciliation (`data reconcile`),
 cost/funding rules, market coverage, jobs (account default: 10800 seconds),
 exports, analysis and backup/restore. Weekly history targets ten calendar years;
 actual provider/listing coverage may be shorter. Jobs require a running collector.
+
+### Review account changes before applying them
+
+Use `data audit-collect` with an explicit KIS or Hyperliquid account and time range
+to capture private source evidence without changing the operational database.
+`data audit-compare` writes the differences; `data audit-apply` requires the reviewed
+report SHA-256 and explicit approval of corrections. Add `--journals` to regenerate
+selected account journals and their combined report while preserving old reports.
+See [the account audit workflow](docs/unified-data-operations.md#account-audit-and-explicit-adjustment)
+for command examples, coverage limits and the offline smoke scenario.

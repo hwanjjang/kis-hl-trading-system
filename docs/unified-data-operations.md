@@ -152,6 +152,31 @@ Configuration persists; **a running `market collect` process is required**.
 Installing or supervising a persistent host service is separate from CLI setup.
 No worker is automatically started by import, migration or configuration.
 
+### Current operating policy: user or agent initiated
+
+Account synchronization is initiated by the user or by an explicitly instructed
+Hermes/agent. Do not install a daemon, cron entry or agent schedule as part of
+ordinary synchronization. The configurable 10,800-second (three-hour) interval
+remains a freshness target and job due-time setting; it does not cause execution
+without a caller. Data can be older when no run is requested.
+
+Before a run, select the absolute operational DB path, inspect `data status`, and
+confirm KIS live mode and the actual `tradefi` subaccount address. Do not substitute
+the configured Master wallet for `tradefi`. Use the one-shot `data sync` commands
+above with explicit history bounds. They read exchange accounts but **write local
+evidence and facts**. Start before the last successful boundary to capture late
+records; use at least the configured overlap (one day by default), with a separate
+broader historical audit when requested. A successful request is not proof of
+lifetime coverage. Check collection failures, coverage and stale reports before
+generating new KIS, tradefi and combined journals with explicit account IDs.
+
+`market collect --once` runs all due configured jobs, including market jobs; use
+direct `data sync` for a request limited to particular accounts. Do not use the
+polling form for an on-demand request. Record the selected accounts, requested
+range, collection result and generated report IDs in a private execution receipt.
+Preserve old reports. Source disagreements require investigation and supported
+revisions, not an invented complete-coverage assertion.
+
 ## Market history and sampling
 
 ```bash
@@ -252,6 +277,61 @@ revisions older than 180 days and quote/book snapshots older than 30 days.
 Account evidence and daily/weekly history are not auto-pruned. Dependencies of
 pinned reports/analysis remain pinned transitively. Encryption/off-host transport
 requires an operator-managed destination; credentials are not stored in backups.
+
+### Backup policy for user, Hermes and agent execution
+
+This policy does not execute or schedule backups. The user or an instructed agent
+performs each operation and records its receipt. Choose one absolute operational
+DB path and a private persistent backup directory outside disposable worktrees;
+changing those paths or operational readers is a separate operation.
+
+| Decision | Policy |
+| --- | --- |
+| Trigger | Before schema application, bulk import/correction or storage cutover; after an important successful account refresh; on each active day when requested |
+| Method | Use `data backup` (SQLite online backup); never copy only the live `.sqlite` file while WAL writes may exist |
+| Naming | A new UTC timestamped filename for every backup; retain its `.sqlite.json` integrity/digest sidecar |
+| Scope | Canonical DB plus a separately inventoried copy of private source files, manifests, report exports and job configuration needed to replay the result |
+| Exclusions | Keep `.env`, private keys and token caches out of the backup bundle; recover credentials separately through the operator's secret store |
+| Retention | Keep all pre-change backups until the change is accepted; thereafter keep the newest seven successful backups, one per available day for 30 days and one per available month for 12 months |
+| Deletion | Manual only, after verifying a newer recoverable backup and required source/report retention; these rules never delete canonical account evidence |
+| Recovery objective | Recover to the most recent verified backup; the data-loss window is time since that backup, not a guaranteed three hours |
+| Off-host copy | An encrypted copy in an operator-selected separate failure domain is required for host-loss recovery; local backups alone do not cover it. Do not upload until that destination is selected and authorized |
+
+The DB contains captured source payloads, but external report/source files and
+operator configuration are not necessarily embedded. Inventory those paths and
+SHA-256 hashes separately. Preserve the code commit and schema version with the
+receipt. Let relevant collection/export jobs finish before capturing the external
+files, or record their separate capture boundaries; an online DB backup alone
+does not make a multi-file bundle atomic. Restrict directories to the owner and
+backup files to owner read/write; keep bundles outside Git.
+
+Example commands for a future instructed operation (replace every placeholder):
+
+```bash
+umask 077
+DB=/ABSOLUTE_OPERATIONAL_PATH/kis_hl.sqlite
+BACKUP=/PERSISTENT_PRIVATE_PATH/kis-hl-YYYYMMDDTHHMMSSZ.sqlite
+RESTORE=/PRIVATE_ISOLATED_PATH/restore-YYYYMMDDTHHMMSSZ.sqlite
+python3 -m kis_hl.cli --db "$DB" data status
+python3 -m kis_hl.cli --db "$DB" data backup --target "$BACKUP"
+python3 -m kis_hl.cli data restore --source "$BACKUP" --target "$RESTORE"
+python3 -m kis_hl.cli --db "$RESTORE" data status
+```
+
+Backup checks SQLite integrity and foreign keys; restore verifies the sidecar
+digest and integrity. Test an isolated restore after the first backup, after a
+schema change, and at least monthly when operations are active. Compare account
+membership, fact counts, coverage, pinned report IDs and representative journal
+totals against the backup receipt. Verify external-file hashes and export
+availability too. Record PASS/FAIL; quarantine failures and keep older verified
+copies. A sidecar hash detects changed bytes, not source authenticity.
+
+Never restore over the active DB or automatically switch readers. In an incident,
+stop local writers, restore to a new path, verify it, then replay available source
+history and reconcile the post-backup gap before a separately instructed cutover.
+If authoritative writes exist after the recovery point, repair forward. API
+retention can prevent reconstructing lost history, so unresolved gaps stay
+explicit. No recovery-time guarantee is claimed until a restore drill is timed.
 
 Native Hyperliquid 1w boundaries observed on 2026-09-13 are Thursday UTC rather
 than ISO Monday. Stored boundaries remain provider-native; weekly gap checks
@@ -359,3 +439,92 @@ Funding after that boundary belongs only to the recovered exposure. Summary
 pinned inputs, so concurrent arrivals still trigger regeneration even if they
 arrive while a historical as-of report is being calculated. Superseded old
 revisions do not falsely invalidate a fresh report.
+
+## Account audit and explicit adjustment
+
+Use this workflow when source collection must be reviewed before changing the
+operational store. Unlike `data sync`, `data audit-collect` never opens the selected
+`--db`: it writes a new private JSON evidence bundle. An account and start boundary
+are required; `--end-ms` defaults to capture time. Boundaries are half-open Unix
+milliseconds. KIS expands them to complete Seoul calendar dates; overseas rows
+retain their native New York day intervals. These different date boundaries do
+not establish exact execution times or interval completeness.
+
+```bash
+python3 -m kis_hl.cli data audit-collect --venue hyperliquid --account ACTUAL_SUBACCOUNT --start-ms START_MS --output data/audit/tradefi-source.json
+python3 -m kis_hl.cli data audit-collect --venue kis --account CONFIGURED_KIS_ACCOUNT --start-ms START_MS --output data/audit/kis-source.json
+python3 -m kis_hl.cli --db /ABSOLUTE_OPERATIONAL_PATH/kis_hl.sqlite data audit-compare --bundle data/audit/tradefi-source.json data/audit/kis-source.json --output data/audit/comparison.json
+```
+
+The operational DB must already exist and have the canonical schema for compare
+and apply. Compare opens it read-only and writes a separate new report. It accepts
+one bundle per distinct account, so Master is included only if explicitly supplied.
+Use new versioned output paths on every capture/compare. Files are created with
+owner-only permissions. Bundles and reports contain account identifiers and raw
+financial data: keep them under ignored `data/`, never attach them to a public PR.
+No Hyperliquid private key is loaded by audit collection. KIS requires the matching
+configured live account (`SANDBOX=false`); its statement routes do not support
+simulated accounts. No exchange trading client is called.
+
+Capture reuses native pagination and source adapters. Hyperliquid records bounded
+fills/funding, the retained fill tail, all discovered perpetual DEX position states
+and spot evidence. KIS records domestic profit/order/cost evidence and US transaction
+statements and balances; profit windows are at most ten calendar years. Missing,
+failed or saturated pages abort collection instead of producing a partial success
+bundle. Provider retention can still truncate a successful response. KIS non-US
+markets remain outside this adapter. A current balance cannot establish a historical
+ending balance; only snapshots close to the requested current boundary are compared.
+KIS inventory comparisons concern the explicitly captured domestic/US population.
+
+The report lists additions, changes, missing saved records, inventory findings,
+source fee components and signed funding by account/currency. Same-millisecond
+fills are chained using source `startPosition`, never arbitrary trade-ID order.
+Unknown opening inventory remains visible and journal returns remain pending.
+Positive KIS executed orders without their matching daily/cost source are rejected.
+Executed domestic orders also require a recognized buy (`02`) or sell (`01`) side;
+unknown or missing sides abort capture and comparison. The common normalizer
+requires every executed order to appear exactly once in the resulting order IDs,
+scoped by date, symbol and side. Zero-executed orders do not contribute trades.
+Apply repeats these checks before writing any revisions or journals.
+Funding represented as a daily aggregate and hourly points is equivalent only when
+sample count, distinct times and signed amount agree. Unresolved overlaps and
+missing saved records block application; absence never deletes an old fact.
+
+Captured native evidence must agree with the decoded adapter inputs, including
+symbol/day KIS costs. An operator-prepared bundle without captured evidence is
+explicitly reported as `operator_supplied_source`; do not present it as an
+independently authenticated broker response. Review its external source separately.
+SHA-256 binds the selected local bytes, not the authenticity of an exchange.
+
+Review the comparison JSON, then supply the exact SHA-256 returned by compare:
+
+```bash
+python3 -m kis_hl.cli --db /ABSOLUTE_OPERATIONAL_PATH/kis_hl.sqlite data audit-apply --report data/audit/comparison.json --sha256 REVIEWED_REPORT_SHA256 --journals
+```
+
+Existing fact changes additionally require `--allow-corrections`. Apply re-derives
+the plan and checks the selected accounts' current revisions/coverage under an
+immediate SQLite transaction. Changed state, altered plans, unresolved findings
+or missing correction authorization reject the entire transaction. Recompare
+before retrying a stale report. Successful apply records source observations,
+append-only fact revisions, partial coverage and a durable receipt. It does not
+claim independent statement completeness or replace `data reconcile`.
+
+`--journals` creates one new journal per selected account, plus a combined journal
+when multiple accounts are supplied, in the same transaction. Any journal failure
+rolls back the adjustment. Existing report IDs and exports remain unchanged;
+returned `journal_ids` can be exported with `data export`. Without that flag, use
+`data journal` explicitly afterward. Reapplying the same report with the same
+journal option returns the prior receipt without adding facts or reports. A replay
+with a different journal option is rejected; generate journals separately instead.
+A prior application receipt is not evidence of current freshness after later runs.
+
+The [audit workflow diagram](diagrams/account-audit.html) and its
+[source JSON](diagrams/account-audit.json) show these boundaries.
+Run `python3 scripts/smoke_account_audit.py` for the standalone offline scenario:
+synthetic native provider responses, real clients/CLI/SQLite, capture, read-only
+comparison, apply, separate/combined journals, replay, corrections, stale rejection,
+missing-source rejection and immutable exports. The runner forbids network and
+uses a temporary working directory with synthetic credentials. It neither reads
+`.env` nor touches the operational DB. This smoke is distinct from unit tests and
+from an actual live-account retention/recoverability check.

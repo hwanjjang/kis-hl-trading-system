@@ -19,3 +19,5 @@ jobs:
         run: python3 -m unittest discover -s tests -t . -q
       - name: Offline CLI and SQLite smoke
         run: python3 scripts/smoke_protected_trading.py
+      - name: Offline account audit and adjustment smoke
+        run: python3 scripts/smoke_account_audit.py
