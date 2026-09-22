@@ -36,8 +36,10 @@ class HyperliquidInfoClient:
     def __init__(self, config: HyperliquidConfig, *, timeout_seconds: float = 10) -> None:
         self.config = config
         self.timeout_seconds = timeout_seconds
+        self.last_raw_body: bytes | None = None
 
     def post_info(self, payload: dict[str, Any]) -> Any:
+        self.last_raw_body = None
         body = json.dumps(payload, sort_keys=True).encode("utf-8")
         request = urllib.request.Request(
             self.config.base_url.rstrip("/") + "/info",
@@ -47,7 +49,9 @@ class HyperliquidInfoClient:
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as res:
-                text = res.read().decode("utf-8")
+                raw_body = res.read()
+                text = raw_body.decode("utf-8")
+                self.last_raw_body = raw_body
                 return json.loads(text) if text else {}
         except urllib.error.HTTPError as exc:
             text = exc.read().decode("utf-8")
@@ -145,6 +149,15 @@ class HyperliquidInfoClient:
         return self._object_list({"type": "userFillsByTime", "user": self._resolve_user(user),
                                   "startTime": start_time_ms, "endTime": end_time_ms,
                                   "aggregateByTime": False})
+
+    def user_fills(self, *, user: str | None = None) -> list[dict[str, Any]]:
+        return self._object_list({"type":"userFills", "user":self._resolve_user(user),
+                                  "aggregateByTime":False})
+
+    def user_funding(self, *, start_time_ms: int, end_time_ms: int,
+                     user: str | None = None) -> list[dict[str, Any]]:
+        return self._object_list({"type": "userFunding", "user": self._resolve_user(user),
+                                  "startTime": start_time_ms, "endTime": end_time_ms})
 
     def order_status(self, *, oid: int | str, user: str | None = None) -> dict[str, Any]:
         result = self.post_info({"type": "orderStatus", "user": self._resolve_user(user), "oid": oid})
@@ -294,13 +307,17 @@ class HyperliquidTradingClient:
             return OrderSubmission("dry_run", True, resolved, request, {"skipped": "dry_run"})
         if not is_supported_live_asset(resolved):
             raise RuntimeError(
-                "Live trading is limited to BTCUSDC spot and mapped tradable trade.xyz assets; "
+                "Live trading is limited to BTCUSDC spot, BTC/ETH perps and mapped tradable trade.xyz assets; "
                 f"got {symbol}"
             )
         self._require_recent_verification(resolved)
 
         self._require_credentials()
         if not reduce_only:
+            from kis_hl.journal_sync import Scope
+            from kis_hl.managed_execution import guard_external_entry
+            scope=Scope('hyperliquid','testnet' if 'testnet' in self.config.base_url else 'mainnet',self.config.account_address)
+            guard_external_entry(self.verification_db_path,scope=scope.key,instrument_id='hl:'+resolved.coin,attempt_id=cloid)
             if has_managed_position(self.verification_db_path, network=self.config.base_url,
                                     account=self.config.account_address, coin=resolved.coin):
                 raise RuntimeError("Managed trailing position blocks entries until cleanup completes")
@@ -531,7 +548,7 @@ def extract_hyperliquid_order_id(response: Any) -> str | None:
 def is_supported_live_asset(resolved: ResolvedAsset) -> bool:
     if resolved.kind == "spot" and resolved.coin == "UBTC/USDC":
         return True
-    if resolved.kind == "perp" and resolved.coin == "BTC" and resolved.dex is None:
+    if resolved.kind == "perp" and resolved.coin in {"BTC", "ETH"} and resolved.dex is None:
         return True
     if resolved.dex != "xyz" or not resolved.coin.startswith("xyz:"):
         return False

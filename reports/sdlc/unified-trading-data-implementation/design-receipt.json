@@ -1,0 +1,64 @@
+{
+  "iteration": 1,
+  "decision": "PROCEED",
+  "reason": "Assessed the recorded deliverable against the accepted design and local implementation scope.",
+  "authority_source": "User proceed following unified data design",
+  "candidate": "local-working-tree",
+  "inputs": [
+    {
+      "kind": "triage",
+      "path": "reports/sdlc/unified-trading-data-implementation/triage.md",
+      "sha256": "a68f8b7a2004aa54456f09876dd897571a01052e8821c51f42c3952d7b50b9d4"
+    },
+    {
+      "kind": "intent",
+      "path": "intent/unified-trading-data.md",
+      "sha256": "06b5be61d324c2bbe7899e5a02551f7ffa9002c273c6657ad1bd10037156c749"
+    },
+    {
+      "kind": "investigation",
+      "path": "reports/sdlc/unified-trading-data-implementation/investigation.md",
+      "sha256": "55f473ebb9019dfd36a1fceeafebea22762c8bb54f329dbf244af741dcdf6361"
+    },
+    {
+      "kind": "spec",
+      "path": "specs/unified-trading-data.md",
+      "sha256": "f5f527dadaa352be1eecddaf6aef94a7d8f81682a81199305b0982e676422b2a"
+    },
+    {
+      "kind": "implementation-detail",
+      "path": "reports/sdlc/unified-trading-data-implementation/investigation.md",
+      "sha256": "55f473ebb9019dfd36a1fceeafebea22762c8bb54f329dbf244af741dcdf6361"
+    }
+  ],
+  "outputs": [
+    {
+      "kind": "design-source",
+      "path": "reports/sdlc/unified-trading-data/design/dataflow.json",
+      "sha256": "4f9701ba5677d3a4191d9aed28577d93e357a0f71498f8944c608f0c2bb82c41"
+    },
+    {
+      "kind": "design-html",
+      "path": "reports/sdlc/unified-trading-data/design/dataflow.html",
+      "sha256": "f0ae3302873544cb72ba99b9333bbf50dd560c72950b5274ea90403b99217f0e"
+    },
+    {
+      "kind": "design-validation",
+      "path": "reports/sdlc/unified-trading-data/design/review.json",
+      "sha256": "c658caf0c333ce607a34e20a7d156121a0965363e5efea9567fb8ca391d99ca6"
+    }
+  ],
+  "assessment": {
+    "assessor": "/root",
+    "summary": "Actual upstream artifacts reviewed; stage evidence and limitations stated in outputs.",
+    "criteria": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4",
+      "AC5",
+      "AC6"
+    ]
+  },
+  "next_action": "Continue authorized local implementation."
+}

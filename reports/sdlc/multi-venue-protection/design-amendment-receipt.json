@@ -1,0 +1,139 @@
+{
+  "iteration": 2,
+  "decision": "PROCEED",
+  "reason": "Three current diagrams passed deterministic, browser and separate visual review.",
+  "authority_source": "User requested planning through Archify; amendment adds harness/HTS/web actual-fill journals, configurable 3h sync and future signal notification/manual/automatic modes. Local design only.",
+  "candidate": "f9f2c5049291f2a41a73bc9e26fe7026ee54b7660b7006df0de73eb49834abad",
+  "next_action": "Continue local amended plan delivery",
+  "inputs": [
+    {
+      "kind": "triage",
+      "path": "reports/sdlc/multi-venue-protection/triage.md",
+      "sha256": "0bcf1d52e4594c619b8f5fbe0633010767981c7d7606456f355c71435df7b6b3"
+    },
+    {
+      "kind": "intent",
+      "path": "intent/multi-venue-protection.md",
+      "sha256": "a1c8693247112b9b5dea79c96d90c3a2c8b6a0300ce09092ec59d0dd6f3018f7"
+    },
+    {
+      "kind": "investigation",
+      "path": "reports/sdlc/multi-venue-protection/investigation-amendment.md",
+      "sha256": "41d851dca1091720e3cccd81b9ca3e03e32f737fbb9d7ede79d3e4baf9e43e2c"
+    },
+    {
+      "kind": "research",
+      "path": "reports/sdlc/multi-venue-protection/research.md",
+      "sha256": "31d10636b125d96bdc7832a18e9fde294df68c5f175943020bca4369998a5f33"
+    },
+    {
+      "kind": "notification-evidence",
+      "path": "docs/product/trading-notifications.md",
+      "sha256": "f871d90d24f49004e223bd689cadc34be3c7158d07afdc42ba4c56be49235105"
+    },
+    {
+      "kind": "spec",
+      "path": "specs/multi-venue-protection.md",
+      "sha256": "f4e6ac79e25c65ca5b86876c093b9ec7cf9d0680394481e1d92c7edc9edb9843"
+    }
+  ],
+  "outputs": [
+    {
+      "kind": "design",
+      "path": "reports/sdlc/multi-venue-protection/design-amendment.md",
+      "sha256": "98203be3bf0ea657ae350309f038875a2ee3abf57128c8fdf9cb044bb8bf397f"
+    },
+    {
+      "kind": "design-source",
+      "path": "docs/architecture/multi-venue-trading.architecture.json",
+      "sha256": "104ffe8ea77fde0834c1060ae9a2a0fc825abd1bd887dfc4f69d2e7edd534fb3"
+    },
+    {
+      "kind": "design-html",
+      "path": "docs/architecture/multi-venue-trading.html",
+      "sha256": "193a151b2f7db84a931f2302af24163ef54f83a87cd6cfcbbb8a40e64dc70413"
+    },
+    {
+      "kind": "design-validation",
+      "path": "reports/sdlc/multi-venue-protection/multi-venue-trading-validation.json",
+      "sha256": "c63f5c73139d51904aed455e563696d9884c0931ea161c98cff1760e99b398c9"
+    },
+    {
+      "kind": "design-delivery",
+      "path": "reports/sdlc/multi-venue-protection/multi-venue-trading-delivery.json",
+      "sha256": "90d23ec6ef9179f7d6f120662596f6720c33477e143fb8fa46e21a38d0af0fa8"
+    },
+    {
+      "kind": "browser-evidence",
+      "path": "docs/architecture/multi-venue-trading.visual-check.json",
+      "sha256": "8f543984e7c62f3d9a668deccccb3089e4d993a736977b516d73a169c08224d6"
+    },
+    {
+      "kind": "design-source",
+      "path": "docs/architecture/protected-trade.workflow.json",
+      "sha256": "9e3843de16d2d63793d9b742f14ecd8b8032565174f549376ba8f7fbad164fca"
+    },
+    {
+      "kind": "design-html",
+      "path": "docs/architecture/protected-trade.html",
+      "sha256": "0b73235318b12a64bdd5252791c3efd3a286fbd3c049f1377afb55803aec74f6"
+    },
+    {
+      "kind": "design-validation",
+      "path": "reports/sdlc/multi-venue-protection/protected-trade-validation.json",
+      "sha256": "e94b86a5ddd8ffa7b65bc0dbe074b23c3a222a65387573e3f6d7c5324aabd928"
+    },
+    {
+      "kind": "design-delivery",
+      "path": "reports/sdlc/multi-venue-protection/protected-trade-delivery.json",
+      "sha256": "019f57364d948070b719c468a0c9bcc7d18b8a18b9f7c72be42a96236b33dd70"
+    },
+    {
+      "kind": "browser-evidence",
+      "path": "docs/architecture/protected-trade.visual-check.json",
+      "sha256": "21649f18e163be702d7cb26d250e641f81d694d4ddac63d2d43697ddbce9d114"
+    },
+    {
+      "kind": "design-source",
+      "path": "docs/architecture/signals-and-journal.architecture.json",
+      "sha256": "f41a1fd18597450bce6a645e428da8523a9cd62d6aa64573c8aef12f1b858281"
+    },
+    {
+      "kind": "design-html",
+      "path": "docs/architecture/signals-and-journal.html",
+      "sha256": "a82597db71af777cd3d9506d5d9548904fa7b83253dff2de971f87760e9b220e"
+    },
+    {
+      "kind": "design-validation",
+      "path": "reports/sdlc/multi-venue-protection/signals-and-journal-validation.json",
+      "sha256": "4cbc392239a8bc29eed315425b8a03054e786e06484870a28383b2d6b0387e04"
+    },
+    {
+      "kind": "design-delivery",
+      "path": "reports/sdlc/multi-venue-protection/signals-and-journal-delivery.json",
+      "sha256": "55c53169b482092a447e31b29bbb82a2609f09cf852601f97663aa4963bcb590"
+    },
+    {
+      "kind": "browser-evidence",
+      "path": "docs/architecture/signals-and-journal.visual-check.json",
+      "sha256": "a353a797e01626fce561bb08c7085e815c4271119559dd3fb97504a7e3022b52"
+    },
+    {
+      "kind": "visual-review",
+      "path": "reports/sdlc/multi-venue-protection/visual-review-amendment.json",
+      "sha256": "c6c5d3daaf06888950198fc7d577a9e3fee1d59f57600d970ea1f20680a02716"
+    }
+  ],
+  "assessment": {
+    "assessor": "/root",
+    "summary": "Three current diagrams passed deterministic, browser and separate visual review.",
+    "criteria": [
+      "MV1",
+      "MV2",
+      "MV3",
+      "MV4",
+      "MV5",
+      "MV6"
+    ]
+  }
+}

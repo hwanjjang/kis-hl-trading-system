@@ -1,0 +1,198 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "On-demand Account Audit",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "evidence",
+      "label": "Read-only evidence"
+    },
+    {
+      "id": "commands",
+      "label": "Explicit CLI workflow"
+    },
+    {
+      "id": "results",
+      "label": "Reviewed local changes"
+    },
+    {
+      "id": "journal-output",
+      "label": "Journal snapshots"
+    }
+  ],
+  "mainPath": [
+    "collect",
+    "bundle",
+    "compare",
+    "report",
+    "apply",
+    "facts",
+    "journals"
+  ],
+  "nodes": [
+    {
+      "id": "apis",
+      "lane": "evidence",
+      "col": 0,
+      "type": "external",
+      "label": "KIS / Hyperliquid",
+      "sublabel": "Selected account + range",
+      "width": 172
+    },
+    {
+      "id": "baseline",
+      "lane": "evidence",
+      "col": 2,
+      "type": "database",
+      "label": "Operational SQLite",
+      "sublabel": "Current evidence + facts",
+      "width": 172
+    },
+    {
+      "id": "collect",
+      "lane": "commands",
+      "col": 0,
+      "type": "backend",
+      "label": "data audit-collect",
+      "sublabel": "User / Hermes / agent",
+      "width": 172
+    },
+    {
+      "id": "bundle",
+      "lane": "commands",
+      "col": 1,
+      "type": "database",
+      "label": "Private JSON bundle",
+      "sublabel": "Immutable source evidence",
+      "width": 172
+    },
+    {
+      "id": "compare",
+      "lane": "commands",
+      "col": 2,
+      "type": "backend",
+      "label": "data audit-compare",
+      "sublabel": "Normalize + detect changes",
+      "width": 172
+    },
+    {
+      "id": "report",
+      "lane": "commands",
+      "col": 3,
+      "type": "security",
+      "label": "Reviewable report",
+      "sublabel": "Digest + baseline token",
+      "width": 172
+    },
+    {
+      "id": "apply",
+      "lane": "commands",
+      "col": 4,
+      "type": "security",
+      "label": "data audit-apply",
+      "sublabel": "--report + --sha256",
+      "width": 172
+    },
+    {
+      "id": "facts",
+      "lane": "results",
+      "col": 4,
+      "type": "database",
+      "label": "Append revisions",
+      "sublabel": "Evidence + corrected facts",
+      "width": 172
+    },
+    {
+      "id": "journals",
+      "lane": "journal-output",
+      "col": 4,
+      "type": "backend",
+      "label": "Regenerate journals",
+      "sublabel": "Each account + combined",
+      "width": 172
+    }
+  ],
+  "edges": [
+    {
+      "id": "fetch",
+      "from": "apis",
+      "to": "collect",
+      "label": "read-only API",
+      "role": "branch"
+    },
+    {
+      "id": "capture",
+      "from": "collect",
+      "to": "bundle"
+    },
+    {
+      "id": "inspect",
+      "from": "bundle",
+      "to": "compare"
+    },
+    {
+      "id": "read-baseline",
+      "from": "baseline",
+      "to": "compare",
+      "label": "read only",
+      "role": "branch"
+    },
+    {
+      "id": "propose",
+      "from": "compare",
+      "to": "report"
+    },
+    {
+      "id": "approve",
+      "from": "report",
+      "to": "apply",
+      "label": "explicit apply",
+      "variant": "security"
+    },
+    {
+      "id": "commit",
+      "from": "apply",
+      "to": "facts",
+      "label": "atomic recheck",
+      "variant": "security"
+    },
+    {
+      "id": "rebuild",
+      "from": "facts",
+      "to": "journals",
+      "label": "--journals",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Compare before applying",
+      "items": [
+        "Detect additions, corrections, missing records, cost, funding and inventory conflicts.",
+        "Normalize through existing adapters; comparison leaves operational data unchanged."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Fail closed on stale evidence",
+      "items": [
+        "Inside one SQLite transaction, recheck bundle, report and current database baseline.",
+        "Corrections require --allow-corrections; no deletions or completeness certification."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Preserve the audit trail",
+      "items": [
+        "Use --journals during apply or data journal afterward; old runs and exports stay immutable.",
+        "Every audit starts explicitly. No scheduler, backup automation or live orders."
+      ]
+    }
+  ]
+}

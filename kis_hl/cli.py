@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -155,6 +156,9 @@ def build_parser() -> argparse.ArgumentParser:
     replay = trailing_sub.add_parser("replay", help="Offline JSONL replay; cannot place exchange orders")
     replay.add_argument("--input", required=True)
     replay.set_defaults(handler=cmd_trailing)
+
+    kis_account = sub.add_parser("kis-account", help="Read the configured KIS domestic account summary")
+    kis_account.set_defaults(handler=cmd_kis_account)
 
     kis_price = sub.add_parser("kis-price", help="Fetch one KIS quote")
     kis_price.add_argument("--market", choices=["domestic", "overseas"], required=True)
@@ -533,7 +537,45 @@ def build_parser() -> argparse.ArgumentParser:
     xyz_daily_collect.add_argument("--delay-ms", type=int, default=300)
     xyz_daily_collect.add_argument("--fail-fast", action="store_true")
     xyz_daily_collect.set_defaults(handler=cmd_xyz_assets_daily_collect)
+    from kis_hl.operations_cli import add_commands
+    add_commands(sub, journal_sub)
+    from kis_hl.data_cli import register
+    register(sub)
     return parser
+
+
+def cmd_kis_account(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        config = load_kis_config()
+        # Keep account checks separate from tokens issued for previous keys.
+        fingerprint = hashlib.sha256(json.dumps([config.app_key, config.app_secret]).encode()).hexdigest()
+        client = KisClient(replace(config, token_dir=config.token_dir / fingerprint))
+        response = client.inquire_domestic_balance()
+        body = response.body
+        if response.status != 200 or not isinstance(body, dict) or body.get("rt_cd") != "0":
+            raise ValueError("Unsuccessful account response")
+        summary = body.get("output2")
+        if isinstance(summary, list) and len(summary) == 1:
+            summary = summary[0]
+        if not isinstance(summary, dict):
+            raise ValueError("Missing account summary")
+        amounts = {}
+        for field in ("dnca_tot_amt", "tot_evlu_amt", "scts_evlu_amt"):
+            value = summary[field]
+            if not isinstance(value, str) or not Decimal(value).is_finite():
+                raise ValueError("Invalid account amount")
+            amounts[field] = value
+    except Exception:
+        # Raw vendor/network errors can contain credentials or account numbers.
+        raise RuntimeError(
+            "KIS account lookup failed. Check credentials, account, environment and connectivity."
+        ) from None
+    return {
+        "mode": config.mode,
+        "account": "******" + config.account_id[-4:],
+        "currency": "KRW",
+        "domestic_summary": amounts,
+    }
 
 
 def cmd_kis_price(args: argparse.Namespace) -> dict[str, Any]:

@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Managed Trading \u2014 Proposed Main Data Path",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1220,
+      700
+    ]
+  },
+  "components": [
+    {
+      "id": "feeds",
+      "type": "external",
+      "label": "Market data",
+      "sublabel": "KIS + Hyperliquid",
+      "pos": [
+        30,
+        80
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "signals",
+      "type": "backend",
+      "label": "Signal analysis",
+      "sublabel": "Separate index / ETF basis",
+      "pos": [
+        330,
+        80
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "risk",
+      "type": "security",
+      "label": "Entry preflight",
+      "sublabel": "Funds, mapping, SL + trail",
+      "pos": [
+        630,
+        80
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "orders",
+      "type": "backend",
+      "label": "Order coordinator",
+      "sublabel": "Persist intent before send",
+      "pos": [
+        930,
+        80
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "venues",
+      "type": "external",
+      "label": "Execution venues",
+      "sublabel": "KIS + Hyperliquid",
+      "pos": [
+        930,
+        330
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "reconcile",
+      "type": "backend",
+      "label": "Fill reconciliation",
+      "sublabel": "Partial fills + order truth",
+      "pos": [
+        630,
+        330
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "protect",
+      "type": "security",
+      "label": "Protection manager",
+      "sublabel": "Native SL / local worker",
+      "pos": [
+        330,
+        330
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "SQLite ledger",
+      "sublabel": "Intents, fills, coverage",
+      "pos": [
+        30,
+        330
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "operator",
+      "type": "frontend",
+      "label": "Operator CLI",
+      "sublabel": "Shared harness / CLI contracts",
+      "pos": [
+        930,
+        560
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "journal",
+      "type": "backend",
+      "label": "Trade journal",
+      "sublabel": "3h / on-demand reconciliation",
+      "pos": [
+        30,
+        560
+      ],
+      "size": [
+        230,
+        76
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "link-0",
+      "from": "feeds",
+      "to": "signals",
+      "label": "bars"
+    },
+    {
+      "id": "link-1",
+      "from": "signals",
+      "to": "risk",
+      "label": "signal"
+    },
+    {
+      "id": "link-2",
+      "from": "risk",
+      "to": "orders",
+      "label": "ready"
+    },
+    {
+      "id": "link-3",
+      "from": "orders",
+      "to": "venues",
+      "label": "submit",
+      "labelDy": 70
+    },
+    {
+      "id": "link-4",
+      "from": "venues",
+      "to": "reconcile",
+      "label": "state / fills"
+    },
+    {
+      "id": "link-5",
+      "from": "reconcile",
+      "to": "protect",
+      "label": "exposure"
+    },
+    {
+      "id": "link-6",
+      "from": "protect",
+      "to": "ledger",
+      "label": "coverage"
+    },
+    {
+      "id": "link-7",
+      "from": "ledger",
+      "to": "journal",
+      "label": "closed cycle",
+      "labelDy": 70
+    },
+    {
+      "id": "operator-control",
+      "from": "operator",
+      "to": "reconcile",
+      "label": "inspect / recover"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Signal is not execution",
+      "items": [
+        "KOSPI \u2192 069500 / 122630; SPX \u2192 SPY / UPRO",
+        "NDX \u2192 QQQ / TQQQ; GLD, QPUX and DRAM use explicit mappings"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Protection before entry",
+      "items": [
+        "Select SL and trailing providers independently",
+        "Native when verified; local fallback requires a healthy worker"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Reconcile before journaling",
+      "items": [
+        "Managed orders use one coordinator; secondary edges omitted",
+        "All-origin journal sync is separate; see signals and journal view"
+      ]
+    }
+  ]
+}

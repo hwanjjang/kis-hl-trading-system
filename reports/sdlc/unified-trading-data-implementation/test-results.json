@@ -1,0 +1,100 @@
+{
+  "candidate": "sha256:e36e2414217fc81b9704119b3c9894ecd342abcc39951004466741f666994236",
+  "scenarios": [
+    {
+      "id": "canonical-cli",
+      "requirement": "AC6",
+      "required": true,
+      "environment": "Python 3.11+, temporary real SQLite WAL database and CLI subprocesses",
+      "prerequisites": "Repository importable; no credentials needed for synthetic smoke",
+      "actions": "Preview/import twice, report/export, pin/correct analysis, online backup/isolated restore, retention preview and representative concurrent writes",
+      "expected": "No duplicate facts; net 1.8; immutable exports, stale lineage, consistent restore and <250 ms added p95 latency under declared synthetic load",
+      "failure": "Changed totals, overwritten database, non-ready export claimed ready, stale inputs missed or restore mismatch",
+      "cleanup": "TemporaryDirectory removes smoke data"
+    },
+    {
+      "id": "incremental-public-cli",
+      "requirement": "AC4",
+      "required": true,
+      "environment": "Real CLI subprocesses and public read-only Hyperliquid info API",
+      "prerequisites": "Network and existing Hyperliquid configuration; no signed exchange action",
+      "actions": "Configure one minute job, collect once, immediately collect again",
+      "expected": "First run collects recent 30-minute window; second run has no due jobs",
+      "failure": "Full-history replay or duplicate scheduled attempt",
+      "cleanup": "Temporary database removed"
+    }
+  ],
+  "runs": [
+    {
+      "id": "red-incremental",
+      "phase": "red",
+      "candidate": "sha256:4ae90728d8a54d3df07a0dfa594348fcf97f2308b8a5a52845ff8df3af959516",
+      "command": "python3 -m unittest tests.test_unified_data.IncrementalPollingTests -q",
+      "environment": "Local Python/SQLite, recorded command environment",
+      "observed": "Expected absence of last-success cursor and minute start bound assertions before the correction",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/incremental-red.log",
+      "exit_code": 1,
+      "status": "passed",
+      "intended_failure": true
+    },
+    {
+      "id": "green-final",
+      "phase": "green",
+      "candidate": "sha256:e36e2414217fc81b9704119b3c9894ecd342abcc39951004466741f666994236",
+      "command": "python3 -m unittest tests.test_unified_data -q",
+      "environment": "Local Python/SQLite, recorded command environment",
+      "observed": "48 focused behavior tests passed",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/incremental-green.log",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "id": "post-refactor-final",
+      "phase": "post-refactor",
+      "candidate": "sha256:e36e2414217fc81b9704119b3c9894ecd342abcc39951004466741f666994236",
+      "command": "python3 -m unittest tests.test_unified_data.IncrementalPollingTests tests.test_unified_data.CollectorTests tests.test_unified_data.NativeWeekBoundaryTests -q",
+      "environment": "Local Python/SQLite, recorded command environment",
+      "observed": "21 relevant post-change tests passed",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/incremental-post-refactor.log",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "id": "smoke-final",
+      "phase": "smoke",
+      "candidate": "sha256:e36e2414217fc81b9704119b3c9894ecd342abcc39951004466741f666994236",
+      "command": "PYTHONPATH=. python3 .planning/2026-09-13-unified-trading-data-implementation/smoke.py",
+      "environment": "Local Python/SQLite, recorded command environment",
+      "observed": "Real CLI import/report/analysis/maintenance assertions and bounded write load passed",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/incremental-smoke.log",
+      "exit_code": 0,
+      "status": "passed",
+      "scenario_id": "canonical-cli",
+      "execution_kind": "real"
+    },
+    {
+      "id": "smoke-public-final",
+      "phase": "smoke",
+      "candidate": "sha256:e36e2414217fc81b9704119b3c9894ecd342abcc39951004466741f666994236",
+      "command": "PYTHONPATH=. python3 .planning/2026-09-13-unified-trading-data-implementation/incremental_live_smoke.py",
+      "environment": "Local Python/SQLite, recorded command environment",
+      "observed": "30 initial minute bars; immediate second run has zero jobs; no orders",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/incremental-live-smoke.log",
+      "exit_code": 0,
+      "status": "passed",
+      "scenario_id": "incremental-public-cli",
+      "execution_kind": "real"
+    },
+    {
+      "id": "independent-full-final",
+      "phase": "regression",
+      "candidate": "sha256:e36e2414217fc81b9704119b3c9894ecd342abcc39951004466741f666994236",
+      "command": "python3 -m unittest discover -s tests -t . -q",
+      "environment": "Local Python/SQLite, recorded command environment",
+      "observed": "Independent context executed 308 passing tests on matching source",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/independent-incremental-full-tests.log",
+      "exit_code": 0,
+      "status": "passed"
+    }
+  ]
+}

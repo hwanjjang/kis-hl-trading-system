@@ -1,0 +1,76 @@
+{
+  "candidate": "sha256:efd2042abb7ee36373b1663067b22c4264efa37cd21cb9cec6154fa5d86aa12e",
+  "scenarios": [
+    {
+      "id": "inventory-cli",
+      "requirement": "AC6",
+      "required": true,
+      "environment": "Local Python and temporary SQLite, seven real CLI subprocesses",
+      "prerequisites": "Installed project runtime dependencies; no credentials/network",
+      "actions": "Preview/apply/replay synthetic statement manifest; create journal; export; create another report",
+      "expected": "No duplicate facts; one valid finalized cycle; oversell/unanchored returns excluded; seven fees retained; old export unchanged",
+      "failure": "False finalized cycle, missing fees, duplicate facts, changed old export or any CLI failure",
+      "cleanup": "TemporaryDirectory removed and absence asserted"
+    }
+  ],
+  "runs": [
+    {
+      "id": "inventory-edge-red",
+      "phase": "red",
+      "candidate": "76d22d4:build-attempt-3",
+      "command": "python3 -m unittest tests.test_canonical_inventory -q",
+      "environment": "Local Python/SQLite; synthetic inputs only",
+      "observed": "Two intended failures: same-DAY early error bypass and earlier-day false invalidation",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/inventory-edge-red.txt",
+      "exit_code": 1,
+      "status": "passed",
+      "intended_failure": true
+    },
+    {
+      "id": "inventory-edge-green",
+      "phase": "green",
+      "candidate": "sha256:efd2042abb7ee36373b1663067b22c4264efa37cd21cb9cec6154fa5d86aa12e",
+      "command": "python3 -m unittest tests.test_canonical_inventory tests.test_unified_data -q",
+      "environment": "Local Python/SQLite; synthetic inputs only",
+      "observed": "61 tests passed",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/inventory-edge-green.txt",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "id": "inventory-post-refactor",
+      "phase": "post-refactor",
+      "candidate": "sha256:efd2042abb7ee36373b1663067b22c4264efa37cd21cb9cec6154fa5d86aa12e",
+      "command": "python3 -m unittest tests.test_canonical_inventory -q",
+      "environment": "Local Python/SQLite; synthetic inputs only",
+      "observed": "13 regression cases passed",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/inventory-post-refactor.txt",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "id": "inventory-cli-smoke",
+      "phase": "smoke",
+      "candidate": "sha256:efd2042abb7ee36373b1663067b22c4264efa37cd21cb9cec6154fa5d86aa12e",
+      "command": "python3 scripts/smoke_canonical_inventory.py",
+      "environment": "Local Python/SQLite; synthetic inputs only",
+      "observed": "Seven actual CLI processes passed; one finalized cycle, seven retained fees, invalid returns excluded and cleanup verified",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/inventory-final-smoke.txt",
+      "exit_code": 0,
+      "status": "passed",
+      "scenario_id": "inventory-cli",
+      "execution_kind": "real"
+    },
+    {
+      "id": "inventory-regression",
+      "phase": "regression",
+      "candidate": "sha256:efd2042abb7ee36373b1663067b22c4264efa37cd21cb9cec6154fa5d86aa12e",
+      "command": "python3 -m unittest discover -s tests -t . -q",
+      "environment": "Local Python/SQLite; synthetic inputs only",
+      "observed": "321 tests passed in 25.533 seconds",
+      "evidence": "reports/sdlc/unified-trading-data-implementation/pr14-review/inventory-final-full.txt",
+      "exit_code": 0,
+      "status": "passed"
+    }
+  ]
+}

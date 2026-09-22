@@ -1,0 +1,88 @@
+{
+  "candidate": "00a51f11102a30061c4e40f024f42cb30140f0b0d9e17ed5573de1e86bada058",
+  "scenarios": [
+    {
+      "id": "account-read",
+      "requirement": "AC1",
+      "required": true,
+      "environment": "Configured KIS live account, Python 3.12",
+      "prerequisites": "Authorized .env credentials and network",
+      "actions": "Run kis-account, inspect return status and masked JSON schema without retaining financial values",
+      "expected": "Exit 0 with masked account, KRW and the three whitelisted fields",
+      "failure": "Nonzero or incorrect summary schema",
+      "cleanup": "Token cache retained privately; no order or balance mutation"
+    }
+  ],
+  "runs": [
+    {
+      "id": "red.log",
+      "phase": "red",
+      "candidate": "pre-fix (see retained log)",
+      "command": "python3 -m unittest tests.test_kis_account -q",
+      "environment": "Python 3.12 local; real KIS only for smoke",
+      "observed": "Missing command and method as intended",
+      "evidence": "reports/sdlc/kis-account/red.log",
+      "exit_code": 1,
+      "status": "passed",
+      "intended_failure": true,
+      "execution_kind": "offline",
+      "scenario_id": "account-read"
+    },
+    {
+      "id": "cache-red.log",
+      "phase": "red",
+      "candidate": "pre-fix (see retained log)",
+      "command": "python3 -m unittest tests.test_kis_account.KisAccountTests.test_cache_is_stable_but_changes_with_credentials -q",
+      "environment": "Python 3.12 local; real KIS only for smoke",
+      "observed": "Secret-only rotation reused cache as intended regression failure",
+      "evidence": "reports/sdlc/kis-account/cache-red.log",
+      "exit_code": 1,
+      "status": "passed",
+      "intended_failure": true,
+      "execution_kind": "offline",
+      "scenario_id": "account-read"
+    },
+    {
+      "id": "cache-green.log",
+      "phase": "green",
+      "candidate": "00a51f11102a30061c4e40f024f42cb30140f0b0d9e17ed5573de1e86bada058",
+      "command": "python3 -m unittest tests.test_kis_account tests.test_kis_client tests.test_config -q",
+      "environment": "Python 3.12 local; real KIS only for smoke",
+      "observed": "13 tests passed",
+      "evidence": "reports/sdlc/kis-account/cache-green.log",
+      "exit_code": 0,
+      "status": "passed",
+      "intended_failure": false,
+      "execution_kind": "offline",
+      "scenario_id": "account-read"
+    },
+    {
+      "id": "post-refactor.log",
+      "phase": "post-refactor",
+      "candidate": "00a51f11102a30061c4e40f024f42cb30140f0b0d9e17ed5573de1e86bada058",
+      "command": "python3 -m unittest discover -s tests -t . -q",
+      "environment": "Python 3.12 local; real KIS only for smoke",
+      "observed": "182 tests passed",
+      "evidence": "reports/sdlc/kis-account/post-refactor.log",
+      "exit_code": 0,
+      "status": "passed",
+      "intended_failure": false,
+      "execution_kind": "offline",
+      "scenario_id": "account-read"
+    },
+    {
+      "id": "smoke.log",
+      "phase": "smoke",
+      "candidate": "00a51f11102a30061c4e40f024f42cb30140f0b0d9e17ed5573de1e86bada058",
+      "command": "python3 -m kis_hl.cli kis-account",
+      "environment": "Python 3.12 local; real KIS only for smoke",
+      "observed": "Real KIS read-only lookup succeeded; masked summary schema verified",
+      "evidence": "reports/sdlc/kis-account/smoke.log",
+      "exit_code": 0,
+      "status": "passed",
+      "intended_failure": false,
+      "execution_kind": "real",
+      "scenario_id": "account-read"
+    }
+  ]
+}

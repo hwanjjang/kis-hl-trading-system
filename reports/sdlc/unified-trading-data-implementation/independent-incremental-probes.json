@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "checks": [
+    "first 30-minute and subsequent successful-cursor-minus-five-minute windows",
+    "failed collection preserves last successful cursor for retry",
+    "Korean next-day bound at 16:00 UTC remains later than incremental start",
+    "explicit minute history retains 30-prior-calendar-days plus selected end day"
+  ],
+  "data": "synthetic temporary SQLite; client stubs and fixed clock; no network"
+}

@@ -1,0 +1,3 @@
+# Full correction self-verification
+
+344 tests passed, correction/transport checks passed after refactoring, and two distinct functional smoke scripts passed (12 and 7 real CLI processes). Exact commands, scenarios and retained logs are in test-results.json. All runs used temporary synthetic SQLite and no live APIs. Candidate hash/file-set is candidate.json. Rejected fields, account separation, partial coverage and immutable exports were checked; public KIS endpoint schema was inspected independently of transport mocks. Real account entitlement/retention and live-worker timing remain unverified. No product edits occurred after this candidate was frozen.

@@ -1,8 +1,8 @@
 # KIS Hyperliquid Trading System
 
-This project collects market data through Korea Investment & Securities (KIS) Open API and submits guarded Hyperliquid orders for BTC/USDC and trade.xyz RWA assets.
+This CLI system queries KIS and Hyperliquid, coordinates protected long entries, and maintains source-backed trade journals in SQLite. It supports KIS domestic/US ETFs and eligible Hyperliquid BTC/ETH and trade.xyz perpetuals.
 
-The first implementation is intentionally small:
+Existing collection and trading tools include:
 
 - KIS REST market data collection for domestic, overseas quote, and overseas daily chart endpoints.
 - Hyperliquid public `info` calls for mids, books, and candles.
@@ -15,6 +15,31 @@ The first implementation is intentionally small:
 - A live-order session guard that blocks non-reduce-only trade.xyz orders outside the mapped underlying market session unless explicitly overridden.
 - CLI defaults that never place a live order unless `--live` is passed.
 - Explicitly enrolled long-position trailing management, durable reconciliation, and offline tick replay.
+
+## Multi-venue protected trading
+
+```bash
+python -m kis_hl.cli instrument list
+python -m kis_hl.cli instrument verify --instrument kis:DRAM
+python -m kis_hl.cli chart --instrument index:KOSPI --date-from 20260101 --date-to 20260911
+python -m kis_hl.cli account positions --venue kis --market overseas
+python -m kis_hl.cli order preview --input my-plan.json
+python -m kis_hl.cli journal configure --venue kis --interval-seconds 10800
+python -m kis_hl.cli journal status --venue kis
+```
+
+[Trading operations](docs/trading-operations.md) documents required plan fields,
+protected entry/supervisor controls, actual-history journals, statement imports,
+and future strategy-signal grants. Journal synchronization defaults to **3 hours**
+and is configurable; protection runs separately. KIS order summaries remain pending
+until exact execution/cost statements are supplied. Native KIS protection is not
+inferred from stop-limit names. Notification delivery is not implemented.
+
+Explore the [architecture](docs/architecture/multi-venue-trading.html),
+[protected-trade workflow](docs/architecture/protected-trade.html), and
+[signals/journal flow](docs/architecture/signals-and-journal.html).
+These target-design views include explicitly future components; see the
+[implementation mapping](docs/architecture.md#protected-trading-implementation).
 
 ## Trailing stop management
 
@@ -133,6 +158,21 @@ to `BINANCE_LIVE_SYMBOLS` (default `BTCUSDT`); set it to an empty value to disab
 orders entirely.
 
 ## Commands
+
+Verify the configured KIS account and read its domestic balance summary:
+
+```bash
+python -m kis_hl.cli kis-account
+```
+
+`SANDBOX=true` selects paper credentials; `SANDBOX=false` selects live credentials.
+This read-only command prints a masked account number, environment and three KRW
+amounts: `dnca_tot_amt` (deposit), `tot_evlu_amt` (total valuation), and
+`scts_evlu_amt` (securities valuation). It does not list holdings or overseas/FX
+details, place orders, or store balances. Failed or malformed responses exit with
+status 1 and a generic error without raw vendor data. Account-check tokens are
+cached in a credential-derived subdirectory of `KIS_TOKEN_DIR` to avoid reusing a
+previous account's token; other commands retain their existing cache behavior.
 
 Fetch a KIS overseas quote and persist the raw payload:
 
@@ -380,3 +420,32 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 - trade.xyz specification index for active RWA asset names and session constraints.
 
 Trailing IOC attempts carry a signed `expiresAfter` equal to the source price receive time plus its configured freshness budget. Local age checks include all reconciliation work; the exchange expiry also bounds delayed delivery. An expiry rejection consumes the existing bounded retry budget.
+
+### Canonical trading and market data
+
+The unified store preserves raw evidence, corrected fact revisions, separate
+KIS/tradefi journals and reproducible analysis in `data/kis_hl.sqlite`.
+
+```bash
+python3 -m kis_hl.cli data migrate --apply
+python3 -m kis_hl.cli data status
+python3 -m kis_hl.cli market backfill --instrument kis:069500 --timeframe 1w --years 10
+python3 -m kis_hl.cli market backfill --instrument hl:BTC --timeframe 1m
+python3 -m kis_hl.cli data journal --accounts ACCOUNT_ID
+```
+
+See [unified data operations](docs/unified-data-operations.md) for manifest import,
+bounded independent-statement reconciliation (`data reconcile`),
+cost/funding rules, market coverage, jobs (account default: 10800 seconds),
+exports, analysis and backup/restore. Weekly history targets ten calendar years;
+actual provider/listing coverage may be shorter. Jobs require a running collector.
+
+### Review account changes before applying them
+
+Use `data audit-collect` with an explicit KIS or Hyperliquid account and time range
+to capture private source evidence without changing the operational database.
+`data audit-compare` writes the differences; `data audit-apply` requires the reviewed
+report SHA-256 and explicit approval of corrections. Add `--journals` to regenerate
+selected account journals and their combined report while preserving old reports.
+See [the account audit workflow](docs/unified-data-operations.md#account-audit-and-explicit-adjustment)
+for command examples, coverage limits and the offline smoke scenario.

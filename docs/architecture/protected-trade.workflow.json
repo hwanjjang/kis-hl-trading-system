@@ -1,0 +1,214 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Managed Trade \u2014 Protection and Deferred Journal",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "entry",
+      "label": "Prepare and enter"
+    },
+    {
+      "id": "protect",
+      "label": "Protect and monitor"
+    },
+    {
+      "id": "close",
+      "label": "Exit and reconcile"
+    },
+    {
+      "id": "audit",
+      "label": "Complete and record"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "plan",
+      "lane": "entry",
+      "col": 0,
+      "type": "frontend",
+      "label": "Trade plan",
+      "sublabel": "signal + execution asset",
+      "width": 160
+    },
+    {
+      "id": "gate",
+      "lane": "entry",
+      "col": 1,
+      "type": "security",
+      "label": "Preflight",
+      "sublabel": "SL + trail ready",
+      "width": 160
+    },
+    {
+      "id": "send",
+      "lane": "entry",
+      "col": 2,
+      "type": "backend",
+      "label": "Persist and send",
+      "sublabel": "unknown until observed",
+      "width": 160
+    },
+    {
+      "id": "fill",
+      "lane": "protect",
+      "col": 2,
+      "type": "messagebus",
+      "label": "Fill and protect",
+      "sublabel": "native first / local",
+      "width": 160
+    },
+    {
+      "id": "armed",
+      "lane": "protect",
+      "col": 3,
+      "type": "backend",
+      "label": "Verify coverage",
+      "sublabel": "each filled quantity",
+      "width": 160
+    },
+    {
+      "id": "trigger",
+      "lane": "close",
+      "col": 3,
+      "type": "messagebus",
+      "label": "Exit trigger",
+      "sublabel": "SL or trailing",
+      "width": 160
+    },
+    {
+      "id": "exit",
+      "lane": "close",
+      "col": 4,
+      "type": "backend",
+      "label": "Coordinate exit",
+      "sublabel": "reserve / cancel / sell",
+      "width": 160
+    },
+    {
+      "id": "flat",
+      "lane": "close",
+      "col": 5,
+      "type": "security",
+      "label": "Reconcile flat",
+      "sublabel": "orders terminal + costs",
+      "width": 160
+    },
+    {
+      "id": "journal",
+      "lane": "audit",
+      "col": 5,
+      "type": "database",
+      "label": "Journal once",
+      "sublabel": "3h / on request",
+      "width": 160
+    },
+    {
+      "id": "halt",
+      "lane": "protect",
+      "col": 4,
+      "type": "security",
+      "label": "Intervention",
+      "sublabel": "protect failure / unknown",
+      "width": 160
+    }
+  ],
+  "edges": [
+    {
+      "id": "plan-gate",
+      "from": "plan",
+      "to": "gate",
+      "role": "main"
+    },
+    {
+      "id": "gate-send",
+      "from": "gate",
+      "to": "send",
+      "role": "main"
+    },
+    {
+      "id": "send-fill",
+      "from": "send",
+      "to": "fill",
+      "role": "main"
+    },
+    {
+      "id": "fill-armed",
+      "from": "fill",
+      "to": "armed",
+      "role": "main"
+    },
+    {
+      "id": "armed-trigger",
+      "from": "armed",
+      "to": "trigger",
+      "role": "main"
+    },
+    {
+      "id": "trigger-exit",
+      "from": "trigger",
+      "to": "exit",
+      "role": "main"
+    },
+    {
+      "id": "exit-flat",
+      "from": "exit",
+      "to": "flat",
+      "role": "main"
+    },
+    {
+      "id": "flat-journal",
+      "from": "flat",
+      "to": "journal",
+      "role": "main"
+    },
+    {
+      "id": "protection-failure",
+      "from": "armed",
+      "to": "halt",
+      "label": "unverified",
+      "role": "error",
+      "variant": "security"
+    }
+  ],
+  "mainPath": [
+    "plan",
+    "gate",
+    "send",
+    "fill",
+    "armed",
+    "trigger",
+    "exit",
+    "flat",
+    "journal"
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "Protection is verified state",
+      "items": [
+        "Register SL + trailing policy before sending entry",
+        "Every partial fill must receive actual protection within a bounded interval"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Native first, per instrument",
+      "items": [
+        "KIS SL requires verified downside SELL trigger and execution type",
+        "Eligibility, session and expiry also gate native protection"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "One completed cycle",
+      "items": [
+        "Journal sync is deferred; protection and fill recovery are immediate",
+        "External HTS / web cycles use the separate account-history path"
+      ]
+    }
+  ]
+}

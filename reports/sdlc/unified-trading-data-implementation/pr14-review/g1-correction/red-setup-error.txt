@@ -1,0 +1,182 @@
+======================================================================
+ERROR: test_old_facts_are_rechecked_without_source_rewrite (tests.test_statement_cost_quality.StatementCostQualityTests.test_old_facts_are_rechecked_without_source_rewrite)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 86, in test_old_facts_are_rechecked_without_source_rewrite
+    self.store.fact('trade', self.account, row['source_id'], payload)
+TypeError: DataStore.fact() missing 1 required keyword-only argument: 'observation'
+
+======================================================================
+FAIL: test_backup_missing_source_creates_nothing (tests.test_statement_cost_quality.StatementCostQualityTests.test_backup_missing_source_creates_nothing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 140, in test_backup_missing_source_creates_nothing
+    with self.assertRaisesRegex(ValueError, '[Nn]ot initialized'):
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_backup_uninitialized_source_is_unchanged (tests.test_statement_cost_quality.StatementCostQualityTests.test_backup_uninitialized_source_is_unchanged)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 151, in test_backup_uninitialized_source_is_unchanged
+    with self.assertRaisesRegex(ValueError, '[Nn]ot initialized'):
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_mixed_components_never_finalize_buy_or_sell (tests.test_statement_cost_quality.StatementCostQualityTests.test_mixed_components_never_finalize_buy_or_sell) (side='buy', total='1')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 55, in test_mixed_components_never_finalize_buy_or_sell
+    self.assert_pending(result)
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 39, in assert_pending
+    self.assertEqual(cycle['status'], 'PENDING')
+AssertionError: 'FINALIZED' != 'PENDING'
+- FINALIZED
++ PENDING
+
+
+======================================================================
+FAIL: test_mixed_components_never_finalize_buy_or_sell (tests.test_statement_cost_quality.StatementCostQualityTests.test_mixed_components_never_finalize_buy_or_sell) (side='buy', total='11')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 55, in test_mixed_components_never_finalize_buy_or_sell
+    self.assert_pending(result)
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 39, in assert_pending
+    self.assertEqual(cycle['status'], 'PENDING')
+AssertionError: 'FINALIZED' != 'PENDING'
+- FINALIZED
++ PENDING
+
+
+======================================================================
+FAIL: test_mixed_components_never_finalize_buy_or_sell (tests.test_statement_cost_quality.StatementCostQualityTests.test_mixed_components_never_finalize_buy_or_sell) (side='buy', total='-1')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 55, in test_mixed_components_never_finalize_buy_or_sell
+    self.assert_pending(result)
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 39, in assert_pending
+    self.assertEqual(cycle['status'], 'PENDING')
+AssertionError: 'FINALIZED' != 'PENDING'
+- FINALIZED
++ PENDING
+
+
+======================================================================
+FAIL: test_mixed_components_never_finalize_buy_or_sell (tests.test_statement_cost_quality.StatementCostQualityTests.test_mixed_components_never_finalize_buy_or_sell) (side='buy', total='0')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 55, in test_mixed_components_never_finalize_buy_or_sell
+    self.assert_pending(result)
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 39, in assert_pending
+    self.assertEqual(cycle['status'], 'PENDING')
+AssertionError: 'FINALIZED' != 'PENDING'
+- FINALIZED
++ PENDING
+
+
+======================================================================
+FAIL: test_mixed_components_never_finalize_buy_or_sell (tests.test_statement_cost_quality.StatementCostQualityTests.test_mixed_components_never_finalize_buy_or_sell) (side='sell', total='1')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 55, in test_mixed_components_never_finalize_buy_or_sell
+    self.assert_pending(result)
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 39, in assert_pending
+    self.assertEqual(cycle['status'], 'PENDING')
+AssertionError: 'FINALIZED' != 'PENDING'
+- FINALIZED
++ PENDING
+
+
+======================================================================
+FAIL: test_mixed_components_never_finalize_buy_or_sell (tests.test_statement_cost_quality.StatementCostQualityTests.test_mixed_components_never_finalize_buy_or_sell) (side='sell', total='11')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 55, in test_mixed_components_never_finalize_buy_or_sell
+    self.assert_pending(result)
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 39, in assert_pending
+    self.assertEqual(cycle['status'], 'PENDING')
+AssertionError: 'FINALIZED' != 'PENDING'
+- FINALIZED
++ PENDING
+
+
+======================================================================
+FAIL: test_mixed_components_never_finalize_buy_or_sell (tests.test_statement_cost_quality.StatementCostQualityTests.test_mixed_components_never_finalize_buy_or_sell) (side='sell', total='-1')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 55, in test_mixed_components_never_finalize_buy_or_sell
+    self.assert_pending(result)
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 39, in assert_pending
+    self.assertEqual(cycle['status'], 'PENDING')
+AssertionError: 'FINALIZED' != 'PENDING'
+- FINALIZED
++ PENDING
+
+
+======================================================================
+FAIL: test_mixed_components_never_finalize_buy_or_sell (tests.test_statement_cost_quality.StatementCostQualityTests.test_mixed_components_never_finalize_buy_or_sell) (side='sell', total='0')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 55, in test_mixed_components_never_finalize_buy_or_sell
+    self.assert_pending(result)
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 39, in assert_pending
+    self.assertEqual(cycle['status'], 'PENDING')
+AssertionError: 'FINALIZED' != 'PENDING'
+- FINALIZED
++ PENDING
+
+
+======================================================================
+FAIL: test_plausible_remainder_is_retained_pending_even_with_settlement (tests.test_statement_cost_quality.StatementCostQualityTests.test_plausible_remainder_is_retained_pending_even_with_settlement)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 62, in test_plausible_remainder_is_retained_pending_even_with_settlement
+    self.assert_pending(self.report(rows))
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 39, in assert_pending
+    self.assertEqual(cycle['status'], 'PENDING')
+AssertionError: 'FINALIZED' != 'PENDING'
+- FINALIZED
++ PENDING
+
+
+======================================================================
+FAIL: test_reconciliation_checks_both_evidence_sets_without_writes (tests.test_statement_cost_quality.StatementCostQualityTests.test_reconciliation_checks_both_evidence_sets_without_writes) (unresolved_side='source')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 119, in test_reconciliation_checks_both_evidence_sets_without_writes
+    with self.assertRaisesRegex(ValueError, '[Cc]ost.*unresolved|[Uu]nresolved.*cost'):
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_reconciliation_checks_both_evidence_sets_without_writes (tests.test_statement_cost_quality.StatementCostQualityTests.test_reconciliation_checks_both_evidence_sets_without_writes) (unresolved_side='stored')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 119, in test_reconciliation_checks_both_evidence_sets_without_writes
+    with self.assertRaisesRegex(ValueError, '[Cc]ost.*unresolved|[Uu]nresolved.*cost'):
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_source_correction_changes_new_report_only (tests.test_statement_cost_quality.StatementCostQualityTests.test_source_correction_changes_new_report_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 126, in test_source_correction_changes_new_report_only
+    self.assert_pending(before)
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 39, in assert_pending
+    self.assertEqual(cycle['status'], 'PENDING')
+AssertionError: 'FINALIZED' != 'PENDING'
+- FINALIZED
++ PENDING
+
+
+======================================================================
+FAIL: test_unresolved_account_does_not_hide_healthy_account_return (tests.test_statement_cost_quality.StatementCostQualityTests.test_unresolved_account_does_not_hide_healthy_account_return)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/cold-buffalo/tests/test_statement_cost_quality.py", line 99, in test_unresolved_account_does_not_hide_healthy_account_return
+    self.assertIsNone(summaries[self.account]['net_booked_pnl'])
+AssertionError: '8' is not None
+
+----------------------------------------------------------------------
+Ran 10 tests in 1.092s
+
+FAILED (failures=15, errors=1)

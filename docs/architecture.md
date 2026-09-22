@@ -2,10 +2,11 @@
 
 ## Goals
 
-The system has two responsibilities:
+The system has three responsibilities:
 
 1. Collect reference market data through KIS and store raw payloads for traceable analysis.
-2. Submit guarded Hyperliquid orders for BTC/USDC spot and trade.xyz RWA perpetual assets.
+2. Coordinate protected KIS cash and Hyperliquid BTC/ETH or eligible trade.xyz orders.
+3. Reconcile actual account history into deferred, source-backed trade journals.
 
 The project favors a narrow CLI-first shape before adding daemons or strategy automation.
 
@@ -13,7 +14,7 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.config` loads `.env`, validates account and key selection, and separates KIS sandbox/live credentials from Hyperliquid key profiles.
 
-`kis_hl.kis.client` wraps KIS REST calls. It caches OAuth tokens on disk, throttles token refreshes, retries rate-limit responses with backoff, and exposes only market-data endpoints for now.
+`kis_hl.kis.client` wraps KIS REST calls. It caches OAuth tokens on disk, throttles token refreshes, retries rate-limit responses with backoff, and exposes market-data, paginated account history/balances/orders, and dry-run-default cash order/cancel/amend adapters. POST outcomes are never blindly retried. The `kis-account` CLI outputs only a masked account and whitelisted summary amounts; it does not persist balance data.
 
 `kis_hl.kis_mappings` converts curated trade.xyz assets into KIS quote routes. It keeps RWA trading eligibility separate from KIS market-data availability, so an asset can be Hyperliquid-tradable while its KIS route is still `unsupported`.
 
@@ -154,3 +155,56 @@ perpetual exit rounding. It loads both base and xyz SDK metadata. Generic order
 rejections are distinguished from submission; this does not imply filled quantity.
 The worker's attempts retain raw exchange responses independently of manual
 `order_submissions` / `protective_orders` rows. Auto-journal creation remains absent.
+
+## Protected trading implementation
+
+| Responsibility | Implemented module/state |
+| --- | --- |
+| Analysis versus execution identity | `instruments.py`; explicit broker/listing/currency/underlying catalog |
+| Account capability evidence | `capabilities.py`; append-only `capability_evidence` scoped to instrument/account/order/session validity |
+| Exact KIS routes | `kis/client.py`, `kis/routes.py`; full pagination, no automatic write retry |
+| Order ownership and recovery | `managed_execution.py`; `managed_positions`, `managed_intents`, `managed_attempts`, `managed_events`, `managed_supervisors` |
+| Actual venue snapshots | `managed_gateways.py`; entry/exit/readback semantics, ATR provenance, price freshness and exposure caps |
+| Future skill output and authority | `strategy_signals.py`; immutable `strategy_versions`, `strategy_signals`, bounded `execution_grants` |
+| Actual-history ingestion | `journal_history.py`; native HL fills/funding and unresolved KIS/spot snapshots |
+| Journal reconciliation and schedule | `journal_sync.py`; `journal_source_fills`, `journal_cash_costs`, `journal_sync_runs`, `journal_cycles`, `journal_sync_schedule`, `journal_position_checks` |
+| Harness-neutral commands | `operations_cli.py`, registered by the existing `cli.py` parser |
+
+The target Archify views show the managed entry path, external HTS/web execution
+path, deferred journals and future strategy/notification boundaries. The implemented
+supervisor directly reuses the deterministic `Trail` policy rather than handing
+partial entries to the older single-position enrollment runner. Journal derivation
+and publication share one SQLite transaction, so no separate asynchronous outbox
+consumer is needed for local publication. Notification transport and strategy-code
+execution remain future extension points. All three diagrams remain target-design
+views; they do not claim a notification service is deployed.
+
+SL and trailing provider decisions are independent. Native KIS SL/trailing remain
+unverified; local protection requires an active worker. Exact HTS equivalence is not
+assumed. The account supervisor serializes actual attempts while its journal worker
+has a separate account lock and a configurable 10800-second default interval.
+Unknown/manual positions are not automatically adopted. Their source history still
+belongs in the journal independently of live eligibility.
+
+Storage migrations are additive. Source revisions and old statistics snapshots are
+retained. Missing costs, opening inventory, chronology or retention evidence stay
+pending; KIS cumulative order rows need statement supplementation. Same-account
+currencies and strategy populations are reported separately. Operational contracts,
+rollout limits, commands and rollback are in [trading operations](trading-operations.md).
+
+## Unified trading data storage
+
+`data_store.py` and `data_migrations.py` add a versioned canonical schema to the
+same local SQLite path. Immutable compressed payloads and source observations
+feed indexed fact revisions; account ingestion/import, market series, quality
+selection, journals and analysis consume those facts. `analysis_inputs` pins
+transitive dependencies. Jobs and report artifacts have separate operational
+attempt/publication state. Existing managed/trailing/eligibility tables remain
+unchanged. CLI registration lives in `data_cli.py`.
+
+The [data-flow diagram](../reports/sdlc/unified-trading-data/design/dataflow.html)
+and [logical specification](../specs/unified-trading-data.md) describe the broader
+design. The first implementation uses validated dataset payloads in a shared
+fact table rather than every proposed physical table. The actual supported
+adapters, precision/coverage limits, rollout, persistence and maintenance commands
+are documented in [unified data operations](unified-data-operations.md).

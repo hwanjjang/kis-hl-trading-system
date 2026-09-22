@@ -1,0 +1,8 @@
+{
+  "iteration": 1,
+  "decision": "BLOCKED",
+  "reason": "Operational review identified an unnecessarily large recurring minute replay window; narrow cursor-based correction required before final handoff.",
+  "authority_source": "Accepted bounded collector design",
+  "candidate": "sha256:4ae90728d8a54d3df07a0dfa594348fcf97f2308b8a5a52845ff8df3af959516",
+  "next_action": "Renew build for incremental minute polling and reverify changed modules."
+}

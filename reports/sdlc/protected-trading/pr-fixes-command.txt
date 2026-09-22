@@ -1,0 +1,5 @@
+The pr-fixes-red command in test-results.json is an abbreviated label. Its actual invocation was:
+python3 -m unittest tests.test_trading_hours.TradingHoursTests.test_native_eth_perpetual_is_available_on_weekends tests.test_managed_execution.ManagedExecutionTests.test_transient_snapshot_failure_recovers_local_protection tests.test_managed_execution.ManagedExecutionTests.test_repeated_read_failure_latches_exit_and_recovers_without_resend tests.test_journal_sync.JournalSyncTests.test_incomplete_schedule_attempt_preserves_success_and_delays_next_run
+Exit code: 1. Four intended pre-fix failures are retained in pr-fixes-red.txt.
+
+Source/document whitespace validation excludes retained *.patch and *.diff evidence: blank context lines in unified patches intentionally contain one leading space. No runtime source whitespace defect was found.
