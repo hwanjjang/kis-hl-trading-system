@@ -6,6 +6,7 @@ from kis_hl.managed_execution import ExecutionStore, Supervisor, validate_plan
 
 def plan(**changes):
     return dict(
+        trailing_provider=changes.pop("trailing_provider", "local"),
         intent_id="fixture-intent",
         instrument="hl:BTC",
         signal_instrument="hl:BTC",

@@ -111,15 +111,15 @@ class ManagedHyperliquidGateway:
             resolved, now=datetime.fromtimestamp(now / 1000, timezone.utc)
         ).allowed
 
-    def preflight(self, p, now):
+    def preflight(self, p, now, *, existing_position=False):
         asset, resolved, lot, tick = self._market(p["instrument"])
         price = decimal(p["limit_price"])
         if (
-            price != price.to_integral_value()
+            not existing_position and price != price.to_integral_value()
             and len(price.normalize().as_tuple().digits) > 5
         ):
             raise ValueError("Hyperliquid price exceeds five significant figures")
-        if price * decimal(p["quantity"]) < 10:
+        if not existing_position and price * decimal(p["quantity"]) < 10:
             raise ValueError("Order below minimum notional")
         self.trading._require_recent_verification(resolved)
         state = self.info.clearinghouse_state(dex=resolved.dex)
@@ -251,7 +251,7 @@ class ManagedHyperliquidGateway:
             orders[str(query)] = orders[str(order["oid"])] = observed
         fills = fetch_time_pages(
             lambda a, b: self.info.user_fills_by_time(start_time_ms=a, end_time_ms=b),
-            row["created_ms"],
+            row.get("fill_history_start_ms", row["created_ms"]),
             now,
             limit=2000,
         )

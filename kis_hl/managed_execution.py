@@ -129,7 +129,7 @@ def validate_plan(plan, now_ms):
         raise ValueError(
             "Plan exceeds loss/notional limits or has an invalid initial stop"
         )
-    provider = plan.get("trailing_provider", "local")
+    provider = plan.get("trailing_provider", "native" if plan["instrument"].startswith("hl:") else "local")
     if provider not in {"local", "native"}:
         raise ValueError("trailing_provider must be local or native")
     if provider == "native":
@@ -137,8 +137,11 @@ def validate_plan(plan, now_ms):
         asset = instrument(plan["instrument"])
         if asset.venue != "hyperliquid" or asset.market != "perp":
             raise ValueError("Native trailing is available only for Hyperliquid perpetuals")
+    backup = plan.get("local_trailing_backup", provider == "native")
+    if type(backup) is not bool or (backup and provider != "native"):
+        raise ValueError("local_trailing_backup requires a native provider and a boolean")
     # No signal price is copied into execution pricing.
-    return {**plan, "stop_distance": str(distance), "trailing_provider": provider}
+    return {**plan, "stop_distance": str(distance), "trailing_provider": provider, "local_trailing_backup": backup}
 
 
 class ExecutionStore:
@@ -177,7 +180,7 @@ class ExecutionStore:
         finally:
             db.close()
 
-    def enqueue(self, scope, plan, *, live=False, now_ms):
+    def enqueue(self, scope, plan, *, live=False, now_ms, adoption=None):
         p = validate_plan(plan, now_ms)
         row = {
             "id": uuid4().hex,
@@ -196,6 +199,8 @@ class ExecutionStore:
             "observed_size": "0",
             "covered_size": "0",
         }
+        if adoption is not None:
+            row.update(state="ADOPTING", reason="Awaiting supervisor handoff validation", adoption=adoption)
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             if db.execute(
@@ -223,6 +228,38 @@ class ExecutionStore:
                 (scope, row["mode"], p["intent_id"], row["id"]),
             )
         return row
+
+    def enqueue_adoption(self, scope, plan, *, entry_order_id, stop_order_id, live=False, now_ms):
+        from kis_hl.instruments import instrument
+        asset = instrument(plan["instrument"])
+        if asset.venue != "hyperliquid" or asset.market != "perp":
+            raise ValueError("Adoption supports Hyperliquid perpetuals only")
+        if (any(type(x) is not int or x <= 0 for x in (entry_order_id, stop_order_id))
+                or entry_order_id == stop_order_id or plan.get("signal_id") or plan.get("grant_id")):
+            raise ValueError("Adoption requires distinct native IDs and direct management authority")
+        return self.enqueue(scope, plan, live=live, now_ms=now_ms,
+                            adoption={"entry_order_id":entry_order_id, "stop_order_id":stop_order_id})
+
+    def complete_adoption(self, row, updates, attempts, now_ms):
+        new = {**row, **updates, "version":row["version"]+1}
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if db.execute("SELECT 1 FROM managed_attempts WHERE position_id=?", (row["id"],)).fetchone():
+                raise RuntimeError("Adoption already has owned attempts")
+            owned_ids = {a["order_id"] for a in attempts}
+            for prior in db.execute("SELECT a.snapshot FROM managed_attempts a JOIN managed_positions p ON p.id=a.position_id WHERE p.scope=? AND p.mode=?", (row["scope"],row["mode"])):
+                if str(json.loads(prior[0]).get("order_id")) in owned_ids:
+                    raise ValueError("Native order already belongs to another managed generation")
+            changed = db.execute("UPDATE managed_positions SET state=?,version=?,snapshot=? WHERE id=? AND version=?",
+                                 (new["state"],new["version"],encode(new),row["id"],row["version"]))
+            if changed.rowcount != 1:
+                raise RuntimeError("Adoption changed; reload before importing ownership")
+            for a in attempts:
+                db.execute("INSERT INTO managed_attempts VALUES(?,?,?,?,?)",
+                           (a["id"],row["id"],a["kind"],a["status"],encode(a)))
+            db.execute("INSERT INTO managed_events(position_id,time_ms,state,reason) VALUES(?,?,?,?)",
+                       (row["id"],now_ms,new["state"],new["reason"]))
+        row.update(new)
 
     def get(self, position_id):
         with self.connect() as db:
@@ -413,6 +450,20 @@ class Supervisor:
         p = row["plan"]
         attempts = self.store.attempts(row["id"])
         native_trailing = p.get("trailing_provider", "local") == "native"
+        if row.get("adoption") and not row.get("adopted_ms"):
+            if row["cancel_entry"] or row["exit_requested_ms"] is not None:
+                self._state(row, "CLOSED", "Handoff canceled; external position and orders unchanged", now)
+                return
+            if row["state"] != "ADOPTING":
+                return
+            validate_plan(p, now)
+            if not self.live:
+                self._state(row, "PREVIEWED", "Paper handoff; no account reads or ownership imported", now)
+                return
+            from kis_hl.manual_adoption import verify_adoption
+            updates, imported = verify_adoption(self.gateway, row, now)
+            self.store.complete_adoption(row, updates, imported, now)
+            return
         if row["state"] == "ENTERING" and not attempts:
             # Every network write is preceded by an attempt commit; none means unsent.
             self._state(
@@ -506,6 +557,7 @@ class Supervisor:
             row["providers"] = {
                 "stop_loss": "native" if self.gateway.native_sl else "local",
                 "trailing": "native" if native_trailing else "local",
+                "local_trailing_backup": p.get("local_trailing_backup", False),
             }
             if p.get("signal_id") or p.get("grant_id"):
                 from kis_hl.strategy_signals import Signals
@@ -633,7 +685,7 @@ class Supervisor:
             trail.threshold = max(
                 trail.threshold, decimal(snap["entry_price"]) - trail.distance
             )
-            if not native_trailing and fresh and trail.tick(
+            if (not native_trailing or p.get("local_trailing_backup", False)) and fresh and trail.tick(
                 now,
                 decimal(snap["price"], positive=True),
                 max_gap_ms=p["max_quote_age_ms"],

@@ -169,3 +169,10 @@ Full SDK method list: `sdk-and-docs.md`.
 Local signed actions use an account lock; a running trailing worker holds it for its lifetime. Entry guards also inspect active live trailing state. Cancellation retains eligibility, metadata-freshness and credential checks. No modify or cancel-before-replace ratchet is implemented.
 
 `place_order(expires_after_ms=...)` applies SDK `set_expires_after` for one action and resets it afterward. Trailing IOC attempts use receive-time plus the configured freshness budget; local preflight rejects expired prices and signed expiresAfter bounds delayed delivery. Expiry is not an exactly-once mechanism.
+
+New managed HL plans default to native trailing with concurrent local nine-minute
+backup. Both use the existing supervisor exit ledger; local IOC exits are reduce-only
+and fixed/native protections remain until flat cleanup. Old stored policies are not
+migrated. Explicit manual-position `order adopt` imports verified entry/SL ownership
+through the supervisor without an exchange write; it never adopts an unknown trailing
+submission. See docs/trading-operations.md#manual-position-handoff for admission limits.

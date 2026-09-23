@@ -164,8 +164,8 @@ execution remain future extension points. All three diagrams remain target-desig
 views; they do not claim a notification service is deployed.
 
 SL and trailing provider decisions are independent. Hyperliquid managed plans can
-opt into native continuous-mark trailing after terminal entry and verified fixed
-SL coverage. `hyperliquid/trailing.py` owns the observed wire/readback contract;
+default new plans to native continuous-mark trailing with concurrent local nine-minute
+backup after terminal entry and verified fixed SL coverage. `hyperliquid/trailing.py` owns the observed wire/readback contract;
 `managed_gateways.py` binds native order identity, and `managed_execution.py`
 persists attempts and reconciles separate fixed-SL/trailing coverage. No additional
 database schema or worker is introduced. Distance precision is validated and
@@ -181,7 +181,14 @@ does not itself request an exit. Native KIS SL/trailing remain
 unverified; local protection requires an active worker. Exact HTS equivalence is not
 assumed. The account supervisor serializes actual attempts while its journal worker
 has a separate account lock and a configurable 10800-second default interval.
-Unknown/manual positions are not automatically adopted. Their source history still
+Unknown/manual positions are not automatically adopted. Explicit `order adopt`
+queues ADOPTING in SQLite. `manual_adoption.py` validates source entry/fills and
+existing SL under the supervisor lock; atomic imported attempts bind ownership
+without broker writes. The gateway uses the original fill-history window, while
+admission time starts local tracking. Both trailing policies share one exit ledger;
+reduce-only exits reconcile residuals before cleanup. Imported orders are excluded
+from automatic agent-origin enrichment. See the [handoff diagram](architecture/manual-position-handoff.html)
+and [operating contract](trading-operations.md#manual-position-handoff). Their source history still
 belongs in the journal independently of live eligibility.
 
 Storage migrations are additive. Source revisions and old statistics snapshots are

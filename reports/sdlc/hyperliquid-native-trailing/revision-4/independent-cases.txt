@@ -1,0 +1,56 @@
+import unittest
+from unittest.mock import patch
+from tests import test_manual_adoption as source
+from kis_hl.journal_history import attribute_fill
+from kis_hl.journal_sync import Fill, JournalLedger, Scope
+
+class Independent(unittest.TestCase):
+    def fixture(self):
+        c=source.ManualAdoptionTests(); c.setUp(); self.addCleanup(c.doCleanups); return c
+    def rejected(self,c):
+        r=c.queue(); self.assertEqual(c.step(r)['state'],'INTERVENTION'); self.assertEqual(c.store.attempts(r['id']),[]); c.g.trading.place_order.assert_not_called(); c.g.trading.place_trailing_stop_order.assert_not_called()
+    def test_current_size_and_average_rejected(self):
+        for field,val in [('szi','0.5'),('entryPx','101')]:
+            with self.subTest(field=field):
+                c=self.fixture(); c.info.clearinghouse_state.return_value['assetPositions'][0]['position'][field]=val; self.rejected(c)
+    def test_foreign_open_order_rejected(self):
+        c=self.fixture(); c.orders[99]={'status':'open','order':dict(c.orders[43]['order'],oid=99)}; self.rejected(c)
+    def test_other_same_coin_execution_rejected(self):
+        c=self.fixture(); c.fills.append(dict(c.fills[0],tid=2,oid=99,startPosition='1')); self.rejected(c)
+    def test_incomplete_flat_chain_rejected(self):
+        c=self.fixture(); c.fills[0].update(sz='0.5'); self.rejected(c)
+    def test_conflicting_fill_id_rejected(self):
+        c=self.fixture(); c.fills.append(dict(c.fills[0],px='99')); self.rejected(c)
+    def test_duplicate_identical_fill_deduplicates(self):
+        c=self.fixture(); c.fills.append(dict(c.fills[0])); r=c.queue(); self.assertEqual(c.step(r)['state'],'PROTECTING'); self.assertEqual(len(c.store.attempts(r['id'])),2)
+    def test_portfolio_correlation_and_stale_quote_rejected(self):
+        for change in [{'portfolio_notional':'999999999'},{'correlated_notional':'999999999'},{'time_ms':-999999},{'atr':'3'}]:
+            with self.subTest(change=change):
+                c=self.fixture(); c.g.preflight.return_value.update(change); self.rejected(c)
+    def test_control_race_wins_import_commit(self):
+        c=self.fixture(); r=c.queue(); original=c.store.complete_adoption
+        def race(row,updates,attempts,now):
+            c.store.request_exit(row['id'],now,cancel_only=True)
+            return original(row,updates,attempts,now)
+        with patch.object(c.store,'complete_adoption',side_effect=race):
+            result=c.step(r)
+        self.assertTrue(result['cancel_entry']); self.assertEqual(c.store.attempts(r['id']),[])
+        self.assertEqual(c.step(r,22)['state'],'CLOSED'); c.g.trading.place_order.assert_not_called()
+    def test_explicit_local_adoption_has_no_native_trail(self):
+        c=self.fixture(); r=c.queue(trailing_provider='local'); self.assertEqual(c.step(r)['state'],'PROTECTING'); c.step(r,22); c.g.trading.place_trailing_stop_order.assert_not_called(); c.g.trading.place_order.assert_not_called()
+    def test_imported_stop_keeps_origin_in_matching_scope(self):
+        c=self.fixture(); r=c.queue(); c.step(r); scope=Scope('hyperliquid','testnet','fixture'); self.assertEqual(scope.key,c.g.scope)
+        fill=Fill('manual','BTC',30,'sell','1','96','USDC',order_id='43',origin='web')
+        self.assertEqual(attribute_fill(JournalLedger(c.path),scope,fill).origin,'web')
+        a=c.store.attempts(r['id'])[1]; c.store.update_attempt(a,imported=False)
+        self.assertEqual(attribute_fill(JournalLedger(c.path),scope,fill).origin,'agent')
+    def test_no_entry_under_accidental_entering_recovery_state(self):
+        c=self.fixture(); r=c.queue(); r['state']='ENTERING'; c.store.save(r); result=c.step(r)
+        self.assertEqual(result['state'],'ENTERING'); self.assertEqual(c.store.attempts(r['id']),[]); c.g.trading.place_order.assert_not_called()
+    def test_generic_intervention_freezes_backup(self):
+        holder=source.ConcurrentBackupTests(); c,r=holder.fixture(); self.addCleanup(holder.doCleanups)
+        old=c.g.snapshot; c.g.snapshot=lambda *a: old(*a)|{'consistent':False}
+        result=c.worker.step(r['id'],5); self.assertEqual(result['state'],'INTERVENTION'); self.assertEqual(len(c.g.sent),3)
+        c.g.snapshot=old; result=c.worker.step(r['id'],6); self.assertEqual(result['state'],'INTERVENTION'); self.assertEqual(len(c.g.sent),3)
+
+if __name__=='__main__': unittest.main(verbosity=2)
