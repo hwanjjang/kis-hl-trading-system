@@ -41,6 +41,10 @@ existing stored positions retain their policy. Read the
 [protection contract and rollout limits](docs/trading-operations.md#protection-and-controls)
 for provider selection and coordinated exit behavior.
 
+For a new entry requested through Hermes, follow the
+[harness entry workflow](docs/trading-operations.md#harness-originated-entry) and
+[interactive sequence diagram](docs/architecture/hermes-entry.html).
+
 For a manually entered protected HL long, use the [agent handoff workflow](docs/trading-operations.md#manual-position-handoff)
 and [interactive diagram](docs/architecture/manual-position-handoff.html).
 `order adopt` queues ownership verification without opening another position.

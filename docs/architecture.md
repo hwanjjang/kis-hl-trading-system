@@ -163,9 +163,15 @@ consumer is needed for local publication. Notification transport and strategy-co
 execution remain future extension points. All three diagrams remain target-design
 views; they do not claim a notification service is deployed.
 
-SL and trailing provider decisions are independent. Hyperliquid managed plans can
-default new plans to native continuous-mark trailing with concurrent local nine-minute
-backup after terminal entry and verified fixed SL coverage. `hyperliquid/trailing.py` owns the observed wire/readback contract;
+The [Hermes new-entry sequence](architecture/hermes-entry.html) documents the
+current CLI-to-supervisor path, including queue ownership, partial-fill protection
+and concurrent trailing. See the [operating steps](trading-operations.md#harness-originated-entry)
+for live mode and worker lifetime.
+
+SL and trailing provider decisions are independent. New Hyperliquid managed plans
+default to native continuous-mark trailing with concurrent local nine-minute backup.
+Local tracking can start with observed fills; native submission waits for terminal
+entry and verified fixed-SL coverage. `hyperliquid/trailing.py` owns the observed wire/readback contract;
 `managed_gateways.py` binds native order identity, and `managed_execution.py`
 persists attempts and reconciles separate fixed-SL/trailing coverage. No additional
 database schema or worker is introduced. Distance precision is validated and

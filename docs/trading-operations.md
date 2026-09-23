@@ -86,6 +86,48 @@ legacy enrollment in an instrument already owned by the new supervisor. This is
 a local-host contract, not a distributed lock or protection against direct venue UI
 actions or applications using a different database.
 
+## Harness-originated entry
+
+[Explore the Hermes entry and management diagram](architecture/hermes-entry.html).
+This is the current Hyperliquid **new-entry** path. Hermes supplies a structured
+plan through the same CLI as other harnesses; no Hermes SDK integration is required.
+The plan must express the user/strategy's authorized size and risk limits, with
+`harness: "hermes"` when that origin is evidenced. For a position already entered
+outside the system, use [manual position handoff](#manual-position-handoff) instead.
+
+1. Hermes calls `order prepare` for execution-market ATR, then `order preview`
+   on the returned plan object. These calls do not submit an order. Preparation
+   does not choose the strategy or authorize risk limits for the user.
+2. `order submit` validates and persists a `QUEUED` intent in SQLite. The returned
+   position ID identifies the request; it is not evidence of an exchange fill.
+3. A separately running account supervisor consumes that queue. Immediately before
+   entry, it checks current account/market data, ownership, eligibility, risk and
+   authority, then persists the normalized native distance and order attempt before
+   transmission. Paper requests reach `PREVIEWED` without placing orders.
+4. Actual partial fills receive fixed-SL protection. With the new Hyperliquid
+   defaults, the same supervisor also runs the local nine-minute backup; after
+   terminal entry and verified full fixed-SL coverage it submits native trailing
+   once. Verified active readback establishes native trailing coverage; an open
+   waiting order is not active coverage. Either policy can trigger an exit, with
+   reduce-only local exits reconciling the remaining position and flat cleanup
+   cancelling residual protection.
+
+For authorized live execution, both `order submit` and `supervisor run` require
+`--live`. Use the same database, configured account and mode. Start one durable
+`supervisor run --venue hyperliquid --live` process only if that account's worker
+is not already running; `--once` performs one pass and is not ongoing management.
+Hermes can inspect progress with `order status --id POSITION_ID` and return to the
+user while the supervisor continues. The local backup requires that worker to stay
+alive; a conversation session is not the protection loop. See the
+[protection contract and rollout limits](#protection-and-controls) for failures,
+provider overrides and the still-unverified live exchange contract.
+
+An optional registered-signal path uses `signal execute --id ID --input PLAN --manual` or `--grant ID` instead of `order submit`, and queues into the same
+supervisor. Live signal execution also needs `--live`. Signal ingestion alone
+never authorizes a trade; the supervisor rechecks signal/grant authority before
+entry. See [strategy signals and grants](#future-strategy-skills) for their bounded
+authority and external strategy-evaluation boundary.
+
 ## Manual position handoff
 
 [Explore the handoff and management diagram](architecture/manual-position-handoff.html).
