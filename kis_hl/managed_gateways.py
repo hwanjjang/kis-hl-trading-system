@@ -224,8 +224,12 @@ class ManagedHyperliquidGateway:
                 raise ValueError("Native SL semantics did not match")
             trailing = {}
             if a["kind"] == "trailing":
-                from kis_hl.hyperliquid.trailing import trailing_readback
-                trailing = trailing_readback(order, retracement=decimal(a["retracement"]))
+                from kis_hl.hyperliquid.trailing import TrailingConditionError, trailing_readback
+                try:
+                    trailing = trailing_readback(order, retracement=decimal(a["retracement"]))
+                except TrailingConditionError as exc:
+                    # Preserve independent SL/account evidence without claiming trail coverage.
+                    trailing = {"trailing_readback_error": str(exc)}
                 if decimal(order["sz"]) < 0 or decimal(order["sz"]) > decimal(a["quantity"]):
                     raise ValueError("Trailing order size mismatch")
                 kind = "trailing"

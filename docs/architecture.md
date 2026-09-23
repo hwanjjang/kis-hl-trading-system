@@ -172,7 +172,11 @@ database schema or worker is introduced. Distance precision is validated and
 persisted before entry, separately from the current market-price grid. Missing
 native IDs or rejected submissions require intervention because the observed
 trailing action has no client ID; this specific intervention retains fixed-SL
-monitoring. Open waiting readback is distinct from active trailing coverage and
+monitoring. Condition parsing failure on an otherwise verified owned trailing order
+also preserves independent SL supervision with zero trailing coverage. Identity,
+order semantics and account validation remain strict; generic intervention clears
+the native-only exception. Valid same-ID readback can recover without resubmission.
+Open waiting readback is distinct from active trailing coverage and
 does not itself request an exit. Native KIS SL/trailing remain
 unverified; local protection requires an active worker. Exact HTS equivalence is not
 assumed. The account supervisor serializes actual attempts while its journal worker

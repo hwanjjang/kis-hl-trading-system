@@ -105,8 +105,9 @@ class ReplayExchange:
         self.fills.append({"time": self.now, "tid": 1, "oid": 100, "coin": "BTC", "side": "B", "sz": "1"})
 
 
-def replay_managed_lifecycle(root, *, reject_trailing):
-    path = root / ("rejected.sqlite" if reject_trailing else "waiting.sqlite")
+def replay_managed_lifecycle(root, *, reject_trailing, condition_failure=None):
+    path = root / (f"condition-{condition_failure}.sqlite" if condition_failure else
+                   "rejected.sqlite" if reject_trailing else "waiting.sqlite")
     store = ExecutionStore(path)
     exchange = ReplayExchange(store, reject_trailing=reject_trailing)
     gateway = ManagedHyperliquidGateway(exchange, exchange)
@@ -136,18 +137,21 @@ def replay_managed_lifecycle(root, *, reject_trailing):
     assert exchange.sent == ["entry", "stop"]
     step(4)
     assert exchange.sent == ["entry", "stop", "trailing"]
+    if condition_failure:
+        exchange.orders[102]["order"]["triggerCondition"] = "unrecognized exchange condition"
     for offset in (5, 6000, 7000):
         observed = step(offset, restart=True)
-        assert observed["state"] == ("INTERVENTION" if reject_trailing else "PROTECTING"), observed
+        assert observed["state"] == ("INTERVENTION" if reject_trailing or condition_failure else "PROTECTING"), observed
         assert Decimal(observed["covered_size"]) == 1
         assert Decimal(observed["trailing_covered_size"]) == 0
         assert observed["exit_requested_ms"] is None
         assert exchange.orders[101]["status"] == "open"
         assert exchange.sent == ["entry", "stop", "trailing"]
-    if not reject_trailing:
+    if not reject_trailing and condition_failure != "retain":
         exchange.orders[102]["order"]["triggerCondition"] = "retracement 4, best 100004"
         observed = step(7001, restart=True)
         assert observed["state"] == "PROTECTED", observed
+        assert not observed.get("native_trailing_intervention")
         assert Decimal(observed["trailing_covered_size"]) == 1
     exchange.orders[101]["status"] = "canceled"
     observed = step(7002, restart=True)
@@ -200,9 +204,13 @@ def main():
         assert sent["expiresAfter"] == expiry and sent["action"] == action
         waiting = replay_managed_lifecycle(root, reject_trailing=False)
         rejected = replay_managed_lifecycle(root, reject_trailing=True)
+        condition_retained = replay_managed_lifecycle(root, reject_trailing=False, condition_failure="retain")
+        condition_recovered = replay_managed_lifecycle(root, reject_trailing=False, condition_failure="recover")
         print(json.dumps({"status": "passed", "cli_preview": True, "sqlite_paper_no_attempts": True,
             "sdk_signature_recovered": True, "real_gateway_waiting_restart_active": waiting,
             "real_gateway_rejection_retains_stop": rejected, "fixed_stop_loss_exits": True,
+            "condition_failure_sl_loss_exits": condition_retained,
+            "condition_failure_same_id_recovers": condition_recovered,
             "distance_persisted_before_entry": "4 at price 100000 / szDecimals 5 / ATR 2",
             "network_requests": 0, "live_exchange_verified": False}))
 

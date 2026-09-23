@@ -332,7 +332,9 @@ class Supervisor:
         self.store, self.gateway, self.live = store, gateway, live
         self.seen = set()
 
-    def _state(self, row, state, reason, now):
+    def _state(self, row, state, reason, now, *, preserve_native_intervention=False):
+        if state == "INTERVENTION" and not preserve_native_intervention:
+            row.pop("native_trailing_intervention", None)
         row.update(state=state, reason=reason)
         self.store.save(row, now)
 
@@ -537,6 +539,7 @@ class Supervisor:
                 "INTERVENTION" if existing_intervention or exhausted else "DEGRADED",
                 f"Account snapshot unavailable ({type(exc).__name__}); consecutive failures={row['read_failures']}; awaiting readback",
                 now,
+                preserve_native_intervention=bool(row.get("native_trailing_intervention")),
             )
             return
         row["read_failures"] = 0
@@ -725,11 +728,16 @@ class Supervisor:
                         row["state"], row["reason"] = "INTERVENTION", "Native trailing rejected or outcome unknown; retain fixed SL and reconcile manually"
                     elif a["status"].lower() in TERMINAL:
                         # Re-creation would reset the exchange watermark.
+                        row.pop("native_trailing_intervention", None)
                         row["exit_requested_ms"] = row["exit_requested_ms"] or now
+                    elif order.get("trailing_readback_error"):
+                        row["native_trailing_intervention"] = True
+                        row["state"], row["reason"] = "INTERVENTION", "Native trailing condition unverified; retain fixed SL and await valid readback"
                     elif (order.get("status") == "open" and order.get("kind") == "trailing"
                           and order.get("side") == "sell" and order.get("reduce_only") is True
                           and order.get("retracement_unit") == "quote"
                           and decimal(order.get("retracement", "0")) == decimal(a["retracement"])):
+                        row.pop("native_trailing_intervention", None)
                         order_size = decimal(order["size"], positive=True)
                         waiting = order.get("active") is False and order_size >= size
                         if order.get("active") is True:

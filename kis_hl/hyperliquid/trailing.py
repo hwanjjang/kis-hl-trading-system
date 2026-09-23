@@ -3,6 +3,10 @@ from decimal import Decimal, InvalidOperation, ROUND_DOWN
 import re
 
 
+class TrailingConditionError(ValueError):
+    """Condition parsing failed; independently verified order identity is unchanged."""
+
+
 def positive(value):
     try:
         value = Decimal(str(value))
@@ -88,7 +92,10 @@ def trailing_readback(order, *, retracement):
     if (order.get("orderType") != "Trailing Stop Market" or order.get("isTrigger") is not True
             or order.get("reduceOnly") is not True or order.get("side") != "A"):
         raise ValueError("Native trailing order semantics did not match")
-    result = parse_trailing_condition(order.get("triggerCondition"))
+    try:
+        result = parse_trailing_condition(order.get("triggerCondition"))
+    except ValueError as exc:
+        raise TrailingConditionError(str(exc)) from exc
     if result["retracement_unit"] != "quote" or positive(result["retracement"]) != positive(retracement):
         raise ValueError("Native trailing retracement mismatch")
     if "activation_price" in result:

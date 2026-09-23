@@ -51,7 +51,13 @@ oid. The app parses `triggerCondition` retracement/best/activation text (`s4`,
 `l4`); our immediate quote-distance managed reader accepts only matching
 quote retracement with immediate activation and a finite positive best price, or
 waiting/omitted best. Known percentage and activation clauses are parsed but rejected
-as managed-request semantic mismatches; unknown/duplicate clauses fail closed.
+as managed-request semantic mismatches. Unknown/duplicate/invalid condition clauses
+raise `TrailingConditionError`: the gateway records `trailing_readback_error` on
+an otherwise validated owned order, never active coverage, and completes independent
+SL/account reconciliation. Identity/type/direction/size and known policy mismatches
+remain fatal. The supervisor retains fixed-SL monitoring and explicit exits under
+native intervention, recovers only on valid same-ID readback, and still exits residual
+exposure on known-ID terminal status. It never resubmits due to a parser failure.
 A submission acknowledgement or waiting readback is never active trailing coverage.
 Missing oid, timeout or explicit rejection requires intervention, with no resend
 or matching-based foreign adoption. This native submission intervention retains

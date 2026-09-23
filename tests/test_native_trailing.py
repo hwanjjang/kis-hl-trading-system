@@ -102,6 +102,92 @@ class NativeTrailingManagedTests(unittest.TestCase):
         self.worker.step(row["id"], 4)  # native trailing
         return row
 
+    def condition_error(self):
+        row = self.start()
+        order = self.g.orders[self.g.sent[-1]["id"]]
+        order["trailing_readback_error"] = "Unverified native trailing condition format"
+        return row, order
+
+    def test_condition_error_retains_sl_without_retry_or_timeout_exit(self):
+        row, _ = self.condition_error()
+        for now in (5, 6000, 7000):
+            result = Supervisor(self.store, self.g, live=True).step(row["id"], now)
+            self.assertEqual(result["state"], "INTERVENTION")
+            self.assertTrue(result["native_trailing_intervention"])
+            self.assertEqual(result["covered_size"], "1")
+            self.assertEqual(result["trailing_covered_size"], "0")
+            self.assertIsNone(result["exit_requested_ms"])
+        self.assertEqual([a["kind"] for a in self.g.sent], ["entry", "stop", "trailing"])
+
+    def test_condition_error_still_exits_on_fixed_sl_loss(self):
+        row, _ = self.condition_error()
+        self.worker.step(row["id"], 5)
+        self.g.orders[self.g.sent[1]["id"]]["status"] = "canceled"
+        self.worker.step(row["id"], 6000)
+        self.assertEqual(self.g.sent[-1]["kind"], "exit")
+
+    def test_condition_error_does_not_block_explicit_exit(self):
+        row, _ = self.condition_error()
+        self.worker.step(row["id"], 5)
+        self.store.request_exit(row["id"], 6)
+        self.worker.step(row["id"], 7)
+        self.assertEqual(self.g.sent[-1]["kind"], "exit")
+
+    def test_condition_error_recovers_on_valid_same_id_readback(self):
+        row, order = self.condition_error()
+        self.worker.step(row["id"], 5)
+        order.pop("trailing_readback_error")
+        order.update(active=False, retracement="4", retracement_unit="quote")
+        result = self.worker.step(row["id"], 6000)
+        self.assertEqual(result["state"], "PROTECTING")
+        self.assertFalse(result.get("native_trailing_intervention"))
+        order.update(active=True, trigger_price="100")
+        self.assertEqual(self.worker.step(row["id"], 6001)["state"], "PROTECTED")
+        self.assertEqual(len(self.g.sent), 3)
+
+    def test_terminal_condition_error_exits_and_flat_cleanup_still_completes(self):
+        row, order = self.condition_error()
+        self.worker.step(row["id"], 5)
+        order["status"] = "canceled"
+        self.worker.step(row["id"], 6)
+        self.assertEqual(self.g.sent[-1]["kind"], "exit")
+        self.g.orders[self.g.sent[-1]["id"]]["status"] = "filled"
+        self.g.size = "0"
+        self.assertEqual(self.worker.step(row["id"], 7)["state"], "CLEANUP")
+        self.assertEqual(self.worker.step(row["id"], 8)["state"], "CLOSED")
+
+    def test_condition_error_does_not_override_foreign_account_intervention(self):
+        row, _ = self.condition_error()
+        self.worker.step(row["id"], 5)
+        self.g.foreign = True
+        result = self.worker.step(row["id"], 6)
+        self.assertFalse(result.get("native_trailing_intervention"))
+        self.g.foreign = False
+        self.g.orders[self.g.sent[1]["id"]]["status"] = "canceled"
+        self.assertEqual(self.worker.step(row["id"], 6000)["state"], "INTERVENTION")
+        self.assertEqual(len(self.g.sent), 3)
+
+    def test_transport_failure_preserves_condition_intervention_sl_supervision(self):
+        row, _ = self.condition_error()
+        self.worker.step(row["id"], 5)
+        with patch.object(self.g, "snapshot", side_effect=RuntimeError("offline")):
+            result = self.worker.step(row["id"], 6)
+        self.assertTrue(result.get("native_trailing_intervention"))
+        self.g.orders[self.g.sent[1]["id"]]["status"] = "canceled"
+        self.worker.step(row["id"], 6000)
+        self.assertEqual(self.g.sent[-1]["kind"], "exit")
+
+    def test_exit_deadline_clears_native_exception_and_keeps_generic_freeze(self):
+        row = self.reject_trailing()
+        self.worker.step(row["id"], 5)
+        self.store.request_exit(row["id"], 6)
+        result = self.worker.step(row["id"], 60007)
+        self.assertEqual(result["state"], "INTERVENTION")
+        self.assertFalse(result.get("native_trailing_intervention"))
+        result = self.worker.step(row["id"], 60008)
+        self.assertIn("budget exhausted", result["reason"])
+        self.assertEqual(len(self.g.sent), 3)
+
     def test_native_policy_is_explicit_and_venue_limited(self):
         self.assertEqual(validate_plan(plan(), 1)["trailing_provider"], "local")
         for changes in ({"trailing_provider": "typo"}, {"trailing_provider": "native", "instrument": "kis:SPY", "verified_price_step": "0.01"}):
@@ -368,6 +454,28 @@ class NativeTrailingGatewayTests(unittest.TestCase):
         info.order_status.side_effect = lambda **kw: {"status": "order", "order": {"status": "filled" if kw["oid"] == "0x123" else "open", "order": order if kw["oid"] == "0x123" else trailing}}
         info.frontend_open_orders.return_value = [trailing]
         return g, info, row, attempts, trailing
+
+    def test_condition_parse_failure_preserves_known_order_and_account_snapshot(self):
+        for condition in (None, "new exchange format", "retracement 4, best NaN"):
+            g, _, row, attempts, trailing = self.fixture()
+            trailing["triggerCondition"] = condition
+            with self.subTest(condition=condition):
+                snap = g.snapshot(row, attempts, 20)
+                observed = snap["orders"]["43"]
+                self.assertEqual(observed["status"], "open")
+                self.assertTrue(observed["trailing_readback_error"])
+                self.assertNotIn("active", observed)
+                self.assertTrue(snap["consistent"])
+                self.assertFalse(snap["foreign_add"])
+
+    def test_condition_error_does_not_hide_identity_type_side_or_size_mismatch(self):
+        for change in ({"coin": "ETH"}, {"oid": 44}, {"side": "B"},
+                       {"reduceOnly": False}, {"isTrigger": False},
+                       {"orderType": "Limit"}, {"sz": "2"}, {"sz": "-1"}):
+            g, _, row, attempts, trailing = self.fixture()
+            trailing.update(triggerCondition="unknown syntax", **change)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                g.snapshot(row, attempts, 20)
 
     def test_native_oid_readback_without_cloid_and_owned_open_order(self):
         g, info, row, attempts, trailing = self.fixture()

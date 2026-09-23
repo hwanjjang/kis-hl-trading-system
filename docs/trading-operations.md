@@ -116,7 +116,15 @@ or adopt another order by matching size/time. Retain fixed SL and reconcile in
 the venue before recovery. Explicit rejection also enters intervention without
 resending or exiting solely because the trailing submission failed. This native
 submission intervention continues fixed-SL monitoring and permits an explicit exit;
-unrelated ownership or malformed readback errors still freeze automatic actions.
+unrelated ownership, order identity/type/direction/size and known policy mismatches
+still freeze automatic actions. An unparseable trailing condition on an otherwise
+validated owned order instead records `trailing_readback_error`, claims zero
+trailing coverage, and retains fixed-SL monitoring and explicit exits under native
+intervention. Valid matching readback of the same ID restores waiting/active
+management without a new submission. Known-ID terminal status still requests a
+residual exit even if its condition cannot be parsed. Generic intervention (including
+exit-budget exhaustion) clears this exception; temporary transport failure preserves
+it so fixed-SL supervision resumes when account reads recover.
 A verified full-sized open trailing order with `best waiting` (or omitted best)
 remains `PROTECTING` with zero active trailing coverage. Waiting alone never causes
 a timeout exit while fixed SL is verified. Active matching readback establishes
@@ -124,8 +132,8 @@ trailing coverage. Fixed-SL coverage loss retains its existing grace/exit policy
 termination of an accepted trail still latches a residual exit instead of
 recreating a trail with a reset watermark. Flat cleanup requires both
 fixed SL and trailing orders to be confirmed terminal. Live acceptance, response
-shapes and exchange execution have **not** been exercised; unexpected readback
-formats fail closed. See the [API contract](../.agents/skills/hyperliquid-api/references/exchange-endpoint.md#native-trailing-stop).
+shapes and exchange execution have **not** been exercised; unexpected condition
+formats never count as trailing protection. See the [API contract](../.agents/skills/hyperliquid-api/references/exchange-endpoint.md#native-trailing-stop).
 
 Existing positions are never migrated automatically. Before rolling back to a
 version without native support, reconcile and close native-managed positions and
