@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Native Trailing: Isolated Condition Errors",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1100,
+      690
+    ]
+  },
+  "participants": [
+    {
+      "id": "supervisor",
+      "type": "backend",
+      "label": "Supervisor"
+    },
+    {
+      "id": "store",
+      "type": "database",
+      "label": "SQLite"
+    },
+    {
+      "id": "exchange",
+      "type": "external",
+      "label": "Hyperliquid"
+    }
+  ],
+  "messages": [
+    {
+      "id": "step-1",
+      "from": "supervisor",
+      "to": "exchange",
+      "y": 160,
+      "label": "Before entry: read asset precision"
+    },
+    {
+      "id": "step-2",
+      "from": "supervisor",
+      "to": "store",
+      "y": 200,
+      "label": "Persist valid normalized ATR distance"
+    },
+    {
+      "id": "step-3",
+      "from": "supervisor",
+      "to": "exchange",
+      "y": 240,
+      "label": "Enter; confirm terminal fill and fixed SL"
+    },
+    {
+      "id": "step-4",
+      "from": "supervisor",
+      "to": "store",
+      "y": 280,
+      "label": "Persist attempt before transmission"
+    },
+    {
+      "id": "step-5",
+      "from": "supervisor",
+      "to": "exchange",
+      "y": 320,
+      "label": "Submit trailingStop once; keep fixed SL"
+    },
+    {
+      "id": "step-6",
+      "from": "exchange",
+      "to": "supervisor",
+      "y": 360,
+      "label": "Rejected / no ID: retain SL, intervene",
+      "variant": "return"
+    },
+    {
+      "id": "step-7",
+      "from": "supervisor",
+      "to": "exchange",
+      "y": 400,
+      "label": "Known ID: validate order and account"
+    },
+    {
+      "id": "condition-error",
+      "from": "exchange",
+      "to": "supervisor",
+      "y": 440,
+      "label": "Unknown syntax: INTERVENTION; retain SL",
+      "variant": "return"
+    },
+    {
+      "id": "generic-error",
+      "from": "exchange",
+      "to": "supervisor",
+      "y": 480,
+      "label": "Other mismatch: generic freeze",
+      "variant": "return"
+    },
+    {
+      "id": "step-8",
+      "from": "exchange",
+      "to": "supervisor",
+      "y": 520,
+      "label": "Valid same ID, waiting: PROTECTING",
+      "variant": "return"
+    },
+    {
+      "id": "step-9",
+      "from": "exchange",
+      "to": "supervisor",
+      "y": 560,
+      "label": "Valid same ID, active: PROTECTED",
+      "variant": "return"
+    },
+    {
+      "id": "step-10",
+      "from": "supervisor",
+      "to": "exchange",
+      "y": 600,
+      "label": "Terminal known ID: exit residual"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Retain fixed protection",
+      "items": [
+        "Syntax only: zero trail coverage; no resubmit/adoption.",
+        "Monitor SL loss and explicit exit; retain flat cleanup."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Generic freeze stays strict",
+      "items": [
+        "Identity / type / side / size / known policy / account.",
+        "Generic intervention clears native-only exception."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Recover by the same ID",
+      "items": [
+        "Valid waiting / active readback clears exception.",
+        "Terminal known ID exits even with invalid syntax."
+      ]
+    }
+  ]
+}

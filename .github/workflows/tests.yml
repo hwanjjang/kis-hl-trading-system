@@ -21,3 +21,5 @@ jobs:
         run: python3 scripts/smoke_protected_trading.py
       - name: Offline account audit and adjustment smoke
         run: python3 scripts/smoke_account_audit.py
+      - name: Offline native trailing and manual handoff smoke
+        run: PYTHONPATH=. python3 scripts/smoke_manual_handoff.py

@@ -33,6 +33,7 @@ def correlated(asset, symbol, venue):
 
 class ManagedHyperliquidGateway:
     native_sl = True
+    native_trailing = True
 
     def __init__(self, info, trading):
         self.info, self.trading = info, trading
@@ -110,15 +111,15 @@ class ManagedHyperliquidGateway:
             resolved, now=datetime.fromtimestamp(now / 1000, timezone.utc)
         ).allowed
 
-    def preflight(self, p, now):
+    def preflight(self, p, now, *, existing_position=False):
         asset, resolved, lot, tick = self._market(p["instrument"])
         price = decimal(p["limit_price"])
         if (
-            price != price.to_integral_value()
+            not existing_position and price != price.to_integral_value()
             and len(price.normalize().as_tuple().digits) > 5
         ):
             raise ValueError("Hyperliquid price exceeds five significant figures")
-        if price * decimal(p["quantity"]) < 10:
+        if not existing_position and price * decimal(p["quantity"]) < 10:
             raise ValueError("Order below minimum notional")
         self.trading._require_recent_verification(resolved)
         state = self.info.clearinghouse_state(dex=resolved.dex)
@@ -178,6 +179,7 @@ class ManagedHyperliquidGateway:
             },
             "quantity_step": str(lot),
             "price_step": str(tick),
+            "trailing_price_step": str(tick),
             "observed_now_ms": int(time.time() * 1000),
         }
 
@@ -186,6 +188,9 @@ class ManagedHyperliquidGateway:
         orders = {}
         for a in attempts:
             if a["kind"] == "cancel":
+                continue
+            # trailingStop has no client ID in the observed official contract.
+            if a["kind"] == "trailing" and not a.get("order_id"):
                 continue
             query = a.get("order_id") or a["id"]
             result = self.info.order_status(
@@ -217,6 +222,17 @@ class ManagedHyperliquidGateway:
             )
             if a["kind"] == "stop" and kind != "stop":
                 raise ValueError("Native SL semantics did not match")
+            trailing = {}
+            if a["kind"] == "trailing":
+                from kis_hl.hyperliquid.trailing import TrailingConditionError, trailing_readback
+                try:
+                    trailing = trailing_readback(order, retracement=decimal(a["retracement"]))
+                except TrailingConditionError as exc:
+                    # Preserve independent SL/account evidence without claiming trail coverage.
+                    trailing = {"trailing_readback_error": str(exc)}
+                if decimal(order["sz"]) < 0 or decimal(order["sz"]) > decimal(a["quantity"]):
+                    raise ValueError("Trailing order size mismatch")
+                kind = "trailing"
             if status.endswith("Canceled"):
                 status = "canceled"
             if status.endswith("Rejected"):
@@ -231,10 +247,11 @@ class ManagedHyperliquidGateway:
                 "reduce_only": order.get("reduceOnly"),
                 "trigger_type": "sl" if kind == "stop" else None,
             }
+            observed.update(trailing)
             orders[str(query)] = orders[str(order["oid"])] = observed
         fills = fetch_time_pages(
             lambda a, b: self.info.user_fills_by_time(start_time_ms=a, end_time_ms=b),
-            row["created_ms"],
+            row.get("fill_history_start_ms", row["created_ms"]),
             now,
             limit=2000,
         )
@@ -301,6 +318,7 @@ class ManagedHyperliquidGateway:
             "orders": orders,
             "consistent": net == size,
             "price_step": str(max(tick, Decimal(10) ** (bid.adjusted() - 4))),
+            "trailing_price_step": str(tick),
             "quantity_step": str(lot),
             "observed_now_ms": int(time.time() * 1000),
         }
@@ -309,6 +327,14 @@ class ManagedHyperliquidGateway:
         asset = instrument(row["plan"]["instrument"])
         from kis_hl.managed_execution import entry_permit
 
+        if a["kind"] == "trailing":
+            result = self.trading.place_trailing_stop_order(
+                symbol=asset.symbol, side="sell", size=decimal(a["quantity"]),
+                retracement=decimal(a["retracement"]), dry_run=False,
+                expires_after_ms=a["created_ms"] + row["plan"]["max_quote_age_ms"],
+            )
+            return {"status": result.status,
+                    "order_id": extract_hyperliquid_order_id(result.response) if result.status == "submitted" else None}
         with entry_permit(self.scope, asset.id, a["id"]):
             result = self.trading.place_order(
                 symbol=asset.symbol,

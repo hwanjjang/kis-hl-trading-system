@@ -1,0 +1,3 @@
+# Self verification
+
+PASS. Document links and anchors resolve, six real CLI help calls confirm command flags, documentation candidate hashes match, and changed files contain no executable runtime edits. git diff --check passed. Final Archify validation/delivery: 9/9 checks, zero errors/warnings. Actual Chromium containment passes 1440x900, 1600x1000, 1920x1080, 2048x1320; /root inspected four endpoint-size screenshots in light/dark. Final artifact bytes match design delivery. Source review confirms queue versus execution, partial-fill fixed SL, native activation condition, early concurrent local monitoring and bounded signal authority. See design-final evidence; failed earlier iterations remain explicitly failed. No runtime test or live-exchange assertion is made.

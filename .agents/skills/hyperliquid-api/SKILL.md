@@ -52,8 +52,9 @@ Wallet credentials: `HYPERLIQUID_WALLETADDRESS` (the account that holds the fund
   `clearinghouseState` of an arbitrary address.
 - `POST /exchange` — signed. Body is `{"action", "nonce", "signature"}` plus optional
   `"vaultAddress"` and `"expiresAfter"`. `nonce` is a millisecond timestamp. The SDK
-  builds and signs this; the repo only chooses `Exchange.order(...)` or
-  `Exchange.market_open(...)`.
+  signs this. Normal orders use `Exchange.order(...)` / `Exchange.market_open(...)`;
+  native trailing uses the SDK's `sign_l1_action` and transport for the separate
+  app-observed action (see `references/exchange-endpoint.md#native-trailing-stop`).
 
 A wallet address in an info request must be the **actual account address**. Passing an
 agent/API wallet address returns empty results, not an error.
@@ -109,6 +110,9 @@ Three different names exist for the same market. Keep them straight:
 `place_order` forwards optional exchange cloid and distinguishes per-order rejection.
 Signed actions share a local POSIX account lock; managed live coins reject new entries
 until cleanup. Use the same verification/state database for all local commands.
+`place_trailing_stop_order()` adds dry-run-first, reduce-only perpetual trailing.
+It uses SDK asset IDs and L1 signing; the app-observed action has no cloid, so an
+unknown result must never be resent or adopted by matching size/time.
 `kis_hl/hyperliquid/ws.py`: `allMids`, `userFills`, `userEvents`,
 `allDexsClearinghouseState`, `candle` subscriptions over `MaintainedWebSocketClient`.
 
@@ -203,7 +207,11 @@ is the page index.
 Native BTC and ETH perpetuals are allowed; ETH-PERP/ETHUSDC-PERP resolve to ETH.
 The account supervisor in `managed_execution.py` and `managed_gateways.py` is separate
 from legacy single-position enrollment. It uses actual partial fills, strict native
-Stop Market readback, local trailing, and durable client IDs. All trading CLIs must
+Stop Market readback, local trailing by default, and durable client IDs for normal
+orders. Explicit native trailing plans use continuous mark-price tracking after
+terminal entry and fixed-SL coverage, retaining the fixed SL. Only the acknowledged
+native order ID can establish trailing ownership; unknown outcomes require
+intervention. Live trailing acceptance/execution is unverified. All trading CLIs must
 use the same SQLite path. A managed owner blocks raw new entries and legacy
 enrollment; only the in-process current entry attempt receives a submission permit.
 

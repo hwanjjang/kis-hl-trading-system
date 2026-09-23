@@ -1,0 +1,25 @@
+{
+  "diagram_type": "sequence",
+  "output": "/root/.paseo/worktrees/1epgz72k/naughty-fox/reports/sdlc/hyperliquid-native-trailing/revision-2/design/native-trailing.html",
+  "artifact_sha256": "0f68cff41c47f260c9d5d55378e6cab88b22b9c434a8f4fa45529d7dcef206fa",
+  "artifact_bytes": 801580,
+  "validation": "9/9 showcase, 0 errors, 0 warnings",
+  "browser_evidence": "passed",
+  "visual_review": "passed",
+  "correction_rounds": 0,
+  "reviewer": "Codex correction_design image-capable reviewer",
+  "review_method": "Viewed all four generated PNG captures using view_image; no inferred visual approval from automated checks.",
+  "reviewed_captures": [
+    "native-trailing.visual-check.1440x900.light.png",
+    "native-trailing.visual-check.1440x900.dark.png",
+    "native-trailing.visual-check.2048x1320.light.png",
+    "native-trailing.visual-check.2048x1320.dark.png"
+  ],
+  "observations": [
+    "Both light and dark READ views fit at 1440x900 and 2048x1320; labels, participant boxes, and conclusion cards remain readable.",
+    "Messages are horizontally separated with clear directions; no node overlap, route masks, or clipping was observed.",
+    "The large desktop view uses its vertical space with the diagram and three necessary corrective-contract cards.",
+    "All four automated desktop sizes pass document containment; browser receipt remains separately marked visualReview pending as required."
+  ],
+  "scope": "Design for the corrective specification, not proof of implemented runtime behavior or live exchange validation. Rejected, waiting, active, and terminal rows are conditional outcomes, not an unconditional sequence."
+}

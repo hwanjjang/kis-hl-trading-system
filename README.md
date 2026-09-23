@@ -35,6 +35,20 @@ and is configurable; protection runs separately. KIS order summaries remain pend
 until exact execution/cost statements are supplied. Native KIS protection is not
 inferred from stop-limit names. Notification delivery is not implemented.
 
+New Hyperliquid managed plans default to native continuous-mark trailing plus
+concurrent local nine-minute backup (`local_trailing_backup: true`). KIS stays local;
+existing stored positions retain their policy. Read the
+[protection contract and rollout limits](docs/trading-operations.md#protection-and-controls)
+for provider selection and coordinated exit behavior.
+
+For a new entry requested through Hermes, follow the
+[harness entry workflow](docs/trading-operations.md#harness-originated-entry) and
+[interactive sequence diagram](docs/architecture/hermes-entry.html).
+
+For a manually entered protected HL long, use the [agent handoff workflow](docs/trading-operations.md#manual-position-handoff)
+and [interactive diagram](docs/architecture/manual-position-handoff.html).
+`order adopt` queues ownership verification without opening another position.
+
 Explore the [architecture](docs/architecture/multi-venue-trading.html),
 [protected-trade workflow](docs/architecture/protected-trade.html), and
 [signals/journal flow](docs/architecture/signals-and-journal.html).

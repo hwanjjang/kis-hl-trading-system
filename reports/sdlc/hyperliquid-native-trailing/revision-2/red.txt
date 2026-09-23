@@ -1,0 +1,85 @@
+======================================================================
+ERROR: test_distance_precision_uses_value_not_market_price (tests.test_native_trailing.NativeTrailingReadbackTests.test_distance_precision_uses_value_not_market_price)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_native_trailing.py", line 304, in test_distance_precision_uses_value_not_market_price
+    from kis_hl.hyperliquid.trailing import normalize_quote_retracement
+ImportError: cannot import name 'normalize_quote_retracement' from 'kis_hl.hyperliquid.trailing' (/root/.paseo/worktrees/1epgz72k/naughty-fox/kis_hl/hyperliquid/trailing.py)
+
+======================================================================
+ERROR: test_known_syntax_is_distinct_from_managed_semantic_matching (tests.test_native_trailing.NativeTrailingReadbackTests.test_known_syntax_is_distinct_from_managed_semantic_matching)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_native_trailing.py", line 284, in test_known_syntax_is_distinct_from_managed_semantic_matching
+    from kis_hl.hyperliquid.trailing import parse_trailing_condition, trailing_readback
+ImportError: cannot import name 'parse_trailing_condition' from 'kis_hl.hyperliquid.trailing' (/root/.paseo/worktrees/1epgz72k/naughty-fox/kis_hl/hyperliquid/trailing.py)
+
+======================================================================
+FAIL: test_distance_uses_own_precision_and_is_persisted_before_entry (tests.test_native_trailing.NativeTrailingManagedTests.test_distance_uses_own_precision_and_is_persisted_before_entry)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_native_trailing.py", line 213, in test_distance_uses_own_precision_and_is_persisted_before_entry
+    self.assertEqual(observed_before_entry, ["4"])
+AssertionError: Lists differ: [None] != ['4']
+
+First differing element 0:
+None
+'4'
+
+- [None]
++ ['4']
+
+======================================================================
+FAIL: test_rejection_retains_fixed_stop_without_exit_or_retry_after_restart (tests.test_native_trailing.NativeTrailingManagedTests.test_rejection_retains_fixed_stop_without_exit_or_retry_after_restart)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_native_trailing.py", line 154, in test_rejection_retains_fixed_stop_without_exit_or_retry_after_restart
+    self.assertEqual(result["state"], "INTERVENTION")
+AssertionError: 'EXIT_PENDING' != 'INTERVENTION'
+- EXIT_PENDING
++ INTERVENTION
+
+
+======================================================================
+FAIL: test_unrelated_reconciliation_failure_still_freezes_after_rejection (tests.test_native_trailing.NativeTrailingManagedTests.test_unrelated_reconciliation_failure_still_freezes_after_rejection)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_native_trailing.py", line 176, in test_unrelated_reconciliation_failure_still_freezes_after_rejection
+    self.assertEqual([a["kind"] for a in self.g.sent], ["entry", "stop", "trailing"])
+AssertionError: Lists differ: ['entry', 'stop', 'trailing', 'exit'] != ['entry', 'stop', 'trailing']
+
+First list contains 1 additional elements.
+First extra element 3:
+'exit'
+
+- ['entry', 'stop', 'trailing', 'exit']
+?                             --------
+
++ ['entry', 'stop', 'trailing']
+
+======================================================================
+FAIL: test_waiting_survives_grace_restart_and_becomes_active (tests.test_native_trailing.NativeTrailingManagedTests.test_waiting_survives_grace_restart_and_becomes_active)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_native_trailing.py", line 184, in test_waiting_survives_grace_restart_and_becomes_active
+    self.assertEqual(result["state"], "PROTECTING")
+AssertionError: 'EXIT_PENDING' != 'PROTECTING'
+- EXIT_PENDING
++ PROTECTING
+
+
+======================================================================
+FAIL: test_zero_normalized_distance_blocks_entry (tests.test_native_trailing.NativeTrailingManagedTests.test_zero_normalized_distance_blocks_entry)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_native_trailing.py", line 228, in test_zero_normalized_distance_blocks_entry
+    self.assertEqual(result["state"], "INTERVENTION")
+AssertionError: 'ENTERING' != 'INTERVENTION'
+- ENTERING
++ INTERVENTION
+
+
+----------------------------------------------------------------------
+Ran 27 tests in 2.424s
+
+FAILED (failures=5, errors=2)

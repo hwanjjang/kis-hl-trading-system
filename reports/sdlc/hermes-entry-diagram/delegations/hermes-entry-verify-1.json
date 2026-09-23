@@ -1,0 +1,245 @@
+{
+  "record_kind": "assignment-and-return",
+  "task_id": "hermes-entry-diagram",
+  "assignment_id": "hermes-entry-verify-1",
+  "stage": "independent-verification",
+  "iteration": 1,
+  "iteration_limit": 10,
+  "remaining_after_current": 9,
+  "role": "qa",
+  "objective": "Independent documentation accuracy and artifact verification",
+  "acceptance_criteria": [
+    "AC1",
+    "AC2",
+    "AC3"
+  ],
+  "authority": {
+    "source": "Parent bounded local verification assignment",
+    "allowed": [
+      "Read source and documentation",
+      "Run offline document checks",
+      "Write assigned report and evidence"
+    ],
+    "excluded": [
+      "Live actions",
+      "Code edits",
+      "Commit/push",
+      "Delegation"
+    ]
+  },
+  "repository": "/root/.paseo/worktrees/1epgz72k/naughty-fox",
+  "worktree": "/root/.paseo/worktrees/1epgz72k/naughty-fox",
+  "candidate": {
+    "base": "cc8f48e5a005239e9d397f3f6a7ae2a27300ee09",
+    "head_or_digest": "sha256:6f83f2b792df0c4fa1129ac7daf2ea098c284f446a24773c6e421ac8db7fd957"
+  },
+  "inputs": [
+    {
+      "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+      "revision_or_digest": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+    },
+    {
+      "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+      "revision_or_digest": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+    },
+    {
+      "path": "reports/sdlc/hermes-entry-diagram/plan.md",
+      "revision_or_digest": "9a6582ba915dbd5debc49001e20229ac7d722a41257440540f09e8347ce86e88"
+    },
+    {
+      "path": "reports/sdlc/hermes-entry-diagram/build.md",
+      "revision_or_digest": "4f18ef090ef191ac42467dcf833d5f3a4603fce6f9ee2564bba4bfa5baeab136"
+    },
+    {
+      "path": "reports/sdlc/hermes-entry-diagram/self-verification.md",
+      "revision_or_digest": "9d525ef410c76fbd2e7f8983702c13daa989dfccc604b68d87fc2670ce38fc46"
+    },
+    {
+      "path": "reports/sdlc/hermes-entry-diagram/candidate.json",
+      "revision_or_digest": "54535df616cefdbbd91bfb7c03f761b387959d10b8bd4ea63337d692c3883807"
+    },
+    {
+      "path": "reports/sdlc/hermes-entry-diagram/artifacts.json",
+      "revision_or_digest": "3f2bed94b272de7051d68d5d02dbf7a033131ef550dd15a3221a8d359526edb3"
+    },
+    {
+      "path": "reports/sdlc/hermes-entry-diagram/design-final/validation.json",
+      "revision_or_digest": "5a5048af79f2cabd392e292c5742772df17b1ccf498927fbe624194e8d00e109"
+    },
+    {
+      "path": "reports/sdlc/hermes-entry-diagram/design-final/delivery.json",
+      "revision_or_digest": "68998803df6a676a75f285d7b1d0eda59a7053eef863ab4887380d77c38552ea"
+    },
+    {
+      "path": "reports/sdlc/hermes-entry-diagram/design-final/hermes-entry.visual-check.json",
+      "revision_or_digest": "b92a7222c6b770f65ebbd95c81d62330c47860d18925b6d1fa96338234e8abba"
+    },
+    {
+      "path": "reports/sdlc/hermes-entry-diagram/design-final/visual-review.json",
+      "revision_or_digest": "92adfd799b853d698748c53fd3b87035409798d18cb76c488a8d035b0549bf42"
+    },
+    {
+      "path": "README.md",
+      "revision_or_digest": "6464d58e01fb18cb48a8073468c59ac4b0ee7885848bd988850b3add78c6ede6"
+    },
+    {
+      "path": "docs/trading-operations.md",
+      "revision_or_digest": "30d011045988221157f34bafbaab40ad757fc3612e9bd2602cbda6321036cbce"
+    },
+    {
+      "path": "docs/architecture.md",
+      "revision_or_digest": "a1ca061df5ce6bbec2c7666a9b887124d41b07b721ed932ec747cf71d5b741b9"
+    },
+    {
+      "path": "docs/architecture/hermes-entry.json",
+      "revision_or_digest": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+    },
+    {
+      "path": "docs/architecture/hermes-entry.html",
+      "revision_or_digest": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+    },
+    {
+      "path": "kis_hl/operations_cli.py",
+      "revision_or_digest": "a35812321a27f31bb2c3c009c6317e0935dbf4c12394474cf7b560030b2f32a0"
+    },
+    {
+      "path": "kis_hl/managed_execution.py",
+      "revision_or_digest": "6d3553b0f12272adabe47ab51be73a2bef6f2a54f69363af16c7006ec1e013c9"
+    },
+    {
+      "path": "kis_hl/managed_gateways.py",
+      "revision_or_digest": "3ad945868796e0129a9f0a1e7250c84029efe05bb751b9bd0253509796f9fec8"
+    },
+    {
+      "path": "kis_hl/strategy_signals.py",
+      "revision_or_digest": "73b062df8edc6e9bf2e4651c768e00444e1037ab46ff790dbd6695312a402a00"
+    }
+  ],
+  "allowed_files": [
+    "reports/sdlc/hermes-entry-diagram/independent-verification.md",
+    "reports/sdlc/hermes-entry-diagram/verifier-offline-checks.json",
+    "reports/sdlc/hermes-entry-diagram/delegations/hermes-entry-verify-1.json"
+  ],
+  "return": {
+    "status": "PASS",
+    "actual_provider": "OpenAI",
+    "actual_model": "GPT-6 (host identity; no cross-provider qualification claimed)",
+    "actual_context_id": "/root/hermes_entry_verify",
+    "consumed_inputs": [
+      {
+        "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+        "revision_or_digest": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+      },
+      {
+        "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+        "revision_or_digest": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+      },
+      {
+        "path": "reports/sdlc/hermes-entry-diagram/plan.md",
+        "revision_or_digest": "9a6582ba915dbd5debc49001e20229ac7d722a41257440540f09e8347ce86e88"
+      },
+      {
+        "path": "reports/sdlc/hermes-entry-diagram/build.md",
+        "revision_or_digest": "4f18ef090ef191ac42467dcf833d5f3a4603fce6f9ee2564bba4bfa5baeab136"
+      },
+      {
+        "path": "reports/sdlc/hermes-entry-diagram/self-verification.md",
+        "revision_or_digest": "9d525ef410c76fbd2e7f8983702c13daa989dfccc604b68d87fc2670ce38fc46"
+      },
+      {
+        "path": "reports/sdlc/hermes-entry-diagram/candidate.json",
+        "revision_or_digest": "54535df616cefdbbd91bfb7c03f761b387959d10b8bd4ea63337d692c3883807"
+      },
+      {
+        "path": "reports/sdlc/hermes-entry-diagram/artifacts.json",
+        "revision_or_digest": "3f2bed94b272de7051d68d5d02dbf7a033131ef550dd15a3221a8d359526edb3"
+      },
+      {
+        "path": "reports/sdlc/hermes-entry-diagram/design-final/validation.json",
+        "revision_or_digest": "5a5048af79f2cabd392e292c5742772df17b1ccf498927fbe624194e8d00e109"
+      },
+      {
+        "path": "reports/sdlc/hermes-entry-diagram/design-final/delivery.json",
+        "revision_or_digest": "68998803df6a676a75f285d7b1d0eda59a7053eef863ab4887380d77c38552ea"
+      },
+      {
+        "path": "reports/sdlc/hermes-entry-diagram/design-final/hermes-entry.visual-check.json",
+        "revision_or_digest": "b92a7222c6b770f65ebbd95c81d62330c47860d18925b6d1fa96338234e8abba"
+      },
+      {
+        "path": "reports/sdlc/hermes-entry-diagram/design-final/visual-review.json",
+        "revision_or_digest": "92adfd799b853d698748c53fd3b87035409798d18cb76c488a8d035b0549bf42"
+      },
+      {
+        "path": "README.md",
+        "revision_or_digest": "6464d58e01fb18cb48a8073468c59ac4b0ee7885848bd988850b3add78c6ede6"
+      },
+      {
+        "path": "docs/trading-operations.md",
+        "revision_or_digest": "30d011045988221157f34bafbaab40ad757fc3612e9bd2602cbda6321036cbce"
+      },
+      {
+        "path": "docs/architecture.md",
+        "revision_or_digest": "a1ca061df5ce6bbec2c7666a9b887124d41b07b721ed932ec747cf71d5b741b9"
+      },
+      {
+        "path": "docs/architecture/hermes-entry.json",
+        "revision_or_digest": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+      },
+      {
+        "path": "docs/architecture/hermes-entry.html",
+        "revision_or_digest": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+      },
+      {
+        "path": "kis_hl/operations_cli.py",
+        "revision_or_digest": "a35812321a27f31bb2c3c009c6317e0935dbf4c12394474cf7b560030b2f32a0"
+      },
+      {
+        "path": "kis_hl/managed_execution.py",
+        "revision_or_digest": "6d3553b0f12272adabe47ab51be73a2bef6f2a54f69363af16c7006ec1e013c9"
+      },
+      {
+        "path": "kis_hl/managed_gateways.py",
+        "revision_or_digest": "3ad945868796e0129a9f0a1e7250c84029efe05bb751b9bd0253509796f9fec8"
+      },
+      {
+        "path": "kis_hl/strategy_signals.py",
+        "revision_or_digest": "73b062df8edc6e9bf2e4651c768e00444e1037ab46ff790dbd6695312a402a00"
+      }
+    ],
+    "changed_files": [
+      "reports/sdlc/hermes-entry-diagram/independent-verification.md",
+      "reports/sdlc/hermes-entry-diagram/verifier-offline-checks.json",
+      "reports/sdlc/hermes-entry-diagram/delegations/hermes-entry-verify-1.json"
+    ],
+    "output_references_and_digests": [
+      {
+        "path": "reports/sdlc/hermes-entry-diagram/independent-verification.md",
+        "sha256": "0392c2a0650e8f7814ed6294efa09c50df07fd025626cca8e2190a4792677abc"
+      },
+      {
+        "path": "reports/sdlc/hermes-entry-diagram/verifier-offline-checks.json",
+        "sha256": "0ec1e7d53eec7cde0a2836c492e2164df66c73671ebdc9a69c15c2bc9c7e9cba"
+      }
+    ],
+    "commands_and_observed_results": [
+      "git diff inspected",
+      "Source branch comparison passed",
+      "python3 offline checks passed",
+      "git diff --check exit 0",
+      "1440x900 light screenshot inspected"
+    ],
+    "findings": [],
+    "assumptions": [
+      "Docs-only local scope"
+    ],
+    "unresolved_risks": [
+      "Live venue contract not exercised; documented as unverified",
+      "Browser run reused after exact artifact hash match"
+    ],
+    "proposed_hotl_decision": "PROCEED",
+    "reason": "All three acceptance criteria supported by source and current candidate evidence",
+    "next_action": "Main assess and complete local delivery",
+    "review_configuration_receipt": null
+  }
+}

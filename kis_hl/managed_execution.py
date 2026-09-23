@@ -12,6 +12,7 @@ from uuid import uuid4
 from kis_hl.execution_lock import account_lock
 from kis_hl.journal_sync import decimal, encode
 from kis_hl.trailing import Trail
+from kis_hl.hyperliquid.trailing import normalize_quote_retracement, wire_decimal
 
 TERMINAL = {"filled", "canceled", "rejected", "expired"}
 FINISHED = {"CLOSED", "REJECTED", "PREVIEWED"}
@@ -128,8 +129,19 @@ def validate_plan(plan, now_ms):
         raise ValueError(
             "Plan exceeds loss/notional limits or has an invalid initial stop"
         )
+    provider = plan.get("trailing_provider", "native" if plan["instrument"].startswith("hl:") else "local")
+    if provider not in {"local", "native"}:
+        raise ValueError("trailing_provider must be local or native")
+    if provider == "native":
+        from kis_hl.instruments import instrument
+        asset = instrument(plan["instrument"])
+        if asset.venue != "hyperliquid" or asset.market != "perp":
+            raise ValueError("Native trailing is available only for Hyperliquid perpetuals")
+    backup = plan.get("local_trailing_backup", provider == "native")
+    if type(backup) is not bool or (backup and provider != "native"):
+        raise ValueError("local_trailing_backup requires a native provider and a boolean")
     # No signal price is copied into execution pricing.
-    return {**plan, "stop_distance": str(distance)}
+    return {**plan, "stop_distance": str(distance), "trailing_provider": provider, "local_trailing_backup": backup}
 
 
 class ExecutionStore:
@@ -168,7 +180,7 @@ class ExecutionStore:
         finally:
             db.close()
 
-    def enqueue(self, scope, plan, *, live=False, now_ms):
+    def enqueue(self, scope, plan, *, live=False, now_ms, adoption=None):
         p = validate_plan(plan, now_ms)
         row = {
             "id": uuid4().hex,
@@ -187,6 +199,8 @@ class ExecutionStore:
             "observed_size": "0",
             "covered_size": "0",
         }
+        if adoption is not None:
+            row.update(state="ADOPTING", reason="Awaiting supervisor handoff validation", adoption=adoption)
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             if db.execute(
@@ -214,6 +228,38 @@ class ExecutionStore:
                 (scope, row["mode"], p["intent_id"], row["id"]),
             )
         return row
+
+    def enqueue_adoption(self, scope, plan, *, entry_order_id, stop_order_id, live=False, now_ms):
+        from kis_hl.instruments import instrument
+        asset = instrument(plan["instrument"])
+        if asset.venue != "hyperliquid" or asset.market != "perp":
+            raise ValueError("Adoption supports Hyperliquid perpetuals only")
+        if (any(type(x) is not int or x <= 0 for x in (entry_order_id, stop_order_id))
+                or entry_order_id == stop_order_id or plan.get("signal_id") or plan.get("grant_id")):
+            raise ValueError("Adoption requires distinct native IDs and direct management authority")
+        return self.enqueue(scope, plan, live=live, now_ms=now_ms,
+                            adoption={"entry_order_id":entry_order_id, "stop_order_id":stop_order_id})
+
+    def complete_adoption(self, row, updates, attempts, now_ms):
+        new = {**row, **updates, "version":row["version"]+1}
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if db.execute("SELECT 1 FROM managed_attempts WHERE position_id=?", (row["id"],)).fetchone():
+                raise RuntimeError("Adoption already has owned attempts")
+            owned_ids = {a["order_id"] for a in attempts}
+            for prior in db.execute("SELECT a.snapshot FROM managed_attempts a JOIN managed_positions p ON p.id=a.position_id WHERE p.scope=? AND p.mode=?", (row["scope"],row["mode"])):
+                if str(json.loads(prior[0]).get("order_id")) in owned_ids:
+                    raise ValueError("Native order already belongs to another managed generation")
+            changed = db.execute("UPDATE managed_positions SET state=?,version=?,snapshot=? WHERE id=? AND version=?",
+                                 (new["state"],new["version"],encode(new),row["id"],row["version"]))
+            if changed.rowcount != 1:
+                raise RuntimeError("Adoption changed; reload before importing ownership")
+            for a in attempts:
+                db.execute("INSERT INTO managed_attempts VALUES(?,?,?,?,?)",
+                           (a["id"],row["id"],a["kind"],a["status"],encode(a)))
+            db.execute("INSERT INTO managed_events(position_id,time_ms,state,reason) VALUES(?,?,?,?)",
+                       (row["id"],now_ms,new["state"],new["reason"]))
+        row.update(new)
 
     def get(self, position_id):
         with self.connect() as db:
@@ -323,7 +369,9 @@ class Supervisor:
         self.store, self.gateway, self.live = store, gateway, live
         self.seen = set()
 
-    def _state(self, row, state, reason, now):
+    def _state(self, row, state, reason, now, *, preserve_native_intervention=False):
+        if state == "INTERVENTION" and not preserve_native_intervention:
+            row.pop("native_trailing_intervention", None)
         row.update(state=state, reason=reason)
         self.store.save(row, now)
 
@@ -345,7 +393,7 @@ class Supervisor:
                 if kind == "cancel"
                 else self.gateway.submit(row, a)
             )
-            status = "REJECTED" if result.get("status") == "rejected" else "SUBMITTED"
+            status = {"rejected": "REJECTED", "unknown": "UNKNOWN"}.get(result.get("status"), "SUBMITTED")
             self.store.update_attempt(
                 a,
                 status=status,
@@ -388,6 +436,7 @@ class Supervisor:
                 current = self.store.get(position_id)
                 if current["version"] == row["version"]:
                     row.pop("read_failure_exit", None)
+                    row.pop("native_trailing_intervention", None)
                     self._state(
                         row,
                         "INTERVENTION",
@@ -400,6 +449,21 @@ class Supervisor:
     def _step(self, row, now):
         p = row["plan"]
         attempts = self.store.attempts(row["id"])
+        native_trailing = p.get("trailing_provider", "local") == "native"
+        if row.get("adoption") and not row.get("adopted_ms"):
+            if row["cancel_entry"] or row["exit_requested_ms"] is not None:
+                self._state(row, "CLOSED", "Handoff canceled; external position and orders unchanged", now)
+                return
+            if row["state"] != "ADOPTING":
+                return
+            validate_plan(p, now)
+            if not self.live:
+                self._state(row, "PREVIEWED", "Paper handoff; no account reads or ownership imported", now)
+                return
+            from kis_hl.manual_adoption import verify_adoption
+            updates, imported = verify_adoption(self.gateway, row, now)
+            self.store.complete_adoption(row, updates, imported, now)
+            return
         if row["state"] == "ENTERING" and not attempts:
             # Every network write is preceded by an attempt commit; none means unsent.
             self._state(
@@ -482,12 +546,18 @@ class Supervisor:
                 raise ValueError("Invalid order lot/tick")
             if not self.gateway.native_sl and not p["allow_local_sl"]:
                 raise ValueError("No protective provider available")
+            if native_trailing and not getattr(self.gateway, "native_trailing", False):
+                raise ValueError("Native trailing provider unavailable")
+            if native_trailing:
+                row["native_trailing_distance"] = wire_decimal(normalize_quote_retracement(
+                    decimal(p["stop_distance"]), decimal(snap["trailing_price_step"])))
             row["baseline"] = snap.get("baseline", {})
             row["baseline_start_ms"] = snap.get("baseline_start_ms", row["created_ms"])
             row["atr_source"] = snap["atr_source"]
             row["providers"] = {
                 "stop_loss": "native" if self.gateway.native_sl else "local",
-                "trailing": "local",
+                "trailing": "native" if native_trailing else "local",
+                "local_trailing_backup": p.get("local_trailing_backup", False),
             }
             if p.get("signal_id") or p.get("grant_id"):
                 from kis_hl.strategy_signals import Signals
@@ -521,6 +591,7 @@ class Supervisor:
                 "INTERVENTION" if existing_intervention or exhausted else "DEGRADED",
                 f"Account snapshot unavailable ({type(exc).__name__}); consecutive failures={row['read_failures']}; awaiting readback",
                 now,
+                preserve_native_intervention=bool(row.get("native_trailing_intervention")),
             )
             return
         row["read_failures"] = 0
@@ -572,11 +643,13 @@ class Supervisor:
         stops = [
             a
             for a in attempts
-            if a["kind"] == "stop" and a["status"].lower() not in TERMINAL
+            if a["kind"] in {"stop", "trailing"} and a["status"].lower() not in TERMINAL
         ]
         exits = [a for a in attempts if a["kind"] == "exit"]
         unresolved_exits = [a for a in exits if a["status"].lower() not in TERMINAL]
-        if row["state"] == "INTERVENTION":
+        if row["state"] == "INTERVENTION" and not (
+            native_trailing and row.get("native_trailing_intervention")
+        ):
             if size == 0 and not entry_active and not stops and not unresolved_exits:
                 self._state(
                     row,
@@ -612,7 +685,7 @@ class Supervisor:
             trail.threshold = max(
                 trail.threshold, decimal(snap["entry_price"]) - trail.distance
             )
-            if fresh and trail.tick(
+            if (not native_trailing or p.get("local_trailing_backup", False)) and fresh and trail.tick(
                 now,
                 decimal(snap["price"], positive=True),
                 max_gap_ms=p["max_quote_age_ms"],
@@ -622,6 +695,8 @@ class Supervisor:
             if self.gateway.native_sl:
                 covered = Decimal(0)
                 for a in stops:
+                    if a["kind"] != "stop":
+                        continue
                     order = orders.get(a.get("order_id") or a["id"], {})
                     if (
                         order.get("status") == "open"
@@ -650,7 +725,7 @@ class Supervisor:
                             self.store.update_attempt(a, coverage_recorded=order)
                 row["covered_size"] = str(min(size, covered))
                 pending_stops = any(
-                    not orders.get(a.get("order_id") or a["id"]) for a in stops
+                    not orders.get(a.get("order_id") or a["id"]) for a in stops if a["kind"] == "stop"
                 )
                 if covered < size and (
                     now - row["first_fill_ms"] >= p["protection_grace_ms"]
@@ -692,12 +767,55 @@ class Supervisor:
                 row["covered_size"] = str(size if protected else 0)
             if not protected and now - row["first_fill_ms"] >= p["protection_grace_ms"]:
                 row["exit_requested_ms"] = row["exit_requested_ms"] or now
+            if native_trailing:
+                trails = [a for a in attempts if a["kind"] == "trailing"]
+                row["trailing_covered_size"] = "0"
+                if trails:
+                    a = trails[0]
+                    order = orders.get(a.get("order_id"), {})
+                    waiting = False
+                    if not a.get("order_id"):
+                        # Failed enhancement is not loss of the independently verified SL.
+                        row["native_trailing_intervention"] = True
+                        row["state"], row["reason"] = "INTERVENTION", "Native trailing rejected or outcome unknown; retain fixed SL and reconcile manually"
+                    elif a["status"].lower() in TERMINAL:
+                        # Re-creation would reset the exchange watermark.
+                        row.pop("native_trailing_intervention", None)
+                        row["exit_requested_ms"] = row["exit_requested_ms"] or now
+                    elif order.get("trailing_readback_error"):
+                        row["native_trailing_intervention"] = True
+                        row["state"], row["reason"] = "INTERVENTION", "Native trailing condition unverified; retain fixed SL and await valid readback"
+                    elif (order.get("status") == "open" and order.get("kind") == "trailing"
+                          and order.get("side") == "sell" and order.get("reduce_only") is True
+                          and order.get("retracement_unit") == "quote"
+                          and decimal(order.get("retracement", "0")) == decimal(a["retracement"])):
+                        row.pop("native_trailing_intervention", None)
+                        order_size = decimal(order["size"], positive=True)
+                        waiting = order.get("active") is False and order_size >= size
+                        if order.get("active") is True:
+                            row["trailing_covered_size"] = str(min(size, order_size))
+                    if (not row.get("native_trailing_intervention") and not waiting
+                            and decimal(row["trailing_covered_size"]) < size
+                            and now - a["created_ms"] >= p["protection_grace_ms"]):
+                        row["exit_requested_ms"] = row["exit_requested_ms"] or now
+                elif protected and fresh and not entry_active and not row["exit_requested_ms"]:
+                    # Older in-flight rows have no preflight distance yet.
+                    distance = normalize_quote_retracement(
+                        decimal(row.get("native_trailing_distance", trail.distance)),
+                        decimal(snap["trailing_price_step"]))
+                    row["native_trailing_distance"] = wire_decimal(distance)
+                    self._state(row, "PROTECTING", "Fixed SL verified; awaiting native trailing readback", now)
+                    self._send(row, "trailing", now, quantity=str(size), price="0", retracement=str(distance))
+                    return
+                protected = protected and decimal(row["trailing_covered_size"]) >= size
+                if not protected and not row["exit_requested_ms"] and not row.get("native_trailing_intervention"):
+                    row["state"], row["reason"] = "PROTECTING", "Await entry terminality and verified native trailing coverage"
             if protected and fresh and not row["exit_requested_ms"]:
                 row["state"], row["reason"] = (
                     "PROTECTED",
-                    "Coverage verified; local trailing active",
+                    "Coverage verified; native trailing active" if native_trailing else "Coverage verified; local trailing active",
                 )
-        if any(a["kind"] == "stop" and a["status"] == "FILLED" for a in attempts):
+        if any(a["kind"] in {"stop", "trailing"} and a["status"] == "FILLED" for a in attempts):
             row["exit_requested_ms"] = row["exit_requested_ms"] or now
         if row["cancel_entry"] or row["exit_requested_ms"] or now >= p["expires_ms"]:
             row["cancel_started_ms"] = row.get("cancel_started_ms") or now

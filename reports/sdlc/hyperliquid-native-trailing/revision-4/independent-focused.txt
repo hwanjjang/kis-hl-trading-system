@@ -1,0 +1,16 @@
+{"action": "cancel", "level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_cancel_submitted", "oid": 123, "resolved_coin": "BTC", "ts": "2026-09-23T08:53:00.823219+00:00"}
+{"client_request_id": "6855699bf4a44cff9f082fa5ce6d2431", "cloid": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_order_result", "resolved_coin": "BTC", "status": "submitted", "ts": "2026-09-23T08:53:00.824905+00:00"}
+{"client_request_id": "51e9554d09e14930b037f6e1991fbdcb", "cloid": null, "level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_order_result", "resolved_coin": "BTC", "status": "submitted", "ts": "2026-09-23T08:53:00.827118+00:00"}
+{"client_request_id": "eef103660b7d44758223ebcc7c787ea1", "cloid": null, "level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_order_result", "resolved_coin": "BTC", "status": "submitted", "ts": "2026-09-23T08:53:00.829427+00:00"}
+{"client_request_id": "238977d75c32429c9b103d1f0d15db77", "cloid": null, "level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_order_result", "resolved_coin": "BTC", "status": "rejected", "ts": "2026-09-23T08:53:00.830837+00:00"}
+{"error": "Requested side cannot reduce the current position", "level": "ERROR", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_order_failed", "order_coin": "BTC", "resolved_coin": "BTC", "ts": "2026-09-23T08:53:00.831495+00:00"}
+{"level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_order_dry_run", "resolved_coin": "UBTC/USDC", "ts": "2026-09-23T08:53:00.832520+00:00"}
+{"allow_outside_session": false, "allowed": false, "level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_session_decision", "reason": "outside_regular_session", "resolved_coin": "xyz:AAPL", "session_group": "us_cash_equities", "ts": "2026-09-23T08:53:00.833575+00:00"}
+{"allow_outside_session": true, "allowed": false, "level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_session_decision", "reason": "outside_regular_session", "resolved_coin": "xyz:AAPL", "session_group": "us_cash_equities", "ts": "2026-09-23T08:53:00.833967+00:00"}
+{"client_request_id": "6c2afea4ce43493796a9f04905e8ff42", "cloid": null, "level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_order_result", "resolved_coin": "xyz:AAPL", "status": "submitted", "ts": "2026-09-23T08:53:00.834084+00:00"}
+{"client_request_id": "be525244208048158a989e9ccbb55d08", "cloid": null, "level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_order_result", "resolved_coin": "xyz:KR200", "status": "submitted", "ts": "2026-09-23T08:53:00.834576+00:00"}
+{"level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_order_dry_run", "resolved_coin": "xyz:KR200", "ts": "2026-09-23T08:53:00.961293+00:00"}
+----------------------------------------------------------------------
+Ran 132 tests in 9.349s
+
+OK

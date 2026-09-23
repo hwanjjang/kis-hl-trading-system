@@ -100,7 +100,8 @@ def capabilities(key):
             if asset.venue == "hyperliquid"
             else "unverified"
         ),
-        "native_trailing": "unverified",
+        "native_trailing": ("documented_requires_readback" if asset.venue == "hyperliquid" else "unverified"),
+        "native_trailing_policy": "continuous_mark" if asset.venue == "hyperliquid" else None,
         "local_stop_loss": asset.venue == "kis",
         "local_trailing": True,
         "session_and_account_verification_required": True,

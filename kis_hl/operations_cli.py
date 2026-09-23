@@ -142,6 +142,12 @@ def add_commands(sub, journal_sub):
         if action == "submit":
             c.add_argument("--live", action="store_true")
         c.set_defaults(handler=cmd_order)
+    adopt = order_sub.add_parser("adopt", help="Queue explicit management of an existing protected HL long")
+    adopt.add_argument("--input", required=True)
+    adopt.add_argument("--entry-order-id", type=int, required=True)
+    adopt.add_argument("--stop-order-id", type=int, required=True)
+    adopt.add_argument("--live", action="store_true")
+    adopt.set_defaults(handler=cmd_order)
     for action in ["status", "cancel", "exit", "recover"]:
         c = order_sub.add_parser(action)
         c.add_argument("--id", required=True)
@@ -476,6 +482,13 @@ def cmd_journal_sync(args):
 def cmd_order(args):
     store = ExecutionStore(args.db)
     now = int(time.time() * 1000)
+    if args.order_action == "adopt":
+        p = validate_plan(json.loads(Path(args.input).read_text()), now)
+        asset = instrument(p["instrument"])
+        instrument(p["signal_instrument"])
+        scope, _ = scope_client(asset.venue)
+        return store.enqueue_adoption(scope.key, p, entry_order_id=args.entry_order_id,
+                                      stop_order_id=args.stop_order_id, live=args.live, now_ms=now)
     if args.order_action == "prepare":
         from kis_hl.managed_gateways import ManagedKisGateway
 
@@ -538,7 +551,7 @@ def cmd_order(args):
     if row["state"] != "INTERVENTION":
         raise ValueError("Only an intervention state can be recovered")
     row.update(
-        state="ENTERING",
+        state="ADOPTING" if row.get("adoption") and not row.get("adopted_ms") else "ENTERING",
         reason="Explicit recovery requested; budgets and ownership unchanged",
     )
     store.save(row, now)

@@ -1,0 +1,1703 @@
+{
+  "schema_version": 1,
+  "task_id": "hermes-entry-diagram",
+  "mode": "implementation",
+  "change_kind": "non-executable",
+  "endpoint": "local",
+  "criteria": [
+    "AC1",
+    "AC2",
+    "AC3"
+  ],
+  "created_at": "2026-09-23T14:34:27.427565+00:00",
+  "events": [
+    {
+      "at": "2026-09-23T14:34:27.427621+00:00",
+      "action": "initialized",
+      "stage": null
+    },
+    {
+      "at": "2026-09-23T14:34:27.679693+00:00",
+      "action": "iteration-started",
+      "stage": "triage",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-23T14:37:51.056605+00:00",
+      "action": "iteration-finished",
+      "stage": "triage",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained."
+    },
+    {
+      "at": "2026-09-23T14:37:51.240660+00:00",
+      "action": "iteration-started",
+      "stage": "intent",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-23T14:37:51.338253+00:00",
+      "action": "iteration-finished",
+      "stage": "intent",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained."
+    },
+    {
+      "at": "2026-09-23T14:37:51.524467+00:00",
+      "action": "iteration-started",
+      "stage": "investigation",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-23T14:37:51.618419+00:00",
+      "action": "iteration-finished",
+      "stage": "investigation",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained."
+    },
+    {
+      "at": "2026-09-23T14:37:51.811736+00:00",
+      "action": "iteration-started",
+      "stage": "spec",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-23T14:37:51.914514+00:00",
+      "action": "iteration-finished",
+      "stage": "spec",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained."
+    },
+    {
+      "at": "2026-09-23T14:37:52.126075+00:00",
+      "action": "iteration-started",
+      "stage": "design",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-23T14:43:17.249975+00:00",
+      "action": "iteration-finished",
+      "stage": "design",
+      "iteration": 1,
+      "decision": "BLOCKED",
+      "reason": "Delivered candidate passes artifact checks but 1440x900 browser containment still exceeds by 4px after two focused visual corrections. Preserve evidence and continue a renewed SDLC stage attempt within the stable 10-attempt workflow limit."
+    },
+    {
+      "at": "2026-09-23T14:43:17.371769+00:00",
+      "action": "iteration-started",
+      "stage": "design",
+      "iteration": 2
+    },
+    {
+      "at": "2026-09-23T14:45:03.978733+00:00",
+      "action": "iteration-finished",
+      "stage": "design",
+      "iteration": 2,
+      "decision": "PROCEED",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained."
+    },
+    {
+      "at": "2026-09-23T14:45:04.231436+00:00",
+      "action": "iteration-started",
+      "stage": "plan",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-23T14:45:04.365619+00:00",
+      "action": "iteration-finished",
+      "stage": "plan",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained."
+    },
+    {
+      "at": "2026-09-23T14:45:04.597013+00:00",
+      "action": "stage-excluded",
+      "stage": "test-design",
+      "reason": "Non-executable documentation: use source, CLI-help, link, schema, browser and visual checks; runtime TDD/smoke not applicable."
+    },
+    {
+      "at": "2026-09-23T14:45:04.736057+00:00",
+      "action": "iteration-started",
+      "stage": "build",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-23T14:45:22.389465+00:00",
+      "action": "iteration-finished",
+      "stage": "build",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained."
+    },
+    {
+      "at": "2026-09-23T14:45:22.629030+00:00",
+      "action": "iteration-started",
+      "stage": "self-verification",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-23T14:45:41.778878+00:00",
+      "action": "iteration-finished",
+      "stage": "self-verification",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained."
+    },
+    {
+      "at": "2026-09-23T14:45:42.051152+00:00",
+      "action": "iteration-started",
+      "stage": "independent-verification",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-23T14:49:38.997486+00:00",
+      "action": "iteration-finished",
+      "stage": "independent-verification",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained."
+    },
+    {
+      "at": "2026-09-23T14:49:39.295333+00:00",
+      "action": "iteration-started",
+      "stage": "completion",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-23T14:49:39.458252+00:00",
+      "action": "iteration-finished",
+      "stage": "completion",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained."
+    }
+  ],
+  "stages": {
+    "triage": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-23T14:34:27.679656+00:00",
+          "objective": "Document implemented Hermes-originated new-entry flow",
+          "resolution": null,
+          "inputs": [],
+          "finished_at": "2026-09-23T14:37:51.056579+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+            "authority_source": "AK: 계속 after asking for Hermes new-entry diagram; documentation only, no runtime/live/merge change",
+            "candidate": "cc8f48e5a005239e9d397f3f6a7ae2a27300ee09",
+            "next_action": "Continue documentation and local verification",
+            "inputs": [],
+            "outputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+                "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Reviewed actual content and applicable checks; acceptance claims bounded to local behavior.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "intent": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-23T14:37:51.240622+00:00",
+          "objective": "Document implemented Hermes-originated new-entry flow",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+              "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+            }
+          ],
+          "finished_at": "2026-09-23T14:37:51.338218+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+            "authority_source": "AK: 계속 after asking for Hermes new-entry diagram; documentation only, no runtime/live/merge change",
+            "candidate": "cc8f48e5a005239e9d397f3f6a7ae2a27300ee09",
+            "next_action": "Continue documentation and local verification",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+                "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+                "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Reviewed actual content and applicable checks; acceptance claims bounded to local behavior.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "investigation": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-23T14:37:51.524427+00:00",
+          "objective": "Document implemented Hermes-originated new-entry flow",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+              "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+              "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+            }
+          ],
+          "finished_at": "2026-09-23T14:37:51.618358+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+            "authority_source": "AK: 계속 after asking for Hermes new-entry diagram; documentation only, no runtime/live/merge change",
+            "candidate": "cc8f48e5a005239e9d397f3f6a7ae2a27300ee09",
+            "next_action": "Continue documentation and local verification",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+                "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+                "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+                "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Reviewed actual content and applicable checks; acceptance claims bounded to local behavior.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "spec": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-23T14:37:51.811697+00:00",
+          "objective": "Document implemented Hermes-originated new-entry flow",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+              "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+              "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+              "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+            }
+          ],
+          "finished_at": "2026-09-23T14:37:51.914467+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+            "authority_source": "AK: 계속 after asking for Hermes new-entry diagram; documentation only, no runtime/live/merge change",
+            "candidate": "cc8f48e5a005239e9d397f3f6a7ae2a27300ee09",
+            "next_action": "Continue documentation and local verification",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+                "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+                "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+                "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "spec",
+                "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+                "sha256": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Reviewed actual content and applicable checks; acceptance claims bounded to local behavior.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "design": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+      "iteration_limit": 10,
+      "iterations_started": 2,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-23T14:37:52.126025+00:00",
+          "objective": "Document implemented Hermes-originated new-entry flow",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+              "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+              "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+              "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+            },
+            {
+              "kind": "spec",
+              "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+              "sha256": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+            }
+          ],
+          "finished_at": "2026-09-23T14:43:17.249907+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "BLOCKED",
+            "reason": "Delivered candidate passes artifact checks but 1440x900 browser containment still exceeds by 4px after two focused visual corrections. Preserve evidence and continue a renewed SDLC stage attempt within the stable 10-attempt workflow limit.",
+            "authority_source": "AK requested completion of the diagram; SDLC is the workflow owner, routine spacing correction stays within documentation scope.",
+            "candidate": "cc8f48e5a005239e9d397f3f6a7ae2a27300ee09",
+            "next_action": "One diagnosed spacing repair and new artifact/browser/perceptual verification; no reset or false PASS",
+            "inputs": [],
+            "outputs": [
+              {
+                "kind": "failed-browser",
+                "path": "reports/sdlc/hermes-entry-diagram/design/hermes-entry.visual-check.json",
+                "sha256": "0064431e2317b743733513e9f3235ea58835571a98d9a6325cbdc05b77a39ede"
+              }
+            ]
+          }
+        },
+        {
+          "iteration": 2,
+          "started_at": "2026-09-23T14:43:17.371711+00:00",
+          "objective": "Document implemented Hermes-originated new-entry flow",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+              "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+              "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+              "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+            },
+            {
+              "kind": "spec",
+              "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+              "sha256": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+            }
+          ],
+          "finished_at": "2026-09-23T14:45:03.978683+00:00",
+          "receipt": {
+            "iteration": 2,
+            "decision": "PROCEED",
+            "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+            "authority_source": "AK: 계속 after asking for Hermes new-entry diagram; documentation only, no runtime/live/merge change",
+            "candidate": "cc8f48e5a005239e9d397f3f6a7ae2a27300ee09",
+            "next_action": "Continue documentation and local verification",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+                "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+                "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+                "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+              },
+              {
+                "kind": "spec",
+                "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+                "sha256": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/hermes-entry.json",
+                "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/hermes-entry.html",
+                "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/validation.json",
+                "sha256": "5a5048af79f2cabd392e292c5742772df17b1ccf498927fbe624194e8d00e109"
+              },
+              {
+                "kind": "design-delivery",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/delivery.json",
+                "sha256": "68998803df6a676a75f285d7b1d0eda59a7053eef863ab4887380d77c38552ea"
+              },
+              {
+                "kind": "design-browser",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/hermes-entry.visual-check.json",
+                "sha256": "b92a7222c6b770f65ebbd95c81d62330c47860d18925b6d1fa96338234e8abba"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/visual-review.json",
+                "sha256": "92adfd799b853d698748c53fd3b87035409798d18cb76c488a8d035b0549bf42"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Reviewed actual content and applicable checks; acceptance claims bounded to local behavior.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "plan": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-23T14:45:04.231353+00:00",
+          "objective": "Document implemented Hermes-originated new-entry flow",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+              "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+              "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+              "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+            },
+            {
+              "kind": "spec",
+              "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+              "sha256": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/hermes-entry.json",
+              "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/hermes-entry.html",
+              "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/validation.json",
+              "sha256": "5a5048af79f2cabd392e292c5742772df17b1ccf498927fbe624194e8d00e109"
+            },
+            {
+              "kind": "design-delivery",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/delivery.json",
+              "sha256": "68998803df6a676a75f285d7b1d0eda59a7053eef863ab4887380d77c38552ea"
+            },
+            {
+              "kind": "design-browser",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/hermes-entry.visual-check.json",
+              "sha256": "b92a7222c6b770f65ebbd95c81d62330c47860d18925b6d1fa96338234e8abba"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/visual-review.json",
+              "sha256": "92adfd799b853d698748c53fd3b87035409798d18cb76c488a8d035b0549bf42"
+            }
+          ],
+          "finished_at": "2026-09-23T14:45:04.365567+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+            "authority_source": "AK: 계속 after asking for Hermes new-entry diagram; documentation only, no runtime/live/merge change",
+            "candidate": "cc8f48e5a005239e9d397f3f6a7ae2a27300ee09",
+            "next_action": "Continue documentation and local verification",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+                "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+                "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+                "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+              },
+              {
+                "kind": "spec",
+                "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+                "sha256": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/hermes-entry.json",
+                "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/hermes-entry.html",
+                "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/validation.json",
+                "sha256": "5a5048af79f2cabd392e292c5742772df17b1ccf498927fbe624194e8d00e109"
+              },
+              {
+                "kind": "design-delivery",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/delivery.json",
+                "sha256": "68998803df6a676a75f285d7b1d0eda59a7053eef863ab4887380d77c38552ea"
+              },
+              {
+                "kind": "design-browser",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/hermes-entry.visual-check.json",
+                "sha256": "b92a7222c6b770f65ebbd95c81d62330c47860d18925b6d1fa96338234e8abba"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/visual-review.json",
+                "sha256": "92adfd799b853d698748c53fd3b87035409798d18cb76c488a8d035b0549bf42"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "plan",
+                "path": "reports/sdlc/hermes-entry-diagram/plan.md",
+                "sha256": "9a6582ba915dbd5debc49001e20229ac7d722a41257440540f09e8347ce86e88"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Reviewed actual content and applicable checks; acceptance claims bounded to local behavior.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "test-design": {
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "Non-executable documentation: use source, CLI-help, link, schema, browser and visual checks; runtime TDD/smoke not applicable.",
+      "iteration_limit": 10,
+      "iterations_started": 0,
+      "history": []
+    },
+    "build": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-23T14:45:04.735989+00:00",
+          "objective": "Document implemented Hermes-originated new-entry flow",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+              "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+              "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+              "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+            },
+            {
+              "kind": "spec",
+              "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+              "sha256": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/hermes-entry.json",
+              "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/hermes-entry.html",
+              "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/validation.json",
+              "sha256": "5a5048af79f2cabd392e292c5742772df17b1ccf498927fbe624194e8d00e109"
+            },
+            {
+              "kind": "design-delivery",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/delivery.json",
+              "sha256": "68998803df6a676a75f285d7b1d0eda59a7053eef863ab4887380d77c38552ea"
+            },
+            {
+              "kind": "design-browser",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/hermes-entry.visual-check.json",
+              "sha256": "b92a7222c6b770f65ebbd95c81d62330c47860d18925b6d1fa96338234e8abba"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/visual-review.json",
+              "sha256": "92adfd799b853d698748c53fd3b87035409798d18cb76c488a8d035b0549bf42"
+            },
+            {
+              "kind": "plan",
+              "path": "reports/sdlc/hermes-entry-diagram/plan.md",
+              "sha256": "9a6582ba915dbd5debc49001e20229ac7d722a41257440540f09e8347ce86e88"
+            }
+          ],
+          "finished_at": "2026-09-23T14:45:22.389373+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+            "authority_source": "AK: 계속 after asking for Hermes new-entry diagram; documentation only, no runtime/live/merge change",
+            "candidate": "sha256:6f83f2b792df0c4fa1129ac7daf2ea098c284f446a24773c6e421ac8db7fd957",
+            "next_action": "Continue documentation and local verification",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+                "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+                "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+                "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+              },
+              {
+                "kind": "spec",
+                "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+                "sha256": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/hermes-entry.json",
+                "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/hermes-entry.html",
+                "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/validation.json",
+                "sha256": "5a5048af79f2cabd392e292c5742772df17b1ccf498927fbe624194e8d00e109"
+              },
+              {
+                "kind": "design-delivery",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/delivery.json",
+                "sha256": "68998803df6a676a75f285d7b1d0eda59a7053eef863ab4887380d77c38552ea"
+              },
+              {
+                "kind": "design-browser",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/hermes-entry.visual-check.json",
+                "sha256": "b92a7222c6b770f65ebbd95c81d62330c47860d18925b6d1fa96338234e8abba"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/visual-review.json",
+                "sha256": "92adfd799b853d698748c53fd3b87035409798d18cb76c488a8d035b0549bf42"
+              },
+              {
+                "kind": "plan",
+                "path": "reports/sdlc/hermes-entry-diagram/plan.md",
+                "sha256": "9a6582ba915dbd5debc49001e20229ac7d722a41257440540f09e8347ce86e88"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "build",
+                "path": "reports/sdlc/hermes-entry-diagram/build.md",
+                "sha256": "4f18ef090ef191ac42467dcf833d5f3a4603fce6f9ee2564bba4bfa5baeab136"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/hermes-entry-diagram/changes.diff",
+                "sha256": "e8678d20deb984d348a1c0fb669d56fec7e132ec08736d742d98cccb9ca655ff"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "README.md",
+                "sha256": "6464d58e01fb18cb48a8073468c59ac4b0ee7885848bd988850b3add78c6ede6"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/trading-operations.md",
+                "sha256": "30d011045988221157f34bafbaab40ad757fc3612e9bd2602cbda6321036cbce"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture.md",
+                "sha256": "a1ca061df5ce6bbec2c7666a9b887124d41b07b721ed932ec747cf71d5b741b9"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/hermes-entry.json",
+                "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/hermes-entry.html",
+                "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Reviewed actual content and applicable checks; acceptance claims bounded to local behavior.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "self-verification": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-23T14:45:22.628972+00:00",
+          "objective": "Document implemented Hermes-originated new-entry flow",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+              "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+              "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+              "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+            },
+            {
+              "kind": "spec",
+              "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+              "sha256": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/hermes-entry.json",
+              "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/hermes-entry.html",
+              "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/validation.json",
+              "sha256": "5a5048af79f2cabd392e292c5742772df17b1ccf498927fbe624194e8d00e109"
+            },
+            {
+              "kind": "design-delivery",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/delivery.json",
+              "sha256": "68998803df6a676a75f285d7b1d0eda59a7053eef863ab4887380d77c38552ea"
+            },
+            {
+              "kind": "design-browser",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/hermes-entry.visual-check.json",
+              "sha256": "b92a7222c6b770f65ebbd95c81d62330c47860d18925b6d1fa96338234e8abba"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/visual-review.json",
+              "sha256": "92adfd799b853d698748c53fd3b87035409798d18cb76c488a8d035b0549bf42"
+            },
+            {
+              "kind": "plan",
+              "path": "reports/sdlc/hermes-entry-diagram/plan.md",
+              "sha256": "9a6582ba915dbd5debc49001e20229ac7d722a41257440540f09e8347ce86e88"
+            },
+            {
+              "kind": "build",
+              "path": "reports/sdlc/hermes-entry-diagram/build.md",
+              "sha256": "4f18ef090ef191ac42467dcf833d5f3a4603fce6f9ee2564bba4bfa5baeab136"
+            },
+            {
+              "kind": "change-record",
+              "path": "reports/sdlc/hermes-entry-diagram/changes.diff",
+              "sha256": "e8678d20deb984d348a1c0fb669d56fec7e132ec08736d742d98cccb9ca655ff"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "README.md",
+              "sha256": "6464d58e01fb18cb48a8073468c59ac4b0ee7885848bd988850b3add78c6ede6"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/trading-operations.md",
+              "sha256": "30d011045988221157f34bafbaab40ad757fc3612e9bd2602cbda6321036cbce"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture.md",
+              "sha256": "a1ca061df5ce6bbec2c7666a9b887124d41b07b721ed932ec747cf71d5b741b9"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/hermes-entry.json",
+              "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/hermes-entry.html",
+              "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+            }
+          ],
+          "finished_at": "2026-09-23T14:45:41.778834+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+            "authority_source": "AK: 계속 after asking for Hermes new-entry diagram; documentation only, no runtime/live/merge change",
+            "candidate": "sha256:6f83f2b792df0c4fa1129ac7daf2ea098c284f446a24773c6e421ac8db7fd957",
+            "next_action": "Continue documentation and local verification",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+                "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+                "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+                "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+              },
+              {
+                "kind": "spec",
+                "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+                "sha256": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/hermes-entry.json",
+                "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/hermes-entry.html",
+                "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/validation.json",
+                "sha256": "5a5048af79f2cabd392e292c5742772df17b1ccf498927fbe624194e8d00e109"
+              },
+              {
+                "kind": "design-delivery",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/delivery.json",
+                "sha256": "68998803df6a676a75f285d7b1d0eda59a7053eef863ab4887380d77c38552ea"
+              },
+              {
+                "kind": "design-browser",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/hermes-entry.visual-check.json",
+                "sha256": "b92a7222c6b770f65ebbd95c81d62330c47860d18925b6d1fa96338234e8abba"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/visual-review.json",
+                "sha256": "92adfd799b853d698748c53fd3b87035409798d18cb76c488a8d035b0549bf42"
+              },
+              {
+                "kind": "plan",
+                "path": "reports/sdlc/hermes-entry-diagram/plan.md",
+                "sha256": "9a6582ba915dbd5debc49001e20229ac7d722a41257440540f09e8347ce86e88"
+              },
+              {
+                "kind": "build",
+                "path": "reports/sdlc/hermes-entry-diagram/build.md",
+                "sha256": "4f18ef090ef191ac42467dcf833d5f3a4603fce6f9ee2564bba4bfa5baeab136"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/hermes-entry-diagram/changes.diff",
+                "sha256": "e8678d20deb984d348a1c0fb669d56fec7e132ec08736d742d98cccb9ca655ff"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "README.md",
+                "sha256": "6464d58e01fb18cb48a8073468c59ac4b0ee7885848bd988850b3add78c6ede6"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/trading-operations.md",
+                "sha256": "30d011045988221157f34bafbaab40ad757fc3612e9bd2602cbda6321036cbce"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture.md",
+                "sha256": "a1ca061df5ce6bbec2c7666a9b887124d41b07b721ed932ec747cf71d5b741b9"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/hermes-entry.json",
+                "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/hermes-entry.html",
+                "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "self-verification",
+                "path": "reports/sdlc/hermes-entry-diagram/self-verification.md",
+                "sha256": "9d525ef410c76fbd2e7f8983702c13daa989dfccc604b68d87fc2670ce38fc46"
+              },
+              {
+                "kind": "test-results",
+                "path": "reports/sdlc/hermes-entry-diagram/test-results.json",
+                "sha256": "f20d11893ee1dc1274974c452a8d12720524ab7e07a468132ee58b76c346ea0b"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hermes-entry-diagram/document-checks.log",
+                "sha256": "00d5cb7d48535c17b278e2d1d87258c260bc29076c206b999f1e258bfb37ccd2"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Reviewed actual content and applicable checks; acceptance claims bounded to local behavior.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "independent-verification": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-23T14:45:42.051096+00:00",
+          "objective": "Document implemented Hermes-originated new-entry flow",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+              "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+              "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+              "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+            },
+            {
+              "kind": "spec",
+              "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+              "sha256": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/hermes-entry.json",
+              "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/hermes-entry.html",
+              "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/validation.json",
+              "sha256": "5a5048af79f2cabd392e292c5742772df17b1ccf498927fbe624194e8d00e109"
+            },
+            {
+              "kind": "design-delivery",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/delivery.json",
+              "sha256": "68998803df6a676a75f285d7b1d0eda59a7053eef863ab4887380d77c38552ea"
+            },
+            {
+              "kind": "design-browser",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/hermes-entry.visual-check.json",
+              "sha256": "b92a7222c6b770f65ebbd95c81d62330c47860d18925b6d1fa96338234e8abba"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/visual-review.json",
+              "sha256": "92adfd799b853d698748c53fd3b87035409798d18cb76c488a8d035b0549bf42"
+            },
+            {
+              "kind": "plan",
+              "path": "reports/sdlc/hermes-entry-diagram/plan.md",
+              "sha256": "9a6582ba915dbd5debc49001e20229ac7d722a41257440540f09e8347ce86e88"
+            },
+            {
+              "kind": "build",
+              "path": "reports/sdlc/hermes-entry-diagram/build.md",
+              "sha256": "4f18ef090ef191ac42467dcf833d5f3a4603fce6f9ee2564bba4bfa5baeab136"
+            },
+            {
+              "kind": "change-record",
+              "path": "reports/sdlc/hermes-entry-diagram/changes.diff",
+              "sha256": "e8678d20deb984d348a1c0fb669d56fec7e132ec08736d742d98cccb9ca655ff"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "README.md",
+              "sha256": "6464d58e01fb18cb48a8073468c59ac4b0ee7885848bd988850b3add78c6ede6"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/trading-operations.md",
+              "sha256": "30d011045988221157f34bafbaab40ad757fc3612e9bd2602cbda6321036cbce"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture.md",
+              "sha256": "a1ca061df5ce6bbec2c7666a9b887124d41b07b721ed932ec747cf71d5b741b9"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/hermes-entry.json",
+              "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/hermes-entry.html",
+              "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+            },
+            {
+              "kind": "self-verification",
+              "path": "reports/sdlc/hermes-entry-diagram/self-verification.md",
+              "sha256": "9d525ef410c76fbd2e7f8983702c13daa989dfccc604b68d87fc2670ce38fc46"
+            },
+            {
+              "kind": "test-results",
+              "path": "reports/sdlc/hermes-entry-diagram/test-results.json",
+              "sha256": "f20d11893ee1dc1274974c452a8d12720524ab7e07a468132ee58b76c346ea0b"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/hermes-entry-diagram/document-checks.log",
+              "sha256": "00d5cb7d48535c17b278e2d1d87258c260bc29076c206b999f1e258bfb37ccd2"
+            }
+          ],
+          "finished_at": "2026-09-23T14:49:38.997417+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+            "authority_source": "AK: 계속 after asking for Hermes new-entry diagram; documentation only, no runtime/live/merge change",
+            "candidate": "sha256:6f83f2b792df0c4fa1129ac7daf2ea098c284f446a24773c6e421ac8db7fd957",
+            "next_action": "Continue documentation and local verification",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+                "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+                "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+                "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+              },
+              {
+                "kind": "spec",
+                "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+                "sha256": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/hermes-entry.json",
+                "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/hermes-entry.html",
+                "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/validation.json",
+                "sha256": "5a5048af79f2cabd392e292c5742772df17b1ccf498927fbe624194e8d00e109"
+              },
+              {
+                "kind": "design-delivery",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/delivery.json",
+                "sha256": "68998803df6a676a75f285d7b1d0eda59a7053eef863ab4887380d77c38552ea"
+              },
+              {
+                "kind": "design-browser",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/hermes-entry.visual-check.json",
+                "sha256": "b92a7222c6b770f65ebbd95c81d62330c47860d18925b6d1fa96338234e8abba"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/visual-review.json",
+                "sha256": "92adfd799b853d698748c53fd3b87035409798d18cb76c488a8d035b0549bf42"
+              },
+              {
+                "kind": "plan",
+                "path": "reports/sdlc/hermes-entry-diagram/plan.md",
+                "sha256": "9a6582ba915dbd5debc49001e20229ac7d722a41257440540f09e8347ce86e88"
+              },
+              {
+                "kind": "build",
+                "path": "reports/sdlc/hermes-entry-diagram/build.md",
+                "sha256": "4f18ef090ef191ac42467dcf833d5f3a4603fce6f9ee2564bba4bfa5baeab136"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/hermes-entry-diagram/changes.diff",
+                "sha256": "e8678d20deb984d348a1c0fb669d56fec7e132ec08736d742d98cccb9ca655ff"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "README.md",
+                "sha256": "6464d58e01fb18cb48a8073468c59ac4b0ee7885848bd988850b3add78c6ede6"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/trading-operations.md",
+                "sha256": "30d011045988221157f34bafbaab40ad757fc3612e9bd2602cbda6321036cbce"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture.md",
+                "sha256": "a1ca061df5ce6bbec2c7666a9b887124d41b07b721ed932ec747cf71d5b741b9"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/hermes-entry.json",
+                "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/hermes-entry.html",
+                "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+              },
+              {
+                "kind": "self-verification",
+                "path": "reports/sdlc/hermes-entry-diagram/self-verification.md",
+                "sha256": "9d525ef410c76fbd2e7f8983702c13daa989dfccc604b68d87fc2670ce38fc46"
+              },
+              {
+                "kind": "test-results",
+                "path": "reports/sdlc/hermes-entry-diagram/test-results.json",
+                "sha256": "f20d11893ee1dc1274974c452a8d12720524ab7e07a468132ee58b76c346ea0b"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hermes-entry-diagram/document-checks.log",
+                "sha256": "00d5cb7d48535c17b278e2d1d87258c260bc29076c206b999f1e258bfb37ccd2"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "independent-verification",
+                "path": "reports/sdlc/hermes-entry-diagram/independent-verification.md",
+                "sha256": "0392c2a0650e8f7814ed6294efa09c50df07fd025626cca8e2190a4792677abc"
+              },
+              {
+                "kind": "independent-checks",
+                "path": "reports/sdlc/hermes-entry-diagram/verifier-offline-checks.json",
+                "sha256": "0ec1e7d53eec7cde0a2836c492e2164df66c73671ebdc9a69c15c2bc9c7e9cba"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Reviewed actual content and applicable checks; acceptance claims bounded to local behavior.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3"
+              ]
+            },
+            "verifier": {
+              "independent": true,
+              "context_id": "/root/hermes_entry_verify",
+              "builder_context_id": "/root",
+              "checks": "Fresh non-builder independently compared five candidate files to CLI/supervisor/gateway/signal source, recomputed hashes, verified links/browser binding, checked diff and inspected exact screenshot; see report for evidence reuse limits."
+            }
+          }
+        }
+      ]
+    },
+    "pr-review": {
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "Excluded by implementation/local route",
+      "iteration_limit": 10,
+      "iterations_started": 0,
+      "history": []
+    },
+    "correction": {
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No correction requested",
+      "iteration_limit": 10,
+      "iterations_started": 0,
+      "history": []
+    },
+    "merge": {
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "Excluded by implementation/local route",
+      "iteration_limit": 10,
+      "iterations_started": 0,
+      "history": []
+    },
+    "completion": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-23T14:49:39.295271+00:00",
+          "objective": "Document implemented Hermes-originated new-entry flow",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+              "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+              "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+              "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+            },
+            {
+              "kind": "spec",
+              "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+              "sha256": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/hermes-entry.json",
+              "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/hermes-entry.html",
+              "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/validation.json",
+              "sha256": "5a5048af79f2cabd392e292c5742772df17b1ccf498927fbe624194e8d00e109"
+            },
+            {
+              "kind": "design-delivery",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/delivery.json",
+              "sha256": "68998803df6a676a75f285d7b1d0eda59a7053eef863ab4887380d77c38552ea"
+            },
+            {
+              "kind": "design-browser",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/hermes-entry.visual-check.json",
+              "sha256": "b92a7222c6b770f65ebbd95c81d62330c47860d18925b6d1fa96338234e8abba"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/hermes-entry-diagram/design-final/visual-review.json",
+              "sha256": "92adfd799b853d698748c53fd3b87035409798d18cb76c488a8d035b0549bf42"
+            },
+            {
+              "kind": "plan",
+              "path": "reports/sdlc/hermes-entry-diagram/plan.md",
+              "sha256": "9a6582ba915dbd5debc49001e20229ac7d722a41257440540f09e8347ce86e88"
+            },
+            {
+              "kind": "build",
+              "path": "reports/sdlc/hermes-entry-diagram/build.md",
+              "sha256": "4f18ef090ef191ac42467dcf833d5f3a4603fce6f9ee2564bba4bfa5baeab136"
+            },
+            {
+              "kind": "change-record",
+              "path": "reports/sdlc/hermes-entry-diagram/changes.diff",
+              "sha256": "e8678d20deb984d348a1c0fb669d56fec7e132ec08736d742d98cccb9ca655ff"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "README.md",
+              "sha256": "6464d58e01fb18cb48a8073468c59ac4b0ee7885848bd988850b3add78c6ede6"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/trading-operations.md",
+              "sha256": "30d011045988221157f34bafbaab40ad757fc3612e9bd2602cbda6321036cbce"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture.md",
+              "sha256": "a1ca061df5ce6bbec2c7666a9b887124d41b07b721ed932ec747cf71d5b741b9"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/hermes-entry.json",
+              "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/hermes-entry.html",
+              "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+            },
+            {
+              "kind": "self-verification",
+              "path": "reports/sdlc/hermes-entry-diagram/self-verification.md",
+              "sha256": "9d525ef410c76fbd2e7f8983702c13daa989dfccc604b68d87fc2670ce38fc46"
+            },
+            {
+              "kind": "test-results",
+              "path": "reports/sdlc/hermes-entry-diagram/test-results.json",
+              "sha256": "f20d11893ee1dc1274974c452a8d12720524ab7e07a468132ee58b76c346ea0b"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/hermes-entry-diagram/document-checks.log",
+              "sha256": "00d5cb7d48535c17b278e2d1d87258c260bc29076c206b999f1e258bfb37ccd2"
+            },
+            {
+              "kind": "independent-verification",
+              "path": "reports/sdlc/hermes-entry-diagram/independent-verification.md",
+              "sha256": "0392c2a0650e8f7814ed6294efa09c50df07fd025626cca8e2190a4792677abc"
+            },
+            {
+              "kind": "independent-checks",
+              "path": "reports/sdlc/hermes-entry-diagram/verifier-offline-checks.json",
+              "sha256": "0ec1e7d53eec7cde0a2836c492e2164df66c73671ebdc9a69c15c2bc9c7e9cba"
+            }
+          ],
+          "finished_at": "2026-09-23T14:49:39.458203+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Assessed documentation deliverables against AC1-AC3; exact evidence retained.",
+            "authority_source": "AK: 계속 after asking for Hermes new-entry diagram; documentation only, no runtime/live/merge change",
+            "candidate": "sha256:6f83f2b792df0c4fa1129ac7daf2ea098c284f446a24773c6e421ac8db7fd957",
+            "next_action": "Continue documentation and local verification",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/hermes-entry-diagram/triage.md",
+                "sha256": "39445d78f92d7e2e10dc65c7a35631b9dc7f12926b581a30f6694d35774f9f8a"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/hermes-entry-diagram/intent.md",
+                "sha256": "5550049891da2be1770319dbf508375fb24cfac8e27ec2def2e74d752540962b"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/hermes-entry-diagram/investigation.md",
+                "sha256": "a86483faf55916b1d1960c1fe709e793b44182fdfe8dcc5933b2662ef1ca0252"
+              },
+              {
+                "kind": "spec",
+                "path": "reports/sdlc/hermes-entry-diagram/spec.md",
+                "sha256": "e88e725b95bb4ed867bc43918347879481acfd1d153af817629fa41ecc0bf891"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/hermes-entry.json",
+                "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/hermes-entry.html",
+                "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/validation.json",
+                "sha256": "5a5048af79f2cabd392e292c5742772df17b1ccf498927fbe624194e8d00e109"
+              },
+              {
+                "kind": "design-delivery",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/delivery.json",
+                "sha256": "68998803df6a676a75f285d7b1d0eda59a7053eef863ab4887380d77c38552ea"
+              },
+              {
+                "kind": "design-browser",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/hermes-entry.visual-check.json",
+                "sha256": "b92a7222c6b770f65ebbd95c81d62330c47860d18925b6d1fa96338234e8abba"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/hermes-entry-diagram/design-final/visual-review.json",
+                "sha256": "92adfd799b853d698748c53fd3b87035409798d18cb76c488a8d035b0549bf42"
+              },
+              {
+                "kind": "plan",
+                "path": "reports/sdlc/hermes-entry-diagram/plan.md",
+                "sha256": "9a6582ba915dbd5debc49001e20229ac7d722a41257440540f09e8347ce86e88"
+              },
+              {
+                "kind": "build",
+                "path": "reports/sdlc/hermes-entry-diagram/build.md",
+                "sha256": "4f18ef090ef191ac42467dcf833d5f3a4603fce6f9ee2564bba4bfa5baeab136"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/hermes-entry-diagram/changes.diff",
+                "sha256": "e8678d20deb984d348a1c0fb669d56fec7e132ec08736d742d98cccb9ca655ff"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "README.md",
+                "sha256": "6464d58e01fb18cb48a8073468c59ac4b0ee7885848bd988850b3add78c6ede6"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/trading-operations.md",
+                "sha256": "30d011045988221157f34bafbaab40ad757fc3612e9bd2602cbda6321036cbce"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture.md",
+                "sha256": "a1ca061df5ce6bbec2c7666a9b887124d41b07b721ed932ec747cf71d5b741b9"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/hermes-entry.json",
+                "sha256": "40fcdaa7ab826348fa3843c62f111329d17aeaaa86edb2aa0ae70b68b6d82ee9"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/hermes-entry.html",
+                "sha256": "b05d703f1ebcb0d055127e8737b6cd8f5f1d4d29bb65deee161a89cfc6390860"
+              },
+              {
+                "kind": "self-verification",
+                "path": "reports/sdlc/hermes-entry-diagram/self-verification.md",
+                "sha256": "9d525ef410c76fbd2e7f8983702c13daa989dfccc604b68d87fc2670ce38fc46"
+              },
+              {
+                "kind": "test-results",
+                "path": "reports/sdlc/hermes-entry-diagram/test-results.json",
+                "sha256": "f20d11893ee1dc1274974c452a8d12720524ab7e07a468132ee58b76c346ea0b"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/hermes-entry-diagram/document-checks.log",
+                "sha256": "00d5cb7d48535c17b278e2d1d87258c260bc29076c206b999f1e258bfb37ccd2"
+              },
+              {
+                "kind": "independent-verification",
+                "path": "reports/sdlc/hermes-entry-diagram/independent-verification.md",
+                "sha256": "0392c2a0650e8f7814ed6294efa09c50df07fd025626cca8e2190a4792677abc"
+              },
+              {
+                "kind": "independent-checks",
+                "path": "reports/sdlc/hermes-entry-diagram/verifier-offline-checks.json",
+                "sha256": "0ec1e7d53eec7cde0a2836c492e2164df66c73671ebdc9a69c15c2bc9c7e9cba"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "completion",
+                "path": "reports/sdlc/hermes-entry-diagram/completion.md",
+                "sha256": "e4edc6dc1150108821a729f0ca4ff568ae66697e811a42134c8e0bd66a987c41"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Reviewed actual content and applicable checks; acceptance claims bounded to local behavior.",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Native Trailing: Corrected Protection Flow",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1100,
+      610
+    ]
+  },
+  "participants": [
+    {
+      "id": "supervisor",
+      "type": "backend",
+      "label": "Supervisor"
+    },
+    {
+      "id": "store",
+      "type": "database",
+      "label": "SQLite"
+    },
+    {
+      "id": "exchange",
+      "type": "external",
+      "label": "Hyperliquid"
+    }
+  ],
+  "messages": [
+    {
+      "id": "step-1",
+      "from": "supervisor",
+      "to": "exchange",
+      "y": 160,
+      "label": "Before entry: read asset precision"
+    },
+    {
+      "id": "step-2",
+      "from": "supervisor",
+      "to": "store",
+      "y": 200,
+      "label": "Persist valid normalized ATR distance"
+    },
+    {
+      "id": "step-3",
+      "from": "supervisor",
+      "to": "exchange",
+      "y": 240,
+      "label": "Enter; confirm terminal fill and fixed SL"
+    },
+    {
+      "id": "step-4",
+      "from": "supervisor",
+      "to": "store",
+      "y": 280,
+      "label": "Persist attempt before transmission"
+    },
+    {
+      "id": "step-5",
+      "from": "supervisor",
+      "to": "exchange",
+      "y": 320,
+      "label": "Submit trailingStop once; keep fixed SL"
+    },
+    {
+      "id": "step-6",
+      "from": "exchange",
+      "to": "supervisor",
+      "y": 360,
+      "label": "Rejected / no ID: retain SL, intervene",
+      "variant": "return"
+    },
+    {
+      "id": "step-7",
+      "from": "supervisor",
+      "to": "exchange",
+      "y": 400,
+      "label": "Known ID: verify order and conditions"
+    },
+    {
+      "id": "step-8",
+      "from": "exchange",
+      "to": "supervisor",
+      "y": 440,
+      "label": "Open waiting: PROTECTING; no timer exit",
+      "variant": "return"
+    },
+    {
+      "id": "step-9",
+      "from": "exchange",
+      "to": "supervisor",
+      "y": 480,
+      "label": "Active and matched: PROTECTED",
+      "variant": "return"
+    },
+    {
+      "id": "step-10",
+      "from": "supervisor",
+      "to": "exchange",
+      "y": 520,
+      "label": "Accepted trail terminal: exit residual"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Before entry",
+      "items": [
+        "Use distance precision, not current-price grid.",
+        "Reject a zero result before creating exposure."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Retain fixed protection",
+      "items": [
+        "Rejection: monitor SL; no retry or adoption.",
+        "Waiting: zero active trail coverage; no timeout exit."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Verify each transition",
+      "items": [
+        "Quote distance must match; activation stays immediate.",
+        "After flat: cancel both stops and confirm terminal."
+      ]
+    }
+  ]
+}

@@ -54,6 +54,8 @@ limits are decimal strings; durations and UTC epoch milliseconds are integers.
 | `allow_local_sl` | Explicit acceptance of worker-dependent SL when native SL is unavailable |
 | `expires_ms` | Entry intent expiry; it does not remove protection from an existing position |
 | `verified_price_step` | Additionally required for KIS; exact permitted price increment for the selected instrument/session |
+| `trailing_provider` | New HL perpetual plans default `native`; KIS defaults `local` |
+| `local_trailing_backup` | Defaults true with native: concurrent local nine-minute exits; explicitly false disables backup |
 | `harness` | Optional evidenced origin label, such as `codex`, `claude-code` or `hermes` |
 
 Exposure limits are gross notional, not leverage-normalized economic exposure or
@@ -84,14 +86,165 @@ legacy enrollment in an instrument already owned by the new supervisor. This is
 a local-host contract, not a distributed lock or protection against direct venue UI
 actions or applications using a different database.
 
+## Harness-originated entry
+
+[Explore the Hermes entry and management diagram](architecture/hermes-entry.html).
+This is the current Hyperliquid **new-entry** path. Hermes supplies a structured
+plan through the same CLI as other harnesses; no Hermes SDK integration is required.
+The plan must express the user/strategy's authorized size and risk limits, with
+`harness: "hermes"` when that origin is evidenced. For a position already entered
+outside the system, use [manual position handoff](#manual-position-handoff) instead.
+
+1. Hermes calls `order prepare` for execution-market ATR, then `order preview`
+   on the returned plan object. These calls do not submit an order. Preparation
+   does not choose the strategy or authorize risk limits for the user.
+2. `order submit` validates and persists a `QUEUED` intent in SQLite. The returned
+   position ID identifies the request; it is not evidence of an exchange fill.
+3. A separately running account supervisor consumes that queue. Immediately before
+   entry, it checks current account/market data, ownership, eligibility, risk and
+   authority, then persists the normalized native distance and order attempt before
+   transmission. Paper requests reach `PREVIEWED` without placing orders.
+4. Actual partial fills receive fixed-SL protection. With the new Hyperliquid
+   defaults, the same supervisor also runs the local nine-minute backup; after
+   terminal entry and verified full fixed-SL coverage it submits native trailing
+   once. Verified active readback establishes native trailing coverage; an open
+   waiting order is not active coverage. Either policy can trigger an exit, with
+   reduce-only local exits reconciling the remaining position and flat cleanup
+   cancelling residual protection.
+
+For authorized live execution, both `order submit` and `supervisor run` require
+`--live`. Use the same database, configured account and mode. Start one durable
+`supervisor run --venue hyperliquid --live` process only if that account's worker
+is not already running; `--once` performs one pass and is not ongoing management.
+Hermes can inspect progress with `order status --id POSITION_ID` and return to the
+user while the supervisor continues. The local backup requires that worker to stay
+alive; a conversation session is not the protection loop. See the
+[protection contract and rollout limits](#protection-and-controls) for failures,
+provider overrides and the still-unverified live exchange contract.
+
+An optional registered-signal path uses `signal execute --id ID --input PLAN --manual` or `--grant ID` instead of `order submit`, and queues into the same
+supervisor. Live signal execution also needs `--live`. Signal ingestion alone
+never authorizes a trade; the supervisor rechecks signal/grant authority before
+entry. See [strategy signals and grants](#future-strategy-skills) for their bounded
+authority and external strategy-evaluation boundary.
+
+## Manual position handoff
+
+[Explore the handoff and management diagram](architecture/manual-position-handoff.html).
+A harness such as Hermes calls the same CLI; this does not require or claim a Hermes
+SDK integration. It supplies explicit account configuration, a shared database,
+entry/SL order IDs, a unique intent and an agreed risk plan. A durable supervisor
+process, not the agent conversation, owns the ongoing loop.
+
+1. Query the existing long, complete entry fills and open orders. This admission
+   supports one fully filled, flat-to-long entry whose original quantity and weighted
+   average still match the account. Additions, reductions, foreign orders, missing
+   retention evidence and a legacy manager owning the coin block admission.
+2. Prepare the plan fields above; quantity and limit_price must equal the actual
+   entry quantity and average. `order prepare` can refresh ATR from execution-market
+   daily bars. Policy numbers are explicit user/strategy inputs, never invented by
+   the harness. Set `harness` to `hermes` when evidenced.
+3. Supply an existing full-sized reduce-only native Stop Market SL at or above the
+   ATR risk floor. If none exists, establish and verify it separately under the
+   chosen policy first; adoption creates no entry or fixed-SL order.
+4. Queue the handoff. Without `--live` this is paper-only. The running account
+   supervisor can consume it without releasing its process lock:
+
+```bash
+python -m kis_hl.cli --db data/kis_hl.sqlite order adopt --input handoff-plan.json --entry-order-id ENTRY_OID --stop-order-id SL_OID --live
+python -m kis_hl.cli --db data/kis_hl.sqlite order status --id POSITION_ID
+# Start this only if the same account supervisor is not already running.
+python -m kis_hl.cli --db data/kis_hl.sqlite supervisor run --venue hyperliquid --live
+```
+
+`ADOPTING` means queued, not protected by this system yet. Under the account lock,
+the supervisor checks current risk/ATR, original ledger, quantity/average, eligibility,
+existing SL and ownership, then atomically imports the two known order IDs and marks
+`PROTECTING`. The next reconciliation submits native trailing once, while the same
+worker runs the local backup. `PROTECTED` still requires verified active native
+coverage. Fixed SL persists throughout. Local tracking starts at admission; earlier
+highs are not reconstructed, and native tracking starts at exchange activation.
+
+Failed admission stays `INTERVENTION` without imported attempts or broker writes.
+After correcting evidence, `order recover --id POSITION_ID` retries admission.
+`order cancel` or `order exit` before admission cancels only the handoff; the external
+position and orders remain unchanged. These paths never generate a new entry.
+After admission, the ordinary exit/recovery/cleanup rules apply. Duplicate intent,
+active owners and previously owned native IDs cannot be adopted again. The imported
+SL counts as one owned stop for the existing protection attempt budget.
+
+Keep the supervisor alive beyond the harness session using the host's process
+manager. Use the same DB and one account supervisor; do not run legacy
+`trailing run` for that asset alongside it. Historical legacy registrations remain
+local. Imported entry/SL fills retain their original journal attribution; new
+supervisor orders can carry the management harness/strategy. Adoption does not prove
+that the original manual entry was generated by that strategy. Reconcile/close active
+adoptions before rolling back to code without this state support.
+
 ## Protection and controls
 
 SL and trailing providers are selected independently. Eligible HL perpetuals use
 native reduce-only sell Stop Market protection after actual partial fills, with
-local trailing. Coverage requires account/order/instrument/side/trigger readback;
+native trailing with concurrent local backup by default for new plans. Coverage requires account/order/instrument/side/trigger readback;
 an acknowledgement is insufficient. KIS uses local SL and trailing. Neither an HTS
 feature, `CNDT_PRIC`, nor a stop-limit label proves protective Open API SELL support.
-Native trailing remains unverified for both venues.
+Hyperliquid documents native trailing for perpetuals. New HL plans normalize an
+omitted provider to `"trailing_provider": "native"` and `"local_trailing_backup": true`.
+Explicit `"local"` selects local-only management; native with backup false selects
+native-only trailing. KIS defaults local and rejects native. Existing persisted
+plans retain their settings; absent historical selectors mean local, and an absent
+historical backup field does not silently enable a second policy.
+
+Native mode follows the best **continuous mark price** since exchange activation,
+using the plan's frozen ATR distance rounded down to the distance's own precision
+(metadata decimal tick and five significant figures, with integer exemption).
+The normalized distance is persisted before entry; a distance that rounds to zero
+blocks entry.
+The local backup uses the nine-minute policy below concurrently. Either native
+execution or a local threshold breach may begin closing exposure. Local breaches
+persist the supervisor's one exit intent and use bounded reduce-only IOC exits;
+there is no second worker, automatic provider switch or native retry. Native waiting,
+unknown or condition-parser intervention does not suppress an independently triggered
+local exit; unrelated account/identity intervention still freezes automation. Pending
+exits are reconciled before retry and partial native fills reduce subsequent local
+exit quantity. Both exchange protections remain until verified flat cleanup. The supervisor first covers
+actual partial fills with fixed native SL orders, then submits one reduce-only
+trailing order after the entry is terminal and fixed SL coverage is verified.
+The fixed SL remains active to preserve the original risk floor. Waiting for the
+entry remainder can delay native trailing activation; it does not delay fixed SL.
+Status exposes `providers.trailing` and `trailing_covered_size` separately from
+fixed `covered_size`. An acknowledgement alone does not establish coverage.
+
+The adapter uses the `trailingStop` action observed in the official app on
+2026-09-22, SDK asset resolution and L1 signing, and ordinary order-ID query/cancel.
+The observed action has no client order ID. A timeout or acknowledgement without
+a usable native order ID therefore enters `INTERVENTION`: never blindly resend
+or adopt another order by matching size/time. Retain fixed SL and reconcile in
+the venue before recovery. Explicit rejection also enters intervention without
+resending or exiting solely because the trailing submission failed. This native
+submission intervention continues fixed-SL monitoring and permits an explicit exit;
+unrelated ownership, order identity/type/direction/size and known policy mismatches
+still freeze automatic actions. An unparseable trailing condition on an otherwise
+validated owned order instead records `trailing_readback_error`, claims zero
+trailing coverage, and retains fixed-SL monitoring and explicit exits under native
+intervention. Valid matching readback of the same ID restores waiting/active
+management without a new submission. Known-ID terminal status still requests a
+residual exit even if its condition cannot be parsed. Generic intervention (including
+exit-budget exhaustion) clears this exception; temporary transport failure preserves
+it so fixed-SL supervision resumes when account reads recover.
+A verified full-sized open trailing order with `best waiting` (or omitted best)
+remains `PROTECTING` with zero active trailing coverage. Waiting alone never causes
+a timeout exit while fixed SL is verified. Active matching readback establishes
+trailing coverage. Fixed-SL coverage loss retains its existing grace/exit policy;
+termination of an accepted trail still latches a residual exit instead of
+recreating a trail with a reset watermark. Flat cleanup requires both
+fixed SL and trailing orders to be confirmed terminal. Live acceptance, response
+shapes and exchange execution have **not** been exercised; unexpected condition
+formats never count as trailing protection. See the [API contract](../.agents/skills/hyperliquid-api/references/exchange-endpoint.md#native-trailing-stop).
+
+Existing positions are never migrated automatically. Before rolling back to a
+version without native support, reconcile and close native-managed positions and
+their owned orders. Switching an active plan to local is not a recovery action.
 
 The existing trailing rule is preserved: initial floor equals actual entry minus
 frozen ATR distance; complete continuous nine-minute buckets can raise the
