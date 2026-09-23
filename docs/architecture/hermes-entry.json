@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Hermes \u2014 New Entry and Managed Protection",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1080,
+      572
+    ]
+  },
+  "participants": [
+    {
+      "id": "harness",
+      "type": "external",
+      "label": "Hermes",
+      "sublabel": "authorized CLI caller"
+    },
+    {
+      "id": "commands",
+      "type": "backend",
+      "label": "Trading CLI",
+      "sublabel": "prepare \u00b7 preview \u00b7 submit"
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "SQLite",
+      "sublabel": "intents + attempts"
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "Supervisor",
+      "sublabel": "account lock + polling"
+    },
+    {
+      "id": "venue",
+      "type": "cloud",
+      "label": "Hyperliquid",
+      "sublabel": "orders + fills"
+    }
+  ],
+  "messages": [
+    {
+      "id": "prepare",
+      "from": "harness",
+      "to": "commands",
+      "y": 160,
+      "label": "prepare / preview"
+    },
+    {
+      "id": "enqueue",
+      "from": "commands",
+      "to": "ledger",
+      "y": 193,
+      "label": "submit \u2192 QUEUED",
+      "variant": "emphasis"
+    },
+    {
+      "id": "consume",
+      "from": "ledger",
+      "to": "worker",
+      "y": 226,
+      "label": "account + mode",
+      "variant": "emphasis"
+    },
+    {
+      "id": "preflight",
+      "from": "worker",
+      "to": "venue",
+      "y": 259,
+      "label": "preflight reads"
+    },
+    {
+      "id": "persist",
+      "from": "worker",
+      "to": "ledger",
+      "y": 292,
+      "label": "persist before send",
+      "variant": "security"
+    },
+    {
+      "id": "entry",
+      "from": "worker",
+      "to": "venue",
+      "y": 325,
+      "label": "entry \u2192 fixed SL",
+      "variant": "emphasis"
+    },
+    {
+      "id": "readback",
+      "from": "venue",
+      "to": "worker",
+      "y": 358,
+      "label": "fills + SL coverage",
+      "variant": "return"
+    },
+    {
+      "id": "native",
+      "from": "worker",
+      "to": "venue",
+      "y": 391,
+      "label": "native trail once",
+      "variant": "security"
+    },
+    {
+      "id": "local",
+      "from": "worker",
+      "to": "venue",
+      "y": 424,
+      "label": "local exit if hit",
+      "variant": "security"
+    },
+    {
+      "id": "cleanup",
+      "from": "worker",
+      "to": "venue",
+      "y": 457,
+      "label": "flat \u2192 cancel guards"
+    },
+    {
+      "id": "closed",
+      "from": "worker",
+      "to": "ledger",
+      "y": 488,
+      "label": "verified CLOSED",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "CLI handoff",
+      "items": [
+        "Hermes invokes the shared CLI; submit queues, never fills.",
+        "Use --live on submit AND the separately running worker.",
+        "Same DB/account; paper intents finish as PREVIEWED."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Default: native + local",
+      "items": [
+        "Partial fills get fixed SL. Terminal entry + verified SL allow one native trail.",
+        "Native tracks mark; matching active readback confirms coverage. Local nine-minute tracking can start earlier.",
+        "Keep the worker running for local exits, residual reconciliation and flat cleanup."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Authority and limits",
+      "items": [
+        "Optional signal execute requires --manual OR a scoped --grant. Ingestion grants no authority.",
+        "Preflight and authority precede entry. Exits use reduce-only orders and a shared attempt ledger.",
+        "Live exchange contract unverified. Manual positions use order adopt."
+      ]
+    }
+  ]
+}

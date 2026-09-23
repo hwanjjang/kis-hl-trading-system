@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Manual BTC Entry \u2192 Durable Management",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1080,
+      480
+    ]
+  },
+  "participants": [
+    {
+      "id": "operator",
+      "type": "external",
+      "label": "User",
+      "sublabel": "manual entry"
+    },
+    {
+      "id": "harness",
+      "type": "frontend",
+      "label": "Hermes",
+      "sublabel": "agent harness"
+    },
+    {
+      "id": "store",
+      "type": "database",
+      "label": "SQLite",
+      "sublabel": "same account DB"
+    },
+    {
+      "id": "supervisor",
+      "type": "backend",
+      "label": "Supervisor",
+      "sublabel": "persistent worker"
+    },
+    {
+      "id": "exchange",
+      "type": "cloud",
+      "label": "Hyperliquid",
+      "sublabel": "native protection"
+    }
+  ],
+  "segments": [],
+  "messages": [
+    {
+      "id": "manual-fill",
+      "from": "operator",
+      "to": "exchange",
+      "y": 166,
+      "label": "Fill single long + fixed SL",
+      "variant": "emphasis"
+    },
+    {
+      "id": "supply-policy",
+      "from": "operator",
+      "to": "harness",
+      "y": 194,
+      "label": "IDs + risk policy",
+      "variant": "default"
+    },
+    {
+      "id": "queue-handoff",
+      "from": "harness",
+      "to": "store",
+      "y": 222,
+      "label": "order adopt \u2192 ADOPTING",
+      "variant": "emphasis"
+    },
+    {
+      "id": "verify-account",
+      "from": "supervisor",
+      "to": "exchange",
+      "y": 250,
+      "label": "Locked admission check",
+      "variant": "default"
+    },
+    {
+      "id": "import-owned",
+      "from": "supervisor",
+      "to": "store",
+      "y": 278,
+      "label": "Atomic owned IDs",
+      "variant": "security"
+    },
+    {
+      "id": "send-native",
+      "from": "supervisor",
+      "to": "exchange",
+      "y": 306,
+      "label": "Next poll: trail once",
+      "variant": "emphasis"
+    },
+    {
+      "id": "trail-readback",
+      "from": "exchange",
+      "to": "supervisor",
+      "y": 334,
+      "label": "Active match / waiting",
+      "variant": "return"
+    },
+    {
+      "id": "persist-status",
+      "from": "supervisor",
+      "to": "store",
+      "y": 362,
+      "label": "Active \u2192 PROTECTED",
+      "variant": "emphasis"
+    },
+    {
+      "id": "exit-cleanup",
+      "from": "supervisor",
+      "to": "exchange",
+      "y": 390,
+      "label": "Either exit + cleanup",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Hermes hands off; worker persists",
+      "items": [
+        "order adopt --input PLAN --entry-order-id ID --stop-order-id ID [--live]",
+        "Explicit risk + IDs \u2192 SQLite ADOPTING; no broker write. Same DB, persistent Supervisor. No Hermes SDK integration; no --live \u2192 PREVIEWED."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Validate before importing",
+      "items": [
+        "Full fill ledger, size/average, risk, fixed SL and exclusive ownership \u2192 atomic PROTECTING. No new entry.",
+        "Invalid \u2192 INTERVENTION; recover \u2192 ADOPTING. Pending cancel only cancels handoff. Preserve fill provenance and historical policies."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Native + local monitor together",
+      "items": [
+        "New native plans: local_trailing_backup=true. Native continuous + local nine-minute trail; either may exit. Local orders reduce-only.",
+        "Keep fixed SL/native until flat; reconcile residual and cleanup. UNKNOWN: no resend/provider switch. Historical absent-field behavior unchanged."
+      ]
+    }
+  ]
+}

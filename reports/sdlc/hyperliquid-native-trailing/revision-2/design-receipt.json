@@ -1,0 +1,72 @@
+{
+  "iteration": 3,
+  "decision": "PROCEED",
+  "reason": "Assessed corrective deliverables against accepted PR findings and AC1-AC4; exact evidence retained.",
+  "authority_source": "AK: PR\uc5d0 \ub313\uae00\uc744 \ub0a8\uae30\uace0, SDLC\uc5d0 \ub530\ub77c \uc218\uc815 \uc9c4\ud589; prior Make pr; no merge/live authority",
+  "candidate": "sha256:c0d6ed5976b9b61f90ad87e20c4ed8a4ec3472364bd41018e550bc46acb4d9c5",
+  "next_action": "Continue authorized correction and PR update",
+  "inputs": [
+    {
+      "kind": "triage",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/triage.md",
+      "sha256": "82e3db16b7c00e617085a480f86cd7c0fc0a57085d8b96819cbceaefef645f1f"
+    },
+    {
+      "kind": "intent",
+      "path": "intent/hyperliquid-native-trailing.md",
+      "sha256": "0f8f289c466d9a9ac486e6f9f2c7d0346b0b18ed1f843533dfb72e6a6fe4bcb2"
+    },
+    {
+      "kind": "investigation",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/investigation.md",
+      "sha256": "043d7f24f295e38f59b20c5ff42701940ff826466d3975b5b35071484775aa0f"
+    },
+    {
+      "kind": "spec",
+      "path": "specs/hyperliquid-native-trailing.md",
+      "sha256": "160ebc764f8a76e93e0e1c067c29cd09f22fdc1f8075c74fb5e70d02501f05a0"
+    }
+  ],
+  "outputs": [
+    {
+      "kind": "design-source",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/design/native-trailing.json",
+      "sha256": "99ccee51335ccec727b438c615d06bae2d220b275f3ff2f6d4df77e0f64e1681"
+    },
+    {
+      "kind": "design-html",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/design/native-trailing.html",
+      "sha256": "0f68cff41c47f260c9d5d55378e6cab88b22b9c434a8f4fa45529d7dcef206fa"
+    },
+    {
+      "kind": "design-validation",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/design/validation.json",
+      "sha256": "820e2f3bc8c50e0ad2ad602ff6ebe5dfc59fbfbda55ad021561180517e7e8715"
+    },
+    {
+      "kind": "design-delivery",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/design/delivery.json",
+      "sha256": "6e214f0d1dc12901ced75ab76ec744d91baf51a3cf8b412927dfd0549d9fe3e6"
+    },
+    {
+      "kind": "design-browser",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/design/native-trailing.visual-check.json",
+      "sha256": "4ea51fe0d78eb527c073893ea31ad5fe753a42a85973e791c14d6862928c449d"
+    },
+    {
+      "kind": "visual-review",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/design/perceptual-review.json",
+      "sha256": "55aa462af6ab5a09168b5d70ef11b216219f91c19832251f67fe79295f1f1815"
+    }
+  ],
+  "assessment": {
+    "assessor": "/root",
+    "summary": "Reviewed actual content and applicable checks; acceptance claims bounded to local behavior.",
+    "criteria": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4"
+    ]
+  }
+}

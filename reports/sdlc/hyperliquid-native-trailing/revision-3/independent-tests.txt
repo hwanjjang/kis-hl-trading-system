@@ -1,0 +1,142 @@
+import copy
+from pathlib import Path
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest.mock import patch
+from scripts.smoke_native_trailing import ReplayExchange
+from kis_hl.managed_execution import ExecutionStore, Supervisor
+from kis_hl.managed_gateways import ManagedHyperliquidGateway
+from tests.test_managed_execution import plan
+
+class Integration(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = Path(self.tmp.name) / 'state.sqlite'
+        self.store = ExecutionStore(self.path)
+        self.x = ReplayExchange(self.store, reject_trailing=False)
+        self.g = ManagedHyperliquidGateway(self.x, self.x)
+        p = plan(trailing_provider='native')
+        p.update(limit_price='100000', max_notional='100001', max_portfolio_notional='1000000',
+                 max_correlated_notional='500000', expires_ms=self.x.now + 100000)
+        self.row = self.store.enqueue(self.g.scope, p, live=True, now_ms=self.x.now)
+        self.x.position_id = self.row['id']
+        self.start = self.x.now
+        self.step(1)
+        self.x.now = self.start+2
+        self.x.fill_entry()
+        self.step(3)
+        self.step(4)
+        self.x.orders[102]['order']['triggerCondition'] = 'unknown format'
+        self.assertEqual(self.step(5)['state'], 'INTERVENTION')
+    def step(self, offset):
+        self.x.now = self.start + offset
+        self.store = ExecutionStore(self.path)
+        worker = Supervisor(self.store, ManagedHyperliquidGateway(self.x, self.x), live=True)
+        with patch('kis_hl.managed_gateways.time.time', return_value=self.x.now/1000):
+            return worker.step(self.row['id'], self.x.now)
+    def explicit(self):
+        row=self.store.get(self.row['id']); row['exit_requested_ms']=self.start+6
+        self.store.save(row,self.start+6)
+    def test_explicit_exit_retains_native_protection(self):
+        self.explicit()
+        row=self.step(7)
+        self.assertEqual(self.x.sent, ['entry','stop','trailing','exit'])
+        self.assertEqual(row['state'], 'EXIT_PENDING')
+        self.assertEqual(self.x.orders[101]['status'], 'open')
+        self.assertEqual(self.x.orders[102]['status'], 'open')
+        self.assertEqual(row['trailing_covered_size'], '0')
+    def test_known_terminal_bad_condition_exits_immediately(self):
+        for status in ('canceled','filled','rejected','expired','marginCanceled','badAloPxRejected'):
+            with self.subTest(status=status):
+                # Each terminal status on a fresh persisted accepted trail.
+                original=self.x.orders[102]['status']
+                self.x.orders[102]['status']=status
+                snapshot=self.g.snapshot(self.store.get(self.row['id']), self.store.attempts(self.row['id']),self.start+6)
+                expected='canceled' if status.endswith('Canceled') else 'rejected' if status.endswith('Rejected') else status
+                self.assertEqual(snapshot['orders']['102']['status'],expected)
+                self.assertIn('trailing_readback_error',snapshot['orders']['102'])
+                self.x.orders[102]['status']=original
+        self.x.orders[102]['status']='marginCanceled'
+        row=self.step(6)
+        self.assertEqual(self.x.sent.count('exit'),1)
+        self.assertFalse(row.get('native_trailing_intervention'))
+    def test_flat_cleanup_cancels_both_then_waits_for_terminal(self):
+        self.x.size='0'
+        self.x.fills.append({'time':self.start+6,'tid':2,'oid':999,'coin':'BTC','side':'A','sz':'1'})
+        canceled=[]
+        def cancel_order(**kw):
+            canceled.append(kw['oid'])
+            return SimpleNamespace(status='submitted')
+        self.x.cancel_order=cancel_order
+        self.assertEqual(self.step(7)['state'],'CLEANUP')
+        self.assertEqual(canceled,[101,102])
+        self.assertEqual(self.step(8)['state'],'CLEANUP')
+        self.assertEqual(canceled,[101,102])
+        self.x.orders[101]['status']='canceled'; self.x.orders[102]['status']='canceled'
+        self.assertEqual(self.step(9)['state'],'CLOSED')
+    def test_identity_and_semantics_never_receive_parser_exception(self):
+        good=copy.deepcopy(self.x.orders[102]['order'])
+        cases=[{'coin':'ETH'},{'oid':999},{'side':'B'},{'reduceOnly':False},
+               {'isTrigger':False},{'orderType':'Stop Market'},{'sz':'2'},{'sz':'-1'},
+               {'sz':'NaN'},{'triggerCondition':'retracement 4%, best 100004'},
+               {'triggerCondition':'retracement 5, best 100004'},
+               {'triggerCondition':'retracement 4, activation above 100001, best 100004'}]
+        for changes in cases:
+            with self.subTest(changes=changes):
+                self.x.orders[102]['order']=good|changes
+                with self.assertRaises(ValueError):
+                    self.g.snapshot(self.store.get(self.row['id']),self.store.attempts(self.row['id']),self.start+6)
+        self.x.orders[102]['order']=good
+    def test_account_inconsistency_clears_marker_and_does_not_auto_recover(self):
+        self.x.size='0.5'
+        row=self.step(6)
+        self.assertEqual(row['state'],'INTERVENTION')
+        self.assertFalse(row.get('native_trailing_intervention'))
+        self.x.size='1'; self.x.orders[102]['order']['triggerCondition']='retracement 4, best 100004'
+        self.explicit()
+        row=self.step(7)
+        self.assertEqual(row['state'],'INTERVENTION')
+        self.assertEqual(self.x.sent,['entry','stop','trailing'])
+    def test_waiting_then_active_same_id_with_restart(self):
+        row=self.step(7000)
+        self.assertEqual(row['state'],'INTERVENTION')
+        self.assertIsNone(row['exit_requested_ms'])
+        self.x.orders[102]['order']['triggerCondition']='retracement 4, best waiting'
+        self.assertEqual(self.step(7001)['state'],'PROTECTING')
+        self.x.orders[102]['order']['triggerCondition']='retracement 4, best 100004'
+        row=self.step(7002)
+        self.assertEqual(row['state'],'PROTECTED')
+        self.assertEqual(row['trailing_covered_size'],'1')
+        self.assertEqual(self.x.sent.count('trailing'),1)
+    def test_transport_failure_recovers_sl_loss_monitoring(self):
+        with patch.object(self.x,'order_status',side_effect=OSError('offline read timeout')):
+            row=self.step(6)
+        self.assertTrue(row.get('native_trailing_intervention'))
+        self.x.orders[101]['status']='canceled'
+        row=self.step(7000)
+        self.assertEqual(row['state'],'EXIT_PENDING')
+        self.assertEqual(self.x.sent.count('exit'),1)
+    def test_previously_active_coverage_is_revoked_on_parser_failure(self):
+        self.x.orders[102]['order']['triggerCondition']='retracement 4, best 100004'
+        self.assertEqual(self.step(6)['trailing_covered_size'],'1')
+        self.x.orders[102]['order']['triggerCondition']='retracement 4, best NaN'
+        row=self.step(7)
+        self.assertEqual(row['state'],'INTERVENTION')
+        self.assertEqual(row['trailing_covered_size'],'0')
+        self.assertEqual(row['covered_size'],'1')
+        self.assertEqual(self.x.sent,['entry','stop','trailing'])
+    def test_exit_deadline_clears_exception_permanently(self):
+        self.explicit(); self.step(7)
+        deadline=self.store.get(self.row['id'])['plan']['exit_deadline_ms']+7
+        row=self.step(deadline)
+        self.assertEqual(row['state'],'INTERVENTION')
+        self.assertFalse(row.get('native_trailing_intervention'))
+        self.x.orders[103]['status']='canceled'
+        self.x.orders[102]['order']['triggerCondition']='retracement 4, best 100004'
+        row=self.step(deadline+1)
+        self.assertEqual(row['state'],'INTERVENTION')
+        self.assertEqual(self.x.sent.count('exit'),1)
+
+if __name__=='__main__': unittest.main(verbosity=2)

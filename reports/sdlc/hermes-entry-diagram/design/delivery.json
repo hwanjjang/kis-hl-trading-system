@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/root/.paseo/worktrees/1epgz72k/naughty-fox/docs/architecture/hermes-entry.json",
+  "output": "/root/.paseo/worktrees/1epgz72k/naughty-fox/docs/architecture/hermes-entry.html",
+  "specification": {
+    "sha256": "6c34ac389202e060c423db83d0bc20816ac4101f8e95a967ffc3eb8e72767dae",
+    "bytes": 3772
+  },
+  "artifact": {
+    "sha256": "6496deb2720df1266e305cda685e7bfd27133b7930b1f5c9a6820fa6125128b7",
+    "bytes": 806302
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

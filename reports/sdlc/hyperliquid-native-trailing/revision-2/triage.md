@@ -1,0 +1,3 @@
+# Corrective intake — PR #21
+Owner /root; implementation, behavior; PR update endpoint under prior Make pr and current explicit correction/comment authority. No merge, live orders, or deployment.
+Starting HEAD f99c8a5ae51f84c63f898c81225321bc0ddcc046; clean tree. Review comment 5779271781, response 5784046796. Three reproduced lifecycle/precision findings accepted; parser syntax support accepted with strict semantic matching retained. Existing local state is renewed on the same task, counters preserved; publication remains governed by pr-authority.md. No merge-ready or cross-provider review claim.

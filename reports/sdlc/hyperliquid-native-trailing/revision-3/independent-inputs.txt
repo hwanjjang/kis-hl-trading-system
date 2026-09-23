@@ -1,0 +1,62 @@
+{
+  "timestamp": "2026-09-23T06:14:44.501294+00:00",
+  "head": "59400e9ee3b0c289da6176021a0efccc6bf6c08f",
+  "candidate": "sha256:a7fc3e2fad780c845d1ffd3faaac824f8b49e01f5aebaa055f1e2835973006f9",
+  "base": "94e8e9d15c28f37d91d2b8c1f82e593aaeb7f0e5",
+  "all_10_files_match": true,
+  "files": {
+    "kis_hl/hyperliquid/client.py": "f3440c0499f5de3af08c0572dfaa5550e9e98b04d872a7f67ed97a8b5dec20d3",
+    "kis_hl/hyperliquid/trailing.py": "7ea5b9210a1558e09df988751a7025460bccba0d3d2b90a19e86ae857716597e",
+    "kis_hl/instruments.py": "5f45ee75dfcb1e89ed785e9260484ce76fed37070784e88d443ad13e4433564c",
+    "kis_hl/managed_gateways.py": "9dd8492aa9bc3ad74da491ad6d7da155082c89d3874f4f8073a5505a7e05ad09",
+    "kis_hl/managed_execution.py": "675d9d33ec77840b93a9296fafd670f960491e558be222930693dc2b903fce94",
+    "tests/test_native_trailing.py": "5962e2b2a112338ad1fb8ec49ac1d569a0029588cb1e4a81a0af45ba1cde5fda",
+    "scripts/smoke_native_trailing.py": "2a833dc6b3031cc12c369ccb1ae1f1da52e4041684ed5ebd0f36466b5d919d54",
+    "docs/trading-operations.md": "7d5b724e183853411c4fcd9d79d8cb83c4f3fd57dcc3a61e771bdc5fe9221031",
+    "docs/architecture.md": "d28f5bf2016219ae4f5a08a432f4a57b080fd02b5d67c3609014d9f2aaf4c0a2",
+    ".agents/skills/hyperliquid-api/references/exchange-endpoint.md": "88e1982b5492ee79c72b5b8fbc2b207764ae22fe63bf2a7b4f61a5c77721ca63"
+  },
+  "consumed_inputs": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "d908fbed488325ccfa15ade9577866b786ff4feceab2fb67fd518072f932ea01"
+    },
+    {
+      "path": "intent/hyperliquid-native-trailing.md",
+      "sha256": "c7d21572fb996702231660b5974e899e434dd5a189794c644d80e454f18a0793"
+    },
+    {
+      "path": "specs/hyperliquid-native-trailing.md",
+      "sha256": "ccd7c1c053927cd96b29825152c1bdf9218ecc8241d78eb361d51a4f59957b8f"
+    },
+    {
+      "path": "plans/hyperliquid-native-trailing.md",
+      "sha256": "12d7ee302aaad94f9826ee72a3ad8c19550ac173fbcf4c603941895bad2434d9"
+    },
+    {
+      "path": "reports/sdlc/hyperliquid-native-trailing/artifacts.json",
+      "sha256": "024d61a6d4b6f9df0195f9934e180783c2cadca0bfa5f6cba4d0d49f063714fb"
+    },
+    {
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/candidate.json",
+      "sha256": "d2b45b0d936f8a611e55f528541f5bc0fac09bf9eb5593df31090a86c36c3488"
+    },
+    {
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/test-plan.md",
+      "sha256": "db75898b0c38a4c286be684cbe519921255b27ef9afd4753e5e5675408872e9e"
+    },
+    {
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/build.md",
+      "sha256": "6f640ace41c95be19c964ce994dacb35e5d0b808e449df2fd1ecd25d41b0fe2a"
+    },
+    {
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/self-verification.md",
+      "sha256": "4af084e558caa473ab75c464b12ab80b5d09025b00e3e8d704bcb8f533e3ce41"
+    },
+    {
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/test-results.json",
+      "sha256": "df692f2a5e3f4d9930e9289263c6755a94007a6bc438c9cd73bf1fd7f8693fba"
+    }
+  ],
+  "test_source_sha256": "94710e0a2ddd591486a21c5d73cb0d8be35a600e741613563ed34255f1c750f2"
+}

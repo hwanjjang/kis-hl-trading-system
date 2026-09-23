@@ -1,0 +1,30 @@
+{
+  "diagram_type": "sequence",
+  "artifact": {
+    "sha256": "667ff10a47e8675cf58f2c546ba03d9ce425b83c12265dfa8bbeff0fd2066dcf",
+    "bytes": 803060
+  },
+  "output": "/root/.paseo/worktrees/1epgz72k/naughty-fox/reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.html",
+  "validation": "9/9 showcase, 0 errors, 0 warnings",
+  "browser_evidence": "passed",
+  "visual_review": "passed",
+  "correction_rounds": 0,
+  "reviewer": "OpenAI Codex /root/r3_design, image-capable inspection",
+  "inspected_captures": [
+    "native-trailing.visual-check.1440x900.light.png",
+    "native-trailing.visual-check.1440x900.dark.png",
+    "native-trailing.visual-check.2048x1320.light.png",
+    "native-trailing.visual-check.2048x1320.dark.png"
+  ],
+  "observations": [
+    "Default READ/Still layout checked in four actual PNG screenshots: light and dark at 1440x900 and 2048x1320.",
+    "Messages, arrow directions and conditional outcome rows remain distinct; no crossing or label overlap.",
+    "Cards fit with complete text; diagram and cards occupy the desktop height without a conspicuous unused lower band.",
+    "At 1440x900 the sequence text is compact but legible; largest viewport is comfortably readable.",
+    "All four automated desktop viewport measurements report no horizontal or vertical overflow."
+  ],
+  "limitations": [
+    "No additional interactive focus/search/passport or export operation was manually exercised.",
+    "Design evidence does not establish live exchange behavior or implementation correctness."
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "host": "Codex API via Paseo; exact host version unavailable",
+  "inspected": "2026-09-23 exposed collaboration tool schema",
+  "delegation": "collaboration.spawn_agent; inherited provider/model; bounded file ownership communicated in assignment; shared filesystem, not OS-isolated",
+  "max_concurrency": 4,
+  "result_retrieval": "agent messages and filesystem artifacts",
+  "cancellation": "collaboration.interrupt_agent",
+  "endpoint": "local",
+  "cross_provider_pr_review": "not required or claimed for local documentation endpoint",
+  "dependencies": [
+    {
+      "path": "/root/.codex/skills/sdlc/SKILL.md",
+      "resolved": "/root/.agents/skills/sdlc/SKILL.md",
+      "sha256": "857c96a115fdec872105775d247a01321e3da2825c7fa2e459d4b3fd9892c775"
+    },
+    {
+      "path": "/root/.codex/skills/archify/SKILL.md",
+      "resolved": "/root/.agents/skills/archify/SKILL.md",
+      "sha256": "10094272d6d1b4ad0f2c2e0880cb646fe4991454a2dc3d854aecb27e7407ee1f"
+    },
+    {
+      "path": "/root/.codex/skills/planning-with-files/SKILL.md",
+      "resolved": "/root/.agents/skills/planning-with-files/SKILL.md",
+      "sha256": "f313bc997d267912a516194cf698fecf5dd77c55e564d9c3373e1ea213e3961f"
+    }
+  ]
+}

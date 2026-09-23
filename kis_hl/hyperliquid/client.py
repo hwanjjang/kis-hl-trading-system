@@ -20,6 +20,8 @@ from kis_hl.storage import has_recent_successful_trade_xyz_check
 from kis_hl.trade_xyz_assets import is_trade_xyz_symbol_tradable, normalize_trade_symbol
 from kis_hl.trading_hours import trading_session_decision_for_resolved_asset
 
+from kis_hl.hyperliquid.trailing import positive, price_increment, retracement_wire, send_trailing_action
+
 logger = get_logger(__name__)
 
 
@@ -434,6 +436,71 @@ class HyperliquidTradingClient:
             dex=dex,
             dry_run=dry_run,
         )
+
+    @serialized_action
+    def place_trailing_stop_order(
+        self, *, symbol: str, side: str, size: Decimal, retracement: Decimal,
+        retracement_unit: str = "quote", activation_price: Decimal | None = None,
+        dex: str | None = None, dry_run: bool = True,
+        expires_after_ms: int | None = None,
+    ) -> OrderSubmission:
+        resolved = resolve_hyperliquid_symbol(symbol, dex=dex)
+        if resolved.kind != "perp" or side not in {"buy", "sell"}:
+            raise ValueError("Trailing protection requires a perpetual and buy/sell side")
+        size = positive(size)
+        retracement = positive(retracement)
+        retrace = retracement_wire(retracement, retracement_unit)
+        activation = positive(activation_price) if activation_price is not None else None
+        if expires_after_ms is not None and (type(expires_after_ms) is not int or expires_after_ms <= 0):
+            raise ValueError("expires_after_ms must be a positive integer timestamp")
+        request = {"resolved_coin": resolved.coin, "side": side, "size": str(size),
+                   "order_type": "trailing-stop", "reduce_only": True,
+                   "retracement": retrace, "activation_price": str(activation) if activation else None}
+        if dry_run:
+            return OrderSubmission("dry_run", True, resolved, request, {"skipped": "dry_run"})
+        if not is_supported_live_asset(resolved):
+            raise RuntimeError("Unsupported live asset")
+        self._require_recent_verification(resolved)
+        self._require_credentials()
+        if self.config.base_url not in {"https://api.hyperliquid.xyz", "https://api.hyperliquid-testnet.xyz"}:
+            raise ValueError("Native trailing requires an official Hyperliquid endpoint")
+        info, exchange = self._load_sdk()
+        asset_id = info.name_to_asset(resolved.coin)
+        decimals = info.asset_to_sz_decimals[asset_id]
+        if type(decimals) is not int or not 0 <= decimals <= 6:
+            raise ValueError("Invalid perpetual precision")
+        if size % Decimal(1).scaleb(-decimals):
+            raise ValueError("Trailing size violates the lot increment")
+        for price in ([retracement] if retracement_unit == "quote" else []) + ([activation] if activation else []):
+            if price % price_increment(price, Decimal(1).scaleb(-(6 - decimals))):
+                raise ValueError("Trailing price violates tick precision")
+        state = HyperliquidInfoClient(self.config).clearinghouse_state(dex=resolved.dex)
+        position = next((Decimal(x["position"]["szi"]) for x in state["assetPositions"]
+                         if x["position"]["coin"] == resolved.coin), Decimal(0))
+        if not position.is_finite() or (position <= 0 if side == "sell" else position >= 0) or size > abs(position):
+            raise ValueError("Trailing protection must reduce the observed position")
+        nonce = int(time.time() * 1000)
+        expires = expires_after_ms if expires_after_ms is not None else nonce + 10000
+        if expires <= nonce:
+            raise TimeoutError("Trailing submission expired")
+        action = {"type": "trailingStop", "asset": asset_id, "isBuy": side == "buy",
+                  "sz": _decimal_to_api_string(size), "reduceOnly": True,
+                  "retracement": retrace,
+                  "activationPx": _decimal_to_api_string(activation) if activation else None}
+        response = send_trailing_action(exchange, action, nonce, expires)
+        request["action"] = action
+        status = "unknown"
+        if isinstance(response, dict):
+            body = response.get("response")
+            data = body.get("data", {}) if isinstance(body, dict) else {}
+            statuses = data.get("statuses", []) if isinstance(data, dict) else []
+            if response.get("status") == "err" or (isinstance(statuses, list) and any(isinstance(x, dict) and "error" in x for x in statuses)):
+                status = "rejected"
+            elif response.get("status") == "ok":
+                oid = extract_hyperliquid_order_id(response)
+                if oid and oid.isdigit() and int(oid) > 0:
+                    status = "submitted"
+        return OrderSubmission(status, False, resolved, request, response)
 
     @serialized_action
     def cancel_order(self, *, symbol: str, oid: int, dex: str | None = None,

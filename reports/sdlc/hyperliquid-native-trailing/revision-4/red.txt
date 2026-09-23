@@ -1,0 +1,257 @@
+usage: kis-hl order [-h]
+                    {prepare,preview,submit,status,cancel,exit,recover,amend}
+                    ...
+kis-hl order: error: argument order_action: invalid choice: 'adopt' (choose from 'prepare', 'preview', 'submit', 'status', 'cancel', 'exit', 'recover', 'amend')
+======================================================================
+ERROR: test_adoption_imports_atomically_then_submits_only_one_native_trail (tests.test_manual_adoption.ManualAdoptionTests.test_adoption_imports_atomically_then_submits_only_one_native_trail)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 68, in test_adoption_imports_atomically_then_submits_only_one_native_trail
+    row=self.queue()
+        ^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 47, in queue
+    return self.store.enqueue_adoption(self.g.scope, p, entry_order_id=42, stop_order_id=43, live=live, now_ms=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ExecutionStore' object has no attribute 'enqueue_adoption'
+
+======================================================================
+ERROR: test_bad_evidence_never_imports_or_sends_orders (tests.test_manual_adoption.ManualAdoptionTests.test_bad_evidence_never_imports_or_sends_orders) (change_index=0)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 100, in test_bad_evidence_never_imports_or_sends_orders
+    row=self.queue();result=self.step(row)
+        ^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 47, in queue
+    return self.store.enqueue_adoption(self.g.scope, p, entry_order_id=42, stop_order_id=43, live=live, now_ms=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ExecutionStore' object has no attribute 'enqueue_adoption'
+
+======================================================================
+ERROR: test_bad_evidence_never_imports_or_sends_orders (tests.test_manual_adoption.ManualAdoptionTests.test_bad_evidence_never_imports_or_sends_orders) (change_index=1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 100, in test_bad_evidence_never_imports_or_sends_orders
+    row=self.queue();result=self.step(row)
+        ^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 47, in queue
+    return self.store.enqueue_adoption(self.g.scope, p, entry_order_id=42, stop_order_id=43, live=live, now_ms=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ExecutionStore' object has no attribute 'enqueue_adoption'
+
+======================================================================
+ERROR: test_bad_evidence_never_imports_or_sends_orders (tests.test_manual_adoption.ManualAdoptionTests.test_bad_evidence_never_imports_or_sends_orders) (change_index=2)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 100, in test_bad_evidence_never_imports_or_sends_orders
+    row=self.queue();result=self.step(row)
+        ^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 47, in queue
+    return self.store.enqueue_adoption(self.g.scope, p, entry_order_id=42, stop_order_id=43, live=live, now_ms=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ExecutionStore' object has no attribute 'enqueue_adoption'
+
+======================================================================
+ERROR: test_bad_evidence_never_imports_or_sends_orders (tests.test_manual_adoption.ManualAdoptionTests.test_bad_evidence_never_imports_or_sends_orders) (change_index=3)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 100, in test_bad_evidence_never_imports_or_sends_orders
+    row=self.queue();result=self.step(row)
+        ^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 47, in queue
+    return self.store.enqueue_adoption(self.g.scope, p, entry_order_id=42, stop_order_id=43, live=live, now_ms=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ExecutionStore' object has no attribute 'enqueue_adoption'
+
+======================================================================
+ERROR: test_bad_evidence_never_imports_or_sends_orders (tests.test_manual_adoption.ManualAdoptionTests.test_bad_evidence_never_imports_or_sends_orders) (change_index=4)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 100, in test_bad_evidence_never_imports_or_sends_orders
+    row=self.queue();result=self.step(row)
+        ^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 47, in queue
+    return self.store.enqueue_adoption(self.g.scope, p, entry_order_id=42, stop_order_id=43, live=live, now_ms=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ExecutionStore' object has no attribute 'enqueue_adoption'
+
+======================================================================
+ERROR: test_bad_evidence_never_imports_or_sends_orders (tests.test_manual_adoption.ManualAdoptionTests.test_bad_evidence_never_imports_or_sends_orders) (change_index=5)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 100, in test_bad_evidence_never_imports_or_sends_orders
+    row=self.queue();result=self.step(row)
+        ^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 47, in queue
+    return self.store.enqueue_adoption(self.g.scope, p, entry_order_id=42, stop_order_id=43, live=live, now_ms=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ExecutionStore' object has no attribute 'enqueue_adoption'
+
+======================================================================
+ERROR: test_bad_evidence_never_imports_or_sends_orders (tests.test_manual_adoption.ManualAdoptionTests.test_bad_evidence_never_imports_or_sends_orders) (change_index=6)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 100, in test_bad_evidence_never_imports_or_sends_orders
+    row=self.queue();result=self.step(row)
+        ^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 47, in queue
+    return self.store.enqueue_adoption(self.g.scope, p, entry_order_id=42, stop_order_id=43, live=live, now_ms=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ExecutionStore' object has no attribute 'enqueue_adoption'
+
+======================================================================
+ERROR: test_bad_evidence_never_imports_or_sends_orders (tests.test_manual_adoption.ManualAdoptionTests.test_bad_evidence_never_imports_or_sends_orders) (change_index=7)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 100, in test_bad_evidence_never_imports_or_sends_orders
+    row=self.queue();result=self.step(row)
+        ^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 47, in queue
+    return self.store.enqueue_adoption(self.g.scope, p, entry_order_id=42, stop_order_id=43, live=live, now_ms=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ExecutionStore' object has no attribute 'enqueue_adoption'
+
+======================================================================
+ERROR: test_cli_queues_explicit_harness_handoff_without_live_io (tests.test_manual_adoption.ManualAdoptionTests.test_cli_queues_explicit_harness_handoff_without_live_io)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/argparse.py", line 1941, in parse_known_args
+    namespace, args = self._parse_known_args(args, namespace)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/argparse.py", line 2144, in _parse_known_args
+    positionals_end_index = consume_positionals(start_index)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/argparse.py", line 2121, in consume_positionals
+    take_action(action, args)
+  File "/usr/lib/python3.12/argparse.py", line 2001, in take_action
+    argument_values = self._get_values(action, argument_strings)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/argparse.py", line 2554, in _get_values
+    self._check_value(action, value[0])
+  File "/usr/lib/python3.12/argparse.py", line 2600, in _check_value
+    raise ArgumentError(action, msg % args)
+argparse.ArgumentError: argument order_action: invalid choice: 'adopt' (choose from 'prepare', 'preview', 'submit', 'status', 'cancel', 'exit', 'recover', 'amend')
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 154, in test_cli_queues_explicit_harness_handoff_without_live_io
+    code=main(["--db",str(self.path),"order","adopt","--input",str(source),"--entry-order-id","42","--stop-order-id","43"])
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/kis_hl/cli.py", line 90, in main
+    args = parser.parse_args(argv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/argparse.py", line 1908, in parse_args
+    args, argv = self.parse_known_args(args, namespace)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/argparse.py", line 1941, in parse_known_args
+    namespace, args = self._parse_known_args(args, namespace)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/argparse.py", line 2144, in _parse_known_args
+    positionals_end_index = consume_positionals(start_index)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/argparse.py", line 2121, in consume_positionals
+    take_action(action, args)
+  File "/usr/lib/python3.12/argparse.py", line 2017, in take_action
+    action(self, namespace, argument_values, option_string)
+  File "/usr/lib/python3.12/argparse.py", line 1280, in __call__
+    subnamespace, arg_strings = parser.parse_known_args(arg_strings, None)
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/argparse.py", line 1943, in parse_known_args
+    self.error(str(err))
+  File "/usr/lib/python3.12/argparse.py", line 2677, in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+  File "/usr/lib/python3.12/argparse.py", line 2664, in exit
+    _sys.exit(status)
+SystemExit: 2
+
+======================================================================
+ERROR: test_failed_adoption_recovery_and_cancel_never_become_entry (tests.test_manual_adoption.ManualAdoptionTests.test_failed_adoption_recovery_and_cancel_never_become_entry)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 107, in test_failed_adoption_recovery_and_cancel_never_become_entry
+    row=self.queue();self.orders[43]["status"]="canceled"
+        ^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 47, in queue
+    return self.store.enqueue_adoption(self.g.scope, p, entry_order_id=42, stop_order_id=43, live=live, now_ms=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ExecutionStore' object has no attribute 'enqueue_adoption'
+
+======================================================================
+ERROR: test_import_rollback_and_reused_native_id_rejected (tests.test_manual_adoption.ManualAdoptionTests.test_import_rollback_and_reused_native_id_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 117, in test_import_rollback_and_reused_native_id_rejected
+    row=self.queue()
+        ^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 47, in queue
+    return self.store.enqueue_adoption(self.g.scope, p, entry_order_id=42, stop_order_id=43, live=live, now_ms=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ExecutionStore' object has no attribute 'enqueue_adoption'
+
+======================================================================
+ERROR: test_imported_order_does_not_relabel_manual_fill_as_agent (tests.test_manual_adoption.ManualAdoptionTests.test_imported_order_does_not_relabel_manual_fill_as_agent)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 141, in test_imported_order_does_not_relabel_manual_fill_as_agent
+    row=self.queue();self.step(row)
+        ^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 47, in queue
+    return self.store.enqueue_adoption(self.g.scope, p, entry_order_id=42, stop_order_id=43, live=live, now_ms=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ExecutionStore' object has no attribute 'enqueue_adoption'
+
+======================================================================
+ERROR: test_legacy_owner_rejected_even_if_worker_stopped (tests.test_manual_adoption.ManualAdoptionTests.test_legacy_owner_rejected_even_if_worker_stopped)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 134, in test_legacy_owner_rejected_even_if_worker_stopped
+    row=self.queue()
+        ^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 47, in queue
+    return self.store.enqueue_adoption(self.g.scope, p, entry_order_id=42, stop_order_id=43, live=live, now_ms=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ExecutionStore' object has no attribute 'enqueue_adoption'
+
+======================================================================
+ERROR: test_paper_adoption_has_no_exchange_reads_or_attempts (tests.test_manual_adoption.ManualAdoptionTests.test_paper_adoption_has_no_exchange_reads_or_attempts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 61, in test_paper_adoption_has_no_exchange_reads_or_attempts
+    row=self.queue(live=False)
+        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 47, in queue
+    return self.store.enqueue_adoption(self.g.scope, p, entry_order_id=42, stop_order_id=43, live=live, now_ms=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ExecutionStore' object has no attribute 'enqueue_adoption'
+
+======================================================================
+FAIL: test_local_backup_exits_while_native_waits_and_retains_exchange_protection (tests.test_manual_adoption.ConcurrentBackupTests.test_local_backup_exits_while_native_waits_and_retains_exchange_protection)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 175, in test_local_backup_exits_while_native_waits_and_retains_exchange_protection
+    self.assertIsNotNone(result["exit_requested_ms"])
+AssertionError: unexpectedly None
+
+======================================================================
+FAIL: test_local_backup_keeps_monitoring_native_condition_intervention (tests.test_manual_adoption.ConcurrentBackupTests.test_local_backup_keeps_monitoring_native_condition_intervention)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 193, in test_local_backup_keeps_monitoring_native_condition_intervention
+    self.assertIsNotNone(result["exit_requested_ms"])
+AssertionError: unexpectedly None
+
+======================================================================
+FAIL: test_new_hl_defaults_native_kis_and_explicit_local_stay_local (tests.test_manual_adoption.ManualAdoptionTests.test_new_hl_defaults_native_kis_and_explicit_local_stay_local)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/naughty-fox/tests/test_manual_adoption.py", line 56, in test_new_hl_defaults_native_kis_and_explicit_local_stay_local
+    self.assertEqual(validate_plan(p, 1)["trailing_provider"], "native")
+AssertionError: 'local' != 'native'
+- local
++ native
+
+
+----------------------------------------------------------------------
+Ran 22 tests in 1.897s
+
+FAILED (failures=3, errors=15)

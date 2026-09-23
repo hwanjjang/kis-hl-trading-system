@@ -13,8 +13,61 @@
 ```
 
 `nonce` is a millisecond timestamp. `vaultAddress` and `expiresAfter` are optional.
-In this repo the whole envelope is built and signed by `hyperliquid-python-sdk`; never
-construct it by hand.
+Use `hyperliquid-python-sdk` for signing and action hashing. Normal actions use
+its exchange helpers. The trailing adapter assembles the app-observed action and
+envelope using the SDK's `sign_l1_action` and `Exchange.post`; do not implement
+custom EIP-712 or msgpack signing.
+
+## Native trailing stop
+
+Official order types document perpetual trailing stops:
+https://hyperliquid.gitbook.io/hyperliquid-docs/trading/order-types
+
+The 2026-09-22 official app bundle `config-DWLPMyx3.js` constructs the following
+separate action (`ace`), sends it through the normal signed exchange path
+(`mce`, `I6`, `Uoe`, `ws`) and displays `Trailing Stop Market` orders:
+
+```json
+{"type":"trailingStop","asset":0,"isBuy":false,"sz":"1","reduceOnly":true,"retracement":{"px":"4"},"activationPx":null}
+```
+
+Field insertion order matters to the signed msgpack hash. Percentage retracement
+uses `{"pct":"5.0000%"}`; price/size strings have no trailing zeros. Activation
+is null for immediate activation or a price string. The action contains no cloid.
+Public exchange docs and Python SDK 0.24.0 have no dedicated trailing helper;
+the observed app contract is not a verified live response/acceptance guarantee.
+
+`place_trailing_stop_order()` is dry-run by default, always reduce-only, validates
+finite positive inputs, perp eligibility, verification freshness, direction/size,
+lot/tick and expiry. Managed plans currently use quote distance rounded down from
+frozen ATR using the distance's own significant figures and metadata decimal tick,
+not the current quote's price grid. The supervisor persists the normalized distance
+before entry and rejects zero; percentage and delayed activation are low-level
+adapter options only.
+Mark-price extrema are continuous and differ from the local nine-minute policy.
+
+Query/cancel use ordinary `orderStatus` / `cancel` with the acknowledged native
+oid. The app parses `triggerCondition` retracement/best/activation text (`s4`,
+`l4`); our immediate quote-distance managed reader accepts only matching
+quote retracement with immediate activation and a finite positive best price, or
+waiting/omitted best. Known percentage and activation clauses are parsed but rejected
+as managed-request semantic mismatches. Unknown/duplicate/invalid condition clauses
+raise `TrailingConditionError`: the gateway records `trailing_readback_error` on
+an otherwise validated owned order, never active coverage, and completes independent
+SL/account reconciliation. Identity/type/direction/size and known policy mismatches
+remain fatal. The supervisor retains fixed-SL monitoring and explicit exits under
+native intervention, recovers only on valid same-ID readback, and still exits residual
+exposure on known-ID terminal status. It never resubmits due to a parser failure.
+A submission acknowledgement or waiting readback is never active trailing coverage.
+Missing oid, timeout or explicit rejection requires intervention, with no resend
+or matching-based foreign adoption. This native submission intervention retains
+fixed-SL monitoring and explicit exits. Verified open waiting orders do not cause
+a timeout exit solely for waiting. Fixed native SL stays active; flat cleanup
+includes both stop kinds. Do not recreate a previously accepted terminal trail
+automatically because that resets its watermark; preserve residual-exit handling.
+
+Evidence digest and investigation: `reports/sdlc/hyperliquid-native-trailing/`.
+No live exchange orders were used to verify this integration.
 
 ## Order action
 
@@ -116,3 +169,10 @@ Full SDK method list: `sdk-and-docs.md`.
 Local signed actions use an account lock; a running trailing worker holds it for its lifetime. Entry guards also inspect active live trailing state. Cancellation retains eligibility, metadata-freshness and credential checks. No modify or cancel-before-replace ratchet is implemented.
 
 `place_order(expires_after_ms=...)` applies SDK `set_expires_after` for one action and resets it afterward. Trailing IOC attempts use receive-time plus the configured freshness budget; local preflight rejects expired prices and signed expiresAfter bounds delayed delivery. Expiry is not an exactly-once mechanism.
+
+New managed HL plans default to native trailing with concurrent local nine-minute
+backup. Both use the existing supervisor exit ledger; local IOC exits are reduce-only
+and fixed/native protections remain until flat cleanup. Old stored policies are not
+migrated. Explicit manual-position `order adopt` imports verified entry/SL ownership
+through the supervisor without an exchange write; it never adopts an unknown trailing
+submission. See docs/trading-operations.md#manual-position-handoff for admission limits.
