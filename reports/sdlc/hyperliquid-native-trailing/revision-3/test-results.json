@@ -1,0 +1,68 @@
+{
+  "candidate": "sha256:a7fc3e2fad780c845d1ffd3faaac824f8b49e01f5aebaa055f1e2835973006f9",
+  "scenarios": [
+    {
+      "id": "offline-functional",
+      "requirement": "AC4",
+      "required": true,
+      "environment": "Python 3.12; isolated TMPDIR; real SDK 0.24.0 in /tmp/hl-trailing-venv; exchange simulated/offline",
+      "prerequisites": "Declared SDK dependencies installed in temporary venv",
+      "actions": "Actual CLI, SQLite, SDK signer recovery, gateway/supervisor parser-failure and same-ID recovery replay, previous waiting/rejected replays",
+      "expected": "Zero trail coverage on parse failure; SL loss exits even while condition invalid; same-ID recovery with no resend; prior scenarios remain green",
+      "failure": "Wrong coverage/state, duplicate trail, required exit frozen, or network I/O",
+      "cleanup": "TemporaryDirectory removes DB; ephemeral in-memory signing key discarded"
+    }
+  ],
+  "runs": [
+    {
+      "id": "r3-red",
+      "phase": "red",
+      "candidate": "pre-correction:59400e9ee3b0c289da6176021a0efccc6bf6c08f",
+      "command": "TMPDIR=/tmp/hl-pr21-r3-builder python3 -m unittest tests.test_native_trailing -q",
+      "exit_code": 1,
+      "environment": "Python 3.12; isolated TMPDIR; real SDK 0.24.0 in /tmp/hl-trailing-venv; exchange simulated/offline",
+      "observed": "43 tests: intended 3 failures and 3 parser errors before fix",
+      "evidence": "reports/sdlc/hyperliquid-native-trailing/revision-3/red.txt",
+      "status": "passed",
+      "execution_kind": "stubbed_exchange",
+      "intended_failure": true
+    },
+    {
+      "id": "r3-green",
+      "phase": "green",
+      "candidate": "sha256:a7fc3e2fad780c845d1ffd3faaac824f8b49e01f5aebaa055f1e2835973006f9",
+      "command": "TMPDIR=/tmp/hl-pr21-r3-builder python3 -m unittest tests.test_native_trailing tests.test_managed_execution tests.test_managed_gateways tests.test_hyperliquid_client tests.test_operations_cli -q",
+      "exit_code": 0,
+      "environment": "Python 3.12; isolated TMPDIR; real SDK 0.24.0 in /tmp/hl-trailing-venv; exchange simulated/offline",
+      "observed": "115 tests passed",
+      "evidence": "reports/sdlc/hyperliquid-native-trailing/revision-3/green.txt",
+      "status": "passed",
+      "execution_kind": "stubbed_exchange"
+    },
+    {
+      "id": "r3-post-refactor",
+      "phase": "post-refactor",
+      "candidate": "sha256:a7fc3e2fad780c845d1ffd3faaac824f8b49e01f5aebaa055f1e2835973006f9",
+      "command": "TMPDIR=/tmp/hl-pr21-r3-builder python3 -m unittest discover -s tests -t . -q",
+      "exit_code": 0,
+      "environment": "Python 3.12; isolated TMPDIR; real SDK 0.24.0 in /tmp/hl-trailing-venv; exchange simulated/offline",
+      "observed": "458 tests passed",
+      "evidence": "reports/sdlc/hyperliquid-native-trailing/revision-3/post-refactor.txt",
+      "status": "passed",
+      "execution_kind": "stubbed_exchange"
+    },
+    {
+      "id": "r3-smoke",
+      "phase": "smoke",
+      "candidate": "sha256:a7fc3e2fad780c845d1ffd3faaac824f8b49e01f5aebaa055f1e2835973006f9",
+      "command": "PYTHONPATH=. TMPDIR=/tmp/hl-pr21-r3-smoke /tmp/hl-trailing-venv/bin/python scripts/smoke_native_trailing.py",
+      "exit_code": 0,
+      "environment": "Python 3.12; isolated TMPDIR; real SDK 0.24.0 in /tmp/hl-trailing-venv; exchange simulated/offline",
+      "observed": "CLI, SQLite, SDK signature, four integrated lifecycle replays passed; zero network requests",
+      "evidence": "reports/sdlc/hyperliquid-native-trailing/revision-3/smoke.txt",
+      "status": "passed",
+      "execution_kind": "real",
+      "scenario_id": "offline-functional"
+    }
+  ]
+}

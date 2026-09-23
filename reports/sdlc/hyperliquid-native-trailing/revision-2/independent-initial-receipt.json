@@ -1,0 +1,177 @@
+{
+  "iteration": 2,
+  "decision": "BLOCKED",
+  "reason": "Known-ID terminal rejection counterexample; independent final verdict incomplete. Renew affected stages.",
+  "authority_source": "AK correction request",
+  "candidate": "sha256:c0d6ed5976b9b61f90ad87e20c4ed8a4ec3472364bd41018e550bc46acb4d9c5",
+  "next_action": "Correct accepted terminal rejection, rerun relevant tests/smoke and independent verification",
+  "inputs": [
+    {
+      "kind": "triage",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/triage.md",
+      "sha256": "82e3db16b7c00e617085a480f86cd7c0fc0a57085d8b96819cbceaefef645f1f"
+    },
+    {
+      "kind": "intent",
+      "path": "intent/hyperliquid-native-trailing.md",
+      "sha256": "0f8f289c466d9a9ac486e6f9f2c7d0346b0b18ed1f843533dfb72e6a6fe4bcb2"
+    },
+    {
+      "kind": "investigation",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/investigation.md",
+      "sha256": "043d7f24f295e38f59b20c5ff42701940ff826466d3975b5b35071484775aa0f"
+    },
+    {
+      "kind": "spec",
+      "path": "specs/hyperliquid-native-trailing.md",
+      "sha256": "450d2cf206776097f68803068c7726562df4a96a546dfe335a3cc3fde08a675b"
+    },
+    {
+      "kind": "design-source",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/design/native-trailing.json",
+      "sha256": "99ccee51335ccec727b438c615d06bae2d220b275f3ff2f6d4df77e0f64e1681"
+    },
+    {
+      "kind": "design-html",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/design/native-trailing.html",
+      "sha256": "0f68cff41c47f260c9d5d55378e6cab88b22b9c434a8f4fa45529d7dcef206fa"
+    },
+    {
+      "kind": "design-validation",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/design/validation.json",
+      "sha256": "820e2f3bc8c50e0ad2ad602ff6ebe5dfc59fbfbda55ad021561180517e7e8715"
+    },
+    {
+      "kind": "design-delivery",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/design/delivery.json",
+      "sha256": "6e214f0d1dc12901ced75ab76ec744d91baf51a3cf8b412927dfd0549d9fe3e6"
+    },
+    {
+      "kind": "design-browser",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/design/native-trailing.visual-check.json",
+      "sha256": "4ea51fe0d78eb527c073893ea31ad5fe753a42a85973e791c14d6862928c449d"
+    },
+    {
+      "kind": "visual-review",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/design/perceptual-review.json",
+      "sha256": "55aa462af6ab5a09168b5d70ef11b216219f91c19832251f67fe79295f1f1815"
+    },
+    {
+      "kind": "plan",
+      "path": "plans/hyperliquid-native-trailing.md",
+      "sha256": "5095e9e092fef2e2f73264eb734a481e1bfefa9fb369c3783baccb53cd0333dc"
+    },
+    {
+      "kind": "test-plan",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/test-plan.md",
+      "sha256": "1fb15dc6d0bb94ba4d45759f2fe7193be0e672d328b4f09c7b8cce38ae0179f3"
+    },
+    {
+      "kind": "build",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/build.md",
+      "sha256": "99918c63308b5280eb037170af2e4b55f6a610a69764b04f9d03b03acdd48171"
+    },
+    {
+      "kind": "change-record",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/change-record.md",
+      "sha256": "08af45f1bb90665044836c9af42541e277bd1916f2efa574db337e5b8b235c40"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/hyperliquid/client.py",
+      "sha256": "f3440c0499f5de3af08c0572dfaa5550e9e98b04d872a7f67ed97a8b5dec20d3"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/hyperliquid/trailing.py",
+      "sha256": "3f22640f833271fa483e9214174d46ced38dea8d2e7f570c524a848294f4f2dd"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/instruments.py",
+      "sha256": "5f45ee75dfcb1e89ed785e9260484ce76fed37070784e88d443ad13e4433564c"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/managed_gateways.py",
+      "sha256": "72d1a7459437c4a89842d8049c338dba91f1fbe42ad79fadeab33b870267dd59"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/managed_execution.py",
+      "sha256": "c20bfb5135b5d688541185ed638a0b20e50902cce3b3970d700aa9b35c549b70"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_native_trailing.py",
+      "sha256": "44703cc9df95902496bad2eccd3e164da9da457ba08f0dc7e358e4594072d90e"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "scripts/smoke_native_trailing.py",
+      "sha256": "1d6ad7bfad5aadb6af5233d307b493acc3eb55f1633a69c1df92a72b6a623adf"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/trading-operations.md",
+      "sha256": "787e0a8c85dba3af37b73b05a470798bb133d3341a4ac55b0bc2b326e2753b2b"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture.md",
+      "sha256": "22352393cdc21548652507d8f86735b6ac888cb49be408a67ffcf48f14c80c42"
+    },
+    {
+      "kind": "candidate-source",
+      "path": ".agents/skills/hyperliquid-api/references/exchange-endpoint.md",
+      "sha256": "ef2657e7110d0d40b0c00fcf216abb322c15465820733fb359c8c2171f263cef"
+    },
+    {
+      "kind": "self-verification",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/self-verification.md",
+      "sha256": "577bd16ee00a6f0c699eb82500151db34e4cb73f67f04d9c68ca132486698c20"
+    },
+    {
+      "kind": "test-results",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/test-results.json",
+      "sha256": "e5349ecdf27131cbc24127e62564fbf84ad58f9560d4c7a0b5b9d6e2a50e60ce"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/red.txt",
+      "sha256": "04b0a215662c6336dcb361a6e1654d2ef2a7c4e7b0be336d14082c1db189687a"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/green.txt",
+      "sha256": "f5e812b37e9959e6f075f06192306ee4e5e91e3e0839be3d5050a5485aed458a"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/post-refactor.txt",
+      "sha256": "46e30da73a1728e6bff7e68b89fd7c211987a5971bdee5fa5fc1068f1b2cf195"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/smoke.txt",
+      "sha256": "f919751c03503610223031ac7b7508409ed9d575a94baaf82c1647d5ab093c11"
+    }
+  ],
+  "outputs": [
+    {
+      "kind": "independent-verification",
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/independent-initial-status.md",
+      "sha256": "714444e84ec8076df4d541d756e3916e96ab025df6093352c40d2bec3211b815"
+    }
+  ],
+  "assessment": {
+    "assessor": "/root",
+    "summary": "Partial independent evidence plus builder counterexample; not an independent PASS",
+    "criteria": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4"
+    ]
+  }
+}

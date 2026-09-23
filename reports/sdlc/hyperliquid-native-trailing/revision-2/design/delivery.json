@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/root/.paseo/worktrees/1epgz72k/naughty-fox/reports/sdlc/hyperliquid-native-trailing/revision-2/design/native-trailing.json",
+  "output": "/root/.paseo/worktrees/1epgz72k/naughty-fox/reports/sdlc/hyperliquid-native-trailing/revision-2/design/native-trailing.html",
+  "specification": {
+    "sha256": "99ccee51335ccec727b438c615d06bae2d220b275f3ff2f6d4df77e0f64e1681",
+    "bytes": 2901
+  },
+  "artifact": {
+    "sha256": "0f68cff41c47f260c9d5d55378e6cab88b22b9c434a8f4fa45529d7dcef206fa",
+    "bytes": 801580
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

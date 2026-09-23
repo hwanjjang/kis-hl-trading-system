@@ -1,0 +1,24 @@
+test_account_inconsistency_clears_marker_and_does_not_auto_recover (__main__.Integration.test_account_inconsistency_clears_marker_and_does_not_auto_recover) ... ok
+test_exit_deadline_clears_exception_permanently (__main__.Integration.test_exit_deadline_clears_exception_permanently) ... FAIL
+test_explicit_exit_retains_native_protection (__main__.Integration.test_explicit_exit_retains_native_protection) ... ok
+test_flat_cleanup_cancels_both_then_waits_for_terminal (__main__.Integration.test_flat_cleanup_cancels_both_then_waits_for_terminal) ... ok
+test_identity_and_semantics_never_receive_parser_exception (__main__.Integration.test_identity_and_semantics_never_receive_parser_exception) ... ok
+test_known_terminal_bad_condition_exits_immediately (__main__.Integration.test_known_terminal_bad_condition_exits_immediately) ... ok
+test_transport_failure_recovers_sl_loss_monitoring (__main__.Integration.test_transport_failure_recovers_sl_loss_monitoring) ... ok
+test_waiting_then_active_same_id_with_restart (__main__.Integration.test_waiting_then_active_same_id_with_restart) ... ok
+
+======================================================================
+FAIL: test_exit_deadline_clears_exception_permanently (__main__.Integration.test_exit_deadline_clears_exception_permanently)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/hl-pr21-r3-verifier/test_independent.py", line 124, in test_exit_deadline_clears_exception_permanently
+    self.assertEqual(row['state'],'INTERVENTION')
+AssertionError: 'EXIT_PENDING' != 'INTERVENTION'
+- EXIT_PENDING
++ INTERVENTION
+
+
+----------------------------------------------------------------------
+Ran 8 tests in 1.255s
+
+FAILED (failures=1)

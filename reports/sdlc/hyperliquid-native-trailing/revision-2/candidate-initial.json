@@ -1,0 +1,16 @@
+{
+  "base": "94e8e9d15c28f37d91d2b8c1f82e593aaeb7f0e5",
+  "files": {
+    "kis_hl/hyperliquid/client.py": "f3440c0499f5de3af08c0572dfaa5550e9e98b04d872a7f67ed97a8b5dec20d3",
+    "kis_hl/hyperliquid/trailing.py": "3f22640f833271fa483e9214174d46ced38dea8d2e7f570c524a848294f4f2dd",
+    "kis_hl/instruments.py": "5f45ee75dfcb1e89ed785e9260484ce76fed37070784e88d443ad13e4433564c",
+    "kis_hl/managed_gateways.py": "72d1a7459437c4a89842d8049c338dba91f1fbe42ad79fadeab33b870267dd59",
+    "kis_hl/managed_execution.py": "c20bfb5135b5d688541185ed638a0b20e50902cce3b3970d700aa9b35c549b70",
+    "tests/test_native_trailing.py": "44703cc9df95902496bad2eccd3e164da9da457ba08f0dc7e358e4594072d90e",
+    "scripts/smoke_native_trailing.py": "1d6ad7bfad5aadb6af5233d307b493acc3eb55f1633a69c1df92a72b6a623adf",
+    "docs/trading-operations.md": "787e0a8c85dba3af37b73b05a470798bb133d3341a4ac55b0bc2b326e2753b2b",
+    "docs/architecture.md": "22352393cdc21548652507d8f86735b6ac888cb49be408a67ffcf48f14c80c42",
+    ".agents/skills/hyperliquid-api/references/exchange-endpoint.md": "ef2657e7110d0d40b0c00fcf216abb322c15465820733fb359c8c2171f263cef"
+  },
+  "candidate": "sha256:c0d6ed5976b9b61f90ad87e20c4ed8a4ec3472364bd41018e550bc46acb4d9c5"
+}

@@ -1,0 +1,26 @@
+{
+  "iteration": 1,
+  "decision": "PROCEED",
+  "reason": "# Triage\nOwner: /root; 2026-09-22; implementation / behavior / local.\nSource: AK requested issue creation and implementation. Issue #20 created at https://github.com/hwanjjang/kis-hl-trading-system/issues/20 . Initial worktree was clean. No commit, push, PR, merge, deployment or live order execution authorized. Base recorded in base.txt. Existing provider is local trailing with native fixed SL. All behavior work requires tests, smoke and an independent fresh-context verifier.\n",
+  "authority_source": "AK request: issue creation and implementation, 2026-09-22",
+  "candidate": "94e8e9d15c28f37d91d2b8c1f82e593aaeb7f0e5",
+  "next_action": "Continue next applicable stage",
+  "inputs": [],
+  "outputs": [
+    {
+      "kind": "triage",
+      "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+      "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+    }
+  ],
+  "assessment": {
+    "assessor": "/root",
+    "summary": "Read and assessed referenced artifact against issue #20 and fail-closed constraints.",
+    "criteria": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4"
+    ]
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "candidate": "sha256:e11decf17076d5a381bab69bce228cf9a7790546d1ebe6db6b1784bac0d46231",
+  "scenarios": [
+    {
+      "id": "offline-functional",
+      "requirement": "AC4",
+      "required": true,
+      "environment": "Python 3.12; /tmp SDK venv; offline",
+      "prerequisites": "requirements.txt installed with uv into /tmp/hl-trailing-venv",
+      "actions": "Run real CLI preview, SQLite paper supervisor, SDK sign/recover using ephemeral key and captured transport",
+      "expected": "Native preview, PREVIEWED and zero attempts, signature recovered, zero network",
+      "failure": "Nonzero exit, wrong provider/state, any order attempt or signer mismatch",
+      "cleanup": "TemporaryDirectory and in-memory key lifetime end at process exit"
+    }
+  ],
+  "runs": [
+    {
+      "id": "native-red",
+      "phase": "red",
+      "candidate": "pre-implementation:94e8e9d15c28f37d91d2b8c1f82e593aaeb7f0e5",
+      "command": "python3 -m unittest tests.test_native_trailing -q",
+      "exit_code": 1,
+      "environment": "Python 3.12; /tmp SDK venv; offline",
+      "observed": "Expected missing native action/helper and policy failures before implementation; extra imported test class removed subsequently.",
+      "evidence": "reports/sdlc/hyperliquid-native-trailing/red.log",
+      "status": "passed",
+      "execution_kind": "stubbed_exchange",
+      "intended_failure": true
+    },
+    {
+      "id": "native-green",
+      "phase": "green",
+      "candidate": "sha256:e11decf17076d5a381bab69bce228cf9a7790546d1ebe6db6b1784bac0d46231",
+      "command": "TMPDIR=/tmp/hl-trailing-builder-tests python3 -m unittest tests.test_native_trailing tests.test_managed_execution tests.test_managed_gateways tests.test_hyperliquid_client tests.test_operations_cli -q",
+      "exit_code": 0,
+      "environment": "Python 3.12; /tmp SDK venv; offline",
+      "observed": "90 tests passed",
+      "evidence": "reports/sdlc/hyperliquid-native-trailing/green.log",
+      "status": "passed",
+      "execution_kind": "stubbed_exchange"
+    },
+    {
+      "id": "native-post-refactor",
+      "phase": "post-refactor",
+      "candidate": "sha256:e11decf17076d5a381bab69bce228cf9a7790546d1ebe6db6b1784bac0d46231",
+      "command": "TMPDIR=/tmp/hl-trailing-builder-tests python3 -m unittest discover -s tests -t . -q",
+      "exit_code": 0,
+      "environment": "Python 3.12; /tmp SDK venv; offline",
+      "observed": "433 tests passed",
+      "evidence": "reports/sdlc/hyperliquid-native-trailing/post-refactor.log",
+      "status": "passed",
+      "execution_kind": "stubbed_exchange"
+    },
+    {
+      "id": "native-smoke",
+      "phase": "smoke",
+      "candidate": "sha256:e11decf17076d5a381bab69bce228cf9a7790546d1ebe6db6b1784bac0d46231",
+      "command": "PYTHONPATH=. TMPDIR=/tmp/hl-trailing-builder-tests /tmp/hl-trailing-venv/bin/python scripts/smoke_native_trailing.py",
+      "exit_code": 0,
+      "environment": "Python 3.12; /tmp SDK venv; offline",
+      "observed": "CLI/SQLite/signature smoke passed; no network or live exchange verification",
+      "evidence": "reports/sdlc/hyperliquid-native-trailing/smoke.log",
+      "status": "passed",
+      "execution_kind": "real",
+      "scenario_id": "offline-functional"
+    }
+  ]
+}

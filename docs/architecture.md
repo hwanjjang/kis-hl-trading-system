@@ -179,11 +179,38 @@ consumer is needed for local publication. Notification transport and strategy-co
 execution remain future extension points. All three diagrams remain target-design
 views; they do not claim a notification service is deployed.
 
-SL and trailing provider decisions are independent. Native KIS SL/trailing remain
+The [Hermes new-entry sequence](architecture/hermes-entry.html) documents the
+current CLI-to-supervisor path, including queue ownership, partial-fill protection
+and concurrent trailing. See the [operating steps](trading-operations.md#harness-originated-entry)
+for live mode and worker lifetime.
+
+SL and trailing provider decisions are independent. New Hyperliquid managed plans
+default to native continuous-mark trailing with concurrent local nine-minute backup.
+Local tracking can start with observed fills; native submission waits for terminal
+entry and verified fixed-SL coverage. `hyperliquid/trailing.py` owns the observed wire/readback contract;
+`managed_gateways.py` binds native order identity, and `managed_execution.py`
+persists attempts and reconciles separate fixed-SL/trailing coverage. No additional
+database schema or worker is introduced. Distance precision is validated and
+persisted before entry, separately from the current market-price grid. Missing
+native IDs or rejected submissions require intervention because the observed
+trailing action has no client ID; this specific intervention retains fixed-SL
+monitoring. Condition parsing failure on an otherwise verified owned trailing order
+also preserves independent SL supervision with zero trailing coverage. Identity,
+order semantics and account validation remain strict; generic intervention clears
+the native-only exception. Valid same-ID readback can recover without resubmission.
+Open waiting readback is distinct from active trailing coverage and
+does not itself request an exit. Native KIS SL/trailing remain
 unverified; local protection requires an active worker. Exact HTS equivalence is not
 assumed. The account supervisor serializes actual attempts while its journal worker
 has a separate account lock and a configurable 10800-second default interval.
-Unknown/manual positions are not automatically adopted. Their source history still
+Unknown/manual positions are not automatically adopted. Explicit `order adopt`
+queues ADOPTING in SQLite. `manual_adoption.py` validates source entry/fills and
+existing SL under the supervisor lock; atomic imported attempts bind ownership
+without broker writes. The gateway uses the original fill-history window, while
+admission time starts local tracking. Both trailing policies share one exit ledger;
+reduce-only exits reconcile residuals before cleanup. Imported orders are excluded
+from automatic agent-origin enrichment. See the [handoff diagram](architecture/manual-position-handoff.html)
+and [operating contract](trading-operations.md#manual-position-handoff). Their source history still
 belongs in the journal independently of live eligibility.
 
 Storage migrations are additive. Source revisions and old statistics snapshots are

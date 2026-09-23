@@ -1,0 +1,19 @@
+{
+  "candidate": "sha256:6f83f2b792df0c4fa1129ac7daf2ea098c284f446a24773c6e421ac8db7fd957",
+  "not_applicable_reason": "Documentation-only change; runtime TDD and trading smoke do not apply. Browser executes the generated viewer, CLI help executes parser only, and no venue requests/orders are made.",
+  "scenarios": [],
+  "runs": [
+    {
+      "id": "docs-content-1",
+      "phase": "document",
+      "candidate": "sha256:6f83f2b792df0c4fa1129ac7daf2ea098c284f446a24773c6e421ac8db7fd957",
+      "command": "python3 reports/sdlc/hermes-entry-diagram/check_documents.py",
+      "exit_code": 0,
+      "environment": "Local Python3, offline; real CLI --help subprocesses",
+      "observed": "PASS: 31 local documentation links/anchors\nPASS: CLI help order prepare\nPASS: CLI help order preview\nPASS: CLI help order submit\nPASS: CLI help order status\nPASS: CLI help supervisor run\nPASS: CLI help signal execute\nPASS: exact documentation candidate hashes\nPASS: tracked and new file scope contains no runtime edits\n",
+      "evidence": "reports/sdlc/hermes-entry-diagram/document-checks.log",
+      "execution_kind": "real",
+      "status": "passed"
+    }
+  ]
+}

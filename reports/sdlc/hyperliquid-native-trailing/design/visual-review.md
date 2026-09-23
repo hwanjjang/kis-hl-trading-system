@@ -1,0 +1,2 @@
+# Visual review
+/root inspected the exact delivered 2048x1320 light and 1440x900 dark PNGs. Labels, participants, arrows and legend are readable and unobscured. Browser evidence passes containment/readability at all four requested desktop viewports. The first tall candidate overflowed; message spacing was compacted and spec-redundant cards removed. Final validate/deliver passed 9 artifact checks with 0 composition errors/warnings. This diagram shows the success sequence; uncertainty/rejection branches are specified in the spec and operational docs.

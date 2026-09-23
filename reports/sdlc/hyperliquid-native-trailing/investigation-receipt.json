@@ -1,0 +1,37 @@
+{
+  "iteration": 1,
+  "decision": "PROCEED",
+  "reason": "# Investigation\nRead 2026-09-22. Official order-types page lists continuous mark-based perp trailing with quote/percentage retracement. Public exchange docs and official Python SDK lack a dedicated helper.\nOfficial app config-DWLPMyx3.js ace() constructs ordered action: type=trailingStop, asset, isBuy, sz (decimal string), reduceOnly, retracement={pct:\"5.0000%\"} or {px:\"...\"}, activationPx=null/string. mce() sends through I6/Uoe to /exchange; ws() signs the standard L1 Agent payload with optional expiresAfter. No cloid in this observed action. The app tests status=err; it does not prove an oid response contract. Unrecognized success must remain unknown.\nApp bM order schema contains oid, coin",
+  "authority_source": "AK request: issue creation and implementation, 2026-09-22",
+  "candidate": "94e8e9d15c28f37d91d2b8c1f82e593aaeb7f0e5",
+  "next_action": "Continue next applicable stage",
+  "inputs": [
+    {
+      "kind": "triage",
+      "path": "reports/sdlc/hyperliquid-native-trailing/triage.md",
+      "sha256": "cd211a026be71e16e953772bcae06a9839ff593fb787ae867d6678e020052f9d"
+    },
+    {
+      "kind": "intent",
+      "path": "intent/hyperliquid-native-trailing.md",
+      "sha256": "eae5ff7f8fbd4885f284693aa7115c79282bc6576fe86cda46c1717e5987cd92"
+    }
+  ],
+  "outputs": [
+    {
+      "kind": "investigation",
+      "path": "reports/sdlc/hyperliquid-native-trailing/investigation.md",
+      "sha256": "2fae0187690da7f25aaa4fbdc3f21b7289ec8831164aba3c949a494aa1b4f464"
+    }
+  ],
+  "assessment": {
+    "assessor": "/root",
+    "summary": "Read and assessed referenced artifact against issue #20 and fail-closed constraints.",
+    "criteria": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4"
+    ]
+  }
+}

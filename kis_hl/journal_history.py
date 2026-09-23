@@ -179,6 +179,7 @@ def attribute_fill(store, scope, fill):
         a, p = json.loads(attempt), json.loads(position)
         if (
             a["kind"] != "cancel"
+            and not a.get("imported", False)
             and str(a.get("order_id")) == fill.order_id
             and a["created_ms"] <= fill.time_ms
             and instrument(p["plan"]["instrument"]).symbol == fill.symbol

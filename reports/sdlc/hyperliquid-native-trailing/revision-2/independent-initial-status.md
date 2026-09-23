@@ -1,0 +1,4 @@
+# Initial corrective verification — blocked
+Candidate c0d6ed5976b9b61f90ad87e20c4ed8a4ec3472364bd41018e550bc46acb4d9c5.
+Independent context /root/correction_verify reported matching 10 file hashes and 32 native tests PASS. Final independent verdict and remaining adversarial checks were not yet delivered; no PASS is claimed. Main interrupted expansion of this candidate audit after discovering a concrete blocking counterexample.
+Builder reproduction: a known-ID accepted trail becomes PROTECTED on active readback, then orderStatus rejected at the next poll yields INTERVENTION/no exit. The broad status==REJECTED branch confuses never-accepted submission rejection with termination of an accepted order. This contradicts accepted-terminal residual-exit policy. Renew spec clarification, regression, build and verification. Independent final report for this candidate may be attached separately; it cannot approve the replacement candidate.

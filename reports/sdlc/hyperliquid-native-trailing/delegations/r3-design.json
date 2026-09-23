@@ -1,0 +1,236 @@
+{
+  "record_kind": "assignment-and-return",
+  "task_id": "hyperliquid-native-trailing",
+  "assignment_id": "r3-design",
+  "stage": "design",
+  "iteration": 4,
+  "iteration_limit": 10,
+  "remaining_after_current": 6,
+  "role": "plan",
+  "objective": "Adapt revision 2 sequence for isolated condition errors and preserve strict generic intervention.",
+  "acceptance_criteria": [
+    "AC2",
+    "AC3",
+    "AC4"
+  ],
+  "authority": {
+    "source": "Bounded /root assignment for PR #21 revision 3",
+    "endpoint": "pr",
+    "allowed": [
+      "design artifacts",
+      "local Archify validation/delivery/browser/image checks",
+      "assigned receipt"
+    ],
+    "excluded": [
+      "implementation edits",
+      "shared state",
+      "commits",
+      "push",
+      "publication",
+      "further delegation",
+      "live exchange I/O"
+    ]
+  },
+  "repository": "/root/.paseo/worktrees/1epgz72k/naughty-fox",
+  "candidate": {
+    "base": "94e8e9d15c28f37d91d2b8c1f82e593aaeb7f0e5",
+    "head_or_digest": "59400e9ee3b0c289da6176021a0efccc6bf6c08f"
+  },
+  "inputs": [
+    {
+      "path": "intent/hyperliquid-native-trailing.md",
+      "sha256": "c7d21572fb996702231660b5974e899e434dd5a189794c644d80e454f18a0793"
+    },
+    {
+      "path": "specs/hyperliquid-native-trailing.md",
+      "sha256": "ccd7c1c053927cd96b29825152c1bdf9218ecc8241d78eb361d51a4f59957b8f"
+    },
+    {
+      "path": "plans/hyperliquid-native-trailing.md",
+      "sha256": "5095e9e092fef2e2f73264eb734a481e1bfefa9fb369c3783baccb53cd0333dc"
+    },
+    {
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/investigation.md",
+      "sha256": "f0eeb5d62eaa121991022db83e6662090ee7896331c70f6896e50ad7bab3e71e"
+    },
+    {
+      "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/design/native-trailing.json",
+      "sha256": "99ccee51335ccec727b438c615d06bae2d220b275f3ff2f6d4df77e0f64e1681"
+    }
+  ],
+  "allowed_files": [
+    "reports/sdlc/hyperliquid-native-trailing/revision-3/design/*",
+    "reports/sdlc/hyperliquid-native-trailing/delegations/r3-design.json"
+  ],
+  "host_dispatch": {
+    "tool": "collaboration.spawn_agent",
+    "context_id": "/root/r3_design",
+    "status": "completed"
+  },
+  "return": {
+    "status": "completed",
+    "actual_provider": "OpenAI",
+    "actual_model": "GPT-6 (system-reported; exact model identifier unavailable)",
+    "actual_context_id": "/root/r3_design",
+    "consumed_inputs": [
+      {
+        "path": "intent/hyperliquid-native-trailing.md",
+        "sha256": "c7d21572fb996702231660b5974e899e434dd5a189794c644d80e454f18a0793"
+      },
+      {
+        "path": "specs/hyperliquid-native-trailing.md",
+        "sha256": "ccd7c1c053927cd96b29825152c1bdf9218ecc8241d78eb361d51a4f59957b8f"
+      },
+      {
+        "path": "plans/hyperliquid-native-trailing.md",
+        "sha256": "5095e9e092fef2e2f73264eb734a481e1bfefa9fb369c3783baccb53cd0333dc"
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/investigation.md",
+        "sha256": "f0eeb5d62eaa121991022db83e6662090ee7896331c70f6896e50ad7bab3e71e"
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-2/design/native-trailing.json",
+        "sha256": "99ccee51335ccec727b438c615d06bae2d220b275f3ff2f6d4df77e0f64e1681"
+      }
+    ],
+    "changed_files": [
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/README.md",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/browser-command.json",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/consumed-inputs.json",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/delivery.json",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.html",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.json",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.visual-check.1440x900.dark.png",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.visual-check.1440x900.light.png",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.visual-check.2048x1320.dark.png",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.visual-check.2048x1320.light.png",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.visual-check.html",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.visual-check.json",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/perceptual-review.json",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/validation.json"
+    ],
+    "output_references_and_digests": [
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/design/README.md",
+        "sha256": "d83eeb3506d469e5f89cc2c4bf99f99c0c80a416b9c59b8e483a7087b5a5d1f6",
+        "bytes": 2805
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/design/browser-command.json",
+        "sha256": "0496fae4b99eba17e9c0b7480ea0cc2202610cb0ac992c48a3cabc999c9f6297",
+        "bytes": 16992
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/design/consumed-inputs.json",
+        "sha256": "3158b5ca464e06f7806698bbb3c23337fad76ee86b29b4b27a3b5123b540b52e",
+        "bytes": 789
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/design/delivery.json",
+        "sha256": "7eecb57d65e1d8021d0e7228b56860c113f04affa082825d25c406178c85fea0",
+        "bytes": 784
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.html",
+        "sha256": "667ff10a47e8675cf58f2c546ba03d9ce425b83c12265dfa8bbeff0fd2066dcf",
+        "bytes": 803060
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.json",
+        "sha256": "f3a1e01c502e2f6d50655d0e00384993ae5e5eacb09a731b9e1c6deec11c1ea4",
+        "bytes": 3306
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.visual-check.1440x900.dark.png",
+        "sha256": "8459a0a934e5b02bba035080011d96a2e36f081276ef6aaf15027e9a7f2b448a",
+        "bytes": 104559
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.visual-check.1440x900.light.png",
+        "sha256": "b559078b35361b46b04d3aba417f2ffda68da66d3675f1df215f68af277128f5",
+        "bytes": 102387
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.visual-check.2048x1320.dark.png",
+        "sha256": "71447a1aaa6ab7718765dd96e48117c83451085332cc0024ea2696e06c0462c7",
+        "bytes": 140319
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.visual-check.2048x1320.light.png",
+        "sha256": "7c6903e8ae6df177e8e0a0351aee7245cd111a1adbcc571076527a69ff8b7658",
+        "bytes": 138205
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.visual-check.html",
+        "sha256": "0b1faeb0920878e28363e14d4a2a425a8bcf738f8b77a09caddf7c5a87c16204",
+        "bytes": 1934
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.visual-check.json",
+        "sha256": "0496fae4b99eba17e9c0b7480ea0cc2202610cb0ac992c48a3cabc999c9f6297",
+        "bytes": 16992
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/design/perceptual-review.json",
+        "sha256": "d1ae4fb2c2faf2d3250d875688c83c9750052bf24255279db809dc763b9d531c",
+        "bytes": 1549
+      },
+      {
+        "path": "reports/sdlc/hyperliquid-native-trailing/revision-3/design/validation.json",
+        "sha256": "f513b9045ad8d16c3c49b7344ce0ecd1bf7ccfb6c35f35237801c56c423a972d",
+        "bytes": 1950
+      }
+    ],
+    "commands_and_observed_results": [
+      {
+        "command": "Archify validate sequence --quality showcase --json",
+        "exit_code": 0,
+        "result": "9/9 checks; zero composition errors/warnings"
+      },
+      {
+        "command": "Archify deliver sequence --quality showcase --json",
+        "exit_code": 0,
+        "result": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        }
+      },
+      {
+        "command": "ARCHIFY_CHROME=<installed Chromium> Archify visual-check --json",
+        "exit_code": 0,
+        "result": "pass; 4 desktop viewports, 4 light/dark PNG captures"
+      },
+      {
+        "command": "view_image x4",
+        "result": "Inspected every light/dark endpoint capture; perceptual review passed"
+      }
+    ],
+    "evidence": [
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/validation.json",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/delivery.json",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/native-trailing.visual-check.json",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/perceptual-review.json",
+      "reports/sdlc/hyperliquid-native-trailing/revision-3/design/README.md"
+    ],
+    "findings": [],
+    "assumptions": [
+      "Sequence rows after known-ID verification are conditional outcomes.",
+      "Main owns canonical plan amendment, artifact index and SDLC state."
+    ],
+    "unresolved_risks": [
+      "Live exchange grammar and acceptance remain unverified; no live I/O performed.",
+      "Additional interactive viewer features were not manually exercised."
+    ],
+    "proposed_hotl_decision": "PROCEED",
+    "reason": "Requested design semantics represented with validated frozen artifact and actual browser/perceptual evidence.",
+    "next_action": "Main accepts design, updates shared state, and continues implementation verification."
+  },
+  "main_assessment": {
+    "decision": null
+  }
+}
