@@ -154,6 +154,26 @@ HYPERLIQUID_WS_URL=wss://api.hyperliquid.xyz/ws
 
 Set `HYPERLIQUID_KEY_PROFILE=production` to use `PRO_HYPERLIQUID_WALLETADDRESS` and `PRO_HYPERLIQUID_PRIVATEKEY`.
 
+For explicit subaccount execution, optionally set `HYPERLIQUID_SUBACCOUNT_ADDRESS`
+(or `PRO_HYPERLIQUID_SUBACCOUNT_ADDRESS` for the production profile). Keep that
+profile's `WALLETADDRESS` set to the subaccount's **master**, not the subaccount or
+an API agent. Empty/unset target preserves normal-account behavior. Profiles never
+fall back to each other's target or credentials. Malformed and self-target routes
+are rejected before use.
+
+Subaccount signing currently requires that profile's **master signer**. API-agent
+keys are deliberately rejected for subaccount routes; do not automatically replace
+keys or switch profiles. Normal-account API-wallet behavior is unchanged.
+Before any subaccount signed action, public `userRole` evidence must identify the
+target as `subAccount` with the configured master and the master as `user`.
+
+Default account reads, locks, journal and supervisor scope use the execution
+subaccount. Order/cancel/trailing dry-run requests show `account_address`,
+`master_account_address`, `vault_address`, and `key_profile` without loading the
+signer or querying roles. `routing_verified=false` means a dry run is not proof of
+exchange authorization. Review these fields and `hl-account` before execution.
+See [subaccount operating limits](docs/trading-operations.md#explicit-hyperliquid-subaccount-routing).
+
 ## Commands
 
 Verify the configured KIS account and read its domestic balance summary:
@@ -190,7 +210,7 @@ Fetch trade.xyz mids from the HIP-3 dex namespace:
 python -m kis_hl.cli hl-mids --dex xyz --symbols XYZ100 SP500 SAMSUNG
 ```
 
-Fetch public asset/account state for `HYPERLIQUID_WALLETADDRESS` without using the private key:
+Fetch public asset/account state for the selected profile's effective execution account (the subaccount when configured), without using the private key:
 
 ```bash
 python -m kis_hl.cli hl-account

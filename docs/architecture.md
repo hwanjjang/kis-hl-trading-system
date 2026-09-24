@@ -56,6 +56,35 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `docs/strategy_execution_design.md` records the planned strategy daemon design for operating-capital sizing, ATR stop-losses, application-level trailing exits, add-up logic, and KIS/Hyperliquid websocket responsibilities. Explicit protected-position trailing management is implemented as a supervised CLI worker; the broader autonomous entry/add-up strategy daemon remains unimplemented.
 
+## Hyperliquid execution identity
+
+`HyperliquidConfig.account_address` is always the effective execution account.
+`master_account_address` retains the selected profile's wallet identity;
+`subaccount_address` is an explicit optional route, never inferred from balances or
+address inequality. Subaccount configurations validate both address formats,
+reject self-targets, and enforce execution-account/target equality even through
+`dataclasses.replace`.
+
+The SDK receives the effective `account_address` **and** the subaccount as
+`vault_address`: the latter participates in both signing and `/exchange` routing.
+`account_address` alone does not route signed actions. `_load_sdk` rechecks public
+`userRole` evidence on every subaccount use, including reuse of a cached SDK.
+The derived signer must be the configured master; agent keys fail closed in this
+initial implementation. Failed reads, unexpected roles, and mismatched masters
+prevent SDK construction/action dispatch. Dry runs display identity but do not
+validate exchange permissions.
+
+Consumer audit: public default reads and SDK `user_state`, `execution_lock`,
+`cli` trailing ownership, `trailing_runner` stored account/recovery checks,
+`ManagedHyperliquidGateway` supervisor scope, and `operations_cli` journal and
+capability scopes all consume the same effective `account_address`. No database
+migration or reassignment of old master-scoped records occurs. Order request JSON
+also retains routing identity. The sole account-changing `replace` path in
+`scope_client` is a public-read override: it clears the private key, master and
+subaccount route when selecting a different account, so the returned config cannot
+be reused to sign under an unrelated scope. Other replacements do not change
+Hyperliquid account identity.
+
 ## Data Flow
 
 Interactive, code-grounded views generated from repository revision

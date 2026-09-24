@@ -584,3 +584,45 @@ These read-only exchange collectors do not adopt positions or place orders.
 Keep the same operational database path; existing account execution locks and
 managed/trailing state remain authoritative. Canonical reports use canonical
 facts only; legacy reports are comparison baselines, never additional trades.
+
+## Explicit Hyperliquid subaccount routing
+
+Setup variables and profile selection are documented in [README](../README.md).
+Treat enabling, disabling, or changing the subaccount as an **execution-account
+change**, not a signer repair. Default position/balance/order/history reads,
+account locks, supervisor ownership, and journal/storage scopes follow the target.
+Existing master-scoped records are not migrated or adopted automatically. Reconcile
+old workers, pending attempts, and account-scoped grants before an operator changes
+routing; do not run an old worker and assume it reloads environment configuration.
+A public `--account`/`user=` read override is not trading authorization.
+
+Before signed dispatch, the selected key must derive the configured master, and
+fresh public role reads must show `subAccount` with matching `data.master`, plus
+`user` for the master. Agent signers, missing roles, vaults, incorrect relationships,
+malformed replies and read failures block the operation, including cancellation
+and reduce-only protection. There is no automatic profile/key/master fallback.
+This initial implementation does not support API agents for subaccount execution;
+normal-account API-agent behavior is unchanged. Do not replace a key merely to
+bypass the guard without independently approving that security change.
+
+Dry-run order, cancel and trailing requests expose master/execution/vault/profile
+identity with `routing_verified=false`. They perform no role lookup and cannot
+prove permissions, tick/lot acceptance, funds, or live protection. On a signed path,
+`routing_verified=true` means only that this subaccount identity preflight passed,
+not that the exchange accepted or filled an action. Non-subaccount paths retain
+`false` because the subaccount preflight does not apply.
+
+Role checks are repeated even with a cached SDK; public read failures fail closed.
+Two `userRole` reads add request weight and latency, which can consume an order's
+expiry budget. Existing expiry checks still apply. Shared-master subaccounts retain
+separate execution-account locks; these are not a global signer/nonce coordinator.
+Avoid concurrent signing with the same key across workers/hosts without separately
+validated nonce coordination. No cross-account funds or order ownership is inferred.
+
+Verification includes offline unit coverage, SDK construction with transports
+stubbed, and a user-authorized live subaccount reduce-only fixed Stop Market order
+independently read back with the expected target, size and trigger. The live path
+also exposed an SDK boundary requirement: pass numeric `triggerPx` to the Python
+SDK, which serializes the wire string. Tests exercise that real serializer.
+Live cancellation and native trailing submission through this routing remain
+**unverified**. Order acceptance does not prove trigger-time fill quality.

@@ -102,7 +102,9 @@ No live exchange orders were used to verify this integration.
 - `tif`: `"Gtc"` good-til-cancel, `"Ioc"` immediate-or-cancel, `"Alo"` post-only.
 - Trigger orders: `{"trigger": {"isMarket": bool, "triggerPx": "string", "tpsl": "tp"|"sl"}}`.
   A stop-loss is `tpsl: "sl"` with `r: true`. This repo's `place_stop_loss_order()`
-  produces exactly that, with `isMarket: true`.
+  produces exactly that, with `isMarket: true`. Pass a numeric `triggerPx` to the
+  Python SDK; its wire serializer converts it to a string. Passing a string to
+  the SDK fails before submission. Exercise the real SDK serializer in tests.
 - `grouping`: `"na"`, `"normalTpsl"`, or `"positionTpsl"`. Use a group only when the
   entry and its TP/SL are sent in one `orders` array; the repo currently sends them
   separately with `"na"`.

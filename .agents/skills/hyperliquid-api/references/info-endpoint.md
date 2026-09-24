@@ -68,7 +68,7 @@ still forming — the BTC 3H signal only uses closed candles.
 | `activeAssetData` | `user`, `coin` | `leverage`, `maxTradeSzs`, `availableToTrade`, `markPx` — the cheapest pre-trade sizing check |
 | `userFees` | `user` | fee schedule and daily volumes |
 | `userRateLimit` | `user` | address-based request budget used / cap |
-| `userRole` | `user` | `user` / `agent` / `vault` / `subAccount` / `missing` (weight 60) |
+| `userRole` | `user` | Object with `role`: `user` / `agent` / `vault` / `subAccount` / `missing` (weight 60). For `subAccount`, `data.master` identifies the master. Wrapped by `user_role`; subaccount preflight rejects missing/incorrect relationships before signing. |
 | `portfolio` | `user` | account value and PnL series |
 | `subAccounts`, `userVaultEquities`, `vaultDetails` | see docs | not used by this repo |
 | `approvedBuilders`, `maxBuilderFee` | `user`, (`builder`) | builder-fee state |
@@ -79,8 +79,9 @@ Most history queries cap at 2000 rows. Paginate with the timestamp of the last r
 ## Repo mapping
 
 `kis_hl/hyperliquid/client.py` wraps `allMids`, `spotMeta`, `metaAndAssetCtxs`,
-`l2Book`, `candleSnapshot`, `fundingHistory`, `clearinghouseState` (plain, spot, and
-`ALL_DEXES`). Everything else in this table is unwrapped; follow the checklist in
-`SKILL.md` section 5 before adding one.
+`l2Book`, `candleSnapshot`, `fundingHistory`, `clearinghouseState` (including
+`ALL_DEXES`), `spotClearinghouseState`, and `userRole`. Account history/order
+wrappers are listed below and in `SKILL.md` section 4. Follow the checklist in
+`SKILL.md` section 5 before adding another wrapper.
 
 Trailing management wraps `frontendOpenOrders` (strict list of objects), `orderStatus` (oid or cloid; unknownOid is ambiguous), and `userFillsByTime` (explicit start/end, aggregateByTime=false). It queries order status before the final position snapshot, rejects saturated fill history, and treats a ledger/position mismatch as unreconciled. An absent open order alone does not prove termination.
