@@ -332,7 +332,7 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 - Hyperliquid stop-loss trigger orders use `--order-type stop-market`, require `--trigger-price`, and require `--reduce-only`.
 - Submitted reduce-only stop-market orders are recorded in `protective_orders` with trigger price, covered size, request ID, source order submission, and extracted Hyperliquid order ID when present.
 - Funding and spread snapshots are stored for suitability review. They do not yet block live entries automatically.
-- Hyperliquid operating capital is `accountValue * 10` without flooring; KIS uses account NAV × 1. One risk unit is planned loss at the explicit fixed SL equal to 1% of operating capital. Quantity rounds down; BTC keeps its fixed 80-USDC exception.
+- Advisory `strategy size` calculations use Hyperliquid operating capital of `accountValue * 10` without flooring; KIS uses account NAV × 1. One risk unit is planned loss at the explicit fixed SL equal to 1% of operating capital. Quantity rounds down; BTC keeps its fixed 80-USDC exception. These outputs do not automatically size orders: plan quantity and existing funds/notional guards remain explicit.
 - Non-IPO assets are excluded from the mapping by default.
 - Stocks listed for less than 30 weeks are excluded from live trading.
 - `KORU` (`xyz:KORU`, instrument `hl:xyz:KORU`) is the selected South Korea exposure; `KR200` and `EWY` remain excluded. It references a leveraged ETF, not a KR200/KOSPI200 equivalent, and uses the U.S. cash-equity session. `JP225` remains preferred over `EWJ` for Japan. See `docs/trade_xyz_assets.md`; KORU live acceptance and trailing behavior remain unverified.

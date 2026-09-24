@@ -130,7 +130,9 @@ additional record fields; they are not execution permission.
 
 Actions are `enter`, `add`, `hold`, `reduce`, `exit`, `no_trade`. Only `enter` can
 use the current `signal execute` new-entry path, with a separate explicit plan
-and manual/grant authority. Its evidence is rechecked before entry. Other actions
+and manual/grant authority. Supplied `setup_input` must describe `breakout` or
+`btc_3h`; evidence is rechecked before entry, including for raw `signal ingest`
+records. Legacy records without `setup_input` remain compatible. Other actions
 are advisory records: exits use the existing explicit order controls, and live
 add-ups require an execution extension beyond this strategy-tool contract.
 BTC spot decisions use `signal_instrument: hl:BTC`, only `hl:BTC` execution, and
