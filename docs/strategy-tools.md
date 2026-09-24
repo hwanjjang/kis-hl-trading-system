@@ -36,6 +36,11 @@ This initial adapter does not silently reinterpret exchange-local/DST bars:
 normalize with evidenced calendar semantics first or report them unavailable.
 Partial weeks are rejected, not included in the EMA.
 
+The shared BTC breakout helper also accepts `start_ms` and `end_ms`, preserving
+them in its current/reference candle timestamps. Existing helper aliases such as
+`t`/`T` keep precedence when both forms are supplied. Strategy snapshots still
+require ordered canonical bars; helper normalization does not relax validation.
+
 `history_max_age_ms` supplies explicit `daily` and `weekly` freshness budgets.
 The indicator tool requires 11 daily bars for ATR(10) and 30 weekly bars for EMA;
 it reports missing indicators independently under `unavailable` with null values.
