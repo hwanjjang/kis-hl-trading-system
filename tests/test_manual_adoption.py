@@ -83,6 +83,61 @@ class ManualAdoptionTests(unittest.TestCase):
         self.g.trading.place_order.assert_not_called()
         self.assertEqual(self.orders[43]["status"],"open")
 
+    def test_quote_after_start_is_fresh_at_preflight_completion(self):
+        row = self.queue()
+        self.g.preflight.return_value.update(time_ms=243, observed_now_ms=640)
+        self.info.l2_book.return_value["time"] = 640
+        with patch("kis_hl.managed_gateways.time.time", return_value=0.640):
+            result = self.worker.step(row["id"], 21)
+        self.assertEqual(result["state"], "PROTECTING")
+        self.assertEqual(len(self.store.attempts(row["id"])), 2)
+        self.g.trading.place_order.assert_not_called()
+        self.g.trading.place_trailing_stop_order.assert_not_called()
+
+    def test_stale_or_future_preflight_quote_rejects_at_completion(self):
+        for quote_time in (20, 2022):
+            with self.subTest(quote_time=quote_time):
+                self.setUp()
+                row = self.queue()
+                self.g.preflight.return_value.update(time_ms=quote_time, observed_now_ms=2021)
+                result = self.step(row)
+                self.assertEqual(result["state"], "INTERVENTION")
+                self.assertEqual(self.store.attempts(row["id"]), [])
+                self.g.trading.place_order.assert_not_called()
+                self.g.trading.place_trailing_stop_order.assert_not_called()
+
+    def test_long_account_reads_recheck_both_quotes_before_import(self):
+        for pre_time, quote_time, completed in ((20, 2021, 2021), (21, 20, 1021), (20, 23, 22)):
+            with self.subTest(pre_time=pre_time, quote_time=quote_time, completed=completed):
+                self.setUp()
+                row = self.queue()
+                self.g.preflight.return_value.update(time_ms=pre_time, observed_now_ms=21)
+                snapshot = self.g.snapshot
+                self.g.snapshot = lambda *args: snapshot(*args) | {
+                    "time_ms": quote_time, "observed_now_ms": completed}
+                result = self.step(row)
+                self.assertEqual(result["state"], "INTERVENTION")
+                self.assertEqual(self.store.attempts(row["id"]), [])
+                self.g.trading.place_order.assert_not_called()
+                self.g.trading.place_trailing_stop_order.assert_not_called()
+
+    def test_explicit_fixed_stop_and_independent_distances_survive_adoption(self):
+        self.orders[43]["order"]["triggerPx"] = "95.5"
+        row = self.queue(fixed_stop_price="95.5", local_atr_multiple="1.5", native_atr_multiple="3")
+        result = self.step(row)
+        self.assertEqual(result["state"], "PROTECTING")
+        self.assertEqual(result["trail"]["distance"], "3.0")
+        self.assertEqual(result["trail"]["threshold"], "97.0")
+        self.assertEqual(result["native_trailing_distance"], "6")
+        self.step(row, 22)
+        self.worker = Supervisor(self.store, self.g, live=True)
+        result = self.step(row, 23)
+        self.assertEqual(result["covered_size"], "1")
+        self.g.trading.place_order.assert_not_called()
+        self.g.trading.place_trailing_stop_order.assert_called_once()
+        self.assertEqual(self.orders[43]["order"]["triggerPx"], "95.5")
+        self.assertEqual(self.orders[43]["status"], "open")
+
     def test_bad_evidence_never_imports_or_sends_orders(self):
         changes=[lambda:self.orders[42].update(status="open"),
             lambda:self.orders[42]["order"].update(oid=99),
@@ -102,6 +157,37 @@ class ManualAdoptionTests(unittest.TestCase):
                 self.assertEqual(self.store.attempts(row["id"]),[])
                 self.g.trading.place_order.assert_not_called()
                 self.g.trading.place_trailing_stop_order.assert_not_called()
+
+    def test_external_percentage_trail_blocks_adoption_without_modifying_watermark(self):
+        legacy = dict(oid=99, coin="BTC", side="A", reduceOnly=True, isTrigger=True,
+                      sz="1", orderType="Trailing Stop Market",
+                      triggerCondition="retracement 15%, best 105")
+        self.orders[99] = {"status": "open", "order": legacy.copy()}
+        row = self.queue(fixed_stop_price="96", local_atr_multiple="2", native_atr_multiple="3")
+        self.assertEqual(self.step(row)["state"], "INTERVENTION")
+        self.assertEqual(self.store.attempts(row["id"]), [])
+        self.assertEqual(self.orders[99]["order"], legacy)
+        self.g.trading.cancel_order.assert_not_called()
+        self.g.trading.place_order.assert_not_called()
+        self.g.trading.place_trailing_stop_order.assert_not_called()
+
+    def test_manual_full_exit_cleans_adopted_stop_without_touching_other_coin(self):
+        row = self.queue(fixed_stop_price="96", local_atr_multiple="2", native_atr_multiple="3")
+        self.step(row)
+        self.orders[99] = {"status": "open", "order": dict(oid=99, coin="ETH", side="A", sz="1")}
+        self.fills.append(dict(self.fills[0], tid=2, oid=98, side="A", time=22,
+                               sz="1", startPosition="1"))
+        self.info.clearinghouse_state.return_value = {"assetPositions": []}
+        def cancel(**kw):
+            self.orders[kw["oid"]]["status"] = "canceled"
+            return SimpleNamespace(status="submitted", response={})
+        self.g.trading.cancel_order.side_effect = cancel
+        self.assertEqual(self.step(row, 23)["state"], "CLEANUP")
+        self.assertEqual(self.step(row, 24)["state"], "CLOSED")
+        self.assertEqual(self.orders[43]["status"], "canceled")
+        self.assertEqual(self.orders[99]["status"], "open")
+        self.g.trading.place_order.assert_not_called()
+        self.g.trading.place_trailing_stop_order.assert_not_called()
 
     def test_failed_adoption_recovery_and_cancel_never_become_entry(self):
         row=self.queue();self.orders[43]["status"]="canceled"

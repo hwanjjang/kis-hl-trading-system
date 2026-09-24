@@ -8,6 +8,7 @@
 - Do not commit secrets. `.env` is ignored and must remain untracked.
 - Use SQLite for local project state unless the user explicitly asks for another store.
 - Keep behavior traceable with tests, schema fields, and documentation close to the code.
+- Manage strategies as shared skills and implement deterministic calculations and predicates as Python tools. Follow `docs/strategy-authoring.md`; Hermes owns scheduling, briefings and notifications.
 
 ## Documentation
 
@@ -18,6 +19,7 @@
 - For any Binance work (new `/fapi` request, signed read, listenKey or user-data-stream handling, market stream subscription, symbol filter or rate-limit question), read `.agents/skills/binance-api/SKILL.md` first and keep its tables in sync when `kis_hl/binance/` changes. Never attach a vendor trading MCP server or order-capable tool to an agent session with live keys; this applies to every venue.
 - For completed-trade journal records, statistics, CLI output, or storage semantics, read `.agents/skills/trade-journal/SKILL.md` first and keep its formula references in sync with `kis_hl/trade_journal.py`.
 - When writing, reviewing, or refactoring code, follow `.agents/skills/karpathy-guidelines/SKILL.md`: surface assumptions, keep changes minimal and surgical, and define verifiable success criteria before implementing.
+- For strategy reviews and breakout/pullback/rebreakout decisions, use `.agents/skills/trend-strategy/SKILL.md` with its deterministic CLI tools. A skill decision does not authorize an order.
 - At the start of any multi-step work session, read `.agents/skills/task-observer/SKILL.md` and follow its observation workflow; it captures repeating patterns, user corrections, and skill-improvement opportunities. This line is its activation trigger for all agents.
 - Skills live in `.agents/skills/<name>/` as the single copy, with a relative symlink at `.claude/skills/<name>` so both Claude Code and Codex use the same files. When installing a new skill, create both, add a usage rule here, and add a row to the ownership table in `CLAUDE.md`.
 - Update documentation whenever behavior, setup, schema, asset eligibility, trading safety, or operational assumptions change.
@@ -34,8 +36,9 @@
 - Live trade.xyz orders must also require recent successful Hyperliquid metadata verification.
 - Exclude assets that have not completed a public listing or IPO.
 - Exclude stock assets that have been publicly listed for less than 30 weeks.
-- Avoid duplicate country exposure:
-  - Use `KR200` for South Korea exposure and exclude `EWY`.
+- Cross-venue timing and KIS preferred/fallback instrument requirements are owned by `docs/trading-operations.md` ("Cross-venue timing and preferred execution policy"). Keep account-level management independent; shared signals are not shared funds or execution prices.
+- Avoid duplicate country exposure within the Hyperliquid trade.xyz universe (this does not exclude independently managed KIS ETFs):
+  - Use `KORU` for South Korea exposure and exclude `KR200` and `EWY`. KORU references a daily 3x leveraged US-listed ETF; it is not equivalent to the KOSPI 200 index.
   - Use `JP225` for Japan exposure and exclude `EWJ`.
 
 ## Testing

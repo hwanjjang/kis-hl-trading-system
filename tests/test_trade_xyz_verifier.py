@@ -18,20 +18,20 @@ class TradeXyzVerifierTests(unittest.TestCase):
             db = Path(tmp) / "test.sqlite"
             checks = verify_trade_xyz_assets(
                 db,
-                mids={"xyz:KR200": "350.1", "XYZ100": "1000.2"},
+                mids={"xyz:SP500": "350.1", "XYZ100": "1000.2"},
                 tradable_only=True,
                 asset_class="equity_index",
                 checked_at_ms=100,
             )
             by_symbol = {check["trade_symbol"]: check for check in checks}
-            self.assertTrue(by_symbol["KR200"]["available"])
+            self.assertTrue(by_symbol["SP500"]["available"])
             self.assertTrue(by_symbol["XYZ100"]["available"])
             self.assertFalse(by_symbol["JP225"]["available"])
-            self.assertEqual(summarize_checks(checks), {"checked": 4, "available": 2, "unavailable": 2})
+            self.assertEqual(summarize_checks(checks), {"checked": 3, "available": 2, "unavailable": 1})
 
-            latest = get_latest_trade_xyz_asset_check(db, hyperliquid_coin="xyz:KR200")
+            latest = get_latest_trade_xyz_asset_check(db, hyperliquid_coin="xyz:SP500")
             self.assertTrue(latest["available"])
-            self.assertEqual(latest["mid_source_key"], "xyz:KR200")
+            self.assertEqual(latest["mid_source_key"], "xyz:SP500")
 
     def test_verify_trade_xyz_commodities_uses_hyperliquid_market_aliases(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

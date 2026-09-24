@@ -201,7 +201,7 @@ class CliTests(unittest.TestCase):
                 [
                     "trade",
                     "--symbol",
-                    "xyz:KR200",
+                    "xyz:KORU",
                     "--side",
                     "sell",
                     "--order-type",
@@ -240,7 +240,7 @@ class CliTests(unittest.TestCase):
                         str(db_path),
                         "trade",
                         "--symbol",
-                        "xyz:KR200",
+                        "xyz:KORU",
                         "--side",
                         "sell",
                         "--order-type",
@@ -392,7 +392,8 @@ class CliTests(unittest.TestCase):
             self.assertEqual(list_exit, 0)
             payload = json.loads(stdout.getvalue())
             symbols = {asset["trade_symbol"] for asset in payload["assets"]}
-            self.assertIn("KR200", symbols)
+            self.assertIn("KORU", symbols)
+            self.assertNotIn("KR200", symbols)
             self.assertNotIn("EWY", symbols)
 
     def test_xyz_assets_verify_uses_hyperliquid_mids(self) -> None:
@@ -402,7 +403,7 @@ class CliTests(unittest.TestCase):
 
             def all_mids(self, *, dex: str | None = None) -> dict[str, str]:
                 assert dex == "xyz"
-                return {"xyz:KR200": "350.1", "XYZ100": "1000.2"}
+                return {"xyz:SP500": "350.1", "XYZ100": "1000.2"}
 
         with tempfile.TemporaryDirectory() as tmp:
             db_path = Path(tmp) / "test.sqlite"
@@ -424,10 +425,10 @@ class CliTests(unittest.TestCase):
                 )
             self.assertEqual(exit_code, 0)
             payload = json.loads(stdout.getvalue())
-            self.assertEqual(payload["checked"], 4)
+            self.assertEqual(payload["checked"], 3)
             self.assertEqual(payload["available"], 2)
             symbols = {check["trade_symbol"] for check in payload["checks"] if check["available"]}
-            self.assertEqual(symbols, {"KR200", "XYZ100"})
+            self.assertEqual(symbols, {"SP500", "XYZ100"})
 
     def test_xyz_assets_verify_accepts_commodity_asset_class(self) -> None:
         class FakeHyperliquidInfoClient:
@@ -540,14 +541,14 @@ class CliTests(unittest.TestCase):
                 calls.append(("domestic", symbol, market_code))
                 return KisHttpResponse(200, {"rt_cd": "0", "output": {"stck_prpr": "75000"}}, {})
 
-            def inquire_domestic_index_price(
+            def inquire_overseas_price(
                 self,
                 *,
-                index_code: str,
-                market_code: str,
+                symbol: str,
+                exchange_code: str,
             ) -> KisHttpResponse:
-                calls.append(("domestic_index", index_code, market_code))
-                return KisHttpResponse(200, {"rt_cd": "0", "output": {"bstp_nmix_prpr": "400.12"}}, {})
+                calls.append(("overseas", symbol, exchange_code))
+                return KisHttpResponse(200, {"rt_cd": "0", "output": {"last": "40.12"}}, {})
 
         with tempfile.TemporaryDirectory() as tmp:
             db_path = Path(tmp) / "test.sqlite"
@@ -569,7 +570,7 @@ class CliTests(unittest.TestCase):
                         "kis-collect",
                         "--symbols",
                         "SAMSUNG",
-                        "KR200",
+                        "KORU",
                         "EWY",
                     ]
                 )
@@ -580,7 +581,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual(payload["stored"], 2)
             self.assertEqual(
                 calls,
-                [("domestic", "005930", "J"), ("domestic_index", "2001", "U")],
+                [("domestic", "005930", "J"), ("overseas", "KORU", "AMS")],
             )
 
     def test_xyz_assets_seed_ref_and_fetch_uses_yahoo_mapping(self) -> None:

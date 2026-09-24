@@ -54,11 +54,40 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.storage` persists raw KIS payloads, daily OHLCV bars, order submissions, venue order-status events (`order_events`), reduce-only stop-market protective orders, completed trade journal entries, trade.xyz asset rows, Hyperliquid verification checks, KIS market-data mapping rows, secondary reference-data mapping rows, live `xyz` universe snapshots, funding-rate rows, and spread snapshots in SQLite. Raw payloads are stored because vendor schemas and exchange responses can change.
 
-`kis_hl.trade_xyz_assets` defines the curated trade.xyz asset mapping seed. `trade_xyz_assets` rows in SQLite drive RWA eligibility: non-IPO assets and stocks listed for less than 30 weeks are excluded, `EWY` is excluded in favor of `KR200`, and `EWJ` is excluded in favor of `JP225`. The seed also records Specification Index commodity and FX references. `trade_xyz_asset_checks` records actual Hyperliquid metadata availability and is required for live trade.xyz orders. `trade_xyz_kis_mappings` records which KIS quote route, if any, can provide reference market data for the same trade.xyz asset.
+`kis_hl.trade_xyz_assets` defines the curated trade.xyz asset mapping seed. `trade_xyz_assets` rows in SQLite drive RWA eligibility: non-IPO assets and stocks listed for less than 30 weeks are excluded, `KR200` and `EWY` are excluded in favor of `KORU`, and `EWJ` is excluded in favor of `JP225`. KORU is a leveraged ETF reference using U.S. cash-equity hours, not an equivalent KR200/KOSPI200 contract. Its KIS mapping supplies quotes only; it does not add a KIS execution instrument. See [asset policy and seed refresh](trade_xyz_assets.md). The seed also records Specification Index commodity and FX references. `trade_xyz_asset_checks` records actual Hyperliquid metadata availability and is required for live trade.xyz orders. `trade_xyz_kis_mappings` records which KIS quote route, if any, can provide reference market data for the same trade.xyz asset.
 
 `kis_hl.cli` provides operational commands. Live orders require `--live`; dry-run is the default.
 
-`docs/strategy_execution_design.md` records the planned strategy daemon design for operating-capital sizing, ATR stop-losses, application-level trailing exits, add-up logic, and KIS/Hyperliquid websocket responsibilities. Explicit protected-position trailing management is implemented as a supervised CLI worker; the broader autonomous entry/add-up strategy daemon remains unimplemented.
+`docs/strategy_execution_design.md` records the strategy skill/tool integration and existing execution limits. Hermes loads `.agents/skills/trend-strategy/` for strategy judgment and owns timing/briefings/notification. `kis_hl.strategy_tools` supplies deterministic indicators, setup predicates, ATR stop proposals, risk-unit sizing and decision evidence through the existing CLI. Decisions reuse `strategy_signals`; protected execution and trailing remain in the existing supervisor rather than a new strategy daemon.
+
+## Hyperliquid execution identity
+
+`HyperliquidConfig.account_address` is always the effective execution account.
+`master_account_address` retains the selected profile's wallet identity;
+`subaccount_address` is an explicit optional route, never inferred from balances or
+address inequality. Subaccount configurations validate both address formats,
+reject self-targets, and enforce execution-account/target equality even through
+`dataclasses.replace`.
+
+The SDK receives the effective `account_address` **and** the subaccount as
+`vault_address`: the latter participates in both signing and `/exchange` routing.
+`account_address` alone does not route signed actions. `_load_sdk` rechecks public
+`userRole` evidence on every subaccount use, including reuse of a cached SDK.
+The derived signer must be the configured master; agent keys fail closed in this
+initial implementation. Failed reads, unexpected roles, and mismatched masters
+prevent SDK construction/action dispatch. Dry runs display identity but do not
+validate exchange permissions.
+
+Consumer audit: public default reads and SDK `user_state`, `execution_lock`,
+`cli` trailing ownership, `trailing_runner` stored account/recovery checks,
+`ManagedHyperliquidGateway` supervisor scope, and `operations_cli` journal and
+capability scopes all consume the same effective `account_address`. No database
+migration or reassignment of old master-scoped records occurs. Order request JSON
+also retains routing identity. The sole account-changing `replace` path in
+`scope_client` is a public-read override: it clears the private key, master and
+subaccount route when selecting a different account, so the returned config cannot
+be reused to sign under an unrelated scope. Other replacements do not change
+Hyperliquid account identity.
 
 ## Data Flow
 

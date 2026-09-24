@@ -67,7 +67,10 @@ includes both stop kinds. Do not recreate a previously accepted terminal trail
 automatically because that resets its watermark; preserve residual-exit handling.
 
 Evidence digest and investigation: `reports/sdlc/hyperliquid-native-trailing/`.
-No live exchange orders were used to verify this integration.
+An authorized KORU subaccount rollout verified trailing submission, active
+order-ID readback and cancellation. The observed readback explicitly includes
+`Activation immediate`; accept that clause while rejecting duplicate/conflicting
+activation clauses. This does not verify trigger-time fill quality.
 
 ## Order action
 
@@ -102,7 +105,9 @@ No live exchange orders were used to verify this integration.
 - `tif`: `"Gtc"` good-til-cancel, `"Ioc"` immediate-or-cancel, `"Alo"` post-only.
 - Trigger orders: `{"trigger": {"isMarket": bool, "triggerPx": "string", "tpsl": "tp"|"sl"}}`.
   A stop-loss is `tpsl: "sl"` with `r: true`. This repo's `place_stop_loss_order()`
-  produces exactly that, with `isMarket: true`.
+  produces exactly that, with `isMarket: true`. Pass a numeric `triggerPx` to the
+  Python SDK; its wire serializer converts it to a string. Passing a string to
+  the SDK fails before submission. Exercise the real SDK serializer in tests.
 - `grouping`: `"na"`, `"normalTpsl"`, or `"positionTpsl"`. Use a group only when the
   entry and its TP/SL are sent in one `orders` array; the repo currently sends them
   separately with `"na"`.

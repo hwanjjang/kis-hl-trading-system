@@ -30,7 +30,7 @@ python -m kis_hl.cli journal status --venue kis
 
 [Trading operations](docs/trading-operations.md) documents required plan fields,
 protected entry/supervisor controls, actual-history journals, statement imports,
-and future strategy-signal grants. Journal synchronization defaults to **3 hours**
+and strategy-signal grants. Journal synchronization defaults to **3 hours**
 and is configurable; protection runs separately. KIS order summaries remain pending
 until exact execution/cost statements are supplied. Native KIS protection is not
 inferred from stop-limit names. Notification delivery is not implemented.
@@ -110,7 +110,7 @@ No live exchange execution has been verified for this feature. Mid-price signals
 can differ from native mark-price triggers; gaps, IOC residuals and outages can
 lose the latest trailing profit floor. Status shows verified coverage timestamps,
 state/reason, exit intent and attempts. See
-[the strategy design](docs/strategy_execution_design.md#implemented-trailing-management)
+[the strategy design](docs/strategy_execution_design.md#existing-protection-and-execution-limits)
 for exact scope, recovery and limitations.
 
 ## Setup
@@ -153,6 +153,26 @@ HYPERLIQUID_WS_URL=wss://api.hyperliquid.xyz/ws
 ```
 
 Set `HYPERLIQUID_KEY_PROFILE=production` to use `PRO_HYPERLIQUID_WALLETADDRESS` and `PRO_HYPERLIQUID_PRIVATEKEY`.
+
+For explicit subaccount execution, optionally set `HYPERLIQUID_SUBACCOUNT_ADDRESS`
+(or `PRO_HYPERLIQUID_SUBACCOUNT_ADDRESS` for the production profile). Keep that
+profile's `WALLETADDRESS` set to the subaccount's **master**, not the subaccount or
+an API agent. Empty/unset target preserves normal-account behavior. Profiles never
+fall back to each other's target or credentials. Malformed and self-target routes
+are rejected before use.
+
+Subaccount signing currently requires that profile's **master signer**. API-agent
+keys are deliberately rejected for subaccount routes; do not automatically replace
+keys or switch profiles. Normal-account API-wallet behavior is unchanged.
+Before any subaccount signed action, public `userRole` evidence must identify the
+target as `subAccount` with the configured master and the master as `user`.
+
+Default account reads, locks, journal and supervisor scope use the execution
+subaccount. Order/cancel/trailing dry-run requests show `account_address`,
+`master_account_address`, `vault_address`, and `key_profile` without loading the
+signer or querying roles. `routing_verified=false` means a dry run is not proof of
+exchange authorization. Review these fields and `hl-account` before execution.
+See [subaccount operating limits](docs/trading-operations.md#explicit-hyperliquid-subaccount-routing).
 
 Binance USDⓈ-M futures uses exchange API keys. Public market data needs no key; signed
 reads and the user data stream need both values:
@@ -205,7 +225,7 @@ Fetch trade.xyz mids from the HIP-3 dex namespace:
 python -m kis_hl.cli hl-mids --dex xyz --symbols XYZ100 SP500 SAMSUNG
 ```
 
-Fetch public asset/account state for `HYPERLIQUID_WALLETADDRESS` without using the private key:
+Fetch public asset/account state for the selected profile's effective execution account (the subaccount when configured), without using the private key:
 
 ```bash
 python -m kis_hl.cli hl-account
@@ -257,8 +277,8 @@ Snapshot the live Hyperliquid `xyz` universe, funding history, and top-of-book s
 python -m kis_hl.cli xyz-assets universe-collect
 python -m kis_hl.cli xyz-assets funding-collect --lookback-hours 24 --delay-ms 300
 python -m kis_hl.cli xyz-assets spread-collect --delay-ms 300
-python -m kis_hl.cli xyz-assets funding-collect --symbols SP500 XYZ100 GOLD DRAM KR200 EWY TSM LLY --lookback-hours 168
-python -m kis_hl.cli xyz-assets spread-collect --symbols SP500 XYZ100 GOLD DRAM KR200 EWY TSM LLY
+python -m kis_hl.cli xyz-assets funding-collect --symbols SP500 XYZ100 GOLD DRAM KORU TSM LLY --lookback-hours 168
+python -m kis_hl.cli xyz-assets spread-collect --symbols SP500 XYZ100 GOLD DRAM KORU TSM LLY
 ```
 
 `universe-collect` stores the current Hyperliquid `xyz` market list and reports symbols that are new versus the previous snapshot or the curated seed on the first run. Each universe asset row stores Hyperliquid 24h base volume, 24h notional volume, and open interest when the API provides them. `funding-collect` stores idempotent hourly funding rows in `market_funding_rates`. `spread-collect` stores best bid, best ask, mid price, absolute spread, and spread bps in `market_spread_snapshots`.
@@ -269,10 +289,10 @@ Create or refresh the trade.xyz to KIS quote mapping table, then fetch the mappe
 python -m kis_hl.cli xyz-assets seed-kis
 python -m kis_hl.cli xyz-assets kis-list --status active
 python -m kis_hl.cli xyz-assets kis-fetch --symbol SAMSUNG --store
-python -m kis_hl.cli xyz-assets kis-collect --symbols SAMSUNG KR200 SP500 --delay-ms 300
+python -m kis_hl.cli xyz-assets kis-collect --symbols SAMSUNG KORU SP500 --delay-ms 300
 ```
 
-`kis-fetch` rejects excluded or unsupported mappings. `kis-collect` stores active mappings by default and continues after per-symbol failures unless `--fail-fast` is passed. `KR200` uses the KIS domestic index current-price endpoint. `XYZ100`, `SP500`, and `JP225` use the KIS overseas index intraday chart endpoint. Commodity and FX rows keep their trade.xyz reference symbols in `trade_xyz_kis_mappings`, but remain `unsupported` until exact KIS collection routes are implemented.
+`kis-fetch` rejects excluded or unsupported mappings. `kis-collect` stores active mappings by default and continues after per-symbol failures unless `--fail-fast` is passed. `KORU` uses the existing ETF quote mapper with KIS overseas exchange `AMS` and symbol `KORU`; this does not add a KIS execution instrument. `KR200` retains its domestic index route but is excluded. `XYZ100`, `SP500`, and `JP225` use the KIS overseas index intraday chart endpoint. Commodity and FX rows keep their trade.xyz reference symbols in `trade_xyz_kis_mappings`, but remain `unsupported` until exact KIS collection routes are implemented.
 
 Create or refresh secondary reference-data mappings, then collect Yahoo Finance chart quotes:
 
@@ -375,10 +395,10 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 - Hyperliquid stop-loss trigger orders use `--order-type stop-market`, require `--trigger-price`, and require `--reduce-only`.
 - Submitted reduce-only stop-market orders are recorded in `protective_orders` with trigger price, covered size, request ID, source order submission, and extracted Hyperliquid order ID when present.
 - Funding and spread snapshots are stored for suitability review. They do not yet block live entries automatically.
-- Operating capital is calculated as `floor(portfolio_value_usdc / 1000) * 1000 * 20`. Position sizing uses `ATR(10D) * N` as the stop distance and `1%` of operating capital as per-tranche risk.
+- Advisory `strategy size` calculations use Hyperliquid operating capital of `accountValue * 10` without flooring; KIS uses account NAV × 1. One risk unit is planned loss at the explicit fixed SL equal to 1% of operating capital. Quantity rounds down; BTC keeps its fixed 80-USDC exception. These outputs do not automatically size orders: plan quantity and existing funds/notional guards remain explicit.
 - Non-IPO assets are excluded from the mapping by default.
 - Stocks listed for less than 30 weeks are excluded from live trading.
-- `KR200` replaces `EWY` for South Korea exposure; `JP225` replaces `EWJ` for Japan exposure.
+- `KORU` (`xyz:KORU`, instrument `hl:xyz:KORU`) is the selected South Korea exposure; `KR200` and `EWY` remain excluded. It references a leveraged ETF, not a KR200/KOSPI200 equivalent, and uses the U.S. cash-equity session. `JP225` remains preferred over `EWJ` for Japan. See `docs/trade_xyz_assets.md`; KORU live acceptance and trailing behavior remain unverified.
 - `WTIOIL` resolves to the Hyperliquid `xyz:CL` market because trade.xyz labels the contract WTIOIL while Hyperliquid exposes the CL key.
 - Normal live entries should follow the underlying market's regular session, not Hyperliquid's broader 24/5 or 24/7 availability. See `docs/trading_hours.md`.
 - Strategy sizing, ATR stops, add-up flow, and websocket execution behavior are documented in `docs/strategy_execution_design.md`.
@@ -435,3 +455,23 @@ report SHA-256 and explicit approval of corrections. Add `--journals` to regener
 selected account journals and their combined report while preserving old reports.
 See [the account audit workflow](docs/unified-data-operations.md#account-audit-and-explicit-adjustment)
 for command examples, coverage limits and the offline smoke scenario.
+
+## Hermes strategy tools
+
+Hermes loads the shared [trend-strategy skill](.agents/skills/trend-strategy/SKILL.md)
+and owns review timing, briefings and notifications. Deterministic CLI tools supply
+facts and retain decisions; they do not place orders:
+
+```bash
+python3 -m kis_hl.cli strategy indicators --input snapshot.json
+python3 -m kis_hl.cli strategy evaluate --input setup.json
+python3 -m kis_hl.cli strategy stop --input stop.json
+python3 -m kis_hl.cli strategy size --input size.json
+python3 -m kis_hl.cli strategy register --input strategy-version.json
+python3 -m kis_hl.cli strategy decide --input decision.json
+```
+
+See [input/output contracts](docs/strategy-tools.md) for schemas, required source
+metadata and offline replay. Use [the authoring policy](docs/strategy-authoring.md)
+when adding a strategy. Existing signal/manual-grant and protected-order commands
+retain execution authority; a passing setup or stored decision does not grant it.

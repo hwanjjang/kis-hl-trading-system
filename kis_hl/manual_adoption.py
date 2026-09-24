@@ -17,6 +17,7 @@ def verify_adoption(gateway, row, now):
         raise ValueError("Legacy trailing already owns this position")
     gateway.trading._require_credentials()
     pre = gateway.preflight(p, now, existing_position=True)
+    now = int(pre.get("observed_now_ms", now))
     if (not pre["eligible"] or not 0 <= now - int(pre["time_ms"]) <= p["max_quote_age_ms"]
             or decimal(pre["portfolio_notional"]) > decimal(p["max_portfolio_notional"])
             or decimal(pre["correlated_notional"]) > decimal(p["max_correlated_notional"])):
@@ -70,6 +71,11 @@ def verify_adoption(gateway, row, now):
                 for kind,oid,status in (("entry",entry_id,"FILLED"),("stop",stop_id,"SUBMITTED"))]
     candidate = row | {"fill_history_start_ms": start}
     snap = gateway.snapshot(candidate, attempts, now)
+    now = int(snap.get("observed_now_ms", now))
+    # Account/history reads can outlive preflight freshness; recheck before import.
+    if any(not 0 <= now - int(observation["time_ms"]) <= p["max_quote_age_ms"]
+           for observation in (pre, snap)):
+        raise ValueError("Adoption quote freshness failed after account reads")
     stop = snap["orders"].get(str(stop_id), {})
     distance = decimal(p["stop_distance"])
     if (not snap["consistent"] or snap["foreign_add"] or decimal(snap["size"]) != quantity
@@ -78,8 +84,10 @@ def verify_adoption(gateway, row, now):
             or decimal(stop.get("size", "0")) != quantity
             or decimal(stop.get("trigger_price", "0")) < average-distance):
         raise ValueError("Current position or fixed SL cannot be reconciled")
-    trail = Trail.create(entry=average, atr=decimal(p["atr"]), multiple=decimal(p["atr_multiple"]), opened_ms=now)
-    trail.threshold = max(trail.threshold, decimal(stop["trigger_price"]))
+    trail = Trail.create(entry=average, atr=decimal(p["atr"]),
+                         multiple=decimal(p.get("local_atr_multiple", p["atr_multiple"])), opened_ms=now)
+    if "local_atr_multiple" not in p and "fixed_stop_price" not in p:
+        trail.threshold = max(trail.threshold, decimal(stop["trigger_price"]))
     native = p["trailing_provider"] == "native"
     updates = {"state":"PROTECTING", "reason":"Manual position admitted; awaiting protection supervision",
                "adopted_ms":now, "fill_history_start_ms":start, "first_fill_ms":ordered[0]["time"],
@@ -89,6 +97,7 @@ def verify_adoption(gateway, row, now):
                "providers":{"stop_loss":"native", "trailing":p["trailing_provider"],
                             "local_trailing_backup":p.get("local_trailing_backup",False)}}
     if native:
-        updates["native_trailing_distance"] = wire_decimal(normalize_quote_retracement(distance,tick))
+        native_distance = decimal(p["atr"]) * decimal(p.get("native_atr_multiple", p["atr_multiple"]))
+        updates["native_trailing_distance"] = wire_decimal(normalize_quote_retracement(native_distance,tick))
     attempts[1]["trigger_price"] = stop["trigger_price"]
     return updates, attempts

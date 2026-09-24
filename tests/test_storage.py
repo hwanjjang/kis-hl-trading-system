@@ -332,9 +332,11 @@ class StorageTests(unittest.TestCase):
             self.assertGreater(count, 0)
             assets = list_trade_xyz_assets(db)
             by_symbol = {asset["trade_symbol"]: asset for asset in assets}
-            self.assertTrue(by_symbol["KR200"]["tradable"])
+            self.assertTrue(by_symbol["KORU"]["tradable"])
+            self.assertFalse(by_symbol["KR200"]["tradable"])
+            self.assertEqual(by_symbol["KR200"]["preferred_symbol"], "KORU")
             self.assertFalse(by_symbol["EWY"]["tradable"])
-            self.assertEqual(by_symbol["EWY"]["preferred_symbol"], "KR200")
+            self.assertEqual(by_symbol["EWY"]["preferred_symbol"], "KORU")
             self.assertTrue(by_symbol["JP225"]["tradable"])
             self.assertFalse(by_symbol["EWJ"]["tradable"])
             self.assertEqual(by_symbol["EWJ"]["preferred_symbol"], "JP225")
@@ -350,7 +352,8 @@ class StorageTests(unittest.TestCase):
             db = Path(tmp) / "test.sqlite"
             seed_trade_xyz_assets(db, updated_at_ms=1)
             symbols = {asset["trade_symbol"] for asset in list_trade_xyz_assets(db, tradable_only=True)}
-            self.assertIn("KR200", symbols)
+            self.assertIn("KORU", symbols)
+            self.assertNotIn("KR200", symbols)
             self.assertNotIn("EWY", symbols)
 
     def test_trade_xyz_asset_check_tracks_latest_availability(self) -> None:
@@ -397,7 +400,8 @@ class StorageTests(unittest.TestCase):
             active_symbols = {item["trade_symbol"] for item in active}
             self.assertIn("AAPL", active_symbols)
             self.assertIn("SAMSUNG", active_symbols)
-            self.assertIn("KR200", active_symbols)
+            self.assertIn("KORU", active_symbols)
+            self.assertNotIn("KR200", active_symbols)
             self.assertIn("XYZ100", active_symbols)
 
             unsupported = list_trade_xyz_kis_mappings(db, status="unsupported")

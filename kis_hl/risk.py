@@ -3,11 +3,10 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 from typing import Any
 
-DEFAULT_OPERATING_CAPITAL_MULTIPLE = Decimal("20")
-DEFAULT_OPERATING_CAPITAL_INCREMENT = Decimal("1000")
+DEFAULT_OPERATING_CAPITAL_MULTIPLE = Decimal("10")
 DEFAULT_RISK_FRACTION = Decimal("0.01")
 
 DEFAULT_N_MULTIPLIERS: dict[str, Decimal] = {
@@ -43,17 +42,40 @@ def calculate_operating_capital(
     portfolio_value_usdc: Decimal | str | int | float,
     *,
     multiple: Decimal = DEFAULT_OPERATING_CAPITAL_MULTIPLE,
-    increment: Decimal = DEFAULT_OPERATING_CAPITAL_INCREMENT,
 ) -> Decimal:
     portfolio_value = _to_decimal(portfolio_value_usdc)
     if portfolio_value < 0:
         raise ValueError("portfolio_value_usdc must be non-negative")
+    multiple = _to_decimal(multiple)
     if multiple <= 0:
         raise ValueError("multiple must be positive")
-    if increment <= 0:
-        raise ValueError("increment must be positive")
-    floored = (portfolio_value // increment) * increment
-    return floored * multiple
+    return portfolio_value * multiple
+
+
+def calculate_risk_units(*, capital, entry, stop, units, quantity_step,
+                         minimum_quantity="0", minimum_notional="0", side="long"):
+    """Size against an explicit fixed stop; no market reads or execution authority."""
+    values = {k: _to_decimal(v) for k, v in dict(
+        capital=capital, entry=entry, stop=stop, units=units,
+        quantity_step=quantity_step, minimum_quantity=minimum_quantity,
+        minimum_notional=minimum_notional).items()}
+    if any(values[k] <= 0 for k in ("capital", "entry", "stop", "units", "quantity_step")):
+        raise ValueError("Capital, prices, units and quantity step must be positive")
+    if min(values["minimum_quantity"], values["minimum_notional"]) < 0:
+        raise ValueError("Market minimums must be non-negative")
+    if side not in {"long", "short"}:
+        raise ValueError("Side must be long or short")
+    distance = (values["entry"] - values["stop"]) * (1 if side == "long" else -1)
+    if distance <= 0:
+        raise ValueError("Stop must be on the loss side of entry")
+    budget = values["capital"] * DEFAULT_RISK_FRACTION * values["units"]
+    step = values["quantity_step"]
+    quantity = (budget / distance / step).to_integral_value(rounding=ROUND_DOWN) * step
+    notional = quantity * values["entry"]
+    return dict(quantity=quantity, notional=notional, risk=quantity * distance,
+                risk_budget=budget, stop_distance=distance, units=values["units"],
+                below_minimum=quantity <= 0 or quantity < values["minimum_quantity"]
+                or notional < values["minimum_notional"])
 
 
 def n_multiplier_for_asset_class(asset_class: str) -> Decimal:
@@ -205,6 +227,6 @@ def _bar_decimal(bar: Mapping[str, Any], *keys: str) -> Decimal:
 
 
 def _to_decimal(value: Decimal | str | int | float) -> Decimal:
-    if isinstance(value, Decimal):
-        return value
-    return Decimal(str(value))
+    from kis_hl.journal_sync import decimal
+
+    return decimal(value)
