@@ -486,6 +486,16 @@ for command examples, coverage limits and the offline smoke scenario.
 
 ## Hermes strategy tools
 
+For Weinstein book-method analysis, use the shared
+[weinstein-stage-analysis skill](.agents/skills/weinstein-stage-analysis/SKILL.md).
+In Codex, invoke `$weinstein-stage-analysis`; in Claude Code or Hermes, use
+`/weinstein-stage-analysis`, followed by a chart, dated evidence or a study question.
+It covers investor/trader entries, position management and bearish analysis;
+its references identify source limitations and local calculation choices.
+See [shared installation and host discovery](docs/strategy-authoring.md#weinstein-skill-discovery)
+for scope, links and verification. This book-method skill is independent of the
+operational strategy below.
+
 Hermes loads the shared [trend-strategy skill](.agents/skills/trend-strategy/SKILL.md)
 and owns review timing, briefings and notifications. Deterministic CLI tools supply
 facts and retain decisions; they do not place orders:
