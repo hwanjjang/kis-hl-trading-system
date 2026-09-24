@@ -17,6 +17,8 @@ def verify_adoption(gateway, row, now):
         raise ValueError("Legacy trailing already owns this position")
     gateway.trading._require_credentials()
     pre = gateway.preflight(p, now, existing_position=True)
+    if any(o.get("orderType") == "Trailing Stop Market" for o in pre["open_orders"]):
+        raise ValueError("migration-required: external trailing order needs an explicit supported migration plan")
     now = int(pre.get("observed_now_ms", now))
     if (not pre["eligible"] or not 0 <= now - int(pre["time_ms"]) <= p["max_quote_age_ms"]
             or decimal(pre["portfolio_notional"]) > decimal(p["max_portfolio_notional"])

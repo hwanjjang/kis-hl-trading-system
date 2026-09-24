@@ -1,0 +1,85 @@
+======================================================================
+ERROR: test_expired_or_changed_fresh_state_preserves_existing_protection (tests.test_conditional_add.ConditionalAddTests.test_expired_or_changed_fresh_state_preserves_existing_protection)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 179, in test_expired_or_changed_fresh_state_preserves_existing_protection
+    self.authorize()
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 136, in authorize
+    return self.signals.execute("add-once", "scope", self.plan, manual=True, live=True, now_ms=NOW+5)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/kis_hl/strategy_signals.py", line 227, in execute
+    self.check_authority(row, now_ms=now_ms)
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/kis_hl/strategy_signals.py", line 153, in check_authority
+    raise ValueError("Only an entry decision can use the new-entry executor")
+ValueError: Only an entry decision can use the new-entry executor
+
+======================================================================
+ERROR: test_partial_add_complete_and_reopen_replay (tests.test_conditional_add.ConditionalAddTests.test_partial_add_complete_and_reopen_replay)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 139, in test_partial_add_complete_and_reopen_replay
+    self.authorize()
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 136, in authorize
+    return self.signals.execute("add-once", "scope", self.plan, manual=True, live=True, now_ms=NOW+5)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/kis_hl/strategy_signals.py", line 227, in execute
+    self.check_authority(row, now_ms=now_ms)
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/kis_hl/strategy_signals.py", line 153, in check_authority
+    raise ValueError("Only an entry decision can use the new-entry executor")
+ValueError: Only an entry decision can use the new-entry executor
+
+======================================================================
+FAIL: test_ambiguous_mode_overlap_unknown_asset_and_account_rejected (tests.test_conditional_add.CapitalTests.test_ambiguous_mode_overlap_unknown_asset_and_account_rejected) (change='mode')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 112, in test_ambiguous_mode_overlap_unknown_asset_and_account_rejected
+    with self.subTest(change=change), self.assertRaises(ValueError):
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_ambiguous_mode_overlap_unknown_asset_and_account_rejected (tests.test_conditional_add.CapitalTests.test_ambiguous_mode_overlap_unknown_asset_and_account_rejected) (change='overlap')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 112, in test_ambiguous_mode_overlap_unknown_asset_and_account_rejected
+    with self.subTest(change=change), self.assertRaises(ValueError):
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_ambiguous_mode_overlap_unknown_asset_and_account_rejected (tests.test_conditional_add.CapitalTests.test_ambiguous_mode_overlap_unknown_asset_and_account_rejected) (change='asset')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 112, in test_ambiguous_mode_overlap_unknown_asset_and_account_rejected
+    with self.subTest(change=change), self.assertRaises(ValueError):
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_ambiguous_mode_overlap_unknown_asset_and_account_rejected (tests.test_conditional_add.CapitalTests.test_ambiguous_mode_overlap_unknown_asset_and_account_rejected) (change='scope')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 112, in test_ambiguous_mode_overlap_unknown_asset_and_account_rejected
+    with self.subTest(change=change), self.assertRaises(ValueError):
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_ambiguous_mode_overlap_unknown_asset_and_account_rejected (tests.test_conditional_add.CapitalTests.test_ambiguous_mode_overlap_unknown_asset_and_account_rejected) (change='missing')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 112, in test_ambiguous_mode_overlap_unknown_asset_and_account_rejected
+    with self.subTest(change=change), self.assertRaises(ValueError):
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_total_not_perp_segment_is_capital_source (tests.test_conditional_add.CapitalTests.test_total_not_perp_segment_is_capital_source)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 106, in test_total_not_perp_segment_is_capital_source
+    self.assertEqual(result["equity"], "1000")
+AssertionError: '123' != '1000'
+- 123
++ 1000
+
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.805s
+
+FAILED (failures=6, errors=2)

@@ -106,6 +106,8 @@ Three different names exist for the same market. Keep them straight:
 | Method | info `type` | Used by |
 |---|---|---|
 | `user_role(user=)` | `userRole` | subaccount target/master identity preflight before SDK use |
+| `user_abstraction(user=)` | `userAbstraction` | fail-closed account-total reconciliation; never infer the mode |
+| `active_asset_data(symbol, user=)` | `activeAssetData` | account/coin-bound add buying power, separate from operating capital |
 | `all_mids(dex=)` | `allMids` | `hl-mids`, `xyz-assets verify` |
 | `spot_meta()` | `spotMeta` | spot `@index` resolution |
 | `meta_and_asset_ctxs(dex=)` | `metaAndAssetCtxs` | `xyz-assets universe-collect` |
@@ -234,6 +236,14 @@ and native-trailing parameters are implemented; supported configuration is not l
 authorization. All trading CLIs must use the same SQLite path. A managed owner
 blocks raw new entries and legacy enrollment; only the in-process current entry
 attempt receives a submission permit.
+
+Bounded conditional adds use the same owner and durable attempt permit, retaining
+per-tranche sizing/fills. Account-total sizing initially supports verified unified
+USDC balances only; reject ambiguous collateral instead of using a perp segment.
+Preserve existing SL/trailing IDs and frozen ATR/watermarks. Native full-size overlays
+require local backup and readback; external trails require an explicit supported
+migration before any signed mutation. See the
+[bounded add contract](../../../docs/trading-operations.md#bounded-conditional-add-ups).
 
 Journal retention must be anchored by current `userFills`; a short old-window page
 does not prove completeness. Unknown spot/fee-currency identities are retained

@@ -32,7 +32,10 @@ protection support it). Do not turn an unavailable result into false/zero.
 
 Call `strategy stop` with execution-instrument ATR to derive an initial candidate
 SL, or use a justified explicit structural stop. Call `strategy size` with that
-fixed stop and the user's proposed unit count. Use the returned quantity, risk,
+fixed stop and the user's proposed unit count,
+with fresh selected-account total-balance evidence for Hyperliquid. Missing or
+ambiguous reconciliation blocks automatic sizing; never substitute a perp segment.
+Use the returned quantity, risk,
 notional and equity/capital percentages in the proposal; do not recompute them in
 text. Explain costs and fill uncertainty without claiming a guaranteed loss cap.
 A below-minimum result means skip/review, never silently round up. Use the BTC
@@ -55,12 +58,13 @@ current ATR-distance plan cannot represent it, report that limitation instead of
 substituting a different stop. Existing order preparation and preflight remain
 responsible for prices, funds, lots, sessions, metadata and protection.
 
-Only entry decisions use the current `signal execute` path. An `add` decision is
-a strategy proposal: the current supervisor requires flat entry, so do not route
-it as a second entry or bypass ownership through raw orders. Likewise, use explicit
+Entry and explicitly authorized bounded add decisions use `signal execute`.
+An add requires an existing protected owner and the complete
+[bounded add contract](../../../docs/trading-operations.md#bounded-conditional-add-ups);
+do not route it as a second entry or bypass ownership through raw orders. Use explicit
 existing position controls for an authorized exit; a signal is not a liquidation
 instruction. The legacy BTC monitor is not the protected execution path for this
-skill. Percentage TS, partial reductions and live add-ups require their own
+skill. External percentage-TS migration and discretionary partial reductions require their own
 supported execution contract; surface unavailable capabilities plainly.
 
 Review closed trades through the existing journal and its `trade-journal` skill.

@@ -155,12 +155,30 @@ class ManagedHyperliquidGateway:
         from kis_hl.trailing_runner import fetch_trailing_atr
 
         atr, bars = fetch_trailing_atr(self.info, resolved.coin, now_ms=now)
+        capital = {}
+        available_notional = state["withdrawable"]
+        if p.get("action") == "add":
+            from kis_hl.account_capital import capture_capital
+            capital = {"capital_evidence": capture_capital(self.info, scope=self.scope,
+                now_ms=now, max_age_ms=p["max_quote_age_ms"])}
+            buying_power = self.info.active_asset_data(asset.symbol)
+            sizes = buying_power.get("maxTradeSzs")
+            margins = buying_power.get("availableToTrade")
+            if any(not isinstance(values, list) or len(values) != 2 for values in (sizes, margins)):
+                raise ValueError("Account/instrument buying power unavailable")
+            sizes, margins = [decimal(x) for x in sizes], [decimal(x) for x in margins]
+            if min(sizes + margins) < 0:
+                raise ValueError("Invalid account/instrument buying power")
+            # Conservatively bound by both directional limits; never infer 10x buying power.
+            available_notional = str(min(sizes) * price)
+            capital["buying_power"] = buying_power
         return {
+            **capital,
             "price": str(bid),
             "ask": str(ask),
             "time_ms": timestamp,
             "position": current,
-            "available_notional": state["withdrawable"],
+            "available_notional": available_notional,
             "open_orders": [
                 o
                 for o in self.info.frontend_open_orders(dex=resolved.dex)
@@ -206,9 +224,9 @@ class ManagedHyperliquidGateway:
                 raise ValueError("Native order identifier mismatch")
             if not a.get("order_id") and order.get("cloid") != a["id"]:
                 raise ValueError("Client order identifier mismatch")
-            if order["side"] != ("B" if a["kind"] == "entry" else "A") or order.get(
+            if order["side"] != ("B" if a["kind"] in {"entry", "add"} else "A") or order.get(
                 "reduceOnly"
-            ) != (a["kind"] != "entry"):
+            ) != (a["kind"] not in {"entry", "add"}):
                 raise ValueError("Order direction or reduce-only contract mismatch")
             kind = (
                 "stop"
@@ -264,23 +282,29 @@ class ManagedHyperliquidGateway:
         entries = {
             str(a.get("order_id"))
             for a in attempts
-            if a["kind"] == "entry" and a.get("order_id")
+            if a["kind"] in {"entry", "add"} and a.get("order_id")
         }
         owned = {str(a.get("order_id")) for a in attempts if a.get("order_id")}
         relevant = {str(f["tid"]): f for f in fills if f["coin"] == resolved.coin}
         net = Decimal(0)
         entry = Decimal(0)
         foreign = False
+        fill_sizes = {}
+        protective_ids = {str(a.get("order_id")) for a in attempts if a["kind"] in {"stop", "trailing"} and a.get("order_id")}
+        protective_filled = Decimal(0)
         for f in relevant.values():
             qty = decimal(f["sz"], positive=True)
             if f["side"] == "B":
                 net += qty
                 if str(f["oid"]) in entries:
                     entry += qty
+                    fill_sizes[str(f["oid"])] = fill_sizes.get(str(f["oid"]), Decimal(0)) + qty
                 else:
                     foreign = True
             elif f["side"] == "A":
                 net -= qty
+                if str(f["oid"]) in protective_ids:
+                    protective_filled += qty
             else:
                 raise ValueError("Unknown execution side")
         opens = self.info.frontend_open_orders(dex=resolved.dex)
@@ -306,6 +330,9 @@ class ManagedHyperliquidGateway:
             "size": str(size),
             "entry_price": str(pos["entryPx"]) if pos and size else "0",
             "entry_filled": str(entry),
+            "protective_filled": str(protective_filled),
+            "fills_by_attempt": {a["id"]: str(fill_sizes.get(str(a.get("order_id")), 0))
+                                 for a in attempts if a["kind"] in {"entry", "add"}},
             "price": str(bid),
             "time_ms": timestamp,
             "sellable": str(max(size, 0)),
@@ -338,18 +365,19 @@ class ManagedHyperliquidGateway:
         with entry_permit(self.scope, asset.id, a["id"]):
             result = self.trading.place_order(
                 symbol=asset.symbol,
-                side="buy" if a["kind"] == "entry" else "sell",
+                side="buy" if a["kind"] in {"entry", "add"} else "sell",
                 order_type="stop-market" if a["kind"] == "stop" else "limit",
                 size=decimal(a["quantity"]),
                 price=decimal(a["price"]),
                 trigger_price=(
                     decimal(a["trigger_price"]) if a["kind"] == "stop" else None
                 ),
-                reduce_only=a["kind"] != "entry",
+                reduce_only=a["kind"] not in {"entry", "add"},
                 tif="Ioc" if a["kind"] == "exit" else "Gtc",
                 cloid=a["id"],
                 dry_run=False,
-                expires_after_ms=a["created_ms"] + row["plan"]["max_quote_age_ms"],
+                expires_after_ms=min(a["created_ms"] + row["plan"]["max_quote_age_ms"],
+                                     a.get("expires_ms", a["created_ms"] + row["plan"]["max_quote_age_ms"])),
             )
         return {
             "status": result.status,

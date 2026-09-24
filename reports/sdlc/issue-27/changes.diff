@@ -1,0 +1,1897 @@
+diff --git a/.agents/skills/hyperliquid-api/SKILL.md b/.agents/skills/hyperliquid-api/SKILL.md
+index a459c52..c53fd3f 100644
+--- a/.agents/skills/hyperliquid-api/SKILL.md
++++ b/.agents/skills/hyperliquid-api/SKILL.md
+@@ -106,6 +106,8 @@ Three different names exist for the same market. Keep them straight:
+ | Method | info `type` | Used by |
+ |---|---|---|
+ | `user_role(user=)` | `userRole` | subaccount target/master identity preflight before SDK use |
++| `user_abstraction(user=)` | `userAbstraction` | fail-closed account-total reconciliation; never infer the mode |
++| `active_asset_data(symbol, user=)` | `activeAssetData` | account/coin-bound add buying power, separate from operating capital |
+ | `all_mids(dex=)` | `allMids` | `hl-mids`, `xyz-assets verify` |
+ | `spot_meta()` | `spotMeta` | spot `@index` resolution |
+ | `meta_and_asset_ctxs(dex=)` | `metaAndAssetCtxs` | `xyz-assets universe-collect` |
+@@ -235,6 +237,14 @@ authorization. All trading CLIs must use the same SQLite path. A managed owner
+ blocks raw new entries and legacy enrollment; only the in-process current entry
+ attempt receives a submission permit.
+
++Bounded conditional adds use the same owner and durable attempt permit, retaining
++per-tranche sizing/fills. Account-total sizing initially supports verified unified
++USDC balances only; reject ambiguous collateral instead of using a perp segment.
++Preserve existing SL/trailing IDs and frozen ATR/watermarks. Native full-size overlays
++require local backup and readback; external trails require an explicit supported
++migration before any signed mutation. See the
++[bounded add contract](../../../docs/trading-operations.md#bounded-conditional-add-ups).
++
+ Journal retention must be anchored by current `userFills`; a short old-window page
+ does not prove completeness. Unknown spot/fee-currency identities are retained
+ without finalizing performance. See [operations](../../../docs/trading-operations.md)
+diff --git a/.agents/skills/hyperliquid-api/references/info-endpoint.md b/.agents/skills/hyperliquid-api/references/info-endpoint.md
+index 97a948c..6fcdef6 100644
+--- a/.agents/skills/hyperliquid-api/references/info-endpoint.md
++++ b/.agents/skills/hyperliquid-api/references/info-endpoint.md
+@@ -57,6 +57,7 @@ still forming — the BTC 3H signal only uses closed candles.
+ |---|---|---|
+ | `clearinghouseState` | `user`, `[dex]` | `assetPositions[]`, `marginSummary`, `crossMarginSummary`, `withdrawable`. `dex: "ALL_DEXES"` aggregates HIP-3 dexes |
+ | `spotClearinghouseState` | `user` | `balances[]` with `coin`, `token`, `hold`, `total`, `entryNtl` |
++| `userAbstraction` | `user` | `unifiedAccount`, `portfolioMargin`, `disabled`, `default`, or `dexAbstraction`; wrapped by `user_abstraction`. Unified balance source is spot, not per-DEX accountValue. Unknown/unsupported modes block automated account-total sizing. |
+ | `openOrders` | `user`, `[dex]` | resting orders: `coin`, `limitPx`, `oid`, `side`, `sz`, `timestamp` |
+ | `frontendOpenOrders` | `user`, `[dex]` | adds `orderType`, `triggerPx`, `isTrigger`, `tpsl`, `cloid` — use this to see stop orders |
+ | `historicalOrders` | `user` | up to 2000 recent orders with status |
+@@ -65,7 +66,7 @@ still forming — the BTC 3H signal only uses closed candles.
+ | `userFillsByTime` | `user`, `startTime`, `[endTime]`, `[aggregateByTime]` | paginate with the last `time` returned |
+ | `userFunding` | `user`, `startTime`, `[endTime]`, `[dex]` | `delta` = `{coin, fundingRate, usdc, szi}` |
+ | `userNonFundingLedgerUpdates` | `user`, `startTime`, `[endTime]`, `[dex]` | deposits, withdrawals, transfers |
+-| `activeAssetData` | `user`, `coin` | `leverage`, `maxTradeSzs`, `availableToTrade`, `markPx` — the cheapest pre-trade sizing check |
++| `activeAssetData` | `user`, `coin` | `leverage`, `maxTradeSzs`, `availableToTrade`, `markPx`; wrapped by `active_asset_data`, checking account/coin identity. Add preflight conservatively bounds quantity by both directional maxTradeSzs; availableToTrade stays separate from capital. |
+ | `userFees` | `user` | fee schedule and daily volumes |
+ | `userRateLimit` | `user` | address-based request budget used / cap |
+ | `userRole` | `user` | Object with `role`: `user` / `agent` / `vault` / `subAccount` / `missing` (weight 60). For `subAccount`, `data.master` identifies the master. Wrapped by `user_role`; subaccount preflight rejects missing/incorrect relationships before signing. |
+diff --git a/.agents/skills/trend-strategy/SKILL.md b/.agents/skills/trend-strategy/SKILL.md
+index ddd012f..8b2cb4f 100644
+--- a/.agents/skills/trend-strategy/SKILL.md
++++ b/.agents/skills/trend-strategy/SKILL.md
+@@ -32,7 +32,10 @@ protection support it). Do not turn an unavailable result into false/zero.
+
+ Call `strategy stop` with execution-instrument ATR to derive an initial candidate
+ SL, or use a justified explicit structural stop. Call `strategy size` with that
+-fixed stop and the user's proposed unit count. Use the returned quantity, risk,
++fixed stop and the user's proposed unit count,
++with fresh selected-account total-balance evidence for Hyperliquid. Missing or
++ambiguous reconciliation blocks automatic sizing; never substitute a perp segment.
++Use the returned quantity, risk,
+ notional and equity/capital percentages in the proposal; do not recompute them in
+ text. Explain costs and fill uncertainty without claiming a guaranteed loss cap.
+ A below-minimum result means skip/review, never silently round up. Use the BTC
+@@ -55,12 +58,13 @@ current ATR-distance plan cannot represent it, report that limitation instead of
+ substituting a different stop. Existing order preparation and preflight remain
+ responsible for prices, funds, lots, sessions, metadata and protection.
+
+-Only entry decisions use the current `signal execute` path. An `add` decision is
+-a strategy proposal: the current supervisor requires flat entry, so do not route
+-it as a second entry or bypass ownership through raw orders. Likewise, use explicit
++Entry and explicitly authorized bounded add decisions use `signal execute`.
++An add requires an existing protected owner and the complete
++[bounded add contract](../../../docs/trading-operations.md#bounded-conditional-add-ups);
++do not route it as a second entry or bypass ownership through raw orders. Use explicit
+ existing position controls for an authorized exit; a signal is not a liquidation
+ instruction. The legacy BTC monitor is not the protected execution path for this
+-skill. Percentage TS, partial reductions and live add-ups require their own
++skill. External percentage-TS migration and discretionary partial reductions require their own
+ supported execution contract; surface unavailable capabilities plainly.
+
+ Review closed trades through the existing journal and its `trade-journal` skill.
+diff --git a/.agents/skills/trend-strategy/references/strategy.md b/.agents/skills/trend-strategy/references/strategy.md
+index 46d38a5..613ff75 100644
+--- a/.agents/skills/trend-strategy/references/strategy.md
++++ b/.agents/skills/trend-strategy/references/strategy.md
+@@ -32,14 +32,17 @@ below the current stop. Each proposed tranche uses its own entry and fixed stop
+ for sizing; evaluate its effect on the existing position and management plan.
+ There is no strategy-wide per-asset/portfolio stop-risk cap or add-count limit.
+ Actual available funds, notional bounds and granted authority still constrain
+-execution. The current managed executor does not yet accept live add-ups.
++execution. Only the explicit bounded existing-owner add contract can submit an add;
++a strategy proposal or past conversation without complete expiry/limits stays unarmed.
+
+ ## Capital, stop and size
+
+ The capital and unit tools implement the confirmed policy: Hyperliquid selected
+-perpetual account value × 10 without flooring; KIS selected account NAV × 1 in the
++reconciled total account balance × 10 without flooring; KIS selected account NAV × 1 in the
+ execution currency. Do not pool accounts, count collateral twice or confuse NAV
+ with buying power. One unit is a planned fixed-SL loss of 1% of operating capital.
++Missing/ambiguous account-total evidence blocks sizing instead of falling back to
++a perp/DEX segment. Supported mode/valuation limits are owned by the operations contract.
+ It can represent about 10% of unmultiplied HL account equity; disclose both figures.
+ The multiple does not command exchange leverage or waive margin checks.
+
+@@ -73,6 +76,11 @@ defaults to manual briefing reference unless explicitly requested otherwise.
+ A manual crossing never grants exit authority.
+ Entry SL and chart-based exits remain independent of trailing references.
+
++Ordinary strategy/SL exits default to all remaining exposure; executable TS always
++targets the entire residual including adds, whether profitable or losing. A profitable
++TS is not half-position take profit. Discretionary partial exits require an explicit
++reason and a supported path; the 50% top-based take-profit follow-up remains deferred.
++
+ Hold when the thesis and observed protection remain valid. Consider reduction or
+ exit when context invalidates the setup, funding/spread suitability changes or
+ the user's exposure instructions require it; state the evidence and judgment.
+diff --git a/README.md b/README.md
+index fdcbeb3..f0b9256 100644
+--- a/README.md
++++ b/README.md
+@@ -505,3 +505,12 @@ when adding a strategy. Existing signal/manual-grant and protected-order command
+ retain execution authority; a passing setup or stored decision does not grant it.
+
+ Binance raw order commands operate outside managed trade plans and supervision; see [operating boundaries](docs/trading-operations.md#binance-raw-command-boundary).
++
++### Conditional Hyperliquid add-ups
++
++Use `account capital --venue hyperliquid` to capture supported account-total sizing
++evidence. `order preview` and `signal execute` support a complete explicitly approved
++existing-position add plan; `order status` includes tranche sizing/fill records.
++Follow the [bounded add contract](docs/trading-operations.md#bounded-conditional-add-ups).
++Run `python scripts/smoke_conditional_add.py` for the network-free CLI/SQLite smoke.
++No live add is armed by installing this implementation.
+diff --git a/docs/architecture.md b/docs/architecture.md
+index f175674..6c5efd6 100644
+--- a/docs/architecture.md
++++ b/docs/architecture.md
+@@ -273,3 +273,15 @@ are documented in [unified data operations](unified-data-operations.md).
+ Binance tick capture deliberately uses the legacy `market_ticks` table. It is not an input to the canonical `data`/`market` analysis plane; that cutover requires instrument registration and an ingestion contract. Captured normalized tick payloads retain the original frame under `frame`.
+
+ Use separate `--db` paths for each Binance environment and key profile: legacy ticks and order events have no account/environment columns. Streams are observational, with no replay or REST gap reconciliation. Per-tick synchronous SQLite writes can lag high-volume streams; use `--no-store` for observation until a bounded buffered writer is implemented. Storage failures and reconnects can leave gaps. These tables must not serve as authoritative protection or position state.
++
++## Conditional add ownership
++
++`account_capital.py` reconciles supported account-total evidence; `conditional_add.py`
++validates the bounded source/position/sizing contract. `Signals` reserves the approved
++signal, `ExecutionStore.managed_tranches` keeps immutable plan and evolving fill
++records, and the existing supervisor/gateways own submission and reconciliation.
++Tranches share the existing account/instrument owner, Trail, protective order ledger
++and residual exit path. Hermes retains review/notification responsibility.
++See [flow diagram](architecture/conditional-add.html),
++[JSON source](architecture/conditional-add.workflow.json), and
++[operations](trading-operations.md#bounded-conditional-add-ups).
+diff --git a/docs/strategy-tools.md b/docs/strategy-tools.md
+index ffa81dc..38fa5a0 100644
+--- a/docs/strategy-tools.md
++++ b/docs/strategy-tools.md
+@@ -101,15 +101,23 @@ instrument's units; stop rounding belongs to the existing execution path.
+ ```json
+ {
+   "venue":"hyperliquid", "scope":"mainnet:account-id", "currency":"USDC",
+-  "instrument":"hl:BTC", "equity":"999", "asof_ms":1790006400000,
++  "instrument":"hl:BTC", "asof_ms":1790006400000,
++  "capital_evidence": {
++    "scope":"mainnet:account-id", "currency":"USDC",
++    "asof_ms":1790006400000, "max_age_ms":60000, "account_mode":"unifiedAccount",
++    "spot":{"balances":[{"coin":"USDC", "token":0, "total":"999"}]}
++  },
+   "max_age_ms":60000, "entry":"100", "stop":"97", "units":"1",
+   "quantity_step":"1", "minimum_quantity":"1", "minimum_notional":"10"
+ }
+ ```
+
+ The example's market rules are fixtures; read actual lot/minimum metadata.
+-HL equity is the selected account/dex perpetual `accountValue`, without spot or
+-other-account pooling. KIS equity is the selected account NAV valued in the
++HL equity is the selected account's reconciled total balance. `capital_evidence`
++is mandatory; caller `equity` is not a fallback. Supported unified USDC balances
++count overlapping spot/perp/DEX collateral once. Unknown modes, duplicate collateral,
++unvalued assets, stale evidence or wrong account/currency block sizing. Capture
++source evidence through `account capital --venue hyperliquid`. KIS equity is the selected account NAV valued in the
+ execution currency, with an explicit FX basis when needed. Buying power is a
+ separate preflight constraint. Output includes rounded quantity, notional, planned
+ risk, capital, and risk percentages against capital and equity. `below_minimum`
+@@ -133,13 +141,13 @@ management rationale. Notes are reviewable assertions, not independently verifie
+ market facts. Optional size-tool outputs and other evidence can be retained as
+ additional record fields; they are not execution permission.
+
+-Actions are `enter`, `add`, `hold`, `reduce`, `exit`, `no_trade`. Only `enter` can
+-use the current `signal execute` new-entry path, with a separate explicit plan
+-and manual/grant authority. Supplied `setup_input` must describe `breakout` or
++Actions are `enter`, `add`, `hold`, `reduce`, `exit`, `no_trade`. `enter` uses
++the new-entry path. `add` uses the bounded existing-owner contract in
++[operations](trading-operations.md#bounded-conditional-add-ups), with a separate
++explicit plan and manual/grant authority. For `enter`, supplied `setup_input` must describe `breakout` or
+ `btc_3h`; evidence is rechecked before entry, including for raw `signal ingest`
+-records. Legacy records without `setup_input` remain compatible. Other actions
+-are advisory records: exits use the existing explicit order controls, and live
+-add-ups require an execution extension beyond this strategy-tool contract.
++records. Legacy records without `setup_input` remain compatible. Hold/reduce/exit/no-trade records remain advisory: authorized exits use existing
++explicit full-position controls. A completed-bar add proposal alone cannot trade.
+ BTC spot decisions use `signal_instrument: hl:BTC`, only `hl:BTC` execution, and
+ retain the explicit spot basis in `setup_input`/evidence.
+
+diff --git a/docs/strategy_execution_design.md b/docs/strategy_execution_design.md
+index f738ae1..7449615 100644
+--- a/docs/strategy_execution_design.md
++++ b/docs/strategy_execution_design.md
+@@ -52,9 +52,9 @@ record, including source/snapshot identity and an input digest. An identical
+ replay is idempotent; changed inputs need a new decision ID. Existing signal/plan
+ identifiers provide journal attribution without inventing realized trades.
+
+-The current signal executor accepts entry actions only. Hold/add/reduce/exit and
+-no-trade records remain advisory; they cannot be accidentally replayed as new
+-entries. The supervisor rechecks source-evidence freshness and the entry predicate
++The signal executor accepts entry and bounded existing-owner add actions.
++Hold/reduce/exit/no-trade records remain advisory. Add requires its own explicit
++plan and authority; it cannot be replayed as a new entry. The supervisor rechecks source-evidence freshness and the entry predicate
+ before entry in addition to its existing execution checks. Legacy `signal ingest`
+ remains compatible; skills use the validated `strategy decide` interface.
+
+@@ -62,11 +62,13 @@ remains compatible; skills use the validated `strategy decide` interface.
+
+ ### Capital model
+
+-Hyperliquid operating capital uses the selected perpetual account value × 10,
++Hyperliquid operating capital uses the selected account's reconciled total balance × 10,
+ without a thousand-USDC floor or a below-1000 exclusion. KIS uses selected account
+ NAV × 1, valued in the execution currency with an explicit FX basis when needed.
+-Do not pool main/subaccounts, spot balances or other-dex collateral into the chosen
+-HL account value. Available funds are a separate constraint. The multiplier does
++Keep main/subaccounts separate and count overlapping spot/perp/DEX collateral
++only once. Missing or ambiguous total reconciliation blocks automatic sizing.
++The initial implementation supports verified unified USDC-only balances; other
++modes/valuations require explicit supported reconciliation. Available funds are a separate constraint. The multiplier does
+ not set venue leverage or waive margin requirements.
+
+ ### Position sizing
+@@ -139,12 +141,12 @@ behavior remain in [protected operations](trading-operations.md).
+ The following execution capabilities are separate from completing the strategy
+ skill and its deterministic tools:
+
+-- **Live add-ups:** the current supervisor requires flat entry and owns one active
+-  position per account/instrument. The skill and tools can evaluate and size an
+-  add proposal, but cannot submit it by bypassing those guards. Tranche-aware
+-  execution/protection is a separate execution change.
++- **Bounded add-ups:** implemented by issue #27 under the existing account/instrument
++  owner, with immutable tranche evidence, one durable signal lifecycle, total-account
++  sizing and full-remaining-position SL/TS. See the
++  [operating contract](trading-operations.md#bounded-conditional-add-ups).
+ - **Arbitrary fixed-stop plans:** the tool can calculate against an explicit stop;
+-  the current managed plan expresses ATR distance and rechecks execution ATR.
++  the managed plan supports explicit fixed stops and independent frozen ATR distances.
+   An authorized plan must represent the same risk basis. Do not silently substitute
+   another stop to make a proposal executable.
+ - **Managed percentage TS and partial reductions:** available low-level fields or
+diff --git a/docs/trading-operations.md b/docs/trading-operations.md
+index 1e6efba..fc4b30e 100644
+--- a/docs/trading-operations.md
++++ b/docs/trading-operations.md
+@@ -136,7 +136,8 @@ provides deterministic calculation and validated decision tools; existing manual
+ or bounded-grant execution remains separate. See [strategy tools](strategy-tools.md).
+ These tools do not authorize live orders or implement conversational approval.
+
+-Policy reconciliation (2026-09-24): the user's final instruction confirmed
++Policy reconciliation (2026-09-24): issue #27 supersedes only the segment-based
++Hyperliquid capital denominator with reconciled total account balance. The user's prior instruction confirmed
+ [issue #15](https://github.com/hwanjjang/kis-hl-trading-system/issues/15) as the
+ risk-unit authority. It supersedes this section's earlier thousand-USDC flooring,
+ below-1000 guard and undecided cumulative-unit-limit wording from `758a511`.
+@@ -172,13 +173,20 @@ Confirmed user semantics:
+
+ Operating assets for advisory risk-unit calculations are now specified:
+
+-- Hyperliquid: use `accountValue * 10` without flooring or a below-1000 exclusion.
+-  Use a fresh selected perpetual account/dex snapshot, never pooled main/subaccount
+-  equity, spot balances or other-dex collateral. One unit is 1% of this derived
+-  budget, or 10% of unmultiplied account equity before lot rounding; disclose both
+-  risk percentages.
+-  This is not an instruction to set exchange leverage to 10x or to ignore margin
+-  and liquidation constraints.
++- Hyperliquid: use the selected account's **reconciled total balance × 10**, without
++  flooring or a below-1000 exclusion. Keep accounts separate; count overlapping
++  spot/perp/DEX collateral once. One unit risks 1% of this operating capital at
++  the confirmed fixed SL (10% of total balance before lot rounding).
++  `account capital --venue hyperliquid` captures read-only source evidence.
++  The initial supported reconciliation is verified `unifiedAccount` with USDC-only
++  nonzero spot balances. Per-DEX `accountValue` is never a fallback. Duplicate
++  collateral, unknown/standard/legacy/portfolio modes, unvalued non-USDC balances,
++  stale/missing evidence or mismatched account/currency block automatic sizing.
++  Adding a valuation/account mode requires its own supported reconciliation.
++  Buying power is separate: add preflight uses account/instrument `activeAssetData`
++  and conservatively takes the smaller of its directional `maxTradeSzs`; it retains
++  `availableToTrade` independently. No 10x buying-power assumption, unit cap or
++  automatic transfer is introduced. Exchange leverage remains unchanged.
+ - KIS: use the actual selected account's net asset value (cash plus marked holdings,
+   net of liabilities), without a leverage multiplier or thousand-unit flooring.
+   Report account scope, valuation time and currency. Do not double-count domestic
+@@ -476,7 +484,7 @@ blindly resent. Residual entries and resting exit limits must be confirmed termi
+ before competing sales. KIS exits use observed sellable quantity and bounded cash
+ limits; HL exits are reduce-only IOC limits. Bounded failure remains visible as
+ `INTERVENTION`. A later flat observation still allows cleanup of known owned stops.
+-Manual additions, reversals or foreign orders halt automatic ownership; reductions
++Unowned manual additions, reversals or foreign orders halt automatic ownership; reductions
+ are reconciled. External positions are not implicitly adopted.
+
+ KIS local protection cannot execute during an outage, holiday, halt, closed session
+@@ -692,3 +700,82 @@ SQLite state and `data/koru-management/`, not in a policy-level coverage claim.
+ The local lock coordinates one API key; distinct keys for the same exchange account are not mutually excluded. Position checks are snapshots, not atomic guarantees against other account writers. Conditional-order rows are audit records, not independently verified remaining coverage. `ALGO_UPDATE` and child-order reconciliation are not implemented: unresolved orders require operator investigation. Do not resubmit unresolved orders even with the same client ID. Submission records are written after requests, so recover interrupted attempts from exchange state before further execution.
+
+ Use a separate database per environment and key profile as described in the [data capture boundaries](architecture.md#binance-integration-boundaries). Algo cancellation remains fail closed if the exchange no longer retains the order needed for symbol verification.
++
++## Bounded conditional add-ups
++
++`signal execute` accepts one explicitly authorized `action: add` lifecycle for an
++existing protected Hyperliquid long. Hermes still reviews completed conditions and
++notifies the user. No scheduler is added. `strategy decide` records the proposal;
++execution requires a separate complete plan and manual authority or scoped grant.
++
++The add plan carries all ordinary bounded-plan fields plus:
++
++| Field | Meaning |
++| --- | --- |
++| `action`, `position_id` | `add` and the existing managed owner ID |
++| `units`, `quantity_step`, `quantity` | Explicit risk units, preview lot step and rounded approved quantity |
++| `fixed_stop_price` | Confirmed common fixed SL; never a trailing threshold |
++| `capital_evidence` | Fresh selected-account raw evidence from `account capital` |
++| `expected_size`, `expected_entry_filled` | Approved current exposure and cumulative owned buy fills |
++| `condition_snapshot_id`, `condition_bar_end_ms` | Exact source snapshot and completed confirmation bar |
++| `expires_ms` | Add approval/submission expiry; also bounded by signal/grant expiry |
++
++The immutable add signal supplies `setup_input` for `pullback` or `rebreakout`.
++Its position ID, scope, instrument, opening fill time, size and fixed stop must match
++ownership. The source bars must be complete, post-entry, fresh and passing.
++Frozen ATR, local/native multipliers, provider/backup, quote-age and protection/exit
++budgets must match the owner; changed shared protection needs another supported
++management operation. New price/notional limits remain explicit. Native adds
++require local backup so the preserved full-position local trail covers the partial
++fill/overlay interval. Native-only owners return `migration-required`.
++
++```bash
++python -m kis_hl.cli account capital --venue hyperliquid
++python -m kis_hl.cli --db STATE.sqlite order preview --input bounded-add.json
++python -m kis_hl.cli --db STATE.sqlite signal execute --id SIGNAL_ID --input bounded-add.json --manual --live
++python -m kis_hl.cli --db STATE.sqlite order status --id POSITION_ID
++```
++
++These commands illustrate the interface; this issue grants no live authorization.
++Do not run them with live authority until a complete bounded plan and fresh evidence
++have actually been approved. A grant must explicitly include `actions: ["add"]`,
++`signal_ids` and `position_ids`, in addition to existing account, instrument, expiry,
++notional and intent budgets. An ordinary entry grant does not authorize an add.
++
++`managed_tranches` retains approved and submission sizing, source identity, actual
++fills and the durable attempt on the same `managed_positions` owner. The unique
++signal intent survives SQLite reopen; unknown outcomes cannot be resent. A second
++pending tranche is blocked. The supervisor rereads position, orders, eligibility,
++account total, lot/tick, quote/spread and buying power before submission. A changed
++quantity requires a new approval. It never resumes account-wide entries. Rejection
++or expiry preserves existing SL/TS and records the tranche rejection reason.
++
++Partial add fills receive incremental fixed-SL coverage at the confirmed fixed
++stop. The owner keeps its ATR and local watermark; the local TS always targets the
++entire residual position. After the add is terminal and SL is verified, native
++management submits one full-current-size reduce-only overlay and verifies its
++native ID/readback. All older native trails and their watermarks remain intact.
++Coverage counts a verified full-sized trail, not a sum of small trails. Any native
++protective partial fill latches the same bounded full-residual exit as a local TS.
++Unknown/rejected overlays retain verified fixed SL, block further risk and enter
++intervention. Failed incremental SL uses bounded grace/recovery without blindly
++canceling verified protection. No amendment or cancellation resets a trail.
++
++External percentage TS is **migration-required**, with zero signed mutations during
++adoption; it cannot be silently relabeled, canceled or replaced. No external-trail
++migration executor is added here. Ordinary strategy/SL exits default to the entire
++remaining position, and executable TS always closes the entire residual, including
++adds, regardless of profit. Competing native/local fills reduce subsequent exit
++quantity; reduce-only IOC orders cannot reverse exposure. Flat cleanup touches only
++associated persisted order IDs. Discretionary half exits remain deferred to #28;
++do not use the full-exit command to approximate them.
++
++Offline evidence: `python scripts/smoke_conditional_add.py` exercises actual CLI
++handlers and temporary SQLite with a stub gateway and network forbidden. It covers
++capital capture, preview, authorization, partial/completed add, reconciliation,
++full coverage and reopen replay. See [issue-27 report](../reports/sdlc/issue-27/self-verification.md).
++Live uncertainties remain: supported account-mode response consistency, directional
++buying-power semantics, concurrent native trail acceptance/retention, activation,
++trigger-time fills, cancel races, latency and restart timing. Passing local checks
++does not prove exchange behavior. The earlier 0.5-unit ETH conversation remains
++unarmed without a complete approved plan, expiry and fresh total-balance evidence.
+diff --git a/kis_hl/hyperliquid/client.py b/kis_hl/hyperliquid/client.py
+index e91725f..578068f 100644
+--- a/kis_hl/hyperliquid/client.py
++++ b/kis_hl/hyperliquid/client.py
+@@ -176,6 +176,21 @@ class HyperliquidInfoClient:
+     def spot_clearinghouse_state(self, *, user: str | None = None) -> Any:
+         return self.post_info({"type": "spotClearinghouseState", "user": self._resolve_user(user)})
+
++    def user_abstraction(self, *, user: str | None = None) -> str:
++        result = self.post_info({"type": "userAbstraction", "user": self._resolve_user(user)})
++        if not isinstance(result, str) or result not in {"unifiedAccount", "portfolioMargin", "disabled", "default", "dexAbstraction"}:
++            raise RuntimeError("Hyperliquid userAbstraction returned an unexpected response")
++        return result
++
++    def active_asset_data(self, symbol: str, *, user: str | None = None) -> dict[str, Any]:
++        resolved = resolve_hyperliquid_symbol(symbol)
++        account = self._resolve_user(user)
++        result = self.post_info({"type": "activeAssetData", "user": account, "coin": resolved.coin})
++        if (not isinstance(result, dict) or result.get("coin") != resolved.coin
++                or str(result.get("user", "")).lower() != account.lower()):
++            raise RuntimeError("Hyperliquid activeAssetData identity mismatch")
++        return result
++
+     def all_dexs_clearinghouse_state(self, *, user: str | None = None) -> Any:
+         return self.post_info(
+             {
+diff --git a/kis_hl/managed_execution.py b/kis_hl/managed_execution.py
+index 04a7ef6..dfd5e6f 100644
+--- a/kis_hl/managed_execution.py
++++ b/kis_hl/managed_execution.py
+@@ -171,6 +171,8 @@ class ExecutionStore:
+                 mode TEXT NOT NULL,entries_enabled INTEGER NOT NULL DEFAULT 1);
+             CREATE TABLE IF NOT EXISTS managed_intents(scope TEXT NOT NULL,mode TEXT NOT NULL,
+                 intent_id TEXT NOT NULL,position_id TEXT NOT NULL,PRIMARY KEY(scope,mode,intent_id));
++            CREATE TABLE IF NOT EXISTS managed_tranches(id TEXT PRIMARY KEY,position_id TEXT NOT NULL,
++                snapshot TEXT NOT NULL);
+             """
+             )
+
+@@ -188,6 +190,8 @@ class ExecutionStore:
+             db.close()
+
+     def enqueue(self, scope, plan, *, live=False, now_ms, adoption=None):
++        if plan.get("action") == "add" or plan.get("position_id"):
++            raise ValueError("Use signal execute with bounded add authority")
+         p = validate_plan(plan, now_ms)
+         row = {
+             "id": uuid4().hex,
+@@ -236,6 +240,30 @@ class ExecutionStore:
+             )
+         return row
+
++    def tranches(self, position_id):
++        with self.connect() as db:
++            return [json.loads(r[0]) for r in db.execute(
++                "SELECT snapshot FROM managed_tranches WHERE position_id=? ORDER BY rowid", (position_id,))]
++
++    def save_tranche(self, tranche):
++        with self.connect() as db:
++            db.execute("UPDATE managed_tranches SET snapshot=? WHERE id=?", (encode(tranche), tranche["id"]))
++
++    def enqueue_add(self, owner, plan, *, now_ms, sizing):
++        tranche = dict(id=uuid4().hex, position_id=owner["id"], plan=plan,
++                       status="QUEUED", created_ms=now_ms, filled="0", sizing=sizing)
++        with self.connect() as db:
++            db.execute("BEGIN IMMEDIATE")
++            current = db.execute("SELECT version FROM managed_positions WHERE id=?", (owner["id"],)).fetchone()
++            if current is None or current[0] != owner["version"]:
++                raise RuntimeError("Position changed before add authorization")
++            if any(t["status"] in {"QUEUED", "SUBMITTED", "UNKNOWN"} for t in self.tranches(owner["id"])):
++                raise ValueError("An add lifecycle is already pending")
++            db.execute("INSERT INTO managed_intents VALUES(?,?,?,?)",
++                       (owner["scope"], owner["mode"], plan["intent_id"], owner["id"]))
++            db.execute("INSERT INTO managed_tranches VALUES(?,?,?)", (tranche["id"], owner["id"], encode(tranche)))
++        return tranche
++
+     def enqueue_adoption(self, scope, plan, *, entry_order_id, stop_order_id, live=False, now_ms):
+         from kis_hl.instruments import instrument
+         asset = instrument(plan["instrument"])
+@@ -386,13 +414,12 @@ class Supervisor:
+         # Persist triggering decisions before any external effect, including cancellations.
+         self.store.save(row, now)
+         a = self.store.attempt(row, kind, now, **values)
+-        if kind == "entry" and not self.store.entries_enabled(row["scope"]):
++        if kind in {"entry", "add"} and not self.store.entries_enabled(row["scope"]):
+             self.store.update_attempt(
+                 a, status="REJECTED", reason="Entries disabled before transmission"
+             )
+-            self._state(
+-                row, "REJECTED", "Entry kill switch applied before transmission", now
+-            )
++            if kind == "entry":
++                self._state(row, "REJECTED", "Entry kill switch applied before transmission", now)
+             return a
+         try:
+             result = (
+@@ -468,7 +495,13 @@ class Supervisor:
+                 self._state(row, "PREVIEWED", "Paper handoff; no account reads or ownership imported", now)
+                 return
+             from kis_hl.manual_adoption import verify_adoption
+-            updates, imported = verify_adoption(self.gateway, row, now)
++            try:
++                updates, imported = verify_adoption(self.gateway, row, now)
++            except ValueError as exc:
++                if str(exc).startswith("migration-required:"):
++                    self._state(row, "INTERVENTION", str(exc), now)
++                    return
++                raise
+             self.store.complete_adoption(row, updates, imported, now)
+             return
+         if row["state"] == "ENTERING" and not attempts:
+@@ -611,10 +644,14 @@ class Supervisor:
+             raise ValueError("External ownership or inconsistent exposure")
+         size = decimal(snap["size"])
+         entry_filled = decimal(snap["entry_filled"])
++        added_fills = sum((decimal(snap.get("fills_by_attempt", {}).get(a["id"], "0"))
++                          for a in attempts if a["kind"] == "add"), Decimal(0))
++        total_authorized = decimal(p["quantity"]) + sum(
++            (decimal(a["quantity"]) for a in attempts if a["kind"] == "add"), Decimal(0))
+         if (
+             size < 0
+             or entry_filled < decimal(row["entry_filled"])
+-            or entry_filled > decimal(p["quantity"])
++            or entry_filled > total_authorized
+         ):
+             raise ValueError("Unexpected position generation")
+         fresh = 0 <= now - int(snap["time_ms"]) <= p["max_quote_age_ms"]
+@@ -624,6 +661,10 @@ class Supervisor:
+                 trail.disconnect()
+                 row["trail"] = trail.to_dict()
+         row.update(observed_size=str(size), entry_filled=str(entry_filled))
++        protective_filled = decimal(snap.get("protective_filled", "0"))
++        if protective_filled > decimal(row.get("protective_filled", "0")):
++            row["exit_requested_ms"] = row["exit_requested_ms"] or now
++        row["protective_filled"] = str(protective_filled)
+         previous_observation = row.get("last_observed_ms", now)
+         row["last_observed_ms"] = now
+         if (
+@@ -644,7 +685,15 @@ class Supervisor:
+                 self.store.update_attempt(a, status="SUBMITTED")
+         # An acknowledgement of cancel is not terminal evidence for the original order.
+         attempts = self.store.attempts(row["id"])
+-        entry_attempts = [a for a in attempts if a["kind"] == "entry"]
++        for tranche in self.store.tranches(row["id"]):
++            attempt = next((a for a in attempts if a.get("tranche_id") == tranche["id"]), None)
++            if attempt:
++                filled = decimal(snap.get("fills_by_attempt", {}).get(attempt["id"], "0"))
++                if filled < decimal(tranche["filled"]) or filled > decimal(attempt["quantity"]):
++                    raise ValueError("Inconsistent add tranche fills")
++                tranche.update(filled=str(filled), status=attempt["status"], attempt_id=attempt["id"])
++                self.store.save_tranche(tranche)
++        entry_attempts = [a for a in attempts if a["kind"] in {"entry", "add"}]
+         entry_active = [
+             a for a in entry_attempts if a["status"].lower() not in TERMINAL
+         ]
+@@ -692,7 +741,8 @@ class Supervisor:
+                 ).to_dict()
+             trail = Trail.from_dict(row["trail"])
+             # Additional fills may tighten the risk floor but never reset a ratchet.
+-            fixed_floor = (decimal(p["fixed_stop_price"]) if "fixed_stop_price" in p
++            fixed_floor = (decimal(row["add_fixed_stop_price"]) if "add_fixed_stop_price" in row
++                           else decimal(p["fixed_stop_price"]) if "fixed_stop_price" in p
+                            else max(trail.entry, decimal(snap["entry_price"])) - decimal(p["stop_distance"]))
+             trail.threshold = max(
+                 trail.threshold, decimal(snap["entry_price"]) - trail.distance
+@@ -738,12 +788,18 @@ class Supervisor:
+                             )
+                             self.store.update_attempt(a, coverage_recorded=order)
+                 row["covered_size"] = str(min(size, covered))
++                if covered < size:
++                    row.setdefault("unprotected_since_ms", max(row["first_fill_ms"], now)
++                                   if added_fills > 0 else row["first_fill_ms"])
++                else:
++                    row.pop("unprotected_since_ms", None)
+                 pending_stops = any(
+                     not orders.get(a.get("order_id") or a["id"]) for a in stops if a["kind"] == "stop"
+                 )
+                 if covered < size and (
+-                    now - row["first_fill_ms"] >= p["protection_grace_ms"]
+-                    or len([a for a in attempts if a["kind"] == "stop"])
++                    now - row.get("unprotected_since_ms", row["first_fill_ms"]) >= p["protection_grace_ms"]
++                    or len([a for a in attempts if a["kind"] == "stop"
++                            and a["created_ms"] >= row.get("unprotected_since_ms", row["first_fill_ms"])])
+                     >= p["max_exit_attempts"]
+                 ):
+                     row["exit_requested_ms"] = row["exit_requested_ms"] or now
+@@ -776,49 +832,58 @@ class Supervisor:
+             else:
+                 protected = fresh and p["allow_local_sl"] and bool(snap["session_open"])
+                 row["covered_size"] = str(size if protected else 0)
+-            if not protected and now - row["first_fill_ms"] >= p["protection_grace_ms"]:
++            row["local_trailing_covered_size"] = str(size if fresh and (
++                not native_trailing or p.get("local_trailing_backup", False)) else 0)
++            if not protected and now - row.get("unprotected_since_ms", row["first_fill_ms"]) >= p["protection_grace_ms"]:
+                 row["exit_requested_ms"] = row["exit_requested_ms"] or now
+             if native_trailing:
+                 trails = [a for a in attempts if a["kind"] == "trailing"]
+                 row["trailing_covered_size"] = "0"
+-                if trails:
+-                    a = trails[0]
++                waiting = False
++                for a in trails:
+                     order = orders.get(a.get("order_id"), {})
+-                    waiting = False
+                     if not a.get("order_id"):
+-                        # Failed enhancement is not loss of the independently verified SL.
+                         row["native_trailing_intervention"] = True
+                         row["state"], row["reason"] = "INTERVENTION", "Native trailing rejected or outcome unknown; retain fixed SL and reconcile manually"
+-                    elif a["status"].lower() in TERMINAL:
+-                        # Re-creation would reset the exchange watermark.
++                        break
++                    if a["status"].lower() in TERMINAL:
++                        # A protective execution/cancellation never resets a watermark.
+                         row.pop("native_trailing_intervention", None)
+                         row["exit_requested_ms"] = row["exit_requested_ms"] or now
+-                    elif order.get("trailing_readback_error"):
++                        break
++                    if order.get("trailing_readback_error"):
+                         row["native_trailing_intervention"] = True
+                         row["state"], row["reason"] = "INTERVENTION", "Native trailing condition unverified; retain fixed SL and await valid readback"
+-                    elif (order.get("status") == "open" and order.get("kind") == "trailing"
++                        break
++                    if (order.get("status") == "open" and order.get("kind") == "trailing"
+                           and order.get("side") == "sell" and order.get("reduce_only") is True
+                           and order.get("retracement_unit") == "quote"
+                           and decimal(order.get("retracement", "0")) == decimal(a["retracement"])):
+                         row.pop("native_trailing_intervention", None)
+                         order_size = decimal(order["size"], positive=True)
+-                        waiting = order.get("active") is False and order_size >= size
++                        waiting |= order.get("active") is False and order_size >= size
+                         if order.get("active") is True:
+-                            row["trailing_covered_size"] = str(min(size, order_size))
+-                    if (not row.get("native_trailing_intervention") and not waiting
+-                            and decimal(row["trailing_covered_size"]) < size
+-                            and now - a["created_ms"] >= p["protection_grace_ms"]):
+-                        row["exit_requested_ms"] = row["exit_requested_ms"] or now
+-                elif protected and fresh and not entry_active and not row["exit_requested_ms"]:
+-                    # Older in-flight rows have no preflight distance yet.
++                            row["trailing_covered_size"] = str(max(decimal(row["trailing_covered_size"]), min(size, order_size)))
++                # Keep every prior native order/watermark. Add one full-size overlay
++                # only after owned add fills terminate; inherited local TS covers
++                # the full position throughout partial fills and overlay activation.
++                needs_overlay = (bool(trails) and added_fills > 0
++                    and all(decimal(a["quantity"]) < size for a in trails)
++                    and p.get("local_trailing_backup", False))
++                if (not trails or needs_overlay) and protected and fresh and not entry_active and not row["exit_requested_ms"] and not row.get("native_trailing_intervention"):
+                     distance = normalize_quote_retracement(
+                         decimal(row.get("native_trailing_distance",
+                             decimal(p["atr"]) * decimal(p.get("native_atr_multiple", p["atr_multiple"])))),
+                         decimal(snap["trailing_price_step"]))
+                     row["native_trailing_distance"] = wire_decimal(distance)
+-                    self._state(row, "PROTECTING", "Fixed SL verified; awaiting native trailing readback", now)
++                    self._state(row, "PROTECTING", "Fixed SL verified; awaiting full-position native trailing readback", now)
+                     self._send(row, "trailing", now, quantity=str(size), price="0", retracement=str(distance))
+                     return
++                if (trails and not row.get("native_trailing_intervention") and not waiting
++                        and not entry_active and not needs_overlay
++                        and decimal(row["trailing_covered_size"]) < size
++                        and now - trails[-1]["created_ms"] >= p["protection_grace_ms"]):
++                    row["exit_requested_ms"] = row["exit_requested_ms"] or now
+                 protected = protected and decimal(row["trailing_covered_size"]) >= size
+                 if not protected and not row["exit_requested_ms"] and not row.get("native_trailing_intervention"):
+                     row["state"], row["reason"] = "PROTECTING", "Await entry terminality and verified native trailing coverage"
+@@ -829,9 +894,12 @@ class Supervisor:
+                 )
+         if any(a["kind"] in {"stop", "trailing"} and a["status"] == "FILLED" for a in attempts):
+             row["exit_requested_ms"] = row["exit_requested_ms"] or now
+-        if row["cancel_entry"] or row["exit_requested_ms"] or now >= p["expires_ms"]:
++        expired_entries = [a for a in entry_active if now >= a.get("expires_ms", p["expires_ms"])]
++        if row["cancel_entry"] or row["exit_requested_ms"] or expired_entries:
+             row["cancel_started_ms"] = row.get("cancel_started_ms") or now
+             for a in entry_active:
++                if not (row["cancel_entry"] or row["exit_requested_ms"]) and a not in expired_entries:
++                    continue
+                 target = a.get("order_id")
+                 if not target:
+                     self._state(
+@@ -997,3 +1065,34 @@ class Supervisor:
+             )
+         else:
+             self.store.save(row, now)
++        if (row["state"] == "PROTECTED" and not entry_active and not unresolved_exits
++                and not row["exit_requested_ms"] and not row["cancel_entry"]):
++            self._try_add(row, now)
++
++    def _try_add(self, row, now):
++        from kis_hl.conditional_add import preflight_add
++        for tranche in self.store.tranches(row["id"]):
++            if tranche["status"] != "QUEUED":
++                continue
++            if any(a.get("tranche_id") == tranche["id"] for a in self.store.attempts(row["id"])):
++                continue  # Durable attempt, including UNKNOWN, is never resent.
++            try:
++                if not self.store.entries_enabled(row["scope"]):
++                    raise ValueError("Entries disabled; add cannot enable account-wide entries")
++                if any(x["id"] != row["id"] and x["mode"] == row["mode"]
++                       and x["state"] not in FINISHED | {"PROTECTED"}
++                       for x in self.store.list(row["scope"])):
++                    raise ValueError("Other account exposure needs reconciliation")
++                sizing, now = preflight_add(self.gateway, self.store, row, tranche, now)
++            except (ValueError, KeyError, TypeError, RuntimeError, OSError) as exc:
++                tranche.update(status="REJECTED", reason=str(exc))
++                self.store.save_tranche(tranche)
++                continue
++            tranche["submission_sizing"] = sizing
++            self.store.save_tranche(tranche)
++            p = tranche["plan"]
++            row["add_fixed_stop_price"] = p["fixed_stop_price"]
++            a = self._send(row, "add", now, quantity=p["quantity"], price=p["limit_price"],
++                           tranche_id=tranche["id"], expires_ms=p["expires_ms"])
++            tranche.update(status=a["status"], attempt_id=a["id"])
++            self.store.save_tranche(tranche)
+diff --git a/kis_hl/managed_gateways.py b/kis_hl/managed_gateways.py
+index 26c9ca9..ec83eed 100644
+--- a/kis_hl/managed_gateways.py
++++ b/kis_hl/managed_gateways.py
+@@ -155,12 +155,30 @@ class ManagedHyperliquidGateway:
+         from kis_hl.trailing_runner import fetch_trailing_atr
+
+         atr, bars = fetch_trailing_atr(self.info, resolved.coin, now_ms=now)
++        capital = {}
++        available_notional = state["withdrawable"]
++        if p.get("action") == "add":
++            from kis_hl.account_capital import capture_capital
++            capital = {"capital_evidence": capture_capital(self.info, scope=self.scope,
++                now_ms=now, max_age_ms=p["max_quote_age_ms"])}
++            buying_power = self.info.active_asset_data(asset.symbol)
++            sizes = buying_power.get("maxTradeSzs")
++            margins = buying_power.get("availableToTrade")
++            if any(not isinstance(values, list) or len(values) != 2 for values in (sizes, margins)):
++                raise ValueError("Account/instrument buying power unavailable")
++            sizes, margins = [decimal(x) for x in sizes], [decimal(x) for x in margins]
++            if min(sizes + margins) < 0:
++                raise ValueError("Invalid account/instrument buying power")
++            # Conservatively bound by both directional limits; never infer 10x buying power.
++            available_notional = str(min(sizes) * price)
++            capital["buying_power"] = buying_power
+         return {
++            **capital,
+             "price": str(bid),
+             "ask": str(ask),
+             "time_ms": timestamp,
+             "position": current,
+-            "available_notional": state["withdrawable"],
++            "available_notional": available_notional,
+             "open_orders": [
+                 o
+                 for o in self.info.frontend_open_orders(dex=resolved.dex)
+@@ -206,9 +224,9 @@ class ManagedHyperliquidGateway:
+                 raise ValueError("Native order identifier mismatch")
+             if not a.get("order_id") and order.get("cloid") != a["id"]:
+                 raise ValueError("Client order identifier mismatch")
+-            if order["side"] != ("B" if a["kind"] == "entry" else "A") or order.get(
++            if order["side"] != ("B" if a["kind"] in {"entry", "add"} else "A") or order.get(
+                 "reduceOnly"
+-            ) != (a["kind"] != "entry"):
++            ) != (a["kind"] not in {"entry", "add"}):
+                 raise ValueError("Order direction or reduce-only contract mismatch")
+             kind = (
+                 "stop"
+@@ -264,23 +282,29 @@ class ManagedHyperliquidGateway:
+         entries = {
+             str(a.get("order_id"))
+             for a in attempts
+-            if a["kind"] == "entry" and a.get("order_id")
++            if a["kind"] in {"entry", "add"} and a.get("order_id")
+         }
+         owned = {str(a.get("order_id")) for a in attempts if a.get("order_id")}
+         relevant = {str(f["tid"]): f for f in fills if f["coin"] == resolved.coin}
+         net = Decimal(0)
+         entry = Decimal(0)
+         foreign = False
++        fill_sizes = {}
++        protective_ids = {str(a.get("order_id")) for a in attempts if a["kind"] in {"stop", "trailing"} and a.get("order_id")}
++        protective_filled = Decimal(0)
+         for f in relevant.values():
+             qty = decimal(f["sz"], positive=True)
+             if f["side"] == "B":
+                 net += qty
+                 if str(f["oid"]) in entries:
+                     entry += qty
++                    fill_sizes[str(f["oid"])] = fill_sizes.get(str(f["oid"]), Decimal(0)) + qty
+                 else:
+                     foreign = True
+             elif f["side"] == "A":
+                 net -= qty
++                if str(f["oid"]) in protective_ids:
++                    protective_filled += qty
+             else:
+                 raise ValueError("Unknown execution side")
+         opens = self.info.frontend_open_orders(dex=resolved.dex)
+@@ -306,6 +330,9 @@ class ManagedHyperliquidGateway:
+             "size": str(size),
+             "entry_price": str(pos["entryPx"]) if pos and size else "0",
+             "entry_filled": str(entry),
++            "protective_filled": str(protective_filled),
++            "fills_by_attempt": {a["id"]: str(fill_sizes.get(str(a.get("order_id")), 0))
++                                 for a in attempts if a["kind"] in {"entry", "add"}},
+             "price": str(bid),
+             "time_ms": timestamp,
+             "sellable": str(max(size, 0)),
+@@ -338,18 +365,19 @@ class ManagedHyperliquidGateway:
+         with entry_permit(self.scope, asset.id, a["id"]):
+             result = self.trading.place_order(
+                 symbol=asset.symbol,
+-                side="buy" if a["kind"] == "entry" else "sell",
++                side="buy" if a["kind"] in {"entry", "add"} else "sell",
+                 order_type="stop-market" if a["kind"] == "stop" else "limit",
+                 size=decimal(a["quantity"]),
+                 price=decimal(a["price"]),
+                 trigger_price=(
+                     decimal(a["trigger_price"]) if a["kind"] == "stop" else None
+                 ),
+-                reduce_only=a["kind"] != "entry",
++                reduce_only=a["kind"] not in {"entry", "add"},
+                 tif="Ioc" if a["kind"] == "exit" else "Gtc",
+                 cloid=a["id"],
+                 dry_run=False,
+-                expires_after_ms=a["created_ms"] + row["plan"]["max_quote_age_ms"],
++                expires_after_ms=min(a["created_ms"] + row["plan"]["max_quote_age_ms"],
++                                     a.get("expires_ms", a["created_ms"] + row["plan"]["max_quote_age_ms"])),
+             )
+         return {
+             "status": result.status,
+diff --git a/kis_hl/manual_adoption.py b/kis_hl/manual_adoption.py
+index 6025c39..8b0477e 100644
+--- a/kis_hl/manual_adoption.py
++++ b/kis_hl/manual_adoption.py
+@@ -17,6 +17,8 @@ def verify_adoption(gateway, row, now):
+         raise ValueError("Legacy trailing already owns this position")
+     gateway.trading._require_credentials()
+     pre = gateway.preflight(p, now, existing_position=True)
++    if any(o.get("orderType") == "Trailing Stop Market" for o in pre["open_orders"]):
++        raise ValueError("migration-required: external trailing order needs an explicit supported migration plan")
+     now = int(pre.get("observed_now_ms", now))
+     if (not pre["eligible"] or not 0 <= now - int(pre["time_ms"]) <= p["max_quote_age_ms"]
+             or decimal(pre["portfolio_notional"]) > decimal(p["max_portfolio_notional"])
+diff --git a/kis_hl/operations_cli.py b/kis_hl/operations_cli.py
+index 1a0b432..0144161 100644
+--- a/kis_hl/operations_cli.py
++++ b/kis_hl/operations_cli.py
+@@ -81,7 +81,7 @@ def add_commands(sub, journal_sub):
+         "account", help="Read account positions/orders/history/buying power"
+     )
+     account.add_argument(
+-        "view", choices=["positions", "orders", "history", "buying-power"]
++        "view", choices=["positions", "orders", "history", "buying-power", "capital"]
+     )
+     account.add_argument("--venue", choices=["kis", "hyperliquid"], required=True)
+     account.add_argument(
+@@ -282,6 +282,13 @@ def cmd_chart(args):
+
+ def cmd_account(args):
+     scope, client = scope_client(args.venue)
++    if args.view == "capital":
++        if args.venue != "hyperliquid":
++            raise ValueError("Account-total capture currently supports Hyperliquid only")
++        from kis_hl.account_capital import capture_capital, reconcile_capital
++        evidence = capture_capital(client, scope=scope.key, now_ms=int(time.time()*1000), max_age_ms=60000)
++        return {"capital_evidence": evidence, "reconciliation": reconcile_capital(
++            evidence, scope=scope.key, now_ms=int(time.time()*1000), max_age_ms=60000)}
+     if args.venue == "hyperliquid":
+         if args.view == "positions":
+             data = client.clearinghouse_state(dex=args.dex)
+@@ -522,6 +529,14 @@ def cmd_order(args):
+         }
+     if args.order_action in {"preview", "submit"}:
+         p = validate_plan(json.loads(Path(args.input).read_text()), now)
++        if p.get("action") == "add":
++            if args.order_action == "submit":
++                raise ValueError("Use signal execute for bounded add authority")
++            from kis_hl.conditional_add import size_add
++            owner = store.get(p["position_id"])
++            return {"dry_run": True, "plan": p, "sizing": size_add(p, owner["scope"],
++                p["capital_evidence"], now, quantity_step=p["quantity_step"]),
++                "authority_required": True}
+         if p.get("signal_id") or p.get("grant_id"):
+             raise ValueError("Use signal execute for signal/grant authority")
+         asset = instrument(p["instrument"])
+@@ -531,7 +546,7 @@ def cmd_order(args):
+         scope, client = scope_client(asset.venue)
+         return store.enqueue(scope.key, p, live=args.live, now_ms=now)
+     if args.order_action == "status":
+-        return {**store.get(args.id), "attempts": store.attempts(args.id)}
++        return {**store.get(args.id), "attempts": store.attempts(args.id), "tranches": store.tranches(args.id)}
+     if args.order_action in {"exit", "cancel"}:
+         return store.request_exit(
+             args.id, now, cancel_only=args.order_action == "cancel"
+diff --git a/kis_hl/strategy_signals.py b/kis_hl/strategy_signals.py
+index 0741c97..14b9b2e 100644
+--- a/kis_hl/strategy_signals.py
++++ b/kis_hl/strategy_signals.py
+@@ -149,9 +149,20 @@ class Signals:
+             if not raw or now_ms >= json.loads(raw[0])["expires_ms"]:
+                 raise ValueError("Signal expired before entry")
+             signal = json.loads(raw[0])
+-            if signal.get("action", "enter") != "enter":
++            action = signal.get("action", "enter")
++            if action == "add":
++                from kis_hl.conditional_add import validate_add
++                if p["expires_ms"] > signal["expires_ms"]:
++                    raise ValueError("Add plan expiry exceeds signal authority")
++                owner = self.store.get(p["position_id"])
++                if owner["scope"] != row["scope"] or owner["mode"] != row["mode"]:
++                    raise ValueError("Add owner account/mode mismatch")
++                validate_add(p, owner, signal, now_ms)
++                if not p.get("manual_authorized") and not p.get("grant_id"):
++                    raise ValueError("Explicit bounded add authority required")
++            elif action != "enter" or p.get("action") == "add":
+                 raise ValueError("Only an entry decision can use the new-entry executor")
+-            if "setup_input" in signal:
++            if action == "enter" and "setup_input" in signal:
+                 from kis_hl.strategy_tools import evaluate_setup
+
+                 setup = signal["setup_input"]
+@@ -169,6 +180,13 @@ class Signals:
+         if not raw or raw["revoked"]:
+             raise ValueError("Execution grant missing or revoked")
+         grant = json.loads(raw["payload"])
++        if p.get("action") == "add" and (
++            "add" not in grant.get("actions", [])
++            or p["signal_id"] not in grant.get("signal_ids", [])
++            or p["position_id"] not in grant.get("position_ids", [])
++            or p["expires_ms"] > grant["expires_ms"]
++        ):
++            raise ValueError("Grant must explicitly identify the add signal and position")
+         if (
+             grant["scope"] != row["scope"]
+             or grant["live"] != (row["mode"] == "live")
+@@ -211,11 +229,21 @@ class Signals:
+                 "intent_id": "signal:" + signal_id,
+                 "signal_id": signal_id,
+                 "grant_id": grant_id,
++                **({"manual_authorized": manual} if signal.get("action") == "add" else {}),
+             },
+             now_ms,
+         )
+         row = {"scope": scope, "mode": "live" if live else "paper", "plan": p}
+         with account_lock("signal-intent", scope):
++            if signal.get("action") == "add":
++                if p.get("action") != "add" or not p.get("position_id"):
++                    raise ValueError("Add requires an explicit existing-position plan, not a new entry")
++                owner = self.store.get(p["position_id"])
++                for existing in self.store.tranches(owner["id"]):
++                    if existing["plan"]["intent_id"] == p["intent_id"]:
++                        if existing["plan"] != p or owner["scope"] != scope or owner["mode"] != row["mode"]:
++                            raise ValueError("Conflicting add execution replay")
++                        return existing
+             for existing in self.store.list(scope):
+                 if (
+                     existing["mode"] == row["mode"]
+@@ -242,4 +270,8 @@ class Signals:
+                         "UPDATE execution_grants SET reserved_intents=reserved_intents+1 WHERE id=?",
+                         (grant_id,),
+                     )
++            if signal.get("action") == "add":
++                from kis_hl.conditional_add import validate_add
++                sizing = validate_add(p, owner, signal, now_ms)
++                return self.store.enqueue_add(owner, p, now_ms=now_ms, sizing=sizing)
+             return self.store.enqueue(scope, p, live=live, now_ms=now_ms)
+diff --git a/kis_hl/strategy_tools.py b/kis_hl/strategy_tools.py
+index 2bf6fdc..9321d06 100644
+--- a/kis_hl/strategy_tools.py
++++ b/kis_hl/strategy_tools.py
+@@ -187,7 +187,14 @@ def size_position(request, *, now_ms):
+         raise ValueError("Account scope required")
+     if request.get("currency") != asset.currency:
+         raise ValueError("Account equity must have an explicit execution-currency valuation")
+-    equity = decimal(request.get("equity"), positive=True)
++    reconciliation = None
++    if venue == "hyperliquid":
++        from kis_hl.account_capital import reconcile_capital
++        reconciliation = reconcile_capital(request.get("capital_evidence"), scope=request["scope"],
++                                            now_ms=now_ms, max_age_ms=request["max_age_ms"])
++        equity = decimal(reconciliation["total_balance"], positive=True)
++    else:
++        equity = decimal(request.get("equity"), positive=True)
+     capital = calculate_operating_capital(equity, multiple=Decimal(10 if venue == "hyperliquid" else 1))
+     sizing = request.get("sizing", "units")
+     if sizing not in {"units", "btc_fixed_80"}:
+@@ -211,6 +218,8 @@ def size_position(request, *, now_ms):
+                   risk_pct_equity=result["risk"]/equity*100,
+                   risk_pct_operating_capital=result["risk"]/capital*100,
+                   sizing=sizing, order_authorized=False)
++    if reconciliation is not None:
++        result["capital_reconciliation"] = reconciliation
+     return json.loads(encode(result))
+
+
+diff --git a/tests/test_hyperliquid_client.py b/tests/test_hyperliquid_client.py
+index a9d5877..9dd2a2c 100644
+--- a/tests/test_hyperliquid_client.py
++++ b/tests/test_hyperliquid_client.py
+@@ -22,6 +22,29 @@ from kis_hl.storage import store_trade_xyz_asset_check
+
+
+ class HyperliquidClientTests(unittest.TestCase):
++    def test_user_abstraction_uses_effective_account_and_rejects_unknown_shape(self):
++        client = HyperliquidInfoClient(HyperliquidConfig(
++            base_url="https://api.hyperliquid.xyz", account_address="fixture-account",
++            private_key="", key_profile="default"))
++        with patch.object(client, "post_info", return_value="unifiedAccount") as post:
++            self.assertEqual(client.user_abstraction(), "unifiedAccount")
++            post.assert_called_once_with({"type": "userAbstraction", "user": "fixture-account"})
++        for body in ({}, None, "unknown"):
++            with patch.object(client, "post_info", return_value=body), self.assertRaises(RuntimeError):
++                client.user_abstraction()
++
++    def test_active_asset_data_is_bound_to_effective_account_and_resolved_coin(self):
++        client = HyperliquidInfoClient(HyperliquidConfig(
++            base_url="https://api.hyperliquid.xyz", account_address="fixture-account",
++            private_key="", key_profile="default"))
++        body = dict(user="fixture-account", coin="ETH", maxTradeSzs=["2", "3"], availableToTrade=["200", "300"])
++        with patch.object(client, "post_info", return_value=body) as post:
++            self.assertEqual(client.active_asset_data("ETH-PERP"), body)
++            post.assert_called_once_with({"type": "activeAssetData", "user": "fixture-account", "coin": "ETH"})
++        for changed in ({"user": "other"}, {"coin": "BTC"}):
++            with patch.object(client, "post_info", return_value={**body, **changed}), self.assertRaises(RuntimeError):
++                client.active_asset_data("ETH-PERP")
++
+     def test_account_asset_info_uses_public_wallet_state_endpoints(self) -> None:
+         class RecordingInfoClient(HyperliquidInfoClient):
+             def __init__(self) -> None:
+diff --git a/tests/test_managed_gateways.py b/tests/test_managed_gateways.py
+index 17441b2..b238610 100644
+--- a/tests/test_managed_gateways.py
++++ b/tests/test_managed_gateways.py
+@@ -99,6 +99,51 @@ class ManagedGatewayTests(unittest.TestCase):
+         self.assertEqual(s["orders"]["0x123"]["native_id"], "42")
+         self.assertEqual(s["first_fill_time_ms"], 10)
+
++    def test_owned_add_fills_remain_owned_and_partial_protective_fill_is_reported(self):
++        g, info, row, attempts, order = self.hl()
++        attempts[0]["kind"] = "add"
++        stop = dict(order, oid=43, side="A", reduceOnly=True, isTrigger=True,
++                    orderType="Stop Market", sz="0.8", triggerPx="96")
++        attempts.append(dict(id="stop", kind="stop", order_id="43", status="SUBMITTED"))
++        info.order_status.side_effect = lambda *, oid: {"status": "order", "order": {
++            "status": "open" if str(oid) == "43" else "filled",
++            "order": stop if str(oid) == "43" else order}}
++        info.user_fills_by_time.return_value.append(dict(tid=2, coin="BTC", side="A",
++            sz="0.2", px="96", time=11, oid=43))
++        info.clearinghouse_state.return_value["assetPositions"][0]["position"]["szi"] = "0.8"
++        snap = g.snapshot(row, attempts, 20)
++        self.assertTrue(snap["consistent"])
++        self.assertFalse(snap["foreign_add"])
++        self.assertEqual(snap["fills_by_attempt"]["0x123"], "1")
++        self.assertEqual(snap["protective_filled"], "0.2")
++
++    def test_add_transport_is_bounded_buy_with_durable_client_id(self):
++        g, info, row, _, _ = self.hl()
++        row["plan"]["max_quote_age_ms"] = 1000
++        g.trading.place_order.return_value = SimpleNamespace(status="submitted", response={})
++        g.submit(row, dict(id="0x123", kind="add", quantity="0.5", price="100",
++                           created_ms=10, expires_ms=20))
++        call = g.trading.place_order.call_args.kwargs
++        self.assertEqual(call["side"], "buy")
++        self.assertFalse(call["reduce_only"])
++        self.assertEqual(call["cloid"], "0x123")
++        self.assertEqual(call["expires_after_ms"], 20)
++
++    def test_add_preflight_collects_total_balance_separately_from_buying_power(self):
++        g, info, row, _, _ = self.hl()
++        info.user_abstraction.return_value = "unifiedAccount"
++        info.spot_clearinghouse_state.return_value = {"balances": [{"coin": "USDC", "token": 0, "total": "1000"}]}
++        info.active_asset_data.return_value = {"maxTradeSzs": ["2", "3"], "availableToTrade": ["200", "300"]}
++        p = {**row["plan"], "action": "add"}
++        with patch("kis_hl.trailing_runner.fetch_trailing_atr", return_value=(Decimal(2), [{"T": 10}])):
++            snap = g.preflight(p, 20)
++        self.assertEqual(snap["capital_evidence"]["scope"], g.scope)
++        self.assertEqual(snap["capital_evidence"]["spot"]["balances"][0]["total"], "1000")
++        self.assertEqual(snap["available_notional"], "200")
++        info.active_asset_data.assert_called_once_with("BTC")
++        info.user_abstraction.assert_called_once_with()
++
++
+     def test_native_order_identity_mismatch_is_rejected(self):
+         for change in [{"cloid": "0xOTHER"}, {"side": "A"}, {"reduceOnly": True}]:
+             with self.subTest(change=change):
+diff --git a/tests/test_manual_adoption.py b/tests/test_manual_adoption.py
+index c5f5fa7..039f0f8 100644
+--- a/tests/test_manual_adoption.py
++++ b/tests/test_manual_adoption.py
+@@ -163,8 +163,11 @@ class ManualAdoptionTests(unittest.TestCase):
+                       sz="1", orderType="Trailing Stop Market",
+                       triggerCondition="retracement 15%, best 105")
+         self.orders[99] = {"status": "open", "order": legacy.copy()}
++        self.g.preflight.return_value["open_orders"].append(legacy.copy())
+         row = self.queue(fixed_stop_price="96", local_atr_multiple="2", native_atr_multiple="3")
+-        self.assertEqual(self.step(row)["state"], "INTERVENTION")
++        result = self.step(row)
++        self.assertEqual(result["state"], "INTERVENTION")
++        self.assertIn("migration-required", result["reason"])
+         self.assertEqual(self.store.attempts(row["id"]), [])
+         self.assertEqual(self.orders[99]["order"], legacy)
+         self.g.trading.cancel_order.assert_not_called()
+diff --git a/tests/test_strategy_tools.py b/tests/test_strategy_tools.py
+index 00c7301..f7ba4bd 100644
+--- a/tests/test_strategy_tools.py
++++ b/tests/test_strategy_tools.py
+@@ -96,7 +96,9 @@ class StrategyToolsTests(unittest.TestCase):
+
+     def test_sizing_uses_execution_account_units_and_no_floor(self):
+         result = size_position(dict(venue="hyperliquid", scope="mainnet:test", currency="USDC",
+-            equity="999", asof_ms=NOW, max_age_ms=60000, instrument="hl:BTC",
++            capital_evidence=dict(scope="mainnet:test", currency="USDC", asof_ms=NOW, max_age_ms=60000,
++                account_mode="unifiedAccount", spot={"balances": [{"coin": "USDC", "token": 0, "total": "999"}]}),
++            asof_ms=NOW, max_age_ms=60000, instrument="hl:BTC",
+             entry="100", stop="97", units="1", quantity_step="1",
+             minimum_quantity="1", minimum_notional="10"), now_ms=NOW)
+         self.assertEqual(result["operating_capital"], "9990")
+@@ -106,7 +108,9 @@ class StrategyToolsTests(unittest.TestCase):
+
+     def test_btc_exception_keeps_fixed_notional_and_reports_actual_stop_risk(self):
+         result = size_position(dict(venue="hyperliquid", scope="mainnet:test", currency="USDC",
+-            equity="999", asof_ms=NOW, max_age_ms=60000, instrument="hl:BTC",
++            capital_evidence=dict(scope="mainnet:test", currency="USDC", asof_ms=NOW, max_age_ms=60000,
++                account_mode="unifiedAccount", spot={"balances": [{"coin": "USDC", "token": 0, "total": "999"}]}),
++            asof_ms=NOW, max_age_ms=60000, instrument="hl:BTC",
+             entry="100", stop="97", sizing="btc_fixed_80", quantity_step="0.1",
+             minimum_quantity="0.1", minimum_notional="10"), now_ms=NOW)
+         self.assertEqual(result["quantity"], "0.8")
+
+New symlink .codex/skills/hyperliquid-api -> ../../.agents/skills/hyperliquid-api
+
+New generated HTML docs/architecture/conditional-add.html sha256 7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67
+diff --git a/docs/architecture/conditional-add.workflow.json b/docs/architecture/conditional-add.workflow.json
+new file mode 100644
+index 0000000..dad5ce6
+--- /dev/null
++++ b/docs/architecture/conditional-add.workflow.json
+@@ -0,0 +1,163 @@
++{
++  "schema_version": 2,
++  "diagram_type": "workflow",
++  "meta": {
++    "title": "Bounded Conditional Add",
++    "locale": "en",
++    "quality_profile": "showcase"
++  },
++  "lanes": [
++    {
++      "id": "review",
++      "label": "Hermes and Authority"
++    },
++    {
++      "id": "execution",
++      "label": "Existing Account Supervisor"
++    },
++    {
++      "id": "protection",
++      "label": "Combined Position Protection"
++    }
++  ],
++  "mainPath": [
++    "condition",
++    "authority",
++    "tranche",
++    "preflight",
++    "attempt",
++    "fills",
++    "coverage",
++    "exit"
++  ],
++  "nodes": [
++    {
++      "id": "condition",
++      "lane": "review",
++      "col": 0,
++      "type": "external",
++      "label": "Completed Bar",
++      "sublabel": "identified source evidence",
++      "width": 152
++    },
++    {
++      "id": "authority",
++      "lane": "review",
++      "col": 1,
++      "type": "security",
++      "label": "Bounded Approval",
++      "sublabel": "units, owner, stop, expiry",
++      "width": 152
++    },
++    {
++      "id": "tranche",
++      "lane": "review",
++      "col": 2,
++      "type": "database",
++      "label": "SQLite Tranche",
++      "sublabel": "immutable signal reservation",
++      "width": 152
++    },
++    {
++      "id": "preflight",
++      "lane": "execution",
++      "col": 2,
++      "type": "security",
++      "label": "Fresh Preflight",
++      "sublabel": "total balance, size, funds",
++      "width": 152
++    },
++    {
++      "id": "attempt",
++      "lane": "execution",
++      "col": 3,
++      "type": "database",
++      "label": "One Add Attempt",
++      "sublabel": "persist before transmission",
++      "width": 152
++    },
++    {
++      "id": "fills",
++      "lane": "execution",
++      "col": 4,
++      "type": "backend",
++      "label": "Actual Fills",
++      "sublabel": "partial and terminal readback",
++      "width": 152
++    },
++    {
++      "id": "coverage",
++      "lane": "protection",
++      "col": 4,
++      "type": "backend",
++      "label": "Full Protection",
++      "sublabel": "SL deficit and full-size TS",
++      "width": 152
++    },
++    {
++      "id": "exit",
++      "lane": "protection",
++      "col": 5,
++      "type": "backend",
++      "label": "Residual Exit",
++      "sublabel": "reduce-only; scoped cleanup",
++      "width": 152
++    }
++  ],
++  "edges": [
++    {
++      "id": "condition-authority",
++      "from": "condition",
++      "to": "authority"
++    },
++    {
++      "id": "authority-tranche",
++      "from": "authority",
++      "to": "tranche"
++    },
++    {
++      "id": "tranche-preflight",
++      "from": "tranche",
++      "to": "preflight"
++    },
++    {
++      "id": "preflight-attempt",
++      "from": "preflight",
++      "to": "attempt"
++    },
++    {
++      "id": "attempt-fills",
++      "from": "attempt",
++      "to": "fills"
++    },
++    {
++      "id": "fills-coverage",
++      "from": "fills",
++      "to": "coverage"
++    },
++    {
++      "id": "coverage-exit",
++      "from": "coverage",
++      "to": "exit",
++      "label": "SL / TS / strategy"
++    }
++  ],
++  "cards": [
++    {
++      "dot": "cyan",
++      "title": "Durable ownership",
++      "items": [
++        "One account/instrument owner; per-tranche sizing and fill evidence",
++        "Unknown submissions are reconciled, never retransmitted"
++      ]
++    },
++    {
++      "dot": "amber",
++      "title": "Protection preserved",
++      "items": [
++        "Retain fixed SL, frozen ATR and existing native/local watermarks",
++        "External percentage TS requires supported migration before mutation"
++      ]
++    }
++  ]
++}
+diff --git a/kis_hl/account_capital.py b/kis_hl/account_capital.py
+new file mode 100644
+index 0000000..54a5990
+--- /dev/null
++++ b/kis_hl/account_capital.py
+@@ -0,0 +1,48 @@
++"""Fail-closed account-total capital reconciliation, separate from buying power."""
++
++import hashlib
++
++from kis_hl.journal_sync import decimal, encode
++
++
++def capture_capital(info, *, scope, now_ms, max_age_ms):
++    """Read the effective account only; callers recheck elapsed time after capture."""
++    return {"scope": scope, "currency": "USDC", "asof_ms": now_ms, "max_age_ms": max_age_ms,
++            "account_mode": info.user_abstraction(), "spot": info.spot_clearinghouse_state(),
++            "source": "Hyperliquid account readback"}
++
++
++def reconcile_capital(evidence, *, scope, now_ms, max_age_ms):
++    if not isinstance(evidence, dict):
++        raise ValueError("Reconciled account-total evidence required; segment equity is not capital")
++    stamp = evidence.get("asof_ms")
++    age = evidence.get("max_age_ms")
++    if (type(stamp) is not int or type(age) is not int or age <= 0
++            or not 0 <= now_ms - stamp <= min(age, max_age_ms)):
++        raise ValueError("Account-total evidence is stale or invalid")
++    if evidence.get("scope") != scope or evidence.get("currency") != "USDC":
++        raise ValueError("Account-total scope/currency mismatch")
++    if evidence.get("account_mode") != "unifiedAccount":
++        raise ValueError("Account-total reconciliation requires verified unifiedAccount mode")
++    balances = evidence.get("spot", {}).get("balances")
++    if not isinstance(balances, list) or not balances:
++        raise ValueError("Complete unified spot balances required")
++    seen, total = set(), decimal("0")
++    for item in balances:
++        token = item.get("token")
++        if type(token) is not int or token < 0 or token in seen:
++            raise ValueError("Overlapping or unknown collateral identity")
++        seen.add(token)
++        amount = decimal(item.get("total"))
++        if amount < 0:
++            raise ValueError("Negative collateral requires supported liability reconciliation")
++        if token == 0 and item.get("coin") == "USDC":
++            total += amount
++        elif amount != 0:
++            raise ValueError("Non-USDC balance requires explicit supported account-total valuation")
++    if total <= 0:
++        raise ValueError("Positive reconciled account-total balance required")
++    return {"total_balance": str(total), "scope": scope, "currency": "USDC",
++            "account_mode": "unifiedAccount", "asof_ms": stamp,
++            "basis": "Unified spot balances; overlapping perp/dex values excluded",
++            "source_sha256": hashlib.sha256(encode(evidence).encode()).hexdigest()}
+diff --git a/kis_hl/conditional_add.py b/kis_hl/conditional_add.py
+new file mode 100644
+index 0000000..8c818c8
+--- /dev/null
++++ b/kis_hl/conditional_add.py
+@@ -0,0 +1,106 @@
++"""Bounded add admission on an existing owner; no scheduling or order transport."""
++
++from kis_hl.journal_sync import decimal
++from kis_hl.strategy_tools import evaluate_setup, size_position
++
++
++def size_add(plan, scope, evidence, now, *, quantity_step="0.00000001"):
++    return size_position(dict(venue="hyperliquid", scope=scope, currency="USDC",
++        instrument=plan["instrument"], capital_evidence=evidence,
++        asof_ms=evidence["asof_ms"], max_age_ms=plan["max_quote_age_ms"],
++        entry=plan["limit_price"], stop=plan["fixed_stop_price"], units=plan["units"],
++        quantity_step=quantity_step, minimum_quantity=quantity_step, minimum_notional="10"), now_ms=now)
++
++
++def validate_add(plan, owner, signal, now):
++    required = {"units", "quantity_step", "fixed_stop_price", "capital_evidence",
++                "expected_size", "expected_entry_filled", "condition_snapshot_id", "condition_bar_end_ms"}
++    if not required <= plan.keys() or not isinstance(plan["capital_evidence"], dict):
++        raise ValueError("Add plan is missing bounded sizing/condition evidence")
++    original = owner["plan"]
++    if (plan.get("action") != "add" or signal.get("action") != "add"
++            or not plan["instrument"].startswith("hl:")
++            or plan.get("position_id") != owner["id"]
++            or plan["instrument"] != original["instrument"]):
++        raise ValueError("Add requires the identified Hyperliquid position owner")
++    if owner["state"] != "PROTECTED" or owner["exit_requested_ms"] or owner["cancel_entry"]:
++        raise ValueError("Add requires a protected owner without an exit/cancel request")
++    for key in ("atr", "atr_multiple", "local_atr_multiple", "native_atr_multiple",
++                "trailing_provider", "local_trailing_backup", "protection_grace_ms",
++                "max_exit_attempts", "exit_deadline_ms", "exit_reprice_ms", "slippage",
++                "allow_local_sl", "max_quote_age_ms"):
++        if plan.get(key) != original.get(key):
++            raise ValueError("Add must preserve frozen ATR and independent protection parameters")
++    fixed = decimal(plan.get("fixed_stop_price"), positive=True)
++    original_fixed = decimal(original.get("fixed_stop_price",
++                             decimal(owner["trail"]["entry"]) - decimal(original["stop_distance"])))
++    if fixed != original_fixed:
++        raise ValueError("Add fixed stop must match the confirmed owner stop")
++    if original.get("trailing_provider") == "native" and not original.get("local_trailing_backup"):
++        raise ValueError("migration-required: add requires preserved full-position local trailing backup")
++    for expected, observed in (("expected_size", "observed_size"), ("expected_entry_filled", "entry_filled")):
++        if decimal(plan.get(expected), positive=True) != decimal(owner[observed], positive=True):
++            raise ValueError("Add authority exposure changed")
++    setup = signal.get("setup_input", {})
++    snapshot = setup.get("snapshot", {})
++    position = setup.get("position", {})
++    if (setup.get("setup") not in {"pullback", "rebreakout"}
++            or snapshot.get("instrument") != plan["signal_instrument"]
++            or position.get("id") != owner["id"] or position.get("scope") != owner["scope"]
++            or position.get("instrument") != plan["instrument"]
++            or position.get("opened_ms") != owner["first_fill_ms"]
++            or decimal(position.get("quantity")) != decimal(plan["expected_size"])
++            or decimal(position.get("stop")) != fixed
++            or snapshot.get("id") != plan.get("condition_snapshot_id")
++            or type(plan.get("condition_bar_end_ms")) is not int
++            or not snapshot.get("candles")
++            or snapshot["candles"][-1].get("end_ms") != plan["condition_bar_end_ms"]):
++        raise ValueError("Add requires identified completed-bar and position evidence")
++    if not evaluate_setup(setup, now_ms=now)["predicate_passed"]:
++        raise ValueError("Add completed-bar confirmation is unfinished, stale or failed")
++    result = size_add(plan, owner["scope"], plan.get("capital_evidence", {}), now,
++                      quantity_step=plan["quantity_step"])
++    if result["below_minimum"] or decimal(result["quantity"]) != decimal(plan["quantity"]):
++        raise ValueError("Add quantity differs from authorized units and fixed-stop risk")
++    return result
++
++
++def preflight_add(gateway, store, owner, tranche, now):
++    """Re-read exposure, source identity, total balance and independent funds before send."""
++    from kis_hl.managed_execution import validate_plan
++    from kis_hl.strategy_signals import Signals
++    p = tranche["plan"]
++    pre = gateway.preflight(p, now)
++    now = int(pre.get("observed_now_ms", now))
++    validate_plan(p, now)
++    Signals(store).check_authority({**owner, "plan": p}, now_ms=now)
++    if (not pre["eligible"] or not pre["session_open"]
++            or not 0 <= now - int(pre["time_ms"]) <= p["max_quote_age_ms"]
++            or decimal(pre["position"]) != decimal(p["expected_size"])):
++        raise ValueError("Fresh add exposure/eligibility/quote changed")
++    owned = {str(a.get("order_id")) for a in store.attempts(owner["id"]) if a.get("order_id")}
++    if any(str(o["oid"]) not in owned for o in pre["open_orders"]):
++        raise ValueError("migration-required: external protection/order needs explicit supported migration")
++    evidence = pre.get("capital_evidence")
++    if not isinstance(evidence, dict):
++        raise ValueError("Fresh account-total evidence required before add")
++    result = size_add(p, owner["scope"], evidence, now, quantity_step=pre["quantity_step"])
++    if result["below_minimum"] or decimal(result["quantity"]) != decimal(p["quantity"]):
++        raise ValueError("Fresh account-total sizing changed; new authority required")
++    price, size = decimal(p["limit_price"]), decimal(p["quantity"])
++    if size % decimal(pre["quantity_step"], positive=True) or price % decimal(pre["price_step"], positive=True):
++        raise ValueError("Add violates current lot/tick")
++    notional = price * size
++    if notional > decimal(pre["available_notional"]):
++        raise ValueError("Insufficient available funds for add")
++    for field in ("portfolio_notional", "correlated_notional"):
++        if notional + decimal(pre[field]) > decimal(p["max_"+field]):
++            raise ValueError("Add exceeds explicit notional limit")
++    bid, ask = decimal(pre["price"], positive=True), decimal(pre["ask"], positive=True)
++    if (ask < bid or (ask-bid)/bid*10000 > decimal(p["max_spread_bps"])
++            or abs(price-ask)/ask*10000 > decimal(p["max_entry_deviation_bps"])):
++        raise ValueError("Add price/spread limit failed")
++    # Frozen daily ATR belongs to the owner, not a newly calculated entry ATR.
++    if pre["atr_source"]["instrument"] != p["instrument"]:
++        raise ValueError("Add source instrument mismatch")
++    return result, now
+diff --git a/scripts/smoke_conditional_add.py b/scripts/smoke_conditional_add.py
+new file mode 100644
+index 0000000..0aee0bf
+--- /dev/null
++++ b/scripts/smoke_conditional_add.py
+@@ -0,0 +1,85 @@
++"""Offline CLI/SQLite smoke; all venue calls replaced by the issue-27 stub."""
++import contextlib
++import io
++import json
++from pathlib import Path
++import socket
++import sys
++import tempfile
++from types import SimpleNamespace
++from unittest.mock import patch
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
++from kis_hl.cli import main
++from kis_hl.managed_execution import ExecutionStore
++from kis_hl.strategy_signals import Signals
++from tests.test_conditional_add import AddGateway, add_plan, add_signal, capital, protected, NOW
++
++
++def run():
++    with tempfile.TemporaryDirectory(prefix="conditional-add-smoke-") as directory:
++        root = Path(directory)
++        store = ExecutionStore(root/"state.sqlite")
++        gateway = AddGateway()
++        row, _ = protected(store, gateway, native=True)
++        signals = Signals(store)
++        signal = add_signal(signals, row)
++        plan = add_plan(row)
++        path = root/"add.json"
++        path.write_text(json.dumps(plan))
++        clock = [NOW+5]
++        scope = SimpleNamespace(key="scope", environment="testnet")
++        info = SimpleNamespace(config=None, user_abstraction=lambda: "unifiedAccount",
++                               spot_clearinghouse_state=lambda: capital()["spot"])
++        commands = []
++
++        def cli(*argv):
++            output = io.StringIO()
++            with contextlib.redirect_stdout(output):
++                code = main(["--db", str(store.path), *argv])
++            assert code == 0, output.getvalue()
++            data = json.loads(output.getvalue())
++            commands.append("kis-hl --db TEMP/state.sqlite " + " ".join(str(a).replace(str(root), "TEMP") for a in argv))
++            return data
++
++        with patch("kis_hl.cli.load_env_file"), \
++             patch("kis_hl.operations_cli.time.time", side_effect=lambda: clock[0]/1000), \
++             patch("kis_hl.operations_cli.scope_client", return_value=(scope, info)), \
++             patch("kis_hl.operations_cli.HyperliquidTradingClient"), \
++             patch("kis_hl.managed_gateways.ManagedHyperliquidGateway", return_value=gateway), \
++             patch.object(socket, "socket", side_effect=AssertionError("Offline smoke forbids network")):
++            captured = cli("account", "capital", "--venue", "hyperliquid")
++            assert captured["reconciliation"]["total_balance"] == "1000"
++            preview = cli("order", "preview", "--input", str(path))
++            assert preview["dry_run"] and preview["authority_required"]
++            initial = len(gateway.sent)
++            tranche = cli("signal", "execute", "--id", signal["id"], "--input", str(path), "--manual", "--live")
++            assert tranche["status"] == "QUEUED" and len(gateway.sent) == initial
++            cli("supervisor", "run", "--venue", "hyperliquid", "--live", "--once")
++            add = [a for a in gateway.sent if a["kind"] == "add"][-1]
++            gateway.fill(add, "0.2", terminal=False)
++            for tick in (10, 11):
++                clock[0] = NOW+tick
++                cli("supervisor", "run", "--venue", "hyperliquid", "--live", "--once")
++            assert float(store.get(row["id"])["covered_size"]) == 1.2
++            gateway.fill(add, "0.5")
++            for tick in (12, 13, 14):
++                clock[0] = NOW+tick
++                cli("supervisor", "run", "--venue", "hyperliquid", "--live", "--once")
++            replay = cli("signal", "execute", "--id", signal["id"], "--input", str(path), "--manual", "--live")
++            status = cli("order", "status", "--id", row["id"])
++            assert replay["id"] == tranche["id"]
++            assert status["state"] == "PROTECTED"
++            assert float(status["covered_size"]) == float(status["trailing_covered_size"]) == 1.5
++            assert float(status["tranches"][0]["filled"]) == 0.5
++            assert len([a for a in gateway.sent if a["kind"] == "add"]) == 1
++        print(json.dumps({"result": "passed", "network": "forbidden", "gateway": "stub",
++            "sqlite": "temporary, reopened by every CLI invocation", "commands": commands,
++            "total_balance": "1000", "operating_capital": preview["sizing"]["operating_capital"],
++            "add_attempts": 1, "tranche_filled": "0.5", "remaining": "1.5",
++            "sl_coverage": status["covered_size"], "native_ts_coverage": status["trailing_covered_size"],
++            "state": status["state"]}, indent=2))
++
++
++if __name__ == "__main__":
++    run()
+diff --git a/tests/test_conditional_add.py b/tests/test_conditional_add.py
+new file mode 100644
+index 0000000..7c5ca44
+--- /dev/null
++++ b/tests/test_conditional_add.py
+@@ -0,0 +1,346 @@
++"""Issue 27 offline account-total and bounded add regression fixtures."""
++import copy
++import tempfile
++import unittest
++from decimal import Decimal
++from pathlib import Path
++
++from kis_hl.managed_execution import ExecutionStore, Supervisor
++from kis_hl.strategy_signals import Signals
++from kis_hl.strategy_tools import size_position
++from tests.test_managed_execution import Gateway, plan
++from tests.test_strategy_tools import NOW, DAY, setup
++
++
++def capital(scope="scope", total="1000", now=NOW):
++    return dict(scope=scope, currency="USDC", asof_ms=now, max_age_ms=60000,
++                account_mode="unifiedAccount", source="Hyperliquid account readback",
++                spot={"balances": [{"coin": "USDC", "token": 0, "total": total, "hold": "0"}]},
++                perp_segment={"marginSummary": {"accountValue": "123"}})
++
++
++def sizing(**changes):
++    return dict(venue="hyperliquid", scope="scope", currency="USDC", instrument="hl:ETH",
++                asof_ms=NOW, max_age_ms=60000, entry="100", stop="96", units="1",
++                quantity_step="0.01", minimum_quantity="0.01", minimum_notional="10",
++                capital_evidence=capital(), **changes)
++
++
++class AddGateway(Gateway):
++    native_trailing = True
++
++    def __init__(self):
++        super().__init__()
++        self.fill_sizes = {}
++        self.balance = capital()
++        self.available = "10000"
++        self.price = "100"
++        self.protective_filled = "0"
++
++    def preflight(self, p, now, **kwargs):
++        return {**super().preflight(p, now), "position": self.size,
++                "open_orders": [{"oid": k} for k, v in self.orders.items() if v["status"] == "open"],
++                "capital_evidence": self.balance, "available_notional": self.available,
++                "trailing_price_step": "0.01"}
++
++    def snapshot(self, row, attempts, now):
++        return {**super().snapshot(row, attempts, now), "price": self.price,
++                "fills_by_attempt": dict(self.fill_sizes), "trailing_price_step": "0.01",
++                "protective_filled": self.protective_filled}
++
++    def submit(self, row, attempt):
++        result = super().submit(row, attempt)
++        if attempt["kind"] == "trailing":
++            self.orders[attempt["id"]].update(active=True, retracement_unit="quote",
++                retracement=attempt["retracement"], best_price=self.price)
++        return result
++
++    def fill(self, attempt, quantity, *, terminal=True):
++        previous = Decimal(self.fill_sizes.get(attempt["id"], "0"))
++        delta = Decimal(quantity) - previous
++        self.fill_sizes[attempt["id"]] = quantity
++        self.filled = str(Decimal(self.filled) + delta)
++        self.size = str(Decimal(self.size) + delta)
++        order = self.orders[attempt["id"]]
++        order.update(status="filled" if terminal else "open",
++                     size=str(Decimal(attempt["quantity"]) - Decimal(quantity)))
++
++
++def protected(store, gateway, *, native=False):
++    p = plan()
++    p.update(instrument="hl:ETH", signal_instrument="hl:ETH", fixed_stop_price="96",
++             expires_ms=NOW+60000, max_quote_age_ms=60000,
++             trailing_provider="native" if native else "local", local_trailing_backup=native,
++             max_notional="10000", max_loss="100", max_portfolio_notional="20000",
++             max_correlated_notional="20000")
++    opened = NOW-3*DAY
++    row = store.enqueue("scope", p, live=True, now_ms=opened-1000)
++    worker = Supervisor(store, gateway, live=True)
++    worker.step(row["id"], opened)
++    gateway.fill(gateway.sent[0], "1")
++    for i in range(1, 5):
++        worker.step(row["id"], opened+i)
++    return store.get(row["id"]), worker
++
++
++def add_signal(signals, row):
++    signals.register(dict(id="fixture", version="1", description="Fixture", instruments=["hl:ETH"]))
++    evidence = setup("rebreakout")
++    evidence["snapshot"]["instrument"] = "hl:ETH"
++    evidence["position"] = dict(id=row["id"], scope="scope", instrument="hl:ETH", quantity="1",
++                                stop="96", opened_ms=row["first_fill_ms"], asof_ms=NOW, max_age_ms=60000)
++    signal = dict(id="add-once", strategy="fixture", strategy_version="1", signal_instrument="hl:ETH",
++                  execution_instruments=["hl:ETH"], action="add", setup_input=evidence,
++                  observed_ms=NOW, expires_ms=NOW+50000, rationale="Confirmed rebreakout")
++    signals.ingest(signal, now_ms=NOW)
++    return signal
++
++
++def add_plan(row):
++    return {**row["plan"], "action": "add", "position_id": row["id"], "quantity": "0.5",
++            "units": "0.02", "quantity_step": "0.01", "expected_size": "1", "expected_entry_filled": "1",
++            "capital_evidence": capital(), "condition_snapshot_id": "fixture-snapshot",
++            "condition_bar_end_ms": NOW, "expires_ms": NOW+40000}
++
++
++class CapitalTests(unittest.TestCase):
++    def test_total_not_perp_segment_is_capital_source(self):
++        result = size_position(sizing(equity="123"), now_ms=NOW)
++        self.assertEqual(result["equity"], "1000")
++        self.assertEqual(result["operating_capital"], "10000")
++        self.assertEqual(result["risk_budget"], "100.00")
++
++    def test_ambiguous_mode_overlap_unknown_asset_and_account_rejected(self):
++        for change in ("mode", "overlap", "asset", "scope", "missing"):
++            with self.subTest(change=change), self.assertRaises(ValueError):
++                request = sizing(equity="1000")
++                ev = request["capital_evidence"]
++                if change == "mode": ev["account_mode"] = "default"
++                if change == "overlap": ev["spot"]["balances"] *= 2
++                if change == "asset": ev["spot"]["balances"].append(dict(coin="HYPE", token=150, total="1"))
++                if change == "scope": ev["scope"] = "other"
++                if change == "missing": del request["capital_evidence"]
++                size_position(request, now_ms=NOW)
++
++
++class ConditionalAddTests(unittest.TestCase):
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory()
++        self.addCleanup(self.tmp.cleanup)
++        self.path = Path(self.tmp.name)/"state.sqlite"
++        self.store = ExecutionStore(self.path)
++        self.g = AddGateway()
++        self.row, self.worker = protected(self.store, self.g)
++        self.signals = Signals(self.store)
++        self.signal = add_signal(self.signals, self.row)
++        self.plan = add_plan(self.row)
++
++    def authorize(self):
++        return self.signals.execute("add-once", "scope", self.plan, manual=True, live=True, now_ms=NOW+5)
++
++    def test_partial_add_complete_and_reopen_replay(self):
++        self.authorize()
++        self.worker.step(self.row["id"], NOW+10)
++        adds = [a for a in self.g.sent if a["kind"] == "add"]
++        self.assertEqual(len(adds), 1)
++        self.g.fill(adds[0], "0.2", terminal=False)
++        for i in (11, 12): self.worker.step(self.row["id"], NOW+i)
++        self.assertEqual(Decimal(self.store.get(self.row["id"])["covered_size"]), Decimal("1.2"))
++        self.g.fill(adds[0], "0.5")
++        for i in (13, 14): self.worker.step(self.row["id"], NOW+i)
++        current = self.store.get(self.row["id"])
++        self.assertEqual(current["state"], "PROTECTED")
++        self.assertEqual(Decimal(current["covered_size"]), Decimal("1.5"))
++        reopened = ExecutionStore(self.path)
++        Signals(reopened).execute("add-once", "scope", self.plan, manual=True, live=True, now_ms=NOW+20)
++        Supervisor(reopened, self.g, live=True).step(self.row["id"], NOW+21)
++        self.assertEqual(len([a for a in self.g.sent if a["kind"] == "add"]), 1)
++        tranche = reopened.tranches(self.row["id"])[0]
++        self.assertEqual(Decimal(tranche["filled"]), Decimal("0.5"))
++        self.assertEqual(tranche["plan"]["units"], "0.02")
++        self.assertEqual(current["trail"]["distance"], self.row["trail"]["distance"])
++
++    def test_authorization_table(self):
++        for case in ("unfinished", "stale", "missing", "expired", "exposure", "fixed-stop", "bar-id",
++                     "max_quote_age_ms", "protection_grace_ms", "max_exit_attempts", "slippage"):
++            with self.subTest(case=case):
++                p = copy.deepcopy(self.plan)
++                signal = copy.deepcopy(self.signal)
++                signal["id"] = "bad-"+case
++                if case == "unfinished": signal["setup_input"]["snapshot"]["candles"][-1]["complete"] = False
++                if case == "stale": signal["setup_input"]["snapshot"]["asof_ms"] = NOW-60001
++                if case == "expired": p["expires_ms"] = NOW
++                if case == "exposure": p["expected_size"] = "2"
++                if case == "fixed-stop": p["fixed_stop_price"] = "95"
++                if case == "bar-id": p["condition_bar_end_ms"] = NOW-1
++                if case in {"max_quote_age_ms", "protection_grace_ms", "max_exit_attempts"}: p[case] = 1
++                if case == "slippage": p[case] = "0.005"
++                self.signals.ingest(signal, now_ms=NOW)
++                before = len(self.g.sent)
++                with self.assertRaises((ValueError, RuntimeError)):
++                    self.signals.execute(signal["id"], "scope", p, manual=case != "missing", live=True, now_ms=NOW+5)
++                self.assertEqual(len(self.g.sent), before)
++
++    def test_expired_or_changed_fresh_state_preserves_existing_protection(self):
++        self.authorize()
++        original_stops = [a["id"] for a in self.g.sent if a["kind"] == "stop"]
++        self.g.available = "1"
++        self.worker.step(self.row["id"], NOW+10)
++        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
++        self.assertTrue(all(self.g.orders[k]["status"] == "open" for k in original_stops))
++        self.assertEqual(self.store.get(self.row["id"])["state"], "PROTECTED")
++
++    def test_fresh_gates_reject_without_canceling_protection(self):
++        for case in ("expired", "exposure", "balance", "stale-balance", "paused"):
++            with self.subTest(case=case):
++                self.setUp()
++                self.authorize()
++                if case == "exposure": self.g.size = "0.9"
++                if case == "balance": self.g.balance = capital(total="900")
++                if case == "stale-balance": self.g.balance = capital(now=NOW-60001)
++                if case == "paused": self.store.set_entries("scope", False)
++                self.worker.step(self.row["id"], NOW+(40001 if case == "expired" else 10))
++                self.assertFalse(any(a["kind"] in {"add", "cancel"} for a in self.g.sent))
++                self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
++
++    def test_unknown_add_outcome_is_never_resent_after_restart(self):
++        self.authorize()
++        original = self.g.submit
++        def timeout(row, a):
++            if a["kind"] == "add":
++                self.g.sent.append(dict(a))
++                raise TimeoutError("Unknown outcome")
++            return original(row, a)
++        self.g.submit = timeout
++        self.worker.step(self.row["id"], NOW+10)
++        reopened = ExecutionStore(self.path)
++        for tick in (11, 12, 13): Supervisor(reopened, self.g, live=True).step(self.row["id"], NOW+tick)
++        self.assertEqual(len([a for a in self.g.sent if a["kind"] == "add"]), 1)
++        self.assertEqual(reopened.tranches(self.row["id"])[0]["status"], "UNKNOWN")
++
++    def test_failed_incremental_sl_reaches_bounded_exit_retaining_existing_sl(self):
++        self.authorize()
++        self.worker.step(self.row["id"], NOW+10)
++        add = self.g.sent[-1]
++        self.g.fill(add, "0.5")
++        old_stop = next(a for a in self.g.sent if a["kind"] == "stop")
++        original = self.g.submit
++        def reject(row, a):
++            if a["kind"] == "stop":
++                self.g.sent.append(dict(a))
++                return {"status": "rejected"}
++            return original(row, a)
++        self.g.submit = reject
++        for tick in (11, 12, 13, 14): self.worker.step(self.row["id"], NOW+tick)
++        self.assertTrue(self.store.get(self.row["id"])["exit_requested_ms"])
++        self.assertTrue(any(a["kind"] == "exit" for a in self.g.sent))
++        self.assertEqual(self.g.orders[old_stop["id"]]["status"], "open")
++        self.assertFalse(any(a["kind"] == "cancel" for a in self.g.sent))
++
++    def native_fixture(self):
++        self.store = ExecutionStore(Path(self.tmp.name)/"native.sqlite")
++        self.g = AddGateway()
++        self.row, self.worker = protected(self.store, self.g, native=True)
++        self.signals = Signals(self.store)
++        add_signal(self.signals, self.row)
++        self.plan = add_plan(self.row)
++
++    def test_native_overlay_preserves_old_watermark_and_covers_combined_size(self):
++        self.native_fixture()
++        old_trail = next(a for a in self.g.sent if a["kind"] == "trailing")
++        self.g.orders[old_trail["id"]]["best_price"] = "103"
++        self.authorize()
++        self.worker.step(self.row["id"], NOW+10)
++        add = self.g.sent[-1]
++        self.assertEqual(add["kind"], "add")
++        self.g.fill(add, "0.2", terminal=False)
++        for tick in (11, 12): self.worker.step(self.row["id"], NOW+tick)
++        current = self.store.get(self.row["id"])
++        self.assertEqual(Decimal(current["covered_size"]), Decimal("1.2"))
++        self.assertEqual(Decimal(current["local_trailing_covered_size"]), Decimal("1.2"))
++        self.g.fill(add, "0.5")
++        for tick in (13, 14, 15): self.worker.step(self.row["id"], NOW+tick)
++        current = self.store.get(self.row["id"])
++        self.assertEqual(current["state"], "PROTECTED")
++        self.assertEqual(Decimal(current["trailing_covered_size"]), Decimal("1.5"))
++        self.assertEqual(self.g.orders[old_trail["id"]]["best_price"], "103")
++        self.assertEqual(self.g.orders[old_trail["id"]]["status"], "open")
++        self.assertEqual([Decimal(a["quantity"]) for a in self.g.sent if a["kind"] == "trailing"], [Decimal(1), Decimal("1.5")])
++        self.assertEqual(current["trail"]["distance"], self.row["trail"]["distance"])
++
++    def test_partial_native_fill_then_partial_local_exit_closes_all_residual(self):
++        self.test_native_overlay_preserves_old_watermark_and_covers_combined_size()
++        self.g.size = "1.3"
++        self.g.protective_filled = "0.2"
++        self.worker.step(self.row["id"], NOW+20)
++        first = [a for a in self.g.sent if a["kind"] == "exit"][-1]
++        self.assertEqual(Decimal(first["quantity"]), Decimal("1.3"))
++        self.g.orders[first["id"]]["status"] = "canceled"
++        # A partial local fill of .5 and another native fill of .3 compete.
++        self.g.size = "0.5"
++        self.g.protective_filled = "0.5"
++        self.worker.step(self.row["id"], NOW+21)
++        second = [a for a in self.g.sent if a["kind"] == "exit"][-1]
++        self.assertEqual(Decimal(second["quantity"]), Decimal("0.5"))
++        self.g.orders[second["id"]]["status"] = "filled"
++        self.g.size = "0"
++        self.g.orders["unrelated"] = dict(status="open", size="1")
++        for tick in (22, 23): self.worker.step(self.row["id"], NOW+tick)
++        self.assertEqual(self.store.get(self.row["id"])["state"], "CLOSED")
++        self.assertEqual(self.g.orders["unrelated"]["status"], "open")
++
++    def test_failed_native_overlay_retains_sl_and_blocks_more_risk(self):
++        self.native_fixture()
++        self.authorize()
++        self.worker.step(self.row["id"], NOW+10)
++        self.g.fill(self.g.sent[-1], "0.5")
++        original = self.g.submit
++        def reject(row, a):
++            if a["kind"] == "trailing":
++                self.g.sent.append(dict(a))
++                return {"status": "rejected"}
++            return original(row, a)
++        self.g.submit = reject
++        for tick in (11, 12, 13): self.worker.step(self.row["id"], NOW+tick)
++        row = self.store.get(self.row["id"])
++        self.assertEqual(row["state"], "INTERVENTION")
++        self.assertEqual(Decimal(row["covered_size"]), Decimal("1.5"))
++        self.assertFalse(any(a["kind"] in {"cancel", "exit"} for a in self.g.sent))
++
++    def test_partially_filled_initial_entry_can_add_without_old_grace_exit(self):
++        self.native_fixture()
++        # The initial approved entry was larger, but terminal cancellation left one unit.
++        owner = self.store.get(self.row["id"])
++        owner["plan"]["quantity"] = "2"
++        self.store.save(owner, NOW)
++        entry = next(a for a in self.store.attempts(owner["id"]) if a["kind"] == "entry")
++        self.store.update_attempt(entry, quantity="2", status="CANCELED")
++        self.g.orders[entry["id"]].update(status="canceled", size="1")
++        self.authorize()
++        self.worker.step(owner["id"], NOW+10)
++        self.g.fill(self.g.sent[-1], "0.5")
++        for tick in (11, 12, 13): self.worker.step(owner["id"], NOW+tick)
++        result = self.store.get(owner["id"])
++        self.assertEqual(result["state"], "PROTECTED")
++        self.assertEqual(Decimal(result["trailing_covered_size"]), Decimal("1.5"))
++        self.assertFalse(any(a["kind"] == "exit" for a in self.g.sent))
++
++    def test_signal_and_grant_expiry_bound_add_lifecycle(self):
++        self.plan["expires_ms"] = NOW+50001
++        with self.assertRaisesRegex(ValueError, "expiry"):
++            self.authorize()
++        self.plan["expires_ms"] = NOW+40000
++        base = dict(id="grant", scope="scope", strategy="fixture", strategy_version="1",
++                    instruments=["hl:ETH"], max_notional="100", max_intents=1, live=True,
++                    actions=["add"], signal_ids=["add-once"], position_ids=[self.row["id"]])
++        for case, change in (("short", {"expires_ms": NOW+20}),
++                             ("entry-only", {"expires_ms": NOW+50000, "actions": ["enter"]})):
++            self.signals.grant({**base, "id": case, **change}, now_ms=NOW)
++            with self.assertRaises(ValueError):
++                self.signals.execute("add-once", "scope", self.plan, grant_id=case, live=True, now_ms=NOW+5)
++        self.signals.grant({**base, "expires_ms": NOW+50000}, now_ms=NOW)
++        self.signals.execute("add-once", "scope", self.plan, grant_id="grant", live=True, now_ms=NOW+5)
++        self.signals.revoke("grant")
++        self.worker.step(self.row["id"], NOW+10)
++        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
++        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")

@@ -81,7 +81,7 @@ def add_commands(sub, journal_sub):
         "account", help="Read account positions/orders/history/buying power"
     )
     account.add_argument(
-        "view", choices=["positions", "orders", "history", "buying-power"]
+        "view", choices=["positions", "orders", "history", "buying-power", "capital"]
     )
     account.add_argument("--venue", choices=["kis", "hyperliquid"], required=True)
     account.add_argument(
@@ -282,6 +282,13 @@ def cmd_chart(args):
 
 def cmd_account(args):
     scope, client = scope_client(args.venue)
+    if args.view == "capital":
+        if args.venue != "hyperliquid":
+            raise ValueError("Account-total capture currently supports Hyperliquid only")
+        from kis_hl.account_capital import capture_capital, reconcile_capital
+        evidence = capture_capital(client, scope=scope.key, now_ms=int(time.time()*1000), max_age_ms=60000)
+        return {"capital_evidence": evidence, "reconciliation": reconcile_capital(
+            evidence, scope=scope.key, now_ms=int(time.time()*1000), max_age_ms=60000)}
     if args.venue == "hyperliquid":
         if args.view == "positions":
             data = client.clearinghouse_state(dex=args.dex)
@@ -522,6 +529,14 @@ def cmd_order(args):
         }
     if args.order_action in {"preview", "submit"}:
         p = validate_plan(json.loads(Path(args.input).read_text()), now)
+        if p.get("action") == "add":
+            if args.order_action == "submit":
+                raise ValueError("Use signal execute for bounded add authority")
+            from kis_hl.conditional_add import size_add
+            owner = store.get(p["position_id"])
+            return {"dry_run": True, "plan": p, "sizing": size_add(p, owner["scope"],
+                p["capital_evidence"], now, quantity_step=p["quantity_step"]),
+                "authority_required": True}
         if p.get("signal_id") or p.get("grant_id"):
             raise ValueError("Use signal execute for signal/grant authority")
         asset = instrument(p["instrument"])
@@ -531,7 +546,7 @@ def cmd_order(args):
         scope, client = scope_client(asset.venue)
         return store.enqueue(scope.key, p, live=args.live, now_ms=now)
     if args.order_action == "status":
-        return {**store.get(args.id), "attempts": store.attempts(args.id)}
+        return {**store.get(args.id), "attempts": store.attempts(args.id), "tranches": store.tranches(args.id)}
     if args.order_action in {"exit", "cancel"}:
         return store.request_exit(
             args.id, now, cancel_only=args.order_action == "cancel"

@@ -52,9 +52,9 @@ record, including source/snapshot identity and an input digest. An identical
 replay is idempotent; changed inputs need a new decision ID. Existing signal/plan
 identifiers provide journal attribution without inventing realized trades.
 
-The current signal executor accepts entry actions only. Hold/add/reduce/exit and
-no-trade records remain advisory; they cannot be accidentally replayed as new
-entries. The supervisor rechecks source-evidence freshness and the entry predicate
+The signal executor accepts entry and bounded existing-owner add actions.
+Hold/reduce/exit/no-trade records remain advisory. Add requires its own explicit
+plan and authority; it cannot be replayed as a new entry. The supervisor rechecks source-evidence freshness and the entry predicate
 before entry in addition to its existing execution checks. Legacy `signal ingest`
 remains compatible; skills use the validated `strategy decide` interface.
 
@@ -62,11 +62,13 @@ remains compatible; skills use the validated `strategy decide` interface.
 
 ### Capital model
 
-Hyperliquid operating capital uses the selected perpetual account value × 10,
+Hyperliquid operating capital uses the selected account's reconciled total balance × 10,
 without a thousand-USDC floor or a below-1000 exclusion. KIS uses selected account
 NAV × 1, valued in the execution currency with an explicit FX basis when needed.
-Do not pool main/subaccounts, spot balances or other-dex collateral into the chosen
-HL account value. Available funds are a separate constraint. The multiplier does
+Keep main/subaccounts separate and count overlapping spot/perp/DEX collateral
+only once. Missing or ambiguous total reconciliation blocks automatic sizing.
+The initial implementation supports verified unified USDC-only balances; other
+modes/valuations require explicit supported reconciliation. Available funds are a separate constraint. The multiplier does
 not set venue leverage or waive margin requirements.
 
 ### Position sizing
@@ -139,12 +141,12 @@ behavior remain in [protected operations](trading-operations.md).
 The following execution capabilities are separate from completing the strategy
 skill and its deterministic tools:
 
-- **Live add-ups:** the current supervisor requires flat entry and owns one active
-  position per account/instrument. The skill and tools can evaluate and size an
-  add proposal, but cannot submit it by bypassing those guards. Tranche-aware
-  execution/protection is a separate execution change.
+- **Bounded add-ups:** implemented by issue #27 under the existing account/instrument
+  owner, with immutable tranche evidence, one durable signal lifecycle, total-account
+  sizing and full-remaining-position SL/TS. See the
+  [operating contract](trading-operations.md#bounded-conditional-add-ups).
 - **Arbitrary fixed-stop plans:** the tool can calculate against an explicit stop;
-  the current managed plan expresses ATR distance and rechecks execution ATR.
+  the managed plan supports explicit fixed stops and independent frozen ATR distances.
   An authorized plan must represent the same risk basis. Do not silently substitute
   another stop to make a proposal executable.
 - **Managed percentage TS and partial reductions:** available low-level fields or

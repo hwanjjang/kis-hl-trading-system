@@ -136,7 +136,8 @@ provides deterministic calculation and validated decision tools; existing manual
 or bounded-grant execution remains separate. See [strategy tools](strategy-tools.md).
 These tools do not authorize live orders or implement conversational approval.
 
-Policy reconciliation (2026-09-24): the user's final instruction confirmed
+Policy reconciliation (2026-09-24): issue #27 supersedes only the segment-based
+Hyperliquid capital denominator with reconciled total account balance. The user's prior instruction confirmed
 [issue #15](https://github.com/hwanjjang/kis-hl-trading-system/issues/15) as the
 risk-unit authority. It supersedes this section's earlier thousand-USDC flooring,
 below-1000 guard and undecided cumulative-unit-limit wording from `758a511`.
@@ -172,13 +173,20 @@ Confirmed user semantics:
 
 Operating assets for advisory risk-unit calculations are now specified:
 
-- Hyperliquid: use `accountValue * 10` without flooring or a below-1000 exclusion.
-  Use a fresh selected perpetual account/dex snapshot, never pooled main/subaccount
-  equity, spot balances or other-dex collateral. One unit is 1% of this derived
-  budget, or 10% of unmultiplied account equity before lot rounding; disclose both
-  risk percentages.
-  This is not an instruction to set exchange leverage to 10x or to ignore margin
-  and liquidation constraints.
+- Hyperliquid: use the selected account's **reconciled total balance × 10**, without
+  flooring or a below-1000 exclusion. Keep accounts separate; count overlapping
+  spot/perp/DEX collateral once. One unit risks 1% of this operating capital at
+  the confirmed fixed SL (10% of total balance before lot rounding).
+  `account capital --venue hyperliquid` captures read-only source evidence.
+  The initial supported reconciliation is verified `unifiedAccount` with USDC-only
+  nonzero spot balances. Per-DEX `accountValue` is never a fallback. Duplicate
+  collateral, unknown/standard/legacy/portfolio modes, unvalued non-USDC balances,
+  stale/missing evidence or mismatched account/currency block automatic sizing.
+  Adding a valuation/account mode requires its own supported reconciliation.
+  Buying power is separate: add preflight uses account/instrument `activeAssetData`
+  and conservatively takes the smaller of its directional `maxTradeSzs`; it retains
+  `availableToTrade` independently. No 10x buying-power assumption, unit cap or
+  automatic transfer is introduced. Exchange leverage remains unchanged.
 - KIS: use the actual selected account's net asset value (cash plus marked holdings,
   net of liabilities), without a leverage multiplier or thousand-unit flooring.
   Report account scope, valuation time and currency. Do not double-count domestic
@@ -476,7 +484,7 @@ blindly resent. Residual entries and resting exit limits must be confirmed termi
 before competing sales. KIS exits use observed sellable quantity and bounded cash
 limits; HL exits are reduce-only IOC limits. Bounded failure remains visible as
 `INTERVENTION`. A later flat observation still allows cleanup of known owned stops.
-Manual additions, reversals or foreign orders halt automatic ownership; reductions
+Unowned manual additions, reversals or foreign orders halt automatic ownership; reductions
 are reconciled. External positions are not implicitly adopted.
 
 KIS local protection cannot execute during an outage, holiday, halt, closed session
@@ -692,3 +700,82 @@ SQLite state and `data/koru-management/`, not in a policy-level coverage claim.
 The local lock coordinates one API key; distinct keys for the same exchange account are not mutually excluded. Position checks are snapshots, not atomic guarantees against other account writers. Conditional-order rows are audit records, not independently verified remaining coverage. `ALGO_UPDATE` and child-order reconciliation are not implemented: unresolved orders require operator investigation. Do not resubmit unresolved orders even with the same client ID. Submission records are written after requests, so recover interrupted attempts from exchange state before further execution.
 
 Use a separate database per environment and key profile as described in the [data capture boundaries](architecture.md#binance-integration-boundaries). Algo cancellation remains fail closed if the exchange no longer retains the order needed for symbol verification.
+
+## Bounded conditional add-ups
+
+`signal execute` accepts one explicitly authorized `action: add` lifecycle for an
+existing protected Hyperliquid long. Hermes still reviews completed conditions and
+notifies the user. No scheduler is added. `strategy decide` records the proposal;
+execution requires a separate complete plan and manual authority or scoped grant.
+
+The add plan carries all ordinary bounded-plan fields plus:
+
+| Field | Meaning |
+| --- | --- |
+| `action`, `position_id` | `add` and the existing managed owner ID |
+| `units`, `quantity_step`, `quantity` | Explicit risk units, preview lot step and rounded approved quantity |
+| `fixed_stop_price` | Confirmed common fixed SL; never a trailing threshold |
+| `capital_evidence` | Fresh selected-account raw evidence from `account capital` |
+| `expected_size`, `expected_entry_filled` | Approved current exposure and cumulative owned buy fills |
+| `condition_snapshot_id`, `condition_bar_end_ms` | Exact source snapshot and completed confirmation bar |
+| `expires_ms` | Add approval/submission expiry; also bounded by signal/grant expiry |
+
+The immutable add signal supplies `setup_input` for `pullback` or `rebreakout`.
+Its position ID, scope, instrument, opening fill time, size and fixed stop must match
+ownership. The source bars must be complete, post-entry, fresh and passing.
+Frozen ATR, local/native multipliers, provider/backup, quote-age and protection/exit
+budgets must match the owner; changed shared protection needs another supported
+management operation. New price/notional limits remain explicit. Native adds
+require local backup so the preserved full-position local trail covers the partial
+fill/overlay interval. Native-only owners return `migration-required`.
+
+```bash
+python -m kis_hl.cli account capital --venue hyperliquid
+python -m kis_hl.cli --db STATE.sqlite order preview --input bounded-add.json
+python -m kis_hl.cli --db STATE.sqlite signal execute --id SIGNAL_ID --input bounded-add.json --manual --live
+python -m kis_hl.cli --db STATE.sqlite order status --id POSITION_ID
+```
+
+These commands illustrate the interface; this issue grants no live authorization.
+Do not run them with live authority until a complete bounded plan and fresh evidence
+have actually been approved. A grant must explicitly include `actions: ["add"]`,
+`signal_ids` and `position_ids`, in addition to existing account, instrument, expiry,
+notional and intent budgets. An ordinary entry grant does not authorize an add.
+
+`managed_tranches` retains approved and submission sizing, source identity, actual
+fills and the durable attempt on the same `managed_positions` owner. The unique
+signal intent survives SQLite reopen; unknown outcomes cannot be resent. A second
+pending tranche is blocked. The supervisor rereads position, orders, eligibility,
+account total, lot/tick, quote/spread and buying power before submission. A changed
+quantity requires a new approval. It never resumes account-wide entries. Rejection
+or expiry preserves existing SL/TS and records the tranche rejection reason.
+
+Partial add fills receive incremental fixed-SL coverage at the confirmed fixed
+stop. The owner keeps its ATR and local watermark; the local TS always targets the
+entire residual position. After the add is terminal and SL is verified, native
+management submits one full-current-size reduce-only overlay and verifies its
+native ID/readback. All older native trails and their watermarks remain intact.
+Coverage counts a verified full-sized trail, not a sum of small trails. Any native
+protective partial fill latches the same bounded full-residual exit as a local TS.
+Unknown/rejected overlays retain verified fixed SL, block further risk and enter
+intervention. Failed incremental SL uses bounded grace/recovery without blindly
+canceling verified protection. No amendment or cancellation resets a trail.
+
+External percentage TS is **migration-required**, with zero signed mutations during
+adoption; it cannot be silently relabeled, canceled or replaced. No external-trail
+migration executor is added here. Ordinary strategy/SL exits default to the entire
+remaining position, and executable TS always closes the entire residual, including
+adds, regardless of profit. Competing native/local fills reduce subsequent exit
+quantity; reduce-only IOC orders cannot reverse exposure. Flat cleanup touches only
+associated persisted order IDs. Discretionary half exits remain deferred to #28;
+do not use the full-exit command to approximate them.
+
+Offline evidence: `python scripts/smoke_conditional_add.py` exercises actual CLI
+handlers and temporary SQLite with a stub gateway and network forbidden. It covers
+capital capture, preview, authorization, partial/completed add, reconciliation,
+full coverage and reopen replay. See [issue-27 report](../reports/sdlc/issue-27/self-verification.md).
+Live uncertainties remain: supported account-mode response consistency, directional
+buying-power semantics, concurrent native trail acceptance/retention, activation,
+trigger-time fills, cancel races, latency and restart timing. Passing local checks
+does not prove exchange behavior. The earlier 0.5-unit ETH conversation remains
+unarmed without a complete approved plan, expiry and fresh total-balance evidence.

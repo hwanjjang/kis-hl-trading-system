@@ -176,6 +176,21 @@ class HyperliquidInfoClient:
     def spot_clearinghouse_state(self, *, user: str | None = None) -> Any:
         return self.post_info({"type": "spotClearinghouseState", "user": self._resolve_user(user)})
 
+    def user_abstraction(self, *, user: str | None = None) -> str:
+        result = self.post_info({"type": "userAbstraction", "user": self._resolve_user(user)})
+        if not isinstance(result, str) or result not in {"unifiedAccount", "portfolioMargin", "disabled", "default", "dexAbstraction"}:
+            raise RuntimeError("Hyperliquid userAbstraction returned an unexpected response")
+        return result
+
+    def active_asset_data(self, symbol: str, *, user: str | None = None) -> dict[str, Any]:
+        resolved = resolve_hyperliquid_symbol(symbol)
+        account = self._resolve_user(user)
+        result = self.post_info({"type": "activeAssetData", "user": account, "coin": resolved.coin})
+        if (not isinstance(result, dict) or result.get("coin") != resolved.coin
+                or str(result.get("user", "")).lower() != account.lower()):
+            raise RuntimeError("Hyperliquid activeAssetData identity mismatch")
+        return result
+
     def all_dexs_clearinghouse_state(self, *, user: str | None = None) -> Any:
         return self.post_info(
             {

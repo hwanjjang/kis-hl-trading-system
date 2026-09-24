@@ -101,15 +101,23 @@ instrument's units; stop rounding belongs to the existing execution path.
 ```json
 {
   "venue":"hyperliquid", "scope":"mainnet:account-id", "currency":"USDC",
-  "instrument":"hl:BTC", "equity":"999", "asof_ms":1790006400000,
+  "instrument":"hl:BTC", "asof_ms":1790006400000,
+  "capital_evidence": {
+    "scope":"mainnet:account-id", "currency":"USDC",
+    "asof_ms":1790006400000, "max_age_ms":60000, "account_mode":"unifiedAccount",
+    "spot":{"balances":[{"coin":"USDC", "token":0, "total":"999"}]}
+  },
   "max_age_ms":60000, "entry":"100", "stop":"97", "units":"1",
   "quantity_step":"1", "minimum_quantity":"1", "minimum_notional":"10"
 }
 ```
 
 The example's market rules are fixtures; read actual lot/minimum metadata.
-HL equity is the selected account/dex perpetual `accountValue`, without spot or
-other-account pooling. KIS equity is the selected account NAV valued in the
+HL equity is the selected account's reconciled total balance. `capital_evidence`
+is mandatory; caller `equity` is not a fallback. Supported unified USDC balances
+count overlapping spot/perp/DEX collateral once. Unknown modes, duplicate collateral,
+unvalued assets, stale evidence or wrong account/currency block sizing. Capture
+source evidence through `account capital --venue hyperliquid`. KIS equity is the selected account NAV valued in the
 execution currency, with an explicit FX basis when needed. Buying power is a
 separate preflight constraint. Output includes rounded quantity, notional, planned
 risk, capital, and risk percentages against capital and equity. `below_minimum`
@@ -133,13 +141,13 @@ management rationale. Notes are reviewable assertions, not independently verifie
 market facts. Optional size-tool outputs and other evidence can be retained as
 additional record fields; they are not execution permission.
 
-Actions are `enter`, `add`, `hold`, `reduce`, `exit`, `no_trade`. Only `enter` can
-use the current `signal execute` new-entry path, with a separate explicit plan
-and manual/grant authority. Supplied `setup_input` must describe `breakout` or
+Actions are `enter`, `add`, `hold`, `reduce`, `exit`, `no_trade`. `enter` uses
+the new-entry path. `add` uses the bounded existing-owner contract in
+[operations](trading-operations.md#bounded-conditional-add-ups), with a separate
+explicit plan and manual/grant authority. For `enter`, supplied `setup_input` must describe `breakout` or
 `btc_3h`; evidence is rechecked before entry, including for raw `signal ingest`
-records. Legacy records without `setup_input` remain compatible. Other actions
-are advisory records: exits use the existing explicit order controls, and live
-add-ups require an execution extension beyond this strategy-tool contract.
+records. Legacy records without `setup_input` remain compatible. Hold/reduce/exit/no-trade records remain advisory: authorized exits use existing
+explicit full-position controls. A completed-bar add proposal alone cannot trade.
 BTC spot decisions use `signal_instrument: hl:BTC`, only `hl:BTC` execution, and
 retain the explicit spot basis in `setup_input`/evidence.
 

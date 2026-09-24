@@ -22,6 +22,29 @@ from kis_hl.storage import store_trade_xyz_asset_check
 
 
 class HyperliquidClientTests(unittest.TestCase):
+    def test_user_abstraction_uses_effective_account_and_rejects_unknown_shape(self):
+        client = HyperliquidInfoClient(HyperliquidConfig(
+            base_url="https://api.hyperliquid.xyz", account_address="fixture-account",
+            private_key="", key_profile="default"))
+        with patch.object(client, "post_info", return_value="unifiedAccount") as post:
+            self.assertEqual(client.user_abstraction(), "unifiedAccount")
+            post.assert_called_once_with({"type": "userAbstraction", "user": "fixture-account"})
+        for body in ({}, None, "unknown"):
+            with patch.object(client, "post_info", return_value=body), self.assertRaises(RuntimeError):
+                client.user_abstraction()
+
+    def test_active_asset_data_is_bound_to_effective_account_and_resolved_coin(self):
+        client = HyperliquidInfoClient(HyperliquidConfig(
+            base_url="https://api.hyperliquid.xyz", account_address="fixture-account",
+            private_key="", key_profile="default"))
+        body = dict(user="fixture-account", coin="ETH", maxTradeSzs=["2", "3"], availableToTrade=["200", "300"])
+        with patch.object(client, "post_info", return_value=body) as post:
+            self.assertEqual(client.active_asset_data("ETH-PERP"), body)
+            post.assert_called_once_with({"type": "activeAssetData", "user": "fixture-account", "coin": "ETH"})
+        for changed in ({"user": "other"}, {"coin": "BTC"}):
+            with patch.object(client, "post_info", return_value={**body, **changed}), self.assertRaises(RuntimeError):
+                client.active_asset_data("ETH-PERP")
+
     def test_account_asset_info_uses_public_wallet_state_endpoints(self) -> None:
         class RecordingInfoClient(HyperliquidInfoClient):
             def __init__(self) -> None:

@@ -96,7 +96,9 @@ class StrategyToolsTests(unittest.TestCase):
 
     def test_sizing_uses_execution_account_units_and_no_floor(self):
         result = size_position(dict(venue="hyperliquid", scope="mainnet:test", currency="USDC",
-            equity="999", asof_ms=NOW, max_age_ms=60000, instrument="hl:BTC",
+            capital_evidence=dict(scope="mainnet:test", currency="USDC", asof_ms=NOW, max_age_ms=60000,
+                account_mode="unifiedAccount", spot={"balances": [{"coin": "USDC", "token": 0, "total": "999"}]}),
+            asof_ms=NOW, max_age_ms=60000, instrument="hl:BTC",
             entry="100", stop="97", units="1", quantity_step="1",
             minimum_quantity="1", minimum_notional="10"), now_ms=NOW)
         self.assertEqual(result["operating_capital"], "9990")
@@ -106,7 +108,9 @@ class StrategyToolsTests(unittest.TestCase):
 
     def test_btc_exception_keeps_fixed_notional_and_reports_actual_stop_risk(self):
         result = size_position(dict(venue="hyperliquid", scope="mainnet:test", currency="USDC",
-            equity="999", asof_ms=NOW, max_age_ms=60000, instrument="hl:BTC",
+            capital_evidence=dict(scope="mainnet:test", currency="USDC", asof_ms=NOW, max_age_ms=60000,
+                account_mode="unifiedAccount", spot={"balances": [{"coin": "USDC", "token": 0, "total": "999"}]}),
+            asof_ms=NOW, max_age_ms=60000, instrument="hl:BTC",
             entry="100", stop="97", sizing="btc_fixed_80", quantity_step="0.1",
             minimum_quantity="0.1", minimum_notional="10"), now_ms=NOW)
         self.assertEqual(result["quantity"], "0.8")
