@@ -13,6 +13,9 @@ this skill adds no scheduler or notification transport.
 
 ## Review
 
+Use the BTC three-hour exception only on explicit request under its activation
+policy; a general BTC review or recurring briefing does not activate it.
+
 Identify the account, actual holdings and pending/protective orders, the analysis
 instrument and each execution instrument. Obtain fresh source evidence through
 existing data/account tools. Missing account data is not an empty portfolio.

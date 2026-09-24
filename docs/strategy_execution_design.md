@@ -60,6 +60,8 @@ remains compatible; skills use the validated `strategy decide` interface.
 
 ## Confirmed capital and risk policy
 
+### Capital model
+
 Hyperliquid operating capital uses the selected perpetual account value × 10,
 without a thousand-USDC floor or a below-1000 exclusion. KIS uses selected account
 NAV × 1, valued in the execution currency with an explicit FX basis when needed.
@@ -67,12 +69,16 @@ Do not pool main/subaccounts, spot balances or other-dex collateral into the cho
 HL account value. Available funds are a separate constraint. The multiplier does
 not set venue leverage or waive margin requirements.
 
+### Position sizing
+
 One unit represents planned fixed-stop loss of 1% of operating capital. For example,
 2372.90 USDC yields 23729 USDC operating capital and 237.29 USDC planned risk per
 unit. The unit calculator accepts the actual proposed entry and fixed SL, rounds
 quantity down to the supplied lot step, and reports realized planned risk after
 rounding. A below-minimum result cannot be rounded up silently. Costs, slippage
 and gaps mean actual losses are not guaranteed to equal planned stop risk.
+
+### Portfolio risk caps
 
 The confirmed policy removes the former 2% per-asset / 6% total stop-risk caps and
 two-add-up count limit. Existing funds, order-notional, correlated exposure,
@@ -101,6 +107,13 @@ or carry a watermark across price bases. Analysis indices, leveraged ETFs and
 perpetuals are distinct instruments. Entry/stop sizing uses execution-instrument
 prices and ATR, even when market timing comes from another series. Cross-venue
 comparison/fallback rules remain owned by [operations](trading-operations.md#cross-venue-timing-and-preferred-execution-policy).
+
+### Breakout entry
+
+The BTC three-hour strategy is independent and opt-in under the
+[activation policy](trading-operations.md#btc-three-hour-strategy-activation-policy).
+A general BTC review does not activate it; review, monitoring and trading authority
+remain separate.
 
 For BTC, spot 3H candles supply only the timing predicate; perpetual data supplies
 execution price, ATR, quantity and protection. The shared skill uses the existing
@@ -147,6 +160,109 @@ skill and its deterministic tools:
 
 These limits are reported, not hidden behind successful strategy-tool tests. No
 live order, outage or cancellation behavior was verified by this change.
+
+## Daily-volatility execution and close-briefing reference requirements
+
+These requirements do not change active plans, live orders or implementation
+defaults. Current execution behavior is owned by
+[trading operations](trading-operations.md). Research and calibration limits are
+in the [multiplier guide](trailing-multiplier-guide.md).
+
+#### Executable TS: shared daily ATR, separate multipliers
+
+Native and nine-minute TS use the same completed-daily-bar ATR calculation with
+separate multipliers. Nine minutes describes the local trailing cadence, not
+the volatility timeframe. User numerical examples are illustrations only, not
+selected values, baselines, candidate grids or calibration priors. In a subsequent
+explicit decision, the user accepted starting at nine-minute `2 * ATR(10D)` and
+native `3 * the same ATR(10D)`, then adjusting gradually from observed results.
+These are approved initial policy values, not empirically optimal parameters.
+The separately scoped BTC retrospective rule is unchanged. Independent-distance
+implementation and live activation are not completed or authorized by this
+policy record; existing positions and orders are not silently migrated.
+
+Native and nine-minute TS are executable protection: an active authorized
+trigger begins closing without waiting for daily briefing analysis. Triggering
+does not guarantee immediate or complete fills. Current local `Trail.tick`
+ratchets from complete nine-minute sampled buckets and checks each fresh price
+for breaches. Managed HL uses best bid, legacy trailing uses allMids, and native
+trailing follows continuous mark price. Compare effective thresholds rather
+than multiplier ordering alone, because watermarks and price bases differ.
+Current managed plans share frozen ATR distance across native/local trailing and
+initial SL. Separate multiplier support remains an implementation requirement.
+
+#### Close-based TS: explicitly selected automatic or manual mode
+
+The user selects between automatic execution and manual/briefing-reference use
+according to the situation. Neither mode is universally mandated. Missing or
+ambiguous mode selection must not authorize automatic trading. Do not switch an
+active position's mode silently. Persist the selected mode with its authority.
+
+Both modes use volatility calculated from completed daily closes alone, not
+highs/lows. For initial manual status checks, the accepted starting calculation
+is `V_close = mean(last 10 abs(C_t - C_(t-1)) values)` with a reference distance
+of `3 * V_close`, requiring eleven completed daily closes. Give this a distinct
+metric identifier instead of redefining standard ATR. This is an observation
+starting point, not an empirically calibrated loss boundary; review and adjust
+from recorded outcomes. Watermark initialization and update semantics still need
+specification before an executable implementation. Do not inherit the manual
+multiplier into automatic mode without explicitly selecting and validating that
+mode's parameters and authority.
+
+- Automatic: after a valid finalized daily close meets the explicitly configured
+  TS condition, an authorized management path persists a reconciled exit intent
+  and executes under existing safety rules. Do not trigger from an unfinished
+  daily candle or assume a fill at the recorded close. Confirmed exits remain
+  latched and reconcile partial fills and competing native/local exits.
+- Manual/briefing: report the level, crossing, timestamp, data quality and chart/
+  strategy context. A crossing is evidence, not a mandatory sell, and creates no
+  exit intent, executable order, or protection change. A subsequent trade needs
+  a separate applicable decision and authorization.
+
+Chart analysis or another selected strategy may support selling before TS in
+either mode; TS is not an AND gate for all exits. A briefing recommendation is
+not itself an order. Native/local protection remains independent and must not be
+delayed, widened or disabled merely to wait for the daily-close policy. Confirm
+concurrent protection explicitly: an intrabar stop can preempt daily confirmation.
+
+Pin instrument, price basis, daily session/timezone, finalization and entry-day
+coverage. Missing inputs yield an explicit unavailable/degraded state, never an
+invented crossing; retain verified protection. Do not substitute the next
+session's opening quote for the previous daily close.
+
+#### Entry SL and strategy decisions remain independent
+
+At entry, choose SL from chart structure and relevant strategy evidence. A
+pullback setup can use an invalidation price rather than an ATR multiple. Support
+an explicit stop price and rationale; volatility-derived SL is an option, not
+a universal requirement. Briefing references neither define nor replace the
+actual protective entry SL.
+
+Size using approved entry-to-protective-stop loss exposure, costs and account
+risk limits, not the briefing reference or a tighter TS distance. Do not widen
+existing stops or increase size without authorization. Keep chart/strategy sells,
+executable TS triggers and analytical reference crossings distinct in records.
+A strategy sell need not wait for TS; a briefing recommendation is not an order.
+
+#### Verification and research requirements
+
+For executable TS, test shared daily ATR with independent multipliers, ratchet
+and breach semantics, gaps, restart idempotency, partial fills, native/local
+races and reduce-only cleanup. Compare net returns, costs, drawdowns, tail loss
+and giveback under fixed entry/SL/strategy rules. Daily OHLC cannot establish
+native intrabar trigger ordering.
+
+For both close modes, test invariance to high/low-only changes, finalized daily
+inputs, explicit missing-data output and explicit mode selection. Manual mode
+must create no exit intent/order/protection change on a crossing; evaluate its
+briefing usefulness and warning quality. Automatic mode requires authorized,
+idempotent exit handling, partial-fill reconciliation and native/local race
+coverage; evaluate net returns and tail risks with realistic post-close fills.
+A mode change must not retrospectively execute an old manual-mode observation
+without a newly authorized, reconciled decision.
+
+These requirements are documented, not implemented or empirically validated.
+This clarification starts no orders, monitors or scheduled jobs.
 
 ## Verification and use
 

@@ -110,7 +110,7 @@ No live exchange execution has been verified for this feature. Mid-price signals
 can differ from native mark-price triggers; gaps, IOC residuals and outages can
 lose the latest trailing profit floor. Status shows verified coverage timestamps,
 state/reason, exit intent and attempts. See
-[the strategy design](docs/strategy_execution_design.md#implemented-trailing-management)
+[the strategy design](docs/strategy_execution_design.md#existing-protection-and-execution-limits)
 for exact scope, recovery and limitations.
 
 ## Setup

@@ -65,6 +65,13 @@ trailing follows a different continuous mark-price policy. Do not silently swap
 providers, mix source watermarks, infer active coverage from acknowledgements, or
 claim percentage TS support from the quote-distance managed interface.
 
+The [daily-volatility policy](../../../../docs/strategy_execution_design.md#daily-volatility-execution-and-close-briefing-reference-requirements)
+owns the accepted initial local/native daily-ATR multipliers and close-only
+manual/automatic modes. Independent distances remain an execution requirement,
+not a supported setting to claim or silently apply. A manual reference crossing
+is briefing evidence only; automatic mode needs explicit selection and authority.
+Entry SL and chart-based exits remain independent of trailing references.
+
 Hold when the thesis and observed protection remain valid. Consider reduction or
 exit when context invalidates the setup, funding/spread suitability changes or
 the user's exposure instructions require it; state the evidence and judgment.
@@ -72,6 +79,12 @@ Protective exits remain local to the account and never depend on Hermes uptime o
 a peer venue. Use actual fills and the existing journal for completed-trade review.
 
 ## BTC exception
+
+This is an independent, opt-in strategy under the [activation policy](../../../../docs/trading-operations.md#btc-three-hour-strategy-activation-policy).
+Evaluate it only when explicitly requested; a general BTC review or briefing does
+not activate it. A review does not start a persistent monitor, and observation
+never grants live trading authority. Do not infer position attribution from BTC
+holdings alone.
 
 The existing BTC rule observes Hyperliquid UBTC/USDC spot, using complete 3H
 candles. The latest close must strictly exceed the previous high (or explicitly

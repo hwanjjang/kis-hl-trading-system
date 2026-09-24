@@ -86,6 +86,23 @@ automatically select these fallbacks or coordinate both venues. Do not claim
 paired execution until that path is implemented and verified. No new execution
 authority, live order or supervisor start is implied by this policy.
 
+## BTC three-hour strategy activation policy
+
+The BTC three-hour breakout is an independent, opt-in strategy. Do not include
+it as an automatically active component of general BTC reviews, daily-close
+strategies, native/nine-minute trailing management, or recurring briefings.
+Activate it only when the user explicitly requests review of this strategy or
+asks to monitor it. A review request authorizes a bounded evaluation, not a
+persistent monitor. A monitoring request authorizes observation and reporting
+within the requested scope, not live entry, stop placement or other signed
+exchange actions. Keep monitoring dry-run/read-only unless separate, explicit
+trading authorization and existing safety requirements are satisfied.
+
+This standing policy is not itself a request to start a review, monitor, daemon
+or scheduled job. Do not infer that a BTC position originated from this strategy
+merely because it is a BTC position. Strategy mechanics and implementation limits
+remain in [the breakout design](strategy_execution_design.md#breakout-entry).
+
 ## User-approved risk units
 
 Hermes owns signal review -> proposal -> user-selected risk units. The repository
@@ -93,13 +110,29 @@ provides deterministic calculation and validated decision tools; existing manual
 or bounded-grant execution remains separate. See [strategy tools](strategy-tools.md).
 These tools do not authorize live orders or implement conversational approval.
 
+Policy reconciliation (2026-09-24): the user's final instruction confirmed
+[issue #15](https://github.com/hwanjjang/kis-hl-trading-system/issues/15) as the
+risk-unit authority. It supersedes this section's earlier thousand-USDC flooring,
+below-1000 guard and undecided cumulative-unit-limit wording from `758a511`.
+The implemented advisory calculation and remaining execution limits are owned by the strategy
+document's [capital](strategy_execution_design.md#capital-model),
+[sizing](strategy_execution_design.md#position-sizing) and
+[risk-cap](strategy_execution_design.md#portfolio-risk-caps) sections. No active
+plan, live guard or execution authority changes through this reconciliation.
+
 Confirmed user semantics:
 
 - One risk unit is a planned loss at the fixed stop-loss equal to 1% of the
   account's defined operating assets, not a purchase notional of 1% of assets.
   Keep sizing tied to the fixed SL; do not increase quantity merely because a
-  tighter trailing exit might close earlier. Costs and execution uncertainty
+  tighter trailing exit might close earlier. Separately, #15 permits verified
+  improvements in existing stops to free budget for a new tranche; that tranche
+  still needs its own fixed-stop sizing and authorization. Costs and execution uncertainty
   must be included in the proposal; realized loss is not guaranteed to stay at 1%.
+  Fixed SL describes the selected protective level, not a requirement to derive
+  it from ATR. Chart-defined entry SL and independent strategy exits are specified
+  in [the daily-volatility requirements](strategy_execution_design.md#daily-volatility-execution-and-close-briefing-reference-requirements);
+  these requirements are not yet implemented by the shared-distance managed plan.
 - "TS starting amount" means position profit required before trailing activation,
   not an instrument price. The user's selected behavior is immediate activation
   without a profit or breakeven prerequisite. A trailing exit at a loss is allowed.
@@ -127,7 +160,11 @@ Operating assets for advisory risk-unit calculations are now specified:
 
 Scheduled advisory briefings must include fixed SL, recommended TS percentage,
 immediate activation with loss exits allowed, per-unit quantity/notional/risk and
-recommended versus maximum permitted units when data and limits support them.
+the proposed unit count with available-margin evidence. Under #15 there is no
+preset per-asset/portfolio unit cap or add-up count limit; distinguish actual
+funds and existing plan constraints from such a policy cap. If margin is short,
+report the shortfall for the user's fund-or-skip decision; do not silently add funds
+or bypass current execution checks.
 Missing evidence must appear as an explicit unavailable field, not invented sizing.
 Every scheduled strategy review must also use fresh read-only account state:
 holdings, quantities, average entries, valuation/P&L, cash or margin, pending orders
@@ -136,6 +173,13 @@ actual exposure and account-local constraints, not market signals alone. Include
 source time and account scope, and distinguish unavailable evidence from empty
 positions. Never infer active protection from an acknowledgement or local plan.
 This notification requirement does not authorize orders or activate management.
+Close-only daily TS supports explicitly selected automatic and manual/briefing
+modes. Automatic mode requires separate execution authority and completed daily
+confirmation; manual mode must never convert a reference crossing into an order.
+Do not infer automatic authority from an unspecified mode or a briefing request.
+Neither mode replaces chart-defined entry SL or delays native/nine-minute TS.
+The contract is owned by
+[the strategy requirements](strategy_execution_design.md#daily-volatility-execution-and-close-briefing-reference-requirements).
 
 There is no strategy-wide per-asset/portfolio stop-risk cap or add-count limit.
 Existing funds, order-notional and authority limits remain. Do not invent a
@@ -144,7 +188,10 @@ Conversational approval and notification belong to Hermes; managed percentage
 trailing and any new execution contract remain separate implementation work. The current
 managed trailing path still uses frozen ATR quote distance; low-level percentage
 support does not establish end-to-end managed support. Implementation and tests are
-required before the proposed approval workflow can execute trades.
+required before the proposed approval workflow can execute trades. The absence
+of preset cumulative unit caps is decided, not an unresolved limit to invent.
+Current managed execution remains long-only; #15's symmetric short calculation
+and the separate short-trailing follow-up are not claims of working short management.
 
 ## Prepare and submit
 

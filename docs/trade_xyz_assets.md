@@ -54,6 +54,30 @@ Important columns:
 - `exclusion_reason`: populated for excluded assets.
 - `duplicate_group` and `preferred_symbol`: document selected exposure decisions, not instrument equivalence.
 
+### Refreshing an existing database
+
+Pulling source changes does not migrate existing SQLite asset or mapping rows.
+Use the same explicit database path as the trading workers to refresh each seed:
+
+```bash
+python -m kis_hl.cli --db data/kis_hl.sqlite xyz-assets seed
+python -m kis_hl.cli --db data/kis_hl.sqlite xyz-assets seed-kis
+python -m kis_hl.cli --db data/kis_hl.sqlite xyz-assets seed-ref
+```
+
+These commands upsert the curated asset, KIS quote and secondary reference rows.
+They do not close positions, cancel orders or establish fresh exchange verification.
+Some collectors refresh their relevant seed as part of collection; do not assume
+that this refreshes all mapping tables or every operational database.
+
+Before adopting an exclusion on an account with existing exposure or orders,
+resolve that account's migration explicitly. The current KR200 exclusion also
+blocks client-side reduce-only orders and cancellation; reseeding does not create
+an exception. Issue [#22](https://github.com/hwanjjang/kis-hl-trading-system/issues/22)
+was closed without a code change after the user confirmed zero KR200 holdings and
+no remaining orders on 2026-09-24. That account-specific confirmation is not evidence
+that another account is clear or that an existing exchange order was removed.
+
 ## KIS Market-Data Mapping
 
 `trade_xyz_kis_mappings` is populated by `seed_trade_xyz_kis_mappings()` or:
