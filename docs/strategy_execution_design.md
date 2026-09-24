@@ -181,6 +181,109 @@ its initial-stop stage describes the full intended lifecycle, while this CLI
 starts after that stage has been confirmed externally. CLI usage is in README.
 
 
+### Daily-volatility execution and close-briefing reference requirements
+
+These requirements do not change active plans, live orders or implementation
+defaults. Current execution behavior is owned by
+[trading operations](trading-operations.md). Research and calibration limits are
+in the [multiplier guide](trailing-multiplier-guide.md).
+
+#### Executable TS: shared daily ATR, separate multipliers
+
+Native and nine-minute TS use the same completed-daily-bar ATR calculation with
+separate multipliers. Nine minutes describes the local trailing cadence, not
+the volatility timeframe. User numerical examples are illustrations only, not
+selected values, baselines, candidate grids or calibration priors. In a subsequent
+explicit decision, the user accepted starting at nine-minute `2 * ATR(10D)` and
+native `3 * the same ATR(10D)`, then adjusting gradually from observed results.
+These are approved initial policy values, not empirically optimal parameters.
+The separately scoped BTC retrospective rule is unchanged. Independent-distance
+implementation and live activation are not completed or authorized by this
+policy record; existing positions and orders are not silently migrated.
+
+Native and nine-minute TS are executable protection: an active authorized
+trigger begins closing without waiting for daily briefing analysis. Triggering
+does not guarantee immediate or complete fills. Current local `Trail.tick`
+ratchets from complete nine-minute sampled buckets and checks each fresh price
+for breaches. Managed HL uses best bid, legacy trailing uses allMids, and native
+trailing follows continuous mark price. Compare effective thresholds rather
+than multiplier ordering alone, because watermarks and price bases differ.
+Current managed plans share frozen ATR distance across native/local trailing and
+initial SL. Separate multiplier support remains an implementation requirement.
+
+#### Close-based TS: explicitly selected automatic or manual mode
+
+The user selects between automatic execution and manual/briefing-reference use
+according to the situation. Neither mode is universally mandated. Missing or
+ambiguous mode selection must not authorize automatic trading. Do not switch an
+active position's mode silently. Persist the selected mode with its authority.
+
+Both modes use volatility calculated from completed daily closes alone, not
+highs/lows. For initial manual status checks, the accepted starting calculation
+is `V_close = mean(last 10 abs(C_t - C_(t-1)) values)` with a reference distance
+of `3 * V_close`, requiring eleven completed daily closes. Give this a distinct
+metric identifier instead of redefining standard ATR. This is an observation
+starting point, not an empirically calibrated loss boundary; review and adjust
+from recorded outcomes. Watermark initialization and update semantics still need
+specification before an executable implementation. Do not inherit the manual
+multiplier into automatic mode without explicitly selecting and validating that
+mode's parameters and authority.
+
+- Automatic: after a valid finalized daily close meets the explicitly configured
+  TS condition, an authorized management path persists a reconciled exit intent
+  and executes under existing safety rules. Do not trigger from an unfinished
+  daily candle or assume a fill at the recorded close. Confirmed exits remain
+  latched and reconcile partial fills and competing native/local exits.
+- Manual/briefing: report the level, crossing, timestamp, data quality and chart/
+  strategy context. A crossing is evidence, not a mandatory sell, and creates no
+  exit intent, executable order, or protection change. A subsequent trade needs
+  a separate applicable decision and authorization.
+
+Chart analysis or another selected strategy may support selling before TS in
+either mode; TS is not an AND gate for all exits. A briefing recommendation is
+not itself an order. Native/local protection remains independent and must not be
+delayed, widened or disabled merely to wait for the daily-close policy. Confirm
+concurrent protection explicitly: an intrabar stop can preempt daily confirmation.
+
+Pin instrument, price basis, daily session/timezone, finalization and entry-day
+coverage. Missing inputs yield an explicit unavailable/degraded state, never an
+invented crossing; retain verified protection. Do not substitute the next
+session's opening quote for the previous daily close.
+
+#### Entry SL and strategy decisions remain independent
+
+At entry, choose SL from chart structure and relevant strategy evidence. A
+pullback setup can use an invalidation price rather than an ATR multiple. Support
+an explicit stop price and rationale; volatility-derived SL is an option, not
+a universal requirement. Briefing references neither define nor replace the
+actual protective entry SL.
+
+Size using approved entry-to-protective-stop loss exposure, costs and account
+risk limits, not the briefing reference or a tighter TS distance. Do not widen
+existing stops or increase size without authorization. Keep chart/strategy sells,
+executable TS triggers and analytical reference crossings distinct in records.
+A strategy sell need not wait for TS; a briefing recommendation is not an order.
+
+#### Verification and research requirements
+
+For executable TS, test shared daily ATR with independent multipliers, ratchet
+and breach semantics, gaps, restart idempotency, partial fills, native/local
+races and reduce-only cleanup. Compare net returns, costs, drawdowns, tail loss
+and giveback under fixed entry/SL/strategy rules. Daily OHLC cannot establish
+native intrabar trigger ordering.
+
+For both close modes, test invariance to high/low-only changes, finalized daily
+inputs, explicit missing-data output and explicit mode selection. Manual mode
+must create no exit intent/order/protection change on a crossing; evaluate its
+briefing usefulness and warning quality. Automatic mode requires authorized,
+idempotent exit handling, partial-fill reconciliation and native/local race
+coverage; evaluate net returns and tail risks with realistic post-close fills.
+A mode change must not retrospectively execute an old manual-mode observation
+without a newly authorized, reconciled decision.
+
+These requirements are documented, not implemented or empirically validated.
+This clarification starts no orders, monitors or scheduled jobs.
+
 ### Original first-release proposal (implementation scope above)
 
 Use an application-managed trailing exit plus an independently resting native
@@ -416,6 +519,9 @@ Default intent:
 - Store the breakout level, ATR snapshot, N value, operating-capital snapshot, and signal timestamp.
 
 BTCUSDC futures rule:
+
+Activation is governed by the [independent opt-in strategy policy](trading-operations.md#btc-three-hour-strategy-activation-policy).
+The implementation below does not imply default activation or trading authority.
 
 - Resolve explicit futures symbols such as `BTCUSDC-PERP`, `BTC-PERP`, and `BTCPERP` to the Hyperliquid `BTC` perp coin.
 - Use Hyperliquid BTC spot websocket mids as the monitoring price source.

@@ -86,6 +86,23 @@ automatically select these fallbacks or coordinate both venues. Do not claim
 paired execution until that path is implemented and verified. No new execution
 authority, live order or supervisor start is implied by this policy.
 
+## BTC three-hour strategy activation policy
+
+The BTC three-hour breakout is an independent, opt-in strategy. Do not include
+it as an automatically active component of general BTC reviews, daily-close
+strategies, native/nine-minute trailing management, or recurring briefings.
+Activate it only when the user explicitly requests review of this strategy or
+asks to monitor it. A review request authorizes a bounded evaluation, not a
+persistent monitor. A monitoring request authorizes observation and reporting
+within the requested scope, not live entry, stop placement or other signed
+exchange actions. Keep monitoring dry-run/read-only unless separate, explicit
+trading authorization and existing safety requirements are satisfied.
+
+This standing policy is not itself a request to start a review, monitor, daemon
+or scheduled job. Do not infer that a BTC position originated from this strategy
+merely because it is a BTC position. Strategy mechanics and implementation limits
+remain in [the breakout design](strategy_execution_design.md#breakout-entry).
+
 ## User-approved risk units (requirements, not implemented workflow)
 
 The proposed approval flow is signal -> agent proposal -> user-selected risk units
@@ -111,6 +128,10 @@ Confirmed user semantics:
   improvements in existing stops to free budget for a new tranche; that tranche
   still needs its own fixed-stop sizing and authorization. Costs and execution uncertainty
   must be included in the proposal; realized loss is not guaranteed to stay at 1%.
+  Fixed SL describes the selected protective level, not a requirement to derive
+  it from ATR. Chart-defined entry SL and independent strategy exits are specified
+  in [the daily-volatility requirements](strategy_execution_design.md#daily-volatility-execution-and-close-briefing-reference-requirements);
+  these requirements are not yet implemented by the shared-distance managed plan.
 - "TS starting amount" means position profit required before trailing activation,
   not an instrument price. The user's selected behavior is immediate activation
   without a profit or breakeven prerequisite. A trailing exit at a loss is allowed.
@@ -145,6 +166,13 @@ actual exposure and account-local constraints, not market signals alone. Include
 source time and account scope, and distinguish unavailable evidence from empty
 positions. Never infer active protection from an acknowledgement or local plan.
 This notification requirement does not authorize orders or activate management.
+Close-only daily TS supports explicitly selected automatic and manual/briefing
+modes. Automatic mode requires separate execution authority and completed daily
+confirmation; manual mode must never convert a reference crossing into an order.
+Do not infer automatic authority from an unspecified mode or a briefing request.
+Neither mode replaces chart-defined entry SL or delays native/nine-minute TS.
+The contract is owned by
+[the strategy requirements](strategy_execution_design.md#daily-volatility-execution-and-close-briefing-reference-requirements).
 
 Still unresolved: percentage-trailing configuration through the managed path
 and the bounded approval/expiry and
