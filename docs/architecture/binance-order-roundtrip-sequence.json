@@ -24,7 +24,7 @@
       },
       {
         "id": "submit",
-        "label": "Submit only with --live",
+        "label": "Submit only unless --dry-run",
         "focus": [
           "guard",
           "rest",
@@ -87,19 +87,19 @@
       "id": "sqlite",
       "type": "database",
       "label": "SQLite",
-      "sublabel": "submissions · events"
+      "sublabel": "submissions \u00b7 events"
     }
   ],
   "segments": [
     {
       "from": 150,
       "to": 266,
-      "label": "Validate (dry-run default)"
+      "label": "Validate (explicit dry-run)"
     },
     {
       "from": 276,
       "to": 390,
-      "label": "Submit (--live only)"
+      "label": "Submit (default send)"
     },
     {
       "from": 400,
@@ -126,21 +126,21 @@
       "from": "rest",
       "to": "guard",
       "y": 224,
-      "label": "tick · step · min notional · mark price",
+      "label": "tick \u00b7 step \u00b7 min notional \u00b7 mark price",
       "variant": "return"
     },
     {
       "from": "guard",
       "to": "strategy",
       "y": 252,
-      "label": "dry_run submission: rounded params, no network",
+      "label": "dry_run submission: rounded params, no signed call",
       "variant": "return"
     },
     {
       "from": "guard",
       "to": "rest",
       "y": 292,
-      "label": "allowlist · credentials · one-way mode · account lock",
+      "label": "symbol \u00b7 metadata \u00b7 mode \u00b7 lock",
       "variant": "security"
     },
     {
@@ -154,7 +154,7 @@
       "from": "binance_rest",
       "to": "rest",
       "y": 348,
-      "label": "ack: orderId / algoId, error → rejected, 5xx → unknown",
+      "label": "ack: orderId / algoId, error \u2192 rejected, 5xx \u2192 unknown",
       "variant": "return"
     },
     {
@@ -168,7 +168,7 @@
       "from": "binance_ws",
       "to": "user_ws",
       "y": 416,
-      "label": "ORDER_TRADE_UPDATE: NEW → FILLED",
+      "label": "ORDER_TRADE_UPDATE: NEW \u2192 FILLED",
       "variant": "dashed"
     },
     {
@@ -182,7 +182,7 @@
       "from": "sqlite",
       "to": "strategy",
       "y": 472,
-      "label": "fill state → binance-order-events / strategy",
+      "label": "fill state \u2192 binance-order-events / strategy",
       "variant": "dashed"
     }
   ],
@@ -235,7 +235,7 @@
       "dot": "orange",
       "title": "Fail-Closed Order Path",
       "items": [
-        "Dry-run is the default; --live is explicit and the agent never runs it",
+        "CLI sends by default; --dry-run previews without signed calls",
         "Validation and rounding run before any credential or signed call",
         "Live needs BINANCE_LIVE_SYMBOLS, credentials, one-way mode, and the account lock"
       ]

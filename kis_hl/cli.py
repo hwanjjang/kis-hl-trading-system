@@ -124,6 +124,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if result is not None:
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True, default=str))
+        if args.command in {"binance-trade", "binance-stop", "binance-cancel"}:
+            return {"rejected": 2, "unknown": 3}.get(result.get("status"), 0)
     return 0
 
 
@@ -312,7 +314,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     binance_trade = sub.add_parser(
         "binance-trade",
-        help="Place a Binance USD(S)-M futures entry order (dry-run by default; --live to send)",
+        help="Place a Binance USD(S)-M futures entry order (live by default; --dry-run to validate)",
     )
     binance_trade.add_argument("--symbol", default="BTCUSDT")
     binance_trade.add_argument("--side", choices=["buy", "sell"], required=True)
@@ -322,8 +324,10 @@ def build_parser() -> argparse.ArgumentParser:
     binance_trade.add_argument("--tif", default="GTC", help="GTC, IOC, FOK, or GTX (post-only)")
     binance_trade.add_argument("--reduce-only", action="store_true")
     binance_trade.add_argument("--client-order-id", help="newClientOrderId; generated when omitted")
-    binance_trade.add_argument("--live", action="store_true", help="Send the signed order")
-    binance_trade.add_argument(
+    trade_mode = binance_trade.add_mutually_exclusive_group()
+    trade_mode.add_argument("--dry-run", action="store_true", help="Validate without sending a signed order")
+    trade_mode.add_argument("--live", action="store_true", help="Send the signed request (default)")
+    trade_mode.add_argument(
         "--exchange-test",
         action="store_true",
         help="Validate on the exchange via /fapi/v1/order/test without placing (needs credentials)",
@@ -333,7 +337,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     binance_stop = sub.add_parser(
         "binance-stop",
-        help="Place a Binance server-side STOP_MARKET or TRAILING_STOP_MARKET (dry-run by default)",
+        help="Place a Binance server-side STOP_MARKET or TRAILING_STOP_MARKET (live by default; use --dry-run)",
     )
     binance_stop.add_argument("--symbol", default="BTCUSDT")
     binance_stop.add_argument("--side", choices=["buy", "sell"], required=True, help="sell protects a long, buy protects a short")
@@ -345,18 +349,23 @@ def build_parser() -> argparse.ArgumentParser:
     binance_stop.add_argument("--working-type", default="MARK_PRICE", help="MARK_PRICE or CONTRACT_PRICE")
     binance_stop.add_argument("--client-order-id")
     binance_stop.add_argument("--source-submission-id", type=int, help="order_submissions id of the entry this protects")
-    binance_stop.add_argument("--live", action="store_true", help="Send the signed algo order (no exchange test endpoint exists for conditional orders)")
+    stop_mode = binance_stop.add_mutually_exclusive_group()
+    stop_mode.add_argument("--dry-run", action="store_true", help="Validate without sending a signed order")
+    stop_mode.add_argument("--live", action="store_true", help="Send the signed request (default)")
     binance_stop.add_argument("--no-store", action="store_true")
     binance_stop.set_defaults(handler=cmd_binance_stop)
 
-    binance_cancel = sub.add_parser("binance-cancel", help="Cancel a Binance order or algo (conditional) order by id (dry-run by default)")
+    binance_cancel = sub.add_parser("binance-cancel", help="Cancel a Binance order or algo (conditional) order by id (live by default; use --dry-run)")
     binance_cancel.add_argument("--symbol", default="BTCUSDT")
-    binance_cancel.add_argument("--order-id", type=int, help="Regular order id")
-    binance_cancel.add_argument("--client-order-id", help="Regular order client id")
+    regular_ids = binance_cancel.add_mutually_exclusive_group()
+    regular_ids.add_argument("--order-id", type=int, help="Regular order id")
+    regular_ids.add_argument("--client-order-id", help="Regular order client id")
     algo_ids = binance_cancel.add_mutually_exclusive_group()
     algo_ids.add_argument("--algo-id", type=int, help="Conditional order algoId (stop / trailing)")
     algo_ids.add_argument("--client-algo-id", help="Conditional order clientAlgoId")
-    binance_cancel.add_argument("--live", action="store_true", help="Send the signed cancel")
+    cancel_mode = binance_cancel.add_mutually_exclusive_group()
+    cancel_mode.add_argument("--dry-run", action="store_true", help="Validate without sending a signed order")
+    cancel_mode.add_argument("--live", action="store_true", help="Send the signed request (default)")
     binance_cancel.add_argument("--no-store", action="store_true")
     binance_cancel.set_defaults(handler=cmd_binance_cancel)
 
@@ -866,18 +875,25 @@ def cmd_binance_user_stream(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _binance_decimal(value: str, name: str) -> Decimal:
+    try:
+        return Decimal(value)
+    except Exception as exc:
+        raise ValueError(f"--{name} must be a decimal number") from exc
+
+
 def cmd_binance_trade(args: argparse.Namespace) -> dict[str, Any]:
     client = BinanceTradingClient(load_binance_config())
     submission = client.place_order(
         symbol=args.symbol,
         side=args.side,
         order_type=args.order_type,
-        quantity=Decimal(args.quantity),
-        price=Decimal(args.price) if args.price else None,
+        quantity=_binance_decimal(args.quantity, "quantity"),
+        price=_binance_decimal(args.price, "price") if args.price else None,
         tif=args.tif,
         reduce_only=args.reduce_only,
         client_order_id=args.client_order_id,
-        dry_run=not args.live,
+        dry_run=args.dry_run,
         exchange_test=args.exchange_test,
     )
     result = binance_submission_to_dict(submission)
@@ -893,25 +909,29 @@ def cmd_binance_stop(args: argparse.Namespace) -> dict[str, Any]:
         "side": args.side,
         "working_type": args.working_type,
         "client_order_id": args.client_order_id,
-        "dry_run": not args.live,
+        "dry_run": args.dry_run,
     }
     if args.kind == "stop-market":
+        if args.callback_rate or args.activation_price:
+            raise ValueError("--callback-rate and --activation-price require --kind trailing")
         if not args.stop_price:
             raise ValueError("--stop-price is required for --kind stop-market")
         submission = client.place_stop_market(
-            stop_price=Decimal(args.stop_price),
-            quantity=Decimal(args.quantity) if args.quantity else None,
+            stop_price=_binance_decimal(args.stop_price, "stop-price"),
+            quantity=_binance_decimal(args.quantity, "quantity") if args.quantity else None,
             close_position=not args.quantity,
             **common,
         )
         trigger_price = submission.request["params"]["triggerPrice"]
     else:
+        if args.stop_price:
+            raise ValueError("--stop-price requires --kind stop-market")
         if not args.quantity or not args.callback_rate:
             raise ValueError("--quantity and --callback-rate are required for --kind trailing")
         submission = client.place_trailing_stop(
-            quantity=Decimal(args.quantity),
-            callback_rate=Decimal(args.callback_rate),
-            activation_price=Decimal(args.activation_price) if args.activation_price else None,
+            quantity=_binance_decimal(args.quantity, "quantity"),
+            callback_rate=_binance_decimal(args.callback_rate, "callback-rate"),
+            activation_price=_binance_decimal(args.activation_price, "activation-price") if args.activation_price else None,
             **common,
         )
         params = submission.request["params"]
@@ -958,14 +978,14 @@ def cmd_binance_cancel(args: argparse.Namespace) -> dict[str, Any]:
             symbol=args.symbol,
             algo_id=args.algo_id,
             client_algo_id=args.client_algo_id,
-            dry_run=not args.live,
+            dry_run=args.dry_run,
         )
     else:
         submission = client.cancel_order(
             symbol=args.symbol,
             order_id=args.order_id,
             client_order_id=args.client_order_id,
-            dry_run=not args.live,
+            dry_run=args.dry_run,
         )
     result = binance_submission_to_dict(submission)
     if not args.no_store:

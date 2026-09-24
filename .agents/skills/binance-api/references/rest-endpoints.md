@@ -9,7 +9,7 @@ Weights are per-IP `REQUEST_WEIGHT` units (2400/min).
 |---|---|---|---|
 | `GET /fapi/v1/ping` | – | 1 | `{}` |
 | `GET /fapi/v1/time` | – | 1 | `serverTime` |
-| `GET /fapi/v1/exchangeInfo` | `symbol` optional | 1 | `rateLimits[]`, `symbols[]` with `filters[]`, `orderTypes`, `timeInForce`, `pricePrecision`, `quantityPrecision`, `contractType`, `status` |
+| `GET /fapi/v1/exchangeInfo` | none; full universe, select locally | 1 | `rateLimits[]`, `symbols[]` with `filters[]`, `orderTypes`, `timeInForce`, `pricePrecision`, `quantityPrecision`, `contractType`, `status` |
 | `GET /fapi/v1/premiumIndex` | `symbol` | 1 | `markPrice`, `indexPrice`, `estimatedSettlePrice`, `lastFundingRate`, `interestRate`, `nextFundingTime`, `time` |
 | `GET /fapi/v1/ticker/bookTicker` | `symbol` | 2 (1 per symbol) | `bidPrice`, `bidQty`, `askPrice`, `askQty`, `time`, `lastUpdateId` |
 | `GET /fapi/v1/klines` | `symbol`, `interval`, `limit` (≤1500), `startTime`, `endTime` | 1–10 by limit | array rows: `[openTime, open, high, low, close, volume, closeTime, quoteVolume, trades, takerBuyBase, takerBuyQuote, ignore]` |
@@ -49,10 +49,10 @@ X-MBX-APIKEY: {api_key}
 | `PUT /fapi/v1/listenKey` | extends validity 60 min |
 | `DELETE /fapi/v1/listenKey` | closes the stream for the account |
 
-## Order endpoints (NOT implemented; scope change under AGENTS.md)
+## Order endpoints
 
-`POST /fapi/v1/order` (`symbol`, `side`, `type`, `quantity`, `price`, `timeInForce`,
-`reduceOnly`, `stopPrice`, `closePosition`, `workingType`, `callbackRate`, `activationPrice`,
-`newClientOrderId`), `DELETE /fapi/v1/order`, `PUT /fapi/v1/order` (modify),
-`POST /fapi/v1/leverage`, `POST /fapi/v1/marginType`. Any of these requires the safety
-workflow in `SKILL.md` section 0 before use.
+Regular MARKET/LIMIT orders use `POST /fapi/v1/order` (or `/order/test` for validation). Conditional STOP_MARKET and TRAILING_STOP_MARKET orders use `POST /fapi/v1/algoOrder`. Query and cancel use GET/DELETE on the corresponding family. See [orders.md](orders.md) for parameters and outcomes.
+
+Additional wrapped reads: `GET /fapi/v1/ticker/price` (public latest contract price), `GET /fapi/v1/positionSide/dual` (signed account mode), `GET /fapi/v1/openAlgoOrders` (signed open conditionals), `GET /fapi/v1/algoOrder` (signed lookup by algo/client ID).
+
+Modify, leverage and margin-type mutations are not implemented. Wrapper availability is not agent execution authority.

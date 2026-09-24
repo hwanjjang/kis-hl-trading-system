@@ -18,6 +18,14 @@ All signed: params + `recvWindow` + `timestamp` in the query string, HMAC-SHA256
 `/order/test` takes the same parameters and returns `{}` without placing an order. Conditional
 types on this endpoint return `-4120` since 2025-12-09.
 
+Response (RESULT): `orderId`, `clientOrderId`, `symbol`, `status` (NEW, PARTIALLY_FILLED, FILLED,
+CANCELED, EXPIRED), `type`, `origType`, `side`, `positionSide`, `price`, `avgPrice`, `origQty`,
+`executedQty`, `cumQuote`, `timeInForce`, `reduceOnly`, `closePosition`, `stopPrice`,
+`workingType`, `priceProtect`, `activatePrice`, `priceRate`, `updateTime`.
+
+A MARKET order's fill is only partially visible in the ack; treat `ORDER_TRADE_UPDATE` on the
+user stream as the fill source of truth.
+
 ## `POST /fapi/v1/algoOrder` — conditional orders (`algoType=CONDITIONAL`)
 
 | Param | STOP_MARKET (closePosition) | STOP_MARKET (reduce-only) | TRAILING_STOP_MARKET |
@@ -45,14 +53,6 @@ Related: `GET /fapi/v1/algoOrder` (`algoId` or `clientAlgoId`), `GET /fapi/v1/op
 `clientAlgoId`, `code`, `msg`). The delete carries no symbol, so this repo looks the order up first
 and refuses to cancel one whose symbol differs from the requested (allowlisted) symbol. The user stream reports these as `ALGO_UPDATE` events.
 
-Response (RESULT): `orderId`, `clientOrderId`, `symbol`, `status` (NEW, PARTIALLY_FILLED, FILLED,
-CANCELED, EXPIRED), `type`, `origType`, `side`, `positionSide`, `price`, `avgPrice`, `origQty`,
-`executedQty`, `cumQuote`, `timeInForce`, `reduceOnly`, `closePosition`, `stopPrice`,
-`workingType`, `priceProtect`, `activatePrice`, `priceRate`, `updateTime`.
-
-A MARKET order's fill is only partially visible in the ack; treat `ORDER_TRADE_UPDATE` on the
-user stream as the fill source of truth.
-
 ## `DELETE /fapi/v1/order`
 
 `symbol` + `orderId` or `origClientOrderId`. Response mirrors the order object with
@@ -63,24 +63,23 @@ through `DELETE /fapi/v1/algoOrder` instead.
 
 | HTTP / transport result | Submission status | Follow-up |
 |---|---|---|
-| 2xx | `submitted` | fills arrive on the user stream |
-| 4xx with Binance code | `rejected` | fix the request; nothing was placed |
-| 5xx, HTTP 408, code `-1007`, `Unknown error`, timeout after send | `unknown` → looked up once by client id or exchange id; a live order → `submitted` (`reconciled_after_unknown`), a terminal order with fills → `submitted` (`reconciled_partial_fill`), a terminal order without fills → `rejected` (`reconciled_terminal`), a confirmed cancel → `submitted` (`reconciled_cancel`) | if still `unknown`, query the order or watch the user stream before any retry |
+| 2xx placement | `submitted`, or `rejected` for terminal/no-fill acknowledgements | partial fills remain submitted; inspect exchange status and fills |
+| Definite 4xx rejection (excluding unknown-execution codes/messages below) | `rejected` | fix the request; nothing was placed |
+| 5xx, HTTP 408, codes `-1000`/`-1006`/`-1007` with unknown-execution wording, `Unknown error`, timeout after send | `unknown` → looked up once by client id or exchange id; a live order → `submitted` (`reconciled_after_unknown`), a terminal order with fills → `submitted` (`reconciled_partial_fill`), a terminal order without fills → `rejected` (`reconciled_terminal`), a confirmed cancel → `submitted` (`reconciled_cancel`) | if still `unknown`, query the order or watch the user stream before any retry |
 
 ## `GET /fapi/v1/positionSide/dual`
 
 `{"dualSidePosition": false}` = one-way mode (required by this repo's live guard). Hedge mode
 would require `positionSide` LONG/SHORT on every order; not supported here.
 
-## Rejections to expect
+## Guard and recovery boundaries
 
-| Code | Cause | Client-side prevention |
-|---|---|---|
-| -1111 | precision over `pricePrecision`/`quantityPrecision` | `round_to_step` |
-| -4003 / -4004 | quantity below min / above max | `_round_quantity` |
-| -4164 | notional below `MIN_NOTIONAL` | `_require_notional` |
-| -2021 | stop would trigger immediately | `_require_stop_direction` |
-| -2022 | reduce-only rejected (no position) | none; surfaces as `rejected` |
-| -2019 | margin insufficient | none; surfaces as `rejected` |
-| -4061 | order's position side does not match | hedge-mode guard |
-| -4120 | conditional type sent to `/fapi/v1/order` | route to `/fapi/v1/algoOrder` |
+Live placement requires the supported BTCUSDT symbol, configured allowlist, current COIN/PERPETUAL/TRADING metadata, credentials and one-way mode. Signed mutation holds the API-key-scoped lock. Live conditional placement also reads the current position inside that lock: side must close the position and explicit quantity must equal its absolute quantity. Other exchange clients can still change the position after this snapshot.
+
+CLI commands send by default, with explicit `--dry-run` for local validation (public reads may occur). Direct Python methods keep `dry_run=True` as their default. Rejected/unknown CLI outcomes return 2/3. The exchange-test path is regular-order-only and does not place orders; successful exchange validation has not been observed in this environment.
+
+Do not resubmit an unresolved order until its exchange state is established. Reusing a client ID is not durable idempotency: IDs can become reusable after the original order closes. There is no automatic replay of interrupted attempts or background reconciliation of unknown protection rows. `active` is an observed algo lifecycle state, not a remaining-coverage guarantee; TRIGGERED may refer to a working child order. Algo lookup retention can prevent cancellation of older orders, which remains fail closed.
+
+Price tick/min/max and quantity/min-notional checks are local checks; dynamic price bands and exchange position/margin rules can still reject the request. Error codes are maintained in [limits-and-errors.md](limits-and-errors.md).
+
+Official contracts checked 2026-09-24: [trade endpoints](https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/trade), [general response semantics](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/general-info), [error codes](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/error-code).

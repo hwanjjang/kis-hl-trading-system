@@ -48,9 +48,9 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.binance.client` wraps Binance USDⓈ-M futures REST calls with standard HTTP: public exchange info, mark/index price and funding, top of book, and klines, plus HMAC-SHA256 signed read-only account, position, and order reads. It exposes user-stream key lifecycle methods; the stream runner owns connection and renewal scheduling. It places no orders.
 
-`kis_hl.binance.trading` extends the REST client with guarded order placement for USDⓈ-M futures: MARKET/LIMIT entries through `/fapi/v1/order`, server-side `STOP_MARKET` (closePosition) and `TRAILING_STOP_MARKET` through the Algo Order API (`/fapi/v1/algoOrder`), and cancel for both. Outcomes are `submitted`, `rejected` (4xx), or `unknown` (5xx / transport failure, reconciled once by client id). Every method validates and rounds against exchange filters, returns a dry-run submission by default, and only on `--live` walks the allowlist, credential, one-way-mode, and account-lock guards before the signed request. `POST /fapi/v1/order/test` is exposed as an explicit exchange-side validation.
+`kis_hl.binance.trading` owns order validation, supported-symbol and metadata checks, account locking, position checks for protective orders, submission and one-shot reconciliation. See the [order contract](../.agents/skills/binance-api/references/orders.md) for endpoints and outcome semantics.
 
-`kis_hl.binance.ws` provides Binance combined-stream URL building for `markPrice`, `bookTicker`, `kline`, and `aggTrade` (routed to `/public` for `bookTicker`/`depth` and `/market` for the rest), a market stream client over `kis_hl.streaming`, a user data stream client that requests a fresh `listenKey` per connection, renews it every 30 minutes, and reconnects on `listenKeyExpired`, and parsers that turn market frames into `PriceTick`s and `ORDER_TRADE_UPDATE` frames into normalized order events.
+`kis_hl.binance.ws` maintains market and private connections and normalizes frames for storage. Protocol and renewal details belong to the [Binance API skill](../.agents/skills/binance-api/SKILL.md#6-websocket). Quiet private connections remain open.
 
 `kis_hl.assets` normalizes user-facing symbols into Hyperliquid L1 names. `BTCUSDC` resolves to `UBTC/USDC` spot, while explicit futures aliases such as `BTCUSDC-PERP`, `BTC-PERP`, and `BTCPERP` resolve to the Hyperliquid `BTC` perp coin. Live spot orders resolve the pair through `spotMeta` to the `@index` order coin. trade.xyz assets resolve to `xyz:ASSET`.
 
@@ -58,7 +58,7 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.trade_xyz_assets` defines the curated trade.xyz asset mapping seed. `trade_xyz_assets` rows in SQLite drive RWA eligibility: non-IPO assets and stocks listed for less than 30 weeks are excluded, `KR200` and `EWY` are excluded in favor of `KORU`, and `EWJ` is excluded in favor of `JP225`. KORU is a leveraged ETF reference using U.S. cash-equity hours, not an equivalent KR200/KOSPI200 contract. Its KIS mapping supplies quotes only; it does not add a KIS execution instrument. See [asset policy and seed refresh](trade_xyz_assets.md). The seed also records Specification Index commodity and FX references. `trade_xyz_asset_checks` records actual Hyperliquid metadata availability and is required for live trade.xyz orders. `trade_xyz_kis_mappings` records which KIS quote route, if any, can provide reference market data for the same trade.xyz asset.
 
-`kis_hl.cli` provides operational commands. Live orders require `--live`; dry-run is the default.
+`kis_hl.cli` provides operational commands. Binance orders default to sending with `--dry-run` for previews; Hyperliquid orders retain their existing explicit `--live` behavior.
 
 `docs/strategy_execution_design.md` records the strategy skill/tool integration and existing execution limits. Hermes loads `.agents/skills/trend-strategy/` for strategy judgment and owns timing/briefings/notification. `kis_hl.strategy_tools` supplies deterministic indicators, setup predicates, ATR stop proposals, risk-unit sizing and decision evidence through the existing CLI. Decisions reuse `strategy_signals`; protected execution and trailing remain in the existing supervisor rather than a new strategy daemon.
 
@@ -103,8 +103,8 @@ Interactive, code-grounded views generated from repository revision
 Binance views describe the current PR implementation and its explicitly planned extensions:
 
 - [Binance user data stream lifecycle](architecture/binance-user-stream-sequence.html)
-- [Binance trading, market stream, and order event flow](architecture/binance-trading-data-flow.html) (order placement is shown as planned)
-- [Binance order round trip](architecture/binance-order-roundtrip-sequence.html) (planned: guard, signed submit, fill confirmation over the user stream)
+- [Binance trading, market stream, and order event flow](architecture/binance-trading-data-flow.html) (strategy automation remains planned)
+- [Binance order round trip](architecture/binance-order-roundtrip-sequence.html) (guard, signed submit, user-stream confirmation)
 
 ```mermaid
 flowchart LR
@@ -137,7 +137,7 @@ flowchart LR
 - Hyperliquid stop-loss trigger orders are reduce-only and require an explicit trigger price.
 - The CLI stores raw order responses and protective-order rows so order IDs, statuses, trigger prices, and covered size remain auditable.
 - Secrets are never logged intentionally and `.env` is ignored by git.
-- Binance orders are dry-run by default; `--live` is explicit. Live placement requires `BINANCE_LIVE_SYMBOLS`, credentials, one-way position mode, and the shared account lock, and exchange rejections are recorded as `rejected` submissions rather than raised.
+- Binance CLI order commands send by default with explicit `--dry-run` previews. The Python client defaults to dry-run for direct callers. The [order contract](../.agents/skills/binance-api/references/orders.md) owns the guard and outcome rules.
 - Binance protective orders are exchange-side algo orders (`STOP_MARKET` closePosition, `TRAILING_STOP_MARKET` via `/fapi/v1/algoOrder`); the client-side trailing runner remains Hyperliquid-only.
 - An ambiguous exchange outcome is stored as `unknown`, not `rejected`, so an operator or daemon cannot mistake a possibly-filled order for a failed one.
 
@@ -160,7 +160,7 @@ flowchart LR
 - Hyperliquid SDK behavior for spot market orders should be tested with a small live or testnet order before using spot market orders operationally.
 - The trailing worker consumes Hyperliquid allMids through the maintained connection layer. Persistent raw tick tables and unified KIS/Hyperliquid strategy orchestration remain unimplemented.
 - Binance `ALGO_UPDATE` user-stream events (conditional order lifecycle) are counted but not yet parsed into `order_events`; protective-order reconciliation currently relies on `binance-orders` (`open_algo_orders`).
-- Binance order placement has been validated with unit tests and the exchange test endpoint, not with a live or demo fill; the first live order should be a minimum-size BTCUSDT order watched through `binance-user-stream`.
+- Binance order placement has unit-test and dry-run smoke evidence only. The prior signed regular-order test request returned `-2015`; successful exchange validation and demo/live fills remain unverified. Algo orders have no test endpoint.
 - The Binance user data stream parser follows the documented `ORDER_TRADE_UPDATE` schema and unit tests, but has not yet been exercised against a live or demo Binance session. Verify field names on the futures demo environment before relying on stored `order_events` for reconciliation.
 - For Binance stream routing and protocol constraints, see the [Binance API skill](../.agents/skills/binance-api/SKILL.md). Run separate processes for incompatible stream groups.
 

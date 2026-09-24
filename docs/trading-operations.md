@@ -684,3 +684,11 @@ through this routing were verified for KORU. Order acceptance does not prove
 trigger-time fill quality. The explicitly authorized local account supervisor is
 operated separately from the conversation; runtime evidence belongs in the local
 SQLite state and `data/koru-management/`, not in a policy-level coverage claim.
+
+## Binance raw command boundary
+
+`binance-trade`, `binance-stop` and `binance-cancel` are manual execution primitives, outside managed trade plans, plan risk caps, pause-entries, supervisor ownership and journal/account integration. They send by default; use `--dry-run` for previews. Live eligibility is restricted to BTCUSDT and checked against current COIN/PERPETUAL/TRADING metadata. The environment allowlist can narrow support, not extend it.
+
+The local lock coordinates one API key; distinct keys for the same exchange account are not mutually excluded. Position checks are snapshots, not atomic guarantees against other account writers. Conditional-order rows are audit records, not independently verified remaining coverage. `ALGO_UPDATE` and child-order reconciliation are not implemented: unresolved orders require operator investigation. Do not resubmit unresolved orders even with the same client ID. Submission records are written after requests, so recover interrupted attempts from exchange state before further execution.
+
+Use a separate database per environment and key profile as described in the [data capture boundaries](architecture.md#binance-integration-boundaries). Algo cancellation remains fail closed if the exchange no longer retains the order needed for symbol verification.

@@ -4,6 +4,7 @@ import json
 import unittest
 from decimal import ROUND_DOWN, ROUND_UP, Decimal
 from urllib.parse import parse_qs, urlsplit
+from unittest.mock import patch
 
 from kis_hl.binance.trading import (
     BinanceOrderSubmission,
@@ -17,6 +18,7 @@ from kis_hl.config import BinanceConfig
 FILTERS = {
     "symbol": "BTCUSDT",
     "status": "TRADING",
+                "contractType": "PERPETUAL", "underlyingType": "COIN",
     "tick_size": Decimal("0.10"),
     "step_size": Decimal("0.001"),
     "min_qty": Decimal("0.001"),
@@ -36,6 +38,7 @@ EXCHANGE_INFO = json.dumps(
             {
                 "symbol": "BTCUSDT",
                 "status": "TRADING",
+                "contractType": "PERPETUAL", "underlyingType": "COIN",
                 "pricePrecision": 2,
                 "quantityPrecision": 3,
                 "orderTypes": ["LIMIT", "MARKET", "STOP_MARKET", "TRAILING_STOP_MARKET"],
@@ -78,7 +81,7 @@ class RecordingTradingClient(BinanceTradingClient):
     def __init__(self, config: BinanceConfig, responses: dict[str, tuple[int, str]] | None = None) -> None:
         super().__init__(config, now_ms=lambda: 1_700_000_000_000)
         self.calls: list[dict[str, object]] = []
-        self.responses = dict(responses or {})
+        self.responses = {"/fapi/v2/positionRisk": (200, json.dumps([{"symbol":"BTCUSDT","positionSide":"BOTH","positionAmt":"0.01"}])), "/fapi/v1/exchangeInfo": (200, EXCHANGE_INFO), **dict(responses or {})}
 
     def send(self, method: str, url: str, headers: dict[str, str], body: bytes | None) -> tuple[int, dict[str, str], str]:
         path = urlsplit(url).path
@@ -90,7 +93,14 @@ class RecordingTradingClient(BinanceTradingClient):
         return [f"{c['method']} {c['path']}" for c in self.calls]
 
 
-class RoundingTests(unittest.TestCase):
+class IsolatedTradingTest(unittest.TestCase):
+    def setUp(self):
+        patcher = patch("kis_hl.binance.trading.account_lock")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+
+class RoundingTests(IsolatedTradingTest):
     def test_round_to_step_down_and_up(self) -> None:
         self.assertEqual(round_to_step(Decimal("0.0019"), Decimal("0.001")), Decimal("0.001"))
         self.assertEqual(round_to_step(Decimal("76000.04"), Decimal("0.10")), Decimal("76000.0"))
@@ -99,7 +109,7 @@ class RoundingTests(unittest.TestCase):
             round_to_step(Decimal("1"), Decimal("0"))
 
 
-class PlaceOrderDryRunTests(unittest.TestCase):
+class PlaceOrderDryRunTests(IsolatedTradingTest):
     def test_market_dry_run_builds_rounded_request_without_network(self) -> None:
         client = RecordingTradingClient(make_config(api_key="", api_secret=""))
         submission = client.place_order(
@@ -170,7 +180,7 @@ class PlaceOrderDryRunTests(unittest.TestCase):
             self.assertNotIn("X-MBX-APIKEY", call["headers"])
 
 
-class LiveGuardTests(unittest.TestCase):
+class LiveGuardTests(IsolatedTradingTest):
     def test_live_rejects_symbol_outside_allowlist_before_credentials(self) -> None:
         client = RecordingTradingClient(make_config(api_key="", api_secret="", live_symbols=("BTCUSDT",)))
         eth_filters = dict(FILTERS, symbol="ETHUSDT")
@@ -191,7 +201,7 @@ class LiveGuardTests(unittest.TestCase):
         with self.assertRaises(RuntimeError) as ctx:
             client.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, dry_run=False)
         self.assertIn("hedge", str(ctx.exception).lower())
-        self.assertEqual(client.paths(), ["GET /fapi/v1/positionSide/dual"])
+        self.assertEqual(client.paths(), ["GET /fapi/v1/exchangeInfo", "GET /fapi/v1/positionSide/dual"])
 
     def test_live_fails_closed_when_position_mode_is_not_explicit(self) -> None:
         for body in ("{}", "[]", "null", ""):
@@ -199,7 +209,7 @@ class LiveGuardTests(unittest.TestCase):
             with self.assertRaises(RuntimeError) as ctx:
                 client.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, dry_run=False)
             self.assertIn("position mode", str(ctx.exception))
-            self.assertEqual(client.paths(), ["GET /fapi/v1/positionSide/dual"])
+            self.assertEqual(client.paths(), ["GET /fapi/v1/exchangeInfo", "GET /fapi/v1/positionSide/dual"])
 
     def test_non_finite_inputs_and_newline_ids_are_rejected(self) -> None:
         client = RecordingTradingClient(make_config())
@@ -217,7 +227,7 @@ class LiveGuardTests(unittest.TestCase):
         submission = client.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, dry_run=False)
         self.assertEqual(submission.status, "submitted")
         self.assertFalse(submission.dry_run)
-        self.assertEqual(client.paths(), ["GET /fapi/v1/positionSide/dual", "POST /fapi/v1/order"])
+        self.assertEqual(client.paths(), ["GET /fapi/v1/exchangeInfo", "GET /fapi/v1/positionSide/dual", "POST /fapi/v1/order"])
         post = client.calls[-1]
         self.assertEqual(post["headers"]["X-MBX-APIKEY"], "test-api-key")
         query = post["query"]
@@ -265,7 +275,7 @@ class LiveGuardTests(unittest.TestCase):
         self.assertEqual(client.calls, [])
 
 
-class StopMarketTests(unittest.TestCase):
+class StopMarketTests(IsolatedTradingTest):
     def test_close_position_stop_has_no_quantity_or_reduce_only(self) -> None:
         client = RecordingTradingClient(make_config())
         submission = client.place_stop_market(symbol="BTCUSDT", side="SELL", stop_price=Decimal("74000.04"), filters=FILTERS, mark_price=MARK)
@@ -301,7 +311,7 @@ class StopMarketTests(unittest.TestCase):
             client.place_stop_market(symbol="BTCUSDT", side="BUY", stop_price=Decimal("75000"), filters=FILTERS, mark_price=MARK)
 
 
-class TrailingStopTests(unittest.TestCase):
+class TrailingStopTests(IsolatedTradingTest):
     def test_trailing_stop_params_and_callback_bounds(self) -> None:
         client = RecordingTradingClient(make_config())
         submission = client.place_trailing_stop(
@@ -323,7 +333,7 @@ class TrailingStopTests(unittest.TestCase):
         self.assertEqual(client.calls, [])
 
 
-class CancelTests(unittest.TestCase):
+class CancelTests(IsolatedTradingTest):
     def test_cancel_dry_run_and_live_delete(self) -> None:
         client = RecordingTradingClient(make_config(), {"/fapi/v1/order": (200, json.dumps({"orderId": 5, "status": "CANCELED"}))})
         dry = client.cancel_order(symbol="btcusdt", order_id=5)
@@ -348,15 +358,13 @@ class CancelTests(unittest.TestCase):
         self.assertEqual(client2.calls, [])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 ALGO_ACK = json.dumps({"algoId": 2146760, "clientAlgoId": "kh-algo", "algoType": "CONDITIONAL", "orderType": "STOP_MARKET", "algoStatus": "NEW", "symbol": "BTCUSDT"})
 LAST_PRICE = json.dumps({"symbol": "BTCUSDT", "price": "76010.00"})
 
 
-class AlgoOrderRoutingTests(unittest.TestCase):
+class AlgoOrderRoutingTests(IsolatedTradingTest):
     """Conditional orders moved to the Algo Order API on 2025-12-09; /fapi/v1/order returns -4120."""
 
     def test_stop_market_targets_algo_order_endpoint_with_algo_params(self) -> None:
@@ -389,7 +397,7 @@ class AlgoOrderRoutingTests(unittest.TestCase):
         client = RecordingTradingClient(make_config(), {"/fapi/v1/positionSide/dual": (200, ONE_WAY), "/fapi/v1/algoOrder": (200, ALGO_ACK)})
         submission = client.place_stop_market(symbol="BTCUSDT", side="SELL", stop_price=Decimal("74000"), filters=FILTERS, mark_price=MARK, dry_run=False)
         self.assertEqual(submission.status, "submitted")
-        self.assertEqual(client.paths(), ["GET /fapi/v1/positionSide/dual", "POST /fapi/v1/algoOrder"])
+        self.assertEqual(client.paths(), ["GET /fapi/v1/exchangeInfo", "GET /fapi/v1/positionSide/dual", "GET /fapi/v2/positionRisk", "POST /fapi/v1/algoOrder"])
         self.assertEqual(extract_binance_order_id(submission.response), "2146760")
 
     def test_exchange_test_is_unavailable_for_algo_orders(self) -> None:
@@ -431,7 +439,7 @@ class AlgoOrderRoutingTests(unittest.TestCase):
         self.assertNotIn("symbol", client.calls[1]["query"])
 
 
-class UnknownOutcomeTests(unittest.TestCase):
+class UnknownOutcomeTests(IsolatedTradingTest):
     def test_5xx_unknown_error_reconciles_by_client_order_id(self) -> None:
         found = json.dumps({"orderId": 99, "clientOrderId": "kh-x", "status": "NEW"})
         client = RecordingTradingClient(
@@ -484,7 +492,7 @@ class UnknownOutcomeTests(unittest.TestCase):
         self.assertEqual(submission.status, "rejected")
 
 
-class NotionalAndDirectionTests(unittest.TestCase):
+class NotionalAndDirectionTests(IsolatedTradingTest):
     def test_reduce_only_entries_skip_min_notional(self) -> None:
         client = RecordingTradingClient(make_config())
         submission = client.place_order(symbol="BTCUSDT", side="SELL", order_type="MARKET", quantity=Decimal("0.001"), reduce_only=True, filters=FILTERS, mark_price=Decimal("49000"))
@@ -511,7 +519,7 @@ class NotionalAndDirectionTests(unittest.TestCase):
         self.assertEqual(ok.request["params"]["activatePrice"], "75000.00")
 
 
-class UnknownOutcomeCodeTests(unittest.TestCase):
+class UnknownOutcomeCodeTests(IsolatedTradingTest):
     def _client_with_order_error(self, status: int, body: str) -> RecordingTradingClient:
         return RecordingTradingClient(make_config(), {"/fapi/v1/positionSide/dual": (200, ONE_WAY), "/fapi/v1/order": (status, body)})
 
@@ -526,7 +534,7 @@ class UnknownOutcomeCodeTests(unittest.TestCase):
             self.assertEqual(submission.status, "unknown", body)
 
 
-class CancelAlgoSymbolGuardTests(unittest.TestCase):
+class CancelAlgoSymbolGuardTests(IsolatedTradingTest):
     def test_live_cancel_algo_verifies_the_order_symbol_before_deleting(self) -> None:
         client = RecordingTradingClient(make_config(live_symbols=("BTCUSDT",)))
         original = client.send
@@ -566,17 +574,23 @@ class CancelAlgoSymbolGuardTests(unittest.TestCase):
         self.assertEqual(client.calls[0]["query"]["clientAlgoId"], ["kh-algo"])
 
 
-class ReconciledStatusTests(unittest.TestCase):
+class ReconciledStatusTests(IsolatedTradingTest):
     def _client(self, lookup_body: str, path: str) -> RecordingTradingClient:
         client = RecordingTradingClient(make_config(), {"/fapi/v1/positionSide/dual": (200, ONE_WAY)})
 
         def send(method, url, headers, body):
             p = urlsplit(url).path
             client.calls.append({"method": method, "path": p, "query": parse_qs(urlsplit(url).query), "headers": headers})
+            if method == "GET" and p == "/fapi/v1/exchangeInfo":
+                return 200, {}, EXCHANGE_INFO
+            if method == "GET" and p == "/fapi/v2/positionRisk":
+                return 200, {}, json.dumps([{"symbol":"BTCUSDT","positionSide":"BOTH","positionAmt":"0.01"}])
             if method == "GET" and p == "/fapi/v1/positionSide/dual":
                 return 200, {}, ONE_WAY
             if method == "POST":
                 return 503, {}, json.dumps({"code": -1000, "msg": "Unknown error"})
+            self.assertEqual(p, path)
+            self.assertEqual(method, "GET")
             return 200, {}, lookup_body
         client.send = send  # type: ignore[method-assign]
         return client
@@ -604,13 +618,17 @@ class ReconciledStatusTests(unittest.TestCase):
         self.assertEqual(submission2.status, "submitted")
 
 
-class ReconciledPartialFillTests(unittest.TestCase):
+class ReconciledPartialFillTests(IsolatedTradingTest):
     def test_expired_ioc_with_executed_quantity_is_not_rejected(self) -> None:
         client = RecordingTradingClient(make_config(), {"/fapi/v1/positionSide/dual": (200, ONE_WAY)})
 
         def send(method, url, headers, body):
             p = urlsplit(url).path
             client.calls.append({"method": method, "path": p, "query": parse_qs(urlsplit(url).query), "headers": headers})
+            if method == "GET" and p == "/fapi/v1/exchangeInfo":
+                return 200, {}, EXCHANGE_INFO
+            if method == "GET" and p == "/fapi/v2/positionRisk":
+                return 200, {}, json.dumps([{"symbol":"BTCUSDT","positionSide":"BOTH","positionAmt":"0.01"}])
             if method == "GET" and p == "/fapi/v1/positionSide/dual":
                 return 200, {}, ONE_WAY
             if method == "POST":
@@ -623,7 +641,7 @@ class ReconciledPartialFillTests(unittest.TestCase):
         self.assertEqual(submission.response["executedQty"], "0.004")
 
 
-class CancelReconciliationTests(unittest.TestCase):
+class CancelReconciliationTests(IsolatedTradingTest):
     def _client(self, lookup_body: str, lookup_status: int = 200) -> RecordingTradingClient:
         client = RecordingTradingClient(make_config())
 
@@ -666,3 +684,7 @@ class CancelReconciliationTests(unittest.TestCase):
         self.assertEqual(submission.status, "submitted")
         self.assertEqual(submission.request["outcome"], "reconciled_cancel")
         self.assertEqual(client.calls[-1]["query"]["orderId"], ["5"])
+
+
+if __name__ == "__main__":
+    unittest.main()

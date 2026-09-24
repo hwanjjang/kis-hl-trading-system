@@ -1,0 +1,1466 @@
+diff --git a/.agents/skills/binance-api/SKILL.md b/.agents/skills/binance-api/SKILL.md
+index 8302125..d2af6f4 100644
+--- a/.agents/skills/binance-api/SKILL.md
++++ b/.agents/skills/binance-api/SKILL.md
+@@ -15,17 +15,12 @@ CLI commands. Facts below were verified on 2026-09-16 against
+ - All REST calls go through `BinanceFuturesClient` (stdlib `urllib`, HMAC via stdlib
+   `hmac`). Do not add `requests` or the `binance-futures-connector` SDK.
+ - Credentials come from `.env` via `load_binance_config()`. `BINANCE_KEY_PROFILE=production`
+-  selects `PRO_BINANCE_APIKEY`/`PRO_BINANCE_SECRET`. Never print or log the API key, the
++  selects `PRO_BINANCE_APIKEY`/`PRO_BINANCE_SECRET`; `demo` selects dedicated `DEMO_BINANCE_APIKEY`/`DEMO_BINANCE_SECRET` and demo URLs by default. Never print or log the API key, the
+   secret, or a `listenKey`. Tests compare emptiness, never values.
+ - Public reads need no key. Signed reads fail closed before any network call when the key
+   or secret is empty. listenKey calls send only the `X-MBX-APIKEY` header.
+-- Orders go through `BinanceTradingClient` (`kis_hl/binance/trading.py`): dry-run by default,
+-  `--live` explicit, validation and rounding before any signed call, then allowlist
+-  (`BINANCE_LIVE_SYMBOLS`) → credentials → one-way position mode → `account_lock` → signed
+-  request. Keep that order; add the rejecting test first when you add a guard. Adding modify,
+-  leverage, margin-type, or hedge-mode support is a scope change under `AGENTS.md`.
+-- `POST /fapi/v1/order/test` (`exchange_test=True`, CLI `--exchange-test`) validates on the
+-  exchange without placing; it is the strongest smoke an agent may run. Never run `--live`.
++- Orders go through `BinanceTradingClient` (`kis_hl/binance/trading.py`). The Python API defaults to dry-run; CLI commands send by default and use `--dry-run` for preview, per operator instruction. Supported live symbols are pinned in code to BTCUSDT; `BINANCE_LIVE_SYMBOLS` only narrows this set. Current metadata must confirm COIN/PERPETUAL/TRADING before placement. See `references/orders.md` for guards and outcomes.
++- `POST /fapi/v1/order/test` validates regular orders without placing. This skill grants no execution authority; follow `AGENTS.md` and applicable session instructions (and Claude's agent-session rules in `CLAUDE.md`).
+ - Never attach a Binance MCP server (official Agent OS MCP or community) or any
+   order-capable vendor tool to an agent session with live keys. Same rule as KIS/Hyperliquid.
+ - Every new call needs a unit test in `tests/test_binance_client.py` or
+@@ -97,10 +92,7 @@ Full path table and response keys: `references/rest-endpoints.md`.
+ `/fapi/v1/algoOrder` with `algoType=CONDITIONAL`, `triggerPrice` (not `stopPrice`),
+ `activatePrice` (not `activationPrice`), and `clientAlgoId`; responses carry `algoId` and
+ `algoStatus`, and the user stream reports them as `ALGO_UPDATE`. There is no test endpoint for
+-algo orders. Outcomes: `submitted`, `rejected` (4xx), or `unknown` (5xx / HTTP 408 / code
+-`-1007` / "Unknown error" / transport failure) — an unknown outcome is reconciled once by client
+-or exchange id (live → submitted, terminal with fills → submitted, terminal without fills →
+-rejected, confirmed cancel → submitted) and must never be retried blindly with a new id.
++algo orders. Outcome classification and retry constraints are owned by [orders.md](references/orders.md#outcome-classification-this-repo).
+ 
+ Rounding: quantity ROUND_DOWN to `stepSize`; BUY prices ROUND_DOWN and SELL prices ROUND_UP
+ to `tickSize` (entries never more aggressive, stops trigger no later); `MIN_NOTIONAL` checked
+@@ -128,7 +120,7 @@ Read them from `exchangeInfo`, never hardcode. BTCUSDT perpetual on 2026-09-16:
+ | `MARKET_LOT_SIZE.maxQty` | `120` | market orders larger than this are rejected |
+ | `MIN_NOTIONAL.notional` | `50` | quantity × price must be ≥ 50 USDT |
+ | `PERCENT_PRICE` | ±5% of mark | limit prices outside the band are rejected |
+-| `orderTypes` | LIMIT, MARKET, STOP, STOP_MARKET, TAKE_PROFIT, TAKE_PROFIT_MARKET, TRAILING_STOP_MARKET | server-side trailing stop exists (`callbackRate`, `activationPrice`) |
++| `orderTypes` | LIMIT, MARKET, STOP, STOP_MARKET, TAKE_PROFIT, TAKE_PROFIT_MARKET, TRAILING_STOP_MARKET | server-side trailing stop exists (`callbackRate`, `activatePrice`) |
+ | `timeInForce` | GTC, IOC, FOK, GTX, GTD | GTX = post-only |
+ 
+ `symbol_filters()` returns these as Decimals under `tick_size`, `step_size`, `min_qty`,
+@@ -143,9 +135,7 @@ Kline intervals: `1m 3m 5m 15m 30m 1h 2h 4h 6h 8h 12h 1d 3d 1w 1M`. There is **n
+   account. Response header `x-mbx-used-weight-1m` is surfaced as `client.last_used_weight`.
+ - HTTP 429 = limit hit, back off. HTTP 418 = IP ban (2 minutes to 3 days). Never retry
+   immediately on either.
+-- Any 5xx, HTTP 408, or Binance code `-1007` after a signed order means the request may
+-  have executed: this repo classifies it `unknown`, looks the order up once by client or
+-  exchange id, and never retries blindly. Error `-1008` = server overload (4xx, rejected).
++- Order error handling and reconciliation follow [orders.md](references/orders.md#outcome-classification-this-repo).
+ - WebSocket: one connection is valid 24 h; max 1024 streams per connection; max 10 inbound
+   messages per second; the server pings every 3 minutes and closes after 10 minutes
+   without a pong (`websocket-client` answers pings automatically).
+@@ -170,10 +160,10 @@ Codes and messages: `references/limits-and-errors.md`.
+ 
+ 1. Confirm the path, weight, and whether it is signed in `references/rest-endpoints.md`
+    or the official docs (`developers.binance.com/docs/derivatives/usds-margined-futures`).
+-   For a signed path, prove it exists with an unauthenticated probe:
+-   `curl -s -o /dev/null -w '%{http_code}' https://fapi.binance.com/<path>` answers **401**
+-   (`-2014`) for a real route and **404** for a wrong one (this caught
+-   `/fapi/v1/algoOpenOrders` vs the real `/fapi/v1/openAlgoOrders`).
++   Treat method + path as the route identity; consult current official docs before probing.
++   An authorized unauthenticated probe is supporting evidence only: status codes do not prove the contract.
++   `GET /fapi/v1/openAlgoOrders` lists open algo orders; `DELETE /fapi/v1/algoOpenOrders` is a different route.
++
+ 2. Add a keyword-only method on `BinanceFuturesClient` that calls `self._request(...)`
+    with `signed=True` or `api_key_header=True` as needed. Normalize numbers to `Decimal`.
+ 3. Add a test in `tests/test_binance_client.py` using `RecordingClient` and assert the exact
+diff --git a/.agents/skills/binance-api/references/limits-and-errors.md b/.agents/skills/binance-api/references/limits-and-errors.md
+index 9ae83d2..2d476d2 100644
+--- a/.agents/skills/binance-api/references/limits-and-errors.md
++++ b/.agents/skills/binance-api/references/limits-and-errors.md
+@@ -17,7 +17,7 @@ confirmed failure.
+ 
+ | Code | Meaning | Action |
+ |---|---|---|
+-| -1000 | unknown | retry with backoff |
++| -1000 / -1006 / -1007 | unknown execution outcome | reconcile orders before any retry; see [orders.md](orders.md) |
+ | -1003 | too many requests | back off; check weight header |
+ | -1008 | server overloaded | reduce-only / close orders are exempt |
+ | -1021 | timestamp outside recvWindow | sync clock; compare with `/fapi/v1/time` |
+@@ -27,7 +27,7 @@ confirmed failure.
+ | -1121 | invalid symbol | check `exchangeInfo` |
+ | -2014 / -2015 | bad API key format / invalid key, IP, or permissions | verify key, IP whitelist, futures permission |
+ 
+-## Order-path codes (for the future order iteration)
++## Order-path codes
+ 
+ | Code | Meaning |
+ |---|---|
+@@ -43,3 +43,5 @@ confirmed failure.
+ | -4028 | leverage not valid |
+ | -4131 | counterparty best price does not meet PERCENT_PRICE |
+ | -4164 | order notional below MIN_NOTIONAL |
++
++Binance documents `-1008` as definite overload rejection, including HTTP 503. The client currently treats 5xx conservatively as unknown and looks up once; no automatic order retry.
+diff --git a/.agents/skills/binance-api/references/orders.md b/.agents/skills/binance-api/references/orders.md
+index 911a899..3f6fd11 100644
+--- a/.agents/skills/binance-api/references/orders.md
++++ b/.agents/skills/binance-api/references/orders.md
+@@ -18,6 +18,14 @@ All signed: params + `recvWindow` + `timestamp` in the query string, HMAC-SHA256
+ `/order/test` takes the same parameters and returns `{}` without placing an order. Conditional
+ types on this endpoint return `-4120` since 2025-12-09.
+ 
++Response (RESULT): `orderId`, `clientOrderId`, `symbol`, `status` (NEW, PARTIALLY_FILLED, FILLED,
++CANCELED, EXPIRED), `type`, `origType`, `side`, `positionSide`, `price`, `avgPrice`, `origQty`,
++`executedQty`, `cumQuote`, `timeInForce`, `reduceOnly`, `closePosition`, `stopPrice`,
++`workingType`, `priceProtect`, `activatePrice`, `priceRate`, `updateTime`.
++
++A MARKET order's fill is only partially visible in the ack; treat `ORDER_TRADE_UPDATE` on the
++user stream as the fill source of truth.
++
+ ## `POST /fapi/v1/algoOrder` — conditional orders (`algoType=CONDITIONAL`)
+ 
+ | Param | STOP_MARKET (closePosition) | STOP_MARKET (reduce-only) | TRAILING_STOP_MARKET |
+@@ -45,14 +53,6 @@ Related: `GET /fapi/v1/algoOrder` (`algoId` or `clientAlgoId`), `GET /fapi/v1/op
+ `clientAlgoId`, `code`, `msg`). The delete carries no symbol, so this repo looks the order up first
+ and refuses to cancel one whose symbol differs from the requested (allowlisted) symbol. The user stream reports these as `ALGO_UPDATE` events.
+ 
+-Response (RESULT): `orderId`, `clientOrderId`, `symbol`, `status` (NEW, PARTIALLY_FILLED, FILLED,
+-CANCELED, EXPIRED), `type`, `origType`, `side`, `positionSide`, `price`, `avgPrice`, `origQty`,
+-`executedQty`, `cumQuote`, `timeInForce`, `reduceOnly`, `closePosition`, `stopPrice`,
+-`workingType`, `priceProtect`, `activatePrice`, `priceRate`, `updateTime`.
+-
+-A MARKET order's fill is only partially visible in the ack; treat `ORDER_TRADE_UPDATE` on the
+-user stream as the fill source of truth.
+-
+ ## `DELETE /fapi/v1/order`
+ 
+ `symbol` + `orderId` or `origClientOrderId`. Response mirrors the order object with
+@@ -63,24 +63,23 @@ through `DELETE /fapi/v1/algoOrder` instead.
+ 
+ | HTTP / transport result | Submission status | Follow-up |
+ |---|---|---|
+-| 2xx | `submitted` | fills arrive on the user stream |
+-| 4xx with Binance code | `rejected` | fix the request; nothing was placed |
+-| 5xx, HTTP 408, code `-1007`, `Unknown error`, timeout after send | `unknown` → looked up once by client id or exchange id; a live order → `submitted` (`reconciled_after_unknown`), a terminal order with fills → `submitted` (`reconciled_partial_fill`), a terminal order without fills → `rejected` (`reconciled_terminal`), a confirmed cancel → `submitted` (`reconciled_cancel`) | if still `unknown`, query the order or watch the user stream before any retry |
++| 2xx placement | `submitted`, or `rejected` for terminal/no-fill acknowledgements | partial fills remain submitted; inspect exchange status and fills |
++| Definite 4xx rejection (excluding unknown-execution codes/messages below) | `rejected` | fix the request; nothing was placed |
++| 5xx, HTTP 408, codes `-1000`/`-1006`/`-1007` with unknown-execution wording, `Unknown error`, timeout after send | `unknown` → looked up once by client id or exchange id; a live order → `submitted` (`reconciled_after_unknown`), a terminal order with fills → `submitted` (`reconciled_partial_fill`), a terminal order without fills → `rejected` (`reconciled_terminal`), a confirmed cancel → `submitted` (`reconciled_cancel`) | if still `unknown`, query the order or watch the user stream before any retry |
+ 
+ ## `GET /fapi/v1/positionSide/dual`
+ 
+ `{"dualSidePosition": false}` = one-way mode (required by this repo's live guard). Hedge mode
+ would require `positionSide` LONG/SHORT on every order; not supported here.
+ 
+-## Rejections to expect
++## Guard and recovery boundaries
+ 
+-| Code | Cause | Client-side prevention |
+-|---|---|---|
+-| -1111 | precision over `pricePrecision`/`quantityPrecision` | `round_to_step` |
+-| -4003 / -4004 | quantity below min / above max | `_round_quantity` |
+-| -4164 | notional below `MIN_NOTIONAL` | `_require_notional` |
+-| -2021 | stop would trigger immediately | `_require_stop_direction` |
+-| -2022 | reduce-only rejected (no position) | none; surfaces as `rejected` |
+-| -2019 | margin insufficient | none; surfaces as `rejected` |
+-| -4061 | order's position side does not match | hedge-mode guard |
+-| -4120 | conditional type sent to `/fapi/v1/order` | route to `/fapi/v1/algoOrder` |
++Live placement requires the supported BTCUSDT symbol, configured allowlist, current COIN/PERPETUAL/TRADING metadata, credentials and one-way mode. Signed mutation holds the API-key-scoped lock. Live conditional placement also reads the current position inside that lock: side must close the position and explicit quantity must equal its absolute quantity. Other exchange clients can still change the position after this snapshot.
++
++CLI commands send by default, with explicit `--dry-run` for local validation (public reads may occur). Direct Python methods keep `dry_run=True` as their default. Rejected/unknown CLI outcomes return 2/3. The exchange-test path is regular-order-only and does not place orders; successful exchange validation has not been observed in this environment.
++
++Do not resubmit an unresolved order until its exchange state is established. Reusing a client ID is not durable idempotency: IDs can become reusable after the original order closes. There is no automatic replay of interrupted attempts or background reconciliation of unknown protection rows. `active` is an observed algo lifecycle state, not a remaining-coverage guarantee; TRIGGERED may refer to a working child order. Algo lookup retention can prevent cancellation of older orders, which remains fail closed.
++
++Price tick/min/max and quantity/min-notional checks are local checks; dynamic price bands and exchange position/margin rules can still reject the request. Error codes are maintained in [limits-and-errors.md](limits-and-errors.md).
++
++Official contracts checked 2026-09-24: [trade endpoints](https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/trade), [general response semantics](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/general-info), [error codes](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/error-code).
+diff --git a/.agents/skills/binance-api/references/rest-endpoints.md b/.agents/skills/binance-api/references/rest-endpoints.md
+index 239c960..273eee7 100644
+--- a/.agents/skills/binance-api/references/rest-endpoints.md
++++ b/.agents/skills/binance-api/references/rest-endpoints.md
+@@ -9,7 +9,7 @@ Weights are per-IP `REQUEST_WEIGHT` units (2400/min).
+ |---|---|---|---|
+ | `GET /fapi/v1/ping` | – | 1 | `{}` |
+ | `GET /fapi/v1/time` | – | 1 | `serverTime` |
+-| `GET /fapi/v1/exchangeInfo` | `symbol` optional | 1 | `rateLimits[]`, `symbols[]` with `filters[]`, `orderTypes`, `timeInForce`, `pricePrecision`, `quantityPrecision`, `contractType`, `status` |
++| `GET /fapi/v1/exchangeInfo` | none; full universe, select locally | 1 | `rateLimits[]`, `symbols[]` with `filters[]`, `orderTypes`, `timeInForce`, `pricePrecision`, `quantityPrecision`, `contractType`, `status` |
+ | `GET /fapi/v1/premiumIndex` | `symbol` | 1 | `markPrice`, `indexPrice`, `estimatedSettlePrice`, `lastFundingRate`, `interestRate`, `nextFundingTime`, `time` |
+ | `GET /fapi/v1/ticker/bookTicker` | `symbol` | 2 (1 per symbol) | `bidPrice`, `bidQty`, `askPrice`, `askQty`, `time`, `lastUpdateId` |
+ | `GET /fapi/v1/klines` | `symbol`, `interval`, `limit` (≤1500), `startTime`, `endTime` | 1–10 by limit | array rows: `[openTime, open, high, low, close, volume, closeTime, quoteVolume, trades, takerBuyBase, takerBuyQuote, ignore]` |
+@@ -49,10 +49,10 @@ X-MBX-APIKEY: {api_key}
+ | `PUT /fapi/v1/listenKey` | extends validity 60 min |
+ | `DELETE /fapi/v1/listenKey` | closes the stream for the account |
+ 
+-## Order endpoints (NOT implemented; scope change under AGENTS.md)
++## Order endpoints
+ 
+-`POST /fapi/v1/order` (`symbol`, `side`, `type`, `quantity`, `price`, `timeInForce`,
+-`reduceOnly`, `stopPrice`, `closePosition`, `workingType`, `callbackRate`, `activationPrice`,
+-`newClientOrderId`), `DELETE /fapi/v1/order`, `PUT /fapi/v1/order` (modify),
+-`POST /fapi/v1/leverage`, `POST /fapi/v1/marginType`. Any of these requires the safety
+-workflow in `SKILL.md` section 0 before use.
++Regular MARKET/LIMIT orders use `POST /fapi/v1/order` (or `/order/test` for validation). Conditional STOP_MARKET and TRAILING_STOP_MARKET orders use `POST /fapi/v1/algoOrder`. Query and cancel use GET/DELETE on the corresponding family. See [orders.md](orders.md) for parameters and outcomes.
++
++Additional wrapped reads: `GET /fapi/v1/ticker/price` (public latest contract price), `GET /fapi/v1/positionSide/dual` (signed account mode), `GET /fapi/v1/openAlgoOrders` (signed open conditionals), `GET /fapi/v1/algoOrder` (signed lookup by algo/client ID).
++
++Modify, leverage and margin-type mutations are not implemented. Wrapper availability is not agent execution authority.
+diff --git a/.agents/skills/binance-api/references/websocket.md b/.agents/skills/binance-api/references/websocket.md
+index 42dd7ab..b5bcc1d 100644
+--- a/.agents/skills/binance-api/references/websocket.md
++++ b/.agents/skills/binance-api/references/websocket.md
+@@ -76,7 +76,7 @@ Liquidation: `c` = `autoclose-...`; ADL: `c` = `adl_autoclose`.
+   `a.P[]` positions (`s`, `pa` amount, `ep` entry, `up` unrealized, `mt` margin type, `ps`).
+ - `MARGIN_CALL`: positions at risk.
+ - `listenKeyExpired`: no more events until a new key is used (not a socket close).
+-- `ALGO_UPDATE`: conditional-order lifecycle (NEW, TRIGGERING, TRIGGERED, FINISHED, REJECTED, EXPIRED).
++- `ALGO_UPDATE`: conditional-order lifecycle (NEW, TRIGGERING, TRIGGERED, FINISHED, CANCELED, REJECTED, EXPIRED).
+ 
+ The CLI counts non-order events under `other_events`; only `ORDER_TRADE_UPDATE` is stored.
+ 
+diff --git a/.env.example b/.env.example
+index f0bd498..09fed08 100644
+--- a/.env.example
++++ b/.env.example
+@@ -36,7 +36,7 @@ PRO_HYPERLIQUID_PRIVATEKEY=0xreplace_me
+ PRO_HYPERLIQUID_SUBACCOUNT_ADDRESS=
+ 
+ # Binance USD(S)-M futures. Read-only API permissions are enough for the data plane;
+-# never enable withdrawals, and restrict the key to your IP.
++# live orders require futures trading permission. Never enable withdrawals; restrict the key to your IP.
+ BINANCE_KEY_PROFILE=default
+ BINANCE_APIKEY=replace_me
+ BINANCE_SECRET=replace_me
+@@ -59,6 +59,7 @@ PRO_BINANCE_SECRET=replace_me
+ DEMO_BINANCE_APIKEY=replace_me
+ DEMO_BINANCE_SECRET=replace_me
+ 
+-# Symbols allowed for live Binance orders (comma list). Dry-run ignores this list.
++# Restricts the supported BTCUSDT live universe; cannot enable additional symbols.
++# CLI order commands send by default; pass --dry-run to preview.
+ BINANCE_LIVE_SYMBOLS=BTCUSDT
+ # Set it to an empty value to disable live Binance orders entirely.
+diff --git a/CLAUDE.md b/CLAUDE.md
+index ce3e615..79fe705 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -27,7 +27,7 @@ link to it instead.
+ | trade.xyz asset universe, eligibility, exclusions | `docs/trade_xyz_assets.md` + `kis_hl/trade_xyz_assets.py` | Doc explains policy, code is the seed of record |
+ | KIS endpoints, TR IDs, auth, rate limits, websocket protocol | `.agents/skills/kis-open-api/` | Symlinked as `.claude/skills/kis-open-api/` |
+ | Hyperliquid endpoints, order schema, asset ids, tick/lot rules, rate limits, websocket protocol | `.agents/skills/hyperliquid-api/` | Symlinked as `.claude/skills/hyperliquid-api/` |
+-| Binance USDⓈ-M futures endpoints, signing, listenKey lifecycle, stream names, symbol filters, rate limits, error codes | `.agents/skills/binance-api/` | Symlinked as `.claude/skills/binance-api/` |
++| Binance USDⓈ-M futures order/algo/cancel endpoints, signing, listenKey lifecycle, stream names, symbol filters, rate limits, error codes | `.agents/skills/binance-api/` | Symlinked as `.claude/skills/binance-api/` |
+ | Completed-trade journal record contract, review-statistics formulas, and edge cases | `.agents/skills/trade-journal/` | Symlinked as `.claude/skills/trade-journal/` |
+ | Session observation, skill-improvement workflow, observation log | `.agents/skills/task-observer/` | Symlinked as `.claude/skills/task-observer/`; activation rule lives in `AGENTS.md` |
+ | Coding behavior guidelines (assumptions, surgical changes, success criteria) | `.agents/skills/karpathy-guidelines/` | Symlinked as `.claude/skills/karpathy-guidelines/`; activation rule lives in `AGENTS.md` |
+@@ -54,7 +54,7 @@ must be corrected.
+ - Use the `binance-api` skill for any Binance REST or WebSocket work, `/fapi` path or
+   signed-request question, listenKey or user-data-stream issue, stream-name or symbol-filter
+   lookup, and keep its tables in sync with `kis_hl/binance/client.py` and
+-  `kis_hl/binance/ws.py`.
++  `kis_hl/binance/ws.py` and `kis_hl/binance/trading.py`.
+ - Use the `trade-journal` skill for completed-position record boundaries, journal
+   statistics, `journal add`/`journal stats`, or changes to
+   `kis_hl/trade_journal.py`, and keep its formula references synchronized with tests.
+diff --git a/README.md b/README.md
+index 52c54ec..d429e98 100644
+--- a/README.md
++++ b/README.md
+@@ -188,7 +188,7 @@ or `BINANCE_KEY_PROFILE=demo` to use `DEMO_BINANCE_APIKEY` and `DEMO_BINANCE_SEC
+ futures demo environment (leave `BINANCE_TESTNET` unset; the demo profile picks the demo URLs by
+ itself, and `BINANCE_TESTNET=true|false` only overrides that choice). Keys
+ must not have withdrawal permission and should be IP-restricted. Live Binance orders are limited
+-to `BINANCE_LIVE_SYMBOLS` (default `BTCUSDT`); set it to an empty value to disable live Binance
++to the supported BTCUSDT perpetual and `BINANCE_LIVE_SYMBOLS` (default `BTCUSDT`); set it to an empty value to disable live Binance
+ orders entirely.
+ 
+ ## Commands
+@@ -262,12 +262,12 @@ python -m kis_hl.cli binance-user-stream --max-messages 20
+ python -m kis_hl.cli binance-order-events --symbol BTCUSDT --limit 20
+ ```
+ 
+-Place Binance USDⓈ-M futures orders. Every command is a dry-run by default and prints the
+-validated, rounded request; `--live` sends the signed order, `--exchange-test` validates on
++Place Binance USDⓈ-M futures orders. These commands send orders by default. Use `--dry-run`
++to print a locally validated request without signed calls. `--live` remains a compatibility alias. `--exchange-test` validates on
+ the exchange through `/fapi/v1/order/test` without placing anything:
+ 
+ ```bash
+-python -m kis_hl.cli binance-trade --symbol BTCUSDT --side buy --order-type limit --quantity 0.002 --price 70000
++python -m kis_hl.cli binance-trade --symbol BTCUSDT --side buy --order-type limit --quantity 0.002 --price 70000 --dry-run
+ python -m kis_hl.cli binance-trade --symbol BTCUSDT --side buy --order-type market --quantity 0.002 --exchange-test
+ python -m kis_hl.cli binance-trade --symbol BTCUSDT --side buy --order-type market --quantity 0.002 --live
+ ```
+@@ -275,11 +275,11 @@ python -m kis_hl.cli binance-trade --symbol BTCUSDT --side buy --order-type mark
+ Protect a position with server-side stops. `stop-market` without `--quantity` uses
+ `closePosition=true` (closes the whole position at trigger); `trailing` needs `--quantity` and
+ `--callback-rate` (percent, 0.1 to 10). Both go through the Algo Order API, which has no test
+-endpoint, so `--exchange-test` exists only for `binance-trade`. Both are stored in `protective_orders`:
++endpoint, so `--exchange-test` exists only for `binance-trade`. Both are stored in `protective_orders`. Live stops check the current position direction; sized stops must cover its full current quantity. `--source-submission-id` is an optional operator-provided audit link, not a validated entry relationship. The examples below preview protection:
+ 
+ ```bash
+-python -m kis_hl.cli binance-stop --symbol BTCUSDT --side sell --kind stop-market --stop-price 68000 --source-submission-id 1
+-python -m kis_hl.cli binance-stop --symbol BTCUSDT --side sell --kind trailing --quantity 0.002 --callback-rate 1.5 --activation-price 74000
++python -m kis_hl.cli binance-stop --symbol BTCUSDT --side sell --kind stop-market --stop-price 68000 --dry-run
++python -m kis_hl.cli binance-stop --symbol BTCUSDT --side sell --kind trailing --quantity 0.002 --callback-rate 1.5 --dry-run
+ python -m kis_hl.cli binance-cancel --symbol BTCUSDT --order-id 123456 --live
+ python -m kis_hl.cli binance-cancel --symbol BTCUSDT --algo-id 2146760 --live
+ ```
+@@ -407,7 +407,7 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
+ 
+ ## Safety Notes
+ 
+-- Live trading is opt-in with `--live`.
++- Hyperliquid and KIS raw trading is opt-in with `--live`; Binance raw orders send by default with `--dry-run` for preview.
+ - BTC/USDC resolves to Hyperliquid mainnet spot `UBTC/USDC` because Hyperliquid remaps the UI label. Live spot orders resolve that pair through `spotMeta` and submit the `@index` coin expected by HyperCore.
+ - BTCUSDC futures should be passed as `BTCUSDC-PERP`, `BTC-PERP`, or `BTCPERP`; these resolve to Hyperliquid's `BTC` perp coin.
+ - The BTCUSDC futures 3H breakout rule is implemented as signal evaluation only. It does not place a live order by itself.
+@@ -433,12 +433,12 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
+ - Check `xyz-assets universe-collect` for newly listed `xyz` markets before expanding the curated eligibility table.
+ - Review recent funding and spread data before opening or adding to a trade.xyz position, especially for single-name stocks and newly added markets.
+ - Use an approved Hyperliquid API wallet per trading process to avoid nonce collisions.
+-- Binance orders (`binance-trade`, `binance-stop`, `binance-cancel`) are dry-run by default and require `--live` to send. Live orders fail closed unless the symbol is in `BINANCE_LIVE_SYMBOLS`, credentials are present, and the account is in one-way position mode; hedge mode is rejected.
+-- Binance quantities are rounded down to `stepSize`; buy prices round down and sell prices round up to `tickSize`, so entries are never more aggressive than requested and stops trigger no later than requested. `MIN_NOTIONAL` (50 USDT on BTCUSDT) is enforced before any signed call.
++- Binance order commands send by default; use `--dry-run` to preview. Live placement requires the supported BTCUSDT symbol, configured allowlist, current crypto-perpetual metadata, credentials and one-way mode.
++- Binance order validation and rounding follow the [order contract](.agents/skills/binance-api/references/orders.md). A local dry-run cannot guarantee exchange acceptance.
+ - Binance stops run on the exchange through the Algo Order API (`/fapi/v1/algoOrder`): `STOP_MARKET` with `closePosition=true` and `TRAILING_STOP_MARKET` with `callbackRate`. They are recorded in `protective_orders` with their `algoId`, cancelled with `binance-cancel --algo-id` (the order is looked up first, the cancel is refused if its symbol is not the requested, allowlisted one, and a confirmed live cancel marks the local `protective_orders` row inactive), and fills are confirmed through the user data stream, not the REST acknowledgement.
+-- A 5xx, HTTP 408, Binance code `-1007`, "Unknown error", or transport failure after a signed order is recorded as `unknown` (after one lookup by client id), never as `rejected`. Check `binance-orders` or the user stream before retrying; a blind retry with a new client id can double a position. An `unknown` stop is stored in `protective_orders` as inactive with status `unknown` until it is confirmed.
++- See the [outcome contract](.agents/skills/binance-api/references/orders.md#outcome-classification-this-repo). Exit codes are 2 for rejected and 3 for unknown. Resolve exchange state before resubmitting; reusing a client ID is not durable idempotency.
+ - Reduce-only exits skip the local `MIN_NOTIONAL` check because Binance exempts them; trigger and activation directions are checked against the mark price (`MARK_PRICE`) or the last price (`CONTRACT_PRICE`).
+-- Binance `listenKey` values are treated like credentials: they are never printed or stored. The user stream requests a fresh key on every reconnect and renews it every 30 minutes.
++- Binance stream keys are never printed or stored. See the [stream lifecycle](.agents/skills/binance-api/references/websocket.md).
+ - Binance kline intervals do not include `3h`; use `1h` bars or tick-built candles for the 3H strategy.
+ 
+ ## References
+@@ -503,3 +503,5 @@ See [input/output contracts](docs/strategy-tools.md) for schemas, required sourc
+ metadata and offline replay. Use [the authoring policy](docs/strategy-authoring.md)
+ when adding a strategy. Existing signal/manual-grant and protected-order commands
+ retain execution authority; a passing setup or stored decision does not grant it.
++
++Binance raw order commands operate outside managed trade plans and supervision; see [operating boundaries](docs/trading-operations.md#binance-raw-command-boundary).
+diff --git a/docs/architecture.md b/docs/architecture.md
+index b8caa07..f175674 100644
+--- a/docs/architecture.md
++++ b/docs/architecture.md
+@@ -48,9 +48,9 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
+ 
+ `kis_hl.binance.client` wraps Binance USDⓈ-M futures REST calls with standard HTTP: public exchange info, mark/index price and funding, top of book, and klines, plus HMAC-SHA256 signed read-only account, position, and order reads. It exposes user-stream key lifecycle methods; the stream runner owns connection and renewal scheduling. It places no orders.
+ 
+-`kis_hl.binance.trading` extends the REST client with guarded order placement for USDⓈ-M futures: MARKET/LIMIT entries through `/fapi/v1/order`, server-side `STOP_MARKET` (closePosition) and `TRAILING_STOP_MARKET` through the Algo Order API (`/fapi/v1/algoOrder`), and cancel for both. Outcomes are `submitted`, `rejected` (4xx), or `unknown` (5xx / transport failure, reconciled once by client id). Every method validates and rounds against exchange filters, returns a dry-run submission by default, and only on `--live` walks the allowlist, credential, one-way-mode, and account-lock guards before the signed request. `POST /fapi/v1/order/test` is exposed as an explicit exchange-side validation.
++`kis_hl.binance.trading` owns order validation, supported-symbol and metadata checks, account locking, position checks for protective orders, submission and one-shot reconciliation. See the [order contract](../.agents/skills/binance-api/references/orders.md) for endpoints and outcome semantics.
+ 
+-`kis_hl.binance.ws` provides Binance combined-stream URL building for `markPrice`, `bookTicker`, `kline`, and `aggTrade` (routed to `/public` for `bookTicker`/`depth` and `/market` for the rest), a market stream client over `kis_hl.streaming`, a user data stream client that requests a fresh `listenKey` per connection, renews it every 30 minutes, and reconnects on `listenKeyExpired`, and parsers that turn market frames into `PriceTick`s and `ORDER_TRADE_UPDATE` frames into normalized order events.
++`kis_hl.binance.ws` maintains market and private connections and normalizes frames for storage. Protocol and renewal details belong to the [Binance API skill](../.agents/skills/binance-api/SKILL.md#6-websocket). Quiet private connections remain open.
+ 
+ `kis_hl.assets` normalizes user-facing symbols into Hyperliquid L1 names. `BTCUSDC` resolves to `UBTC/USDC` spot, while explicit futures aliases such as `BTCUSDC-PERP`, `BTC-PERP`, and `BTCPERP` resolve to the Hyperliquid `BTC` perp coin. Live spot orders resolve the pair through `spotMeta` to the `@index` order coin. trade.xyz assets resolve to `xyz:ASSET`.
+ 
+@@ -58,7 +58,7 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
+ 
+ `kis_hl.trade_xyz_assets` defines the curated trade.xyz asset mapping seed. `trade_xyz_assets` rows in SQLite drive RWA eligibility: non-IPO assets and stocks listed for less than 30 weeks are excluded, `KR200` and `EWY` are excluded in favor of `KORU`, and `EWJ` is excluded in favor of `JP225`. KORU is a leveraged ETF reference using U.S. cash-equity hours, not an equivalent KR200/KOSPI200 contract. Its KIS mapping supplies quotes only; it does not add a KIS execution instrument. See [asset policy and seed refresh](trade_xyz_assets.md). The seed also records Specification Index commodity and FX references. `trade_xyz_asset_checks` records actual Hyperliquid metadata availability and is required for live trade.xyz orders. `trade_xyz_kis_mappings` records which KIS quote route, if any, can provide reference market data for the same trade.xyz asset.
+ 
+-`kis_hl.cli` provides operational commands. Live orders require `--live`; dry-run is the default.
++`kis_hl.cli` provides operational commands. Binance orders default to sending with `--dry-run` for previews; Hyperliquid orders retain their existing explicit `--live` behavior.
+ 
+ `docs/strategy_execution_design.md` records the strategy skill/tool integration and existing execution limits. Hermes loads `.agents/skills/trend-strategy/` for strategy judgment and owns timing/briefings/notification. `kis_hl.strategy_tools` supplies deterministic indicators, setup predicates, ATR stop proposals, risk-unit sizing and decision evidence through the existing CLI. Decisions reuse `strategy_signals`; protected execution and trailing remain in the existing supervisor rather than a new strategy daemon.
+ 
+@@ -103,8 +103,8 @@ Interactive, code-grounded views generated from repository revision
+ Binance views describe the current PR implementation and its explicitly planned extensions:
+ 
+ - [Binance user data stream lifecycle](architecture/binance-user-stream-sequence.html)
+-- [Binance trading, market stream, and order event flow](architecture/binance-trading-data-flow.html) (order placement is shown as planned)
+-- [Binance order round trip](architecture/binance-order-roundtrip-sequence.html) (planned: guard, signed submit, fill confirmation over the user stream)
++- [Binance trading, market stream, and order event flow](architecture/binance-trading-data-flow.html) (strategy automation remains planned)
++- [Binance order round trip](architecture/binance-order-roundtrip-sequence.html) (guard, signed submit, user-stream confirmation)
+ 
+ ```mermaid
+ flowchart LR
+@@ -137,7 +137,7 @@ flowchart LR
+ - Hyperliquid stop-loss trigger orders are reduce-only and require an explicit trigger price.
+ - The CLI stores raw order responses and protective-order rows so order IDs, statuses, trigger prices, and covered size remain auditable.
+ - Secrets are never logged intentionally and `.env` is ignored by git.
+-- Binance orders are dry-run by default; `--live` is explicit. Live placement requires `BINANCE_LIVE_SYMBOLS`, credentials, one-way position mode, and the shared account lock, and exchange rejections are recorded as `rejected` submissions rather than raised.
++- Binance CLI order commands send by default with explicit `--dry-run` previews. The Python client defaults to dry-run for direct callers. The [order contract](../.agents/skills/binance-api/references/orders.md) owns the guard and outcome rules.
+ - Binance protective orders are exchange-side algo orders (`STOP_MARKET` closePosition, `TRAILING_STOP_MARKET` via `/fapi/v1/algoOrder`); the client-side trailing runner remains Hyperliquid-only.
+ - An ambiguous exchange outcome is stored as `unknown`, not `rejected`, so an operator or daemon cannot mistake a possibly-filled order for a failed one.
+ 
+@@ -160,7 +160,7 @@ flowchart LR
+ - Hyperliquid SDK behavior for spot market orders should be tested with a small live or testnet order before using spot market orders operationally.
+ - The trailing worker consumes Hyperliquid allMids through the maintained connection layer. Persistent raw tick tables and unified KIS/Hyperliquid strategy orchestration remain unimplemented.
+ - Binance `ALGO_UPDATE` user-stream events (conditional order lifecycle) are counted but not yet parsed into `order_events`; protective-order reconciliation currently relies on `binance-orders` (`open_algo_orders`).
+-- Binance order placement has been validated with unit tests and the exchange test endpoint, not with a live or demo fill; the first live order should be a minimum-size BTCUSDT order watched through `binance-user-stream`.
++- Binance order placement has unit-test and dry-run smoke evidence only. The prior signed regular-order test request returned `-2015`; successful exchange validation and demo/live fills remain unverified. Algo orders have no test endpoint.
+ - The Binance user data stream parser follows the documented `ORDER_TRADE_UPDATE` schema and unit tests, but has not yet been exercised against a live or demo Binance session. Verify field names on the futures demo environment before relying on stored `order_events` for reconciliation.
+ - For Binance stream routing and protocol constraints, see the [Binance API skill](../.agents/skills/binance-api/SKILL.md). Run separate processes for incompatible stream groups.
+ 
+diff --git a/docs/architecture/binance-order-roundtrip-sequence.html b/docs/architecture/binance-order-roundtrip-sequence.html
+index 097c39e..8bdef51 100644
+--- a/docs/architecture/binance-order-roundtrip-sequence.html
++++ b/docs/architecture/binance-order-roundtrip-sequence.html
+@@ -5085,7 +5085,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
+       </div>
+     </div>
+ 
+-    <script id="archify-guided-views-data" type="application/json">[{"id":"guard","label":"Guard before any signed call","focus":["strategy","guard","rest","binance_rest"],"note":"Filters and mark price are public reads; rounding and notional checks run first; dry-run returns the prepared request."},{"id":"submit","label":"Submit only with --live","focus":["guard","rest","binance_rest","sqlite"],"note":"Allowlist, credentials, one-way mode and the account lock gate the signed POST; the raw ack is stored in order_submissions."},{"id":"confirm","label":"Confirm over the user stream","focus":["binance_ws","user_ws","sqlite","strategy"],"note":"ORDER_TRADE_UPDATE frames are the fill source of truth; STOP_MARKET and TRAILING_STOP_MARKET live on the exchange."}]</script>
++    <script id="archify-guided-views-data" type="application/json">[{"id":"guard","label":"Guard before any signed call","focus":["strategy","guard","rest","binance_rest"],"note":"Filters and mark price are public reads; rounding and notional checks run first; dry-run returns the prepared request."},{"id":"submit","label":"Submit only unless --dry-run","focus":["guard","rest","binance_rest","sqlite"],"note":"Allowlist, credentials, one-way mode and the account lock gate the signed POST; the raw ack is stored in order_submissions."},{"id":"confirm","label":"Confirm over the user stream","focus":["binance_ws","user_ws","sqlite","strategy"],"note":"ORDER_TRADE_UPDATE frames are the fill source of truth; STOP_MARKET and TRAILING_STOP_MARKET live on the exchange."}]</script>
+ 
+     <script id="archify-i18n-data" type="application/json">{"locale":"en","messages":{"viewer.kind.frontend":"Frontend","viewer.kind.backend":"Backend","viewer.kind.database":"Database","viewer.kind.cloud":"Cloud","viewer.kind.security":"Security","viewer.kind.messagebus":"Message bus","viewer.kind.external":"External","viewer.kind.neutral":"Neutral","viewer.kind.node":"Node","viewer.kind.start":"Start","viewer.kind.active":"Active","viewer.kind.waiting":"Waiting","viewer.kind.decision":"Decision","viewer.kind.success":"Success","viewer.kind.failure":"Failure","viewer.toolbar.actions":"Diagram actions","viewer.theme.toggle.title":"Toggle theme (T)","viewer.theme.toggle":"Toggle color theme","viewer.theme.dark":"Dark","viewer.theme.light":"Light","viewer.preset.choose.title":"Choose visual style (S cycles)","viewer.preset.choose":"Choose visual style","viewer.preset.style":"Style","viewer.preset.menu":"Visual style","viewer.preset.identity":"Visual identity","viewer.preset.cycles":"S cycles","viewer.preset.classic":"Classic","viewer.preset.classic.short":"Classic","viewer.preset.classic.hint":"Stable technical default","viewer.preset.flow":"Signal Flow","viewer.preset.flow.short":"Flow","viewer.preset.flow.hint":"Motion-forward presentation","viewer.preset.blueprint":"Blueprint","viewer.preset.blueprint.hint":"Engineering review","viewer.preset.editorial":"Editorial","viewer.preset.editorial.hint":"Publication and launch notes","viewer.preset.badge.signalFlow":"SIGNAL FLOW","viewer.preset.badge.blueprint":"BLUEPRINT / REV 01","viewer.preset.badge.editorial":"EDITORIAL / FIELD NOTE","viewer.preset.badge.editorialPlate":"ARCHIFY / PLATE 04","viewer.preset.current":"Visual style: {style}. Choose visual style","viewer.motion.live":"Live","viewer.motion.still":"Still","viewer.motion.pause":"Pause motion","viewer.motion.resume":"Resume motion","viewer.motion.reduced":"Motion paused by reduced-motion preference","viewer.motion.hidden":"Motion paused while this page is hidden","viewer.motion.yielding":"Pause motion; currently yielding to {owner}","viewer.motion.yielding.title":"Live preview enabled · yielding to {owner}","viewer.owner.story":"the guided story","viewer.owner.chapter":"the active chapter","viewer.owner.chapterPreview":"the chapter delta preview","viewer.owner.handoff":"the chapter handoff","viewer.owner.route":"Route Probe","viewer.owner.lens":"Semantic Lens","viewer.owner.relationship":"Relationship Preview","viewer.owner.intent":"Intent Trace","viewer.owner.focus":"semantic focus","viewer.owner.legend":"legend preview","viewer.owner.reader":"reader interaction","viewer.present.enter":"Enter presentation stage","viewer.present.enter.title":"Presentation stage (F)","viewer.present.exit":"Exit presentation stage","viewer.present.exit.title":"Exit presentation stage (F or Escape)","viewer.present.present":"Present","viewer.present.exit.label":"Exit","viewer.export.button":"Export","viewer.export.button.title":"Export diagram (E)","viewer.export.diagram":"Export diagram","viewer.export.menu":"Export","viewer.export.subtitle":"Portable, clean outputs","viewer.export.share":"Share","viewer.export.shareCard":"Share Card","viewer.export.routeShareCard":"Route Share Card","viewer.export.reachShareCard":"Reach Share Card","viewer.export.copyShareCard":"Copy Share Card","viewer.export.copyDiagram":"Copy diagram","viewer.export.clipboardPng":"PNG to clipboard","viewer.export.raster":"Raster images","viewer.export.image":"Image","viewer.export.lossless":"Lossless image","viewer.export.compact":"Compact image","viewer.export.modern":"Modern image","viewer.export.vectorMotion":"Vector and motion","viewer.export.vectorMotion.heading":"Vector \u0026 motion","viewer.export.editable":"Editable vector","viewer.export.motion6s":"6s motion","viewer.export.unsupported":"Not supported by this browser","viewer.export.clipboardUnsupported":"Clipboard image write not supported by this browser","viewer.export.clipboardUnsupported.period":"Clipboard image write not supported by this browser.","viewer.export.clipboardUnsupported.short":"Clipboard image write not supported in this browser.","viewer.export.motionUnavailable":"Motion capture unavailable in this browser","viewer.export.webmUnavailable":"WebM unavailable in this browser","viewer.export.failed":"Export failed: {message}","viewer.export.unknownVariant":"Unknown Share Card variant: {variant}","viewer.export.routeRequired":"Trace a route before exporting a Route Share Card","viewer.export.reachRequired":"Trace authored reach before exporting a Reach Share Card","viewer.export.unknown":"unknown","viewer.export.routeFailed":"Route Share Card export failed: {message}","viewer.export.reachFailed":"Reach Share Card export failed: {message}","viewer.export.copyFailed":"Copy failed: {message}","viewer.export.copiedPng":"Copied PNG to clipboard","viewer.export.copiedShare":"Copied Share Card","viewer.export.downloadedShare":"Downloaded Share Card","viewer.export.downloadedRoute":"Downloaded Route Share Card","viewer.export.downloadedReach":"Downloaded Reach Share Card","viewer.export.downloadedWebm":"Downloaded WebM","viewer.export.recording":"Recording 6 seconds of motion…","viewer.export.card.routeSummary.one":"Route: {source} → {target} · {count} directed hop","viewer.export.card.routeSummary.other":"Route: {source} → {target} · {count} directed hops","viewer.export.card.reachSummary":"Authored {direction} from {origin} · {nodes} · {links} · max {hops}","viewer.export.card.node.one":"{count} node","viewer.export.card.node.other":"{count} nodes","viewer.export.card.link.one":"{count} link","viewer.export.card.link.other":"{count} links","viewer.export.card.hop.one":"{count} hop","viewer.export.card.hop.other":"{count} hops","viewer.export.card.routeBadge":"ARCHIFY · ROUTE · {hops}","viewer.export.card.reachBadge":"ARCHIFY · {direction} REACH","viewer.export.card.defaultBadge":"ARCHIFY · {preset} · {theme}","viewer.export.direction.upstream":"Upstream","viewer.export.direction.downstream":"Downstream","viewer.export.error.canvasUnavailable":"Canvas unavailable for {label}","viewer.export.error.contextUnavailable":"2D canvas context unavailable for {label}","viewer.export.error.toBlobUnavailable":"canvas.toBlob unavailable for {label}","viewer.export.error.toBlobNull":"canvas.toBlob returned no data for {label}","viewer.export.error.variantsCombined":"Share Card variants cannot be combined","viewer.export.error.viewerState":"Share Card export could not remove temporary viewer state","viewer.export.error.routeState":"Route Card export could not preserve the resolved route safely","viewer.export.error.reachState":"Reach Card export could not preserve authored reach safely","viewer.export.error.webmRequirements":"WebM motion export requires a trace animation and browser MediaRecorder support","viewer.export.error.mediaRecorder":"MediaRecorder failed","viewer.export.error.emptyWebm":"MediaRecorder produced an empty WebM","viewer.export.error.webmBackground":"SVG background could not be loaded for WebM export","viewer.guided.region":"Guided diagram views","viewer.guided.previous":"Previous guided view","viewer.guided.previous.title":"Previous guided view ([)","viewer.guided.next":"Next guided view","viewer.guided.next.title":"Next guided view (])","viewer.guided.views":"Guided views","viewer.guided.explore":"Explore this system","viewer.guided.intro":"Step through curated paths without changing the source diagram.","viewer.guided.trail":"Story trail","viewer.guided.beat":"Beat","viewer.guided.nextBeat":"Next","viewer.guided.play":"Play guided story","viewer.guided.play.title":"Play guided story (P)","viewer.guided.pause":"Pause guided story","viewer.guided.pause.title":"Pause guided story (P)","viewer.guided.replay":"Replay guided story","viewer.guided.replay.title":"Replay guided story (P)","viewer.guided.playStory":"Play story","viewer.guided.pauseStory":"Pause","viewer.guided.replayStory":"Replay story","viewer.guided.motionUnavailable":"Story playback unavailable while motion is Still","viewer.guided.enableMotion":"Switch motion to Live to play the guided story","viewer.guided.selectBeatLink":"Select a Story Beat to copy its exact link","viewer.guided.copyMoment":"Copy moment","viewer.guided.momentCopied":"Moment link copied","viewer.guided.momentCopyFailed":"Could not copy story moment link","viewer.guided.copied":"Copied","viewer.guided.copyFailed":"Copy failed","viewer.guided.showAll":"Show all","viewer.guided.showAll.aria":"Show entire diagram","viewer.guided.chapters":"Story chapters","viewer.guided.storyTrail":"Story trail for {label}: {count} beats","viewer.guided.chapter.open":"Open chapter {index} of {total}: {label}, {count} stops","viewer.guided.chapter.current":"Current chapter {index} of {total}: {label}, {count} stops","viewer.guided.chapter.selectedNodes":"{count} selected nodes","viewer.guided.chapter.stops":"{count} stops","viewer.guided.chapter.stop.one":"{count} stop","viewer.guided.chapter.stop.other":"{count} stops","viewer.guided.chapter.current.title":"{label} — current chapter, {count} stops","viewer.guided.chapter.delta.expanded":"{stay} stay, {enter} enter, {leave} leave","viewer.guided.chapter.delta.aria":"Open chapter {index} of {total}: {label}. Chapter focus delta: {delta}","viewer.guided.chapter.delta.title":"{label} — {delta} chapter focus","viewer.guided.handoff":"{from} → {to} · via {label}","viewer.guided.share.chapter":"Chapter {index} / {total}","viewer.guided.share.initial":"Chapter 01 / 01","viewer.guided.share.default":"Guided chapter","viewer.guided.state.ready":"Ready","viewer.guided.state.playing":"Playing","viewer.guided.state.settled":"Settled","viewer.guided.state.paused":"Paused","viewer.guided.state.pinned":"Pinned","viewer.guided.state.still":"Still","viewer.guided.share.step":"Step {index} / {total} · {label}","viewer.guided.share.staticMoment":"{step} · Static moment","viewer.guided.share.complete":"{count} steps complete · {note}","viewer.guided.share.settled":"Path settled for reading.","viewer.guided.share.staticPath":"{count} steps · Static path","viewer.guided.share.ready":"{count} steps · Ready","viewer.guided.share.aria":"{state} chapter {index} of {total}: {label}. {beat}. {route}","viewer.guided.beat.start":"Beat {index} / {total} · {label} · starting point","viewer.guided.beat.forward":"Beat {index} / {total} · {from} → {to}","viewer.guided.beat.reverse":"Beat {index} / {total} · {from} → {to} · reverse authored link","viewer.guided.beat.multiple":"Beat {index} / {total} · {from} ⇄ {to} · {count} authored links","viewer.guided.beat.group":"Beat {index} / {total} · {from} · {to} · grouped · no direct link","viewer.guided.beat.aria.prefix":"Story beat {index} of {total}: {label}. ","viewer.guided.beat.aria.start":"Starting point.","viewer.guided.beat.aria.forward":"From {from} through one authored forward relationship.","viewer.guided.beat.aria.reverse":"From {from}; the authored relationship points from {to} to {from}.","viewer.guided.beat.aria.multiple":"From {from} through {count} authored relationships; shown without arbitrary motion.","viewer.guided.beat.aria.group":"Grouped from {from} with no direct authored relationship.","viewer.guided.caption.start":"Starting point","viewer.guided.caption.grouped":"Grouped transition · no direct authored link","viewer.guided.caption.more":" +{count} more","viewer.guided.caption.reverse":"Reverse authored relationship","viewer.guided.caption.relationships":"{count} authored relationships","viewer.guided.caption.relationship":"Authored relationship","viewer.guided.caption.direction":"authored direction: {from} → {to}","viewer.guided.caption.starting":"Authored starting point","viewer.guided.beatLink":"Copy link to current story moment: Beat {index} of {total}: {label}","viewer.guided.noStory":"This diagram has no authored guided story.","viewer.guide.eyebrow":"Diagram guide","viewer.guide.close":"Close diagram guide","viewer.guide.inspecting":"Inspecting compiled semantics","viewer.guide.actions":"Diagram exploration actions","viewer.guide.find":"Find any node","viewer.guide.find.hint":"Search labels, responsibilities, kinds, and stable IDs.","viewer.guide.route":"Trace a route","viewer.guide.route.aria":"Trace a directed route","viewer.guide.route.hint":"Ask how two semantic nodes connect in authored direction.","viewer.guide.map":"See the whole system","viewer.guide.map.hint":"Open Semantic Radar with a live viewport and stable nodes.","viewer.guide.lens":"Compare semantic kinds","viewer.guide.lens.hint":"Count roles, reveal their traffic, and compare direct authored links.","viewer.guide.story":"Play the guided story","viewer.guide.story.hint":"Walk the authored chapters and real relationships.","viewer.guide.present":"Enter Presentation Stage","viewer.guide.present.hint":"Give the live diagram the viewport without changing export.","viewer.guide.shortcuts":"Additional keyboard shortcuts","viewer.guide.shortcut.export":"Export","viewer.guide.shortcut.theme":"Theme","viewer.guide.shortcut.style":"Style","viewer.guide.shortcut.reset":"Reset","viewer.guide.shortcut.zoomIn":"Zoom in","viewer.guide.shortcut.zoomOut":"Zoom out","viewer.guide.shortcut.close":"Close","viewer.guide.facts":"{nodes} · {relationships} · {views}","viewer.guide.fact.node.one":"{count} semantic node","viewer.guide.fact.node.other":"{count} semantic nodes","viewer.guide.fact.relationship.one":"{count} relationship","viewer.guide.fact.relationship.other":"{count} relationships","viewer.guide.fact.view.one":"{count} guided view","viewer.guide.fact.view.other":"{count} guided views","viewer.guide.story.available.one":"Walk {count} authored chapter and its real relationships.","viewer.guide.story.available.other":"Walk {count} authored chapters and their real relationships.","viewer.guide.story.unavailable":"No authored guided story in this diagram.","viewer.guide.open":"Open diagram guide","viewer.guide.noStory":"This diagram has no authored guided story.","viewer.finder.title":"Find a node","viewer.finder.close":"Close node finder","viewer.finder.placeholder":"Search labels or IDs","viewer.finder.search":"Search diagram nodes","viewer.finder.results":"Diagram nodes","viewer.finder.empty":"No matching nodes","viewer.finder.result.focus":"Focus {label}","viewer.finder.result.routeStart":"Choose {label} as route start","viewer.finder.result.routeTarget":"Choose {label} as route destination, {links}","viewer.finder.status.empty":"No matching nodes","viewer.finder.status.count.one":"{count} matching node","viewer.finder.status.count.other":"{count} matching nodes","viewer.finder.noun.nodes":"nodes","viewer.finder.link.one":"{count} link","viewer.finder.link.other":"{count} links","viewer.finder.result.focus.one":"Focus {label}, {count} related connection","viewer.finder.result.focus.other":"Focus {label}, {count} related connections","viewer.finder.status.filtered":"{visible} of {available} {noun}","viewer.finder.status.all":"{available} {noun}","viewer.passport.eyebrow":"Semantic passport","viewer.passport.metadata":"Node metadata","viewer.passport.evidence":"Verified source evidence","viewer.passport.verified":"Verified source","viewer.passport.verificationScope":"Verified against local Git at the pinned revision. Remote access has not been checked.","viewer.passport.reach":"Authored reach","viewer.passport.reach.trace":"Trace authored reachability","viewer.passport.upstream":"Upstream","viewer.passport.downstream":"Downstream","viewer.passport.upstream.trace":"Trace upstream authored reachability","viewer.passport.downstream.trace":"Trace downstream authored reachability","viewer.passport.close":"Close semantic passport","viewer.passport.copy":"Copy link","viewer.passport.copy.focus":"Copy link to focused node","viewer.passport.relations":"Relations","viewer.passport.relations.show":"Show connected relationships","viewer.passport.relations.hide":"Hide connected relationships","viewer.passport.relations.list":"Connected relationships","viewer.passport.copyRelation":"Copy relation","viewer.passport.copyNode":"Copy node","viewer.passport.copyPinned":"Copy link to pinned relationship","viewer.passport.copySource":"Copy link to source node","viewer.passport.copy.focused.success":"Focused node link copied","viewer.passport.copy.pinned.success":"Pinned relationship link copied","viewer.passport.copy.focused.failed":"Could not copy focused node link","viewer.passport.copy.pinned.failed":"Could not copy pinned relationship link","viewer.passport.relationship.none":"No connected relationships","viewer.passport.relationship.count.one":"{count} relation","viewer.passport.relationship.count.other":"{count} relations","viewer.passport.relationship.show.one":"Show {count} connected relationship","viewer.passport.relationship.show.other":"Show {count} connected relationships","viewer.passport.relationship.summary":"{out} outgoing · {in} incoming{loops}","viewer.passport.relationship.loops":" · {count} loop","viewer.passport.relationship.explorer":"Direct relationship explorer","viewer.passport.relationship.help":"Use arrow keys to explore relationships. Press Enter or Space to pin details; Escape clears.","viewer.passport.relationship.loopsBack":"loops back","viewer.passport.relationship.connectsTo":"connects to","viewer.passport.relationship.connectsFrom":"connects from","viewer.passport.relationship.pinned":"Pinned relationship · {from} → {to} · {label}","viewer.passport.relationship.inspect":"Inspect relationship {index} of {total}: {from} to {to}, {label}. Press Enter for details.","viewer.passport.relationship.group.out":"Outgoing","viewer.passport.relationship.group.in":"Incoming","viewer.passport.relationship.group.loop":"Self loops","viewer.passport.relationship.row":"{group}: {relationship}, {neighbor}","viewer.passport.relationship.direction.out":"OUT →","viewer.passport.relationship.direction.in":"← IN","viewer.passport.relationship.direction.loop":"LOOP","viewer.passport.sourceCount.one":"{count} verified source reference","viewer.passport.sourceCount.other":"{count} verified source references","viewer.passport.sourceMarker":"SRC","viewer.passport.beacon.one":"{count} verified source; focus this node to inspect","viewer.passport.beacon.other":"{count} verified sources; focus this node to inspect","viewer.passport.repository.open":"Open verified repository revision {revision}","viewer.passport.source.open":"Open verified source {path} at revision {revision}","viewer.passport.source.openLink":"Open ↗","viewer.passport.reach.upstream.one":"Trace {count} upstream authored node","viewer.passport.reach.upstream.other":"Trace {count} upstream authored nodes","viewer.passport.reach.downstream.one":"Trace {count} downstream authored node","viewer.passport.reach.downstream.other":"Trace {count} downstream authored nodes","viewer.passport.reach.noUpstream":"No upstream authored nodes","viewer.passport.reach.noDownstream":"No downstream authored nodes","viewer.passport.reach.status":"{direction} · {nodes} nodes · {links} links · max {hops} hops","viewer.route.eyebrow":"Route probe","viewer.route.start":"Choose a start node","viewer.route.start.find":"Find start","viewer.route.start.find.aria":"Find a route start","viewer.route.copy":"Copy link","viewer.route.copy.aria":"Copy link to traced route","viewer.route.clear":"Clear","viewer.route.clear.aria":"Clear route probe","viewer.route.traced":"Traced route","viewer.route.pickTwo":"Pick two semantic nodes on the diagram","viewer.route.pickOne":"Pick a semantic node on the diagram","viewer.route.controls":"Route journey controls","viewer.route.previous":"Previous route position","viewer.route.play":"Play route journey","viewer.route.pause":"Pause route journey","viewer.route.replay":"Replay route journey","viewer.route.next":"Next route position","viewer.route.journey":"Journey","viewer.route.pause.label":"Pause","viewer.route.replay.label":"Replay","viewer.route.overview":"Overview","viewer.route.overview.aria":"Show complete route overview","viewer.route.instructions":"Choose the source, then the destination. Direction matters.","viewer.route.destination":"Choose a destination from {label}","viewer.route.destination.find":"Find target","viewer.route.destination.find.aria":"Find a reachable route destination","viewer.route.differentDestination":"Choose a different destination","viewer.route.distinct":"A route needs two distinct semantic nodes.","viewer.route.unreachable":"No directed route to {label}","viewer.route.unreachable.detail":"{target} is not reachable from {source}. Pick a highlighted destination.","viewer.route.start.instructions":"Select the source. The next step will reveal only directed destinations.","viewer.route.copy.success":"Traced route link copied","viewer.route.copy.failed":"Could not copy traced route link","viewer.route.position":"Route position {index} of {total}: {label}","viewer.route.step":"Step {index} of {total} · {phase} · {label}","viewer.route.motionRequired":"Automatic journey requires Live motion","viewer.route.trigger.clear":"Clear traced route","viewer.route.overview.status":"{nodes} · {hops} · shortest authored route","viewer.route.overview.node.one":"{count} node","viewer.route.overview.node.other":"{count} nodes","viewer.route.overview.hop.one":"{count} directed hop","viewer.route.overview.hop.other":"{count} directed hops","viewer.route.phase.playing":"Playing","viewer.route.phase.complete":"Complete","viewer.route.phase.inspecting":"Inspecting","viewer.route.destination.count.one":"{count} directed destination available. Pick a highlighted node.","viewer.route.destination.count.other":"{count} directed destinations available. Pick a highlighted node.","viewer.route.noOutgoing":"No outgoing route starts here. Clear and choose another source.","viewer.route.result.title":"{source} to {target}","viewer.route.finder.source.title":"Choose route start","viewer.route.finder.source.placeholder":"Search route sources","viewer.route.finder.source.empty":"No matching route sources","viewer.route.finder.source.results":"Nodes that can start a route","viewer.route.finder.source.noun":"route sources","viewer.route.finder.source.badge":"start","viewer.route.finder.target.title":"Destination from {label}","viewer.route.finder.target.placeholder":"Search reachable destinations","viewer.route.finder.target.empty":"No matching reachable destinations","viewer.route.finder.target.results":"Reachable route destinations","viewer.route.finder.target.noun":"reachable destinations","viewer.route.hop.one":"{count} hop","viewer.route.hop.other":"{count} hops","viewer.lens.eyebrow":"Semantic lens","viewer.lens.title":"Compare system roles","viewer.lens.close":"Close semantic lens","viewer.lens.instruction":"Choose up to two semantic kinds. One reveals its real traffic; two compare only direct authored relationships.","viewer.lens.kinds":"Semantic kinds","viewer.lens.choose":"Choose a kind to inspect its nodes and touching relationships.","viewer.lens.copy":"Copy link to semantic lens","viewer.lens.clear":"Clear semantic lens","viewer.lens.open":"Open semantic lens","viewer.lens.openActive":"Open active semantic lens","viewer.lens.legend":"Semantic legend","viewer.lens.legend.inspect.one":"Inspect {label}, {count} node","viewer.lens.legend.inspect.other":"Inspect {label}, {count} nodes","viewer.lens.kind.count.one":"{label}, {count} node","viewer.lens.kind.count.other":"{label}, {count} nodes","viewer.lens.compare.one":"{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direct relationship","viewer.lens.compare.other":"{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direct relationships","viewer.lens.single":"{nodes} · {relationships} · connected peers remain visible","viewer.lens.node.one":"{count} {label} node","viewer.lens.node.other":"{count} {label} nodes","viewer.lens.relationship.one":"{count} touching relationship","viewer.lens.relationship.other":"{count} touching relationships","viewer.radar.title":"Semantic radar","viewer.radar.building":"Building overview","viewer.radar.openFull":"Open full semantic radar","viewer.radar.open":"Open radar","viewer.radar.close":"Close semantic radar","viewer.radar.surface":"Diagram overview. Click a node to focus it, or use arrow keys to pan.","viewer.radar.click":"Click node","viewer.radar.drag":"Drag to pan","viewer.radar.space":"Semantic radar needs more MAP space.","viewer.radar.nodes":"Semantic diagram radar nodes","viewer.radar.focus":"Focus {label} from Semantic Radar","viewer.radar.status":"{count} nodes · {viewport}","viewer.radar.fullMap":"{count} nodes · full map","viewer.radar.compacted":"Radar compacted to avoid covering the Semantic Passport or MAP controls.","viewer.radar.cancelWaiting":"Cancel semantic radar waiting for more MAP space","viewer.radar.needsSpace":"Semantic radar needs more visible MAP space","viewer.radar.viewport.full":"full map","viewer.radar.viewport.width":"{percent}% width","viewer.radar.viewport.scale":"{percent}% viewport","viewer.nav.controls":"Diagram view controls","viewer.nav.route":"Trace a directed route","viewer.nav.route.title":"Trace route (R)","viewer.nav.route.short":"PATH","viewer.nav.radar":"Open semantic radar","viewer.nav.radar.title":"Semantic radar (M)","viewer.nav.radar.short":"MAP","viewer.nav.lens":"Open semantic lens","viewer.nav.lens.title":"Semantic lens (L)","viewer.nav.lens.short":"LENS","viewer.nav.find":"Find a node","viewer.nav.find.title":"Find a node (/)","viewer.nav.guide":"Open diagram guide","viewer.nav.guide.title":"Diagram guide (?)","viewer.nav.zoomOut":"Zoom out","viewer.nav.zoomOut.title":"Zoom out (-)","viewer.nav.reset":"Reset diagram view","viewer.nav.reset.title":"Reset view (0)","viewer.nav.read":"READ","viewer.nav.zoomIn":"Zoom in","viewer.nav.zoomIn.title":"Zoom in (+)","viewer.nav.camera":"{hint}. Reset diagram view","viewer.nav.camera.title":"{semantic}{hint} · reset view (0)","viewer.nav.camera.semantic":"Semantic camera active · ","viewer.nav.level.map":"MAP","viewer.nav.level.read":"READ","viewer.nav.level.full":"FULL","viewer.nav.level.auto":"AUTO","viewer.nav.detail.map":"Zoom in to reveal relationship labels and node context","viewer.nav.detail.read":"Zoom in again to reveal tags and annotations","viewer.nav.detail.full":"Full diagram detail","viewer.intent.summary":"{label}. {out} outgoing, {in} incoming{loops}. {total} connections. Press Enter for details.","viewer.intent.loops":", {count} self loop","viewer.common.copied":"Copied","viewer.common.copyFailed":"Copy failed","viewer.common.copyLink":"Copy link","viewer.common.clear":"Clear","viewer.common.close":"Close"}}</script>
+     <div class="guided-views no-print" id="guided-views" hidden aria-label="Guided diagram views">
+@@ -5212,19 +5212,19 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
+         </g>
+         </g>
+ 
+-        <g data-edge-from="guard" data-edge-to="strategy" data-edge-label="dry_run submission: rounded params, no network" data-edge-key="3">
++        <g data-edge-from="guard" data-edge-to="strategy" data-edge-label="dry_run submission: rounded params, no signed call" data-edge-key="3">
+           <path data-composition-edge-from="guard" data-composition-edge-to="strategy" data-composition-points="255.66666666666663,252;125.5,252" d="M 255.66666666666663 252 L 125.5 252" class="a-default" stroke-width="1.4" stroke-dasharray="3,5" marker-end="url(#arrowhead)"/>
+         <g data-detail="context">
+-          <rect x="64.9833333333333" y="232" width="251.20000000000002" height="16" rx="3" class="c-mask"/>
+-          <text x="190.58333333333331" y="242" class="t-muted" font-size="9" text-anchor="middle">dry_run submission: rounded params, no network</text>
++          <rect x="54.583333333333314" y="232" width="272" height="16" rx="3" class="c-mask"/>
++          <text x="190.58333333333331" y="242" class="t-muted" font-size="9" text-anchor="middle">dry_run submission: rounded params, no signed call</text>
+         </g>
+         </g>
+ 
+-        <g data-edge-from="guard" data-edge-to="rest" data-edge-label="allowlist · credentials · one-way mode · account lock" data-edge-key="4">
++        <g data-edge-from="guard" data-edge-to="rest" data-edge-label="symbol · metadata · mode · lock" data-edge-key="4">
+           <path data-composition-edge-from="guard" data-composition-edge-to="rest" data-composition-points="269.66666666666663,292;399.8333333333333,292" d="M 269.66666666666663 292 L 399.8333333333333 292" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+         <g data-detail="context">
+-          <rect x="190.95" y="272" width="287.6" height="16" rx="3" class="c-mask"/>
+-          <text x="334.75" y="282" class="t-security" font-size="9" text-anchor="middle">allowlist · credentials · one-way mode · account lock</text>
++          <rect x="248.14999999999998" y="272" width="173.20000000000002" height="16" rx="3" class="c-mask"/>
++          <text x="334.75" y="282" class="t-security" font-size="9" text-anchor="middle">symbol · metadata · mode · lock</text>
+         </g>
+         </g>
+ 
+@@ -5278,12 +5278,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
+ 
+         <!-- Segment Labels -->
+         <g data-graph-role="segment-label" data-segment-id="0">
+-          <rect x="56" y="128" width="149.20000000000002" height="18" rx="3" class="c-mask"/>
+-          <text x="62" y="141" class="t-dim" font-size="9" font-weight="600">Validate (dry-run default)</text>
++          <rect x="56" y="128" width="154.4" height="18" rx="3" class="c-mask"/>
++          <text x="62" y="141" class="t-dim" font-size="9" font-weight="600">Validate (explicit dry-run)</text>
+         </g>
+         <g data-graph-role="segment-label" data-segment-id="1">
+-          <rect x="56" y="210" width="118" height="18" rx="3" class="c-mask"/>
+-          <text x="62" y="223" class="t-dim" font-size="9" font-weight="600">Submit (--live only)</text>
++          <rect x="56" y="210" width="123.2" height="18" rx="3" class="c-mask"/>
++          <text x="62" y="223" class="t-dim" font-size="9" font-weight="600">Submit (default send)</text>
+         </g>
+         <g data-graph-role="segment-label" data-segment-id="2">
+           <rect x="56" y="378" width="128.4" height="18" rx="3" class="c-mask"/>
+@@ -5591,7 +5591,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
+           <h3>Fail-Closed Order Path</h3>
+         </div>
+         <ul>
+-          <li>&bull; Dry-run is the default; --live is explicit and the agent never runs it</li>
++          <li>&bull; CLI sends by default; --dry-run previews without signed calls</li>
+           <li>&bull; Validation and rounding run before any credential or signed call</li>
+           <li>&bull; Live needs BINANCE_LIVE_SYMBOLS, credentials, one-way mode, and the account lock</li>
+         </ul>
+diff --git a/docs/architecture/binance-order-roundtrip-sequence.json b/docs/architecture/binance-order-roundtrip-sequence.json
+index 0670bd3..1308090 100644
+--- a/docs/architecture/binance-order-roundtrip-sequence.json
++++ b/docs/architecture/binance-order-roundtrip-sequence.json
+@@ -24,7 +24,7 @@
+       },
+       {
+         "id": "submit",
+-        "label": "Submit only with --live",
++        "label": "Submit only unless --dry-run",
+         "focus": [
+           "guard",
+           "rest",
+@@ -87,19 +87,19 @@
+       "id": "sqlite",
+       "type": "database",
+       "label": "SQLite",
+-      "sublabel": "submissions · events"
++      "sublabel": "submissions \u00b7 events"
+     }
+   ],
+   "segments": [
+     {
+       "from": 150,
+       "to": 266,
+-      "label": "Validate (dry-run default)"
++      "label": "Validate (explicit dry-run)"
+     },
+     {
+       "from": 276,
+       "to": 390,
+-      "label": "Submit (--live only)"
++      "label": "Submit (default send)"
+     },
+     {
+       "from": 400,
+@@ -126,21 +126,21 @@
+       "from": "rest",
+       "to": "guard",
+       "y": 224,
+-      "label": "tick · step · min notional · mark price",
++      "label": "tick \u00b7 step \u00b7 min notional \u00b7 mark price",
+       "variant": "return"
+     },
+     {
+       "from": "guard",
+       "to": "strategy",
+       "y": 252,
+-      "label": "dry_run submission: rounded params, no network",
++      "label": "dry_run submission: rounded params, no signed call",
+       "variant": "return"
+     },
+     {
+       "from": "guard",
+       "to": "rest",
+       "y": 292,
+-      "label": "allowlist · credentials · one-way mode · account lock",
++      "label": "symbol \u00b7 metadata \u00b7 mode \u00b7 lock",
+       "variant": "security"
+     },
+     {
+@@ -154,7 +154,7 @@
+       "from": "binance_rest",
+       "to": "rest",
+       "y": 348,
+-      "label": "ack: orderId / algoId, error → rejected, 5xx → unknown",
++      "label": "ack: orderId / algoId, error \u2192 rejected, 5xx \u2192 unknown",
+       "variant": "return"
+     },
+     {
+@@ -168,7 +168,7 @@
+       "from": "binance_ws",
+       "to": "user_ws",
+       "y": 416,
+-      "label": "ORDER_TRADE_UPDATE: NEW → FILLED",
++      "label": "ORDER_TRADE_UPDATE: NEW \u2192 FILLED",
+       "variant": "dashed"
+     },
+     {
+@@ -182,7 +182,7 @@
+       "from": "sqlite",
+       "to": "strategy",
+       "y": 472,
+-      "label": "fill state → binance-order-events / strategy",
++      "label": "fill state \u2192 binance-order-events / strategy",
+       "variant": "dashed"
+     }
+   ],
+@@ -235,7 +235,7 @@
+       "dot": "orange",
+       "title": "Fail-Closed Order Path",
+       "items": [
+-        "Dry-run is the default; --live is explicit and the agent never runs it",
++        "CLI sends by default; --dry-run previews without signed calls",
+         "Validation and rounding run before any credential or signed call",
+         "Live needs BINANCE_LIVE_SYMBOLS, credentials, one-way mode, and the account lock"
+       ]
+diff --git a/docs/architecture/binance-trading-data-flow.html b/docs/architecture/binance-trading-data-flow.html
+index 807a85c..1745e31 100644
+--- a/docs/architecture/binance-trading-data-flow.html
++++ b/docs/architecture/binance-trading-data-flow.html
+@@ -5085,7 +5085,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
+       </div>
+     </div>
+ 
+-    <script id="archify-guided-views-data" type="application/json">[{"id":"market_stream","label":"Market data over WebSocket","focus":["ws_market","market_stream","tick_parser","sqlite","strategy"],"note":"Combined streams arrive per route tier, become PriceTicks, and land in market_ticks for signals."},{"id":"order_events","label":"Order results over WebSocket","focus":["ws_private","user_stream","rest_client","event_parser","sqlite","cli"],"note":"A listenKey from REST opens the private stream; ORDER_TRADE_UPDATE frames become order_events rows."},{"id":"trading","label":"Trading path (next iteration)","focus":["binance_rest","rest_client","order_guard","sqlite","strategy"],"note":"Signed orders will pass the fail-closed guard, exit via BinanceFuturesClient, and be audited; not implemented yet."}]</script>
++    <script id="archify-guided-views-data" type="application/json">[{"id":"market_stream","label":"Market data over WebSocket","focus":["ws_market","market_stream","tick_parser","sqlite","strategy"],"note":"Combined streams arrive per route tier, become PriceTicks, and land in market_ticks for signals."},{"id":"order_events","label":"Order results over WebSocket","focus":["ws_private","user_stream","rest_client","event_parser","sqlite","cli"],"note":"A listenKey from REST opens the private stream; ORDER_TRADE_UPDATE frames become order_events rows."},{"id":"trading","label":"Trading path","focus":["binance_rest","rest_client","order_guard","sqlite","strategy"],"note":"Signed orders pass guards and REST; private events provide subsequent order updates."}]</script>
+ 
+     <script id="archify-i18n-data" type="application/json">{"locale":"en","messages":{"viewer.kind.frontend":"Frontend","viewer.kind.backend":"Backend","viewer.kind.database":"Database","viewer.kind.cloud":"Cloud","viewer.kind.security":"Security","viewer.kind.messagebus":"Message bus","viewer.kind.external":"External","viewer.kind.neutral":"Neutral","viewer.kind.node":"Node","viewer.kind.start":"Start","viewer.kind.active":"Active","viewer.kind.waiting":"Waiting","viewer.kind.decision":"Decision","viewer.kind.success":"Success","viewer.kind.failure":"Failure","viewer.toolbar.actions":"Diagram actions","viewer.theme.toggle.title":"Toggle theme (T)","viewer.theme.toggle":"Toggle color theme","viewer.theme.dark":"Dark","viewer.theme.light":"Light","viewer.preset.choose.title":"Choose visual style (S cycles)","viewer.preset.choose":"Choose visual style","viewer.preset.style":"Style","viewer.preset.menu":"Visual style","viewer.preset.identity":"Visual identity","viewer.preset.cycles":"S cycles","viewer.preset.classic":"Classic","viewer.preset.classic.short":"Classic","viewer.preset.classic.hint":"Stable technical default","viewer.preset.flow":"Signal Flow","viewer.preset.flow.short":"Flow","viewer.preset.flow.hint":"Motion-forward presentation","viewer.preset.blueprint":"Blueprint","viewer.preset.blueprint.hint":"Engineering review","viewer.preset.editorial":"Editorial","viewer.preset.editorial.hint":"Publication and launch notes","viewer.preset.badge.signalFlow":"SIGNAL FLOW","viewer.preset.badge.blueprint":"BLUEPRINT / REV 01","viewer.preset.badge.editorial":"EDITORIAL / FIELD NOTE","viewer.preset.badge.editorialPlate":"ARCHIFY / PLATE 04","viewer.preset.current":"Visual style: {style}. Choose visual style","viewer.motion.live":"Live","viewer.motion.still":"Still","viewer.motion.pause":"Pause motion","viewer.motion.resume":"Resume motion","viewer.motion.reduced":"Motion paused by reduced-motion preference","viewer.motion.hidden":"Motion paused while this page is hidden","viewer.motion.yielding":"Pause motion; currently yielding to {owner}","viewer.motion.yielding.title":"Live preview enabled · yielding to {owner}","viewer.owner.story":"the guided story","viewer.owner.chapter":"the active chapter","viewer.owner.chapterPreview":"the chapter delta preview","viewer.owner.handoff":"the chapter handoff","viewer.owner.route":"Route Probe","viewer.owner.lens":"Semantic Lens","viewer.owner.relationship":"Relationship Preview","viewer.owner.intent":"Intent Trace","viewer.owner.focus":"semantic focus","viewer.owner.legend":"legend preview","viewer.owner.reader":"reader interaction","viewer.present.enter":"Enter presentation stage","viewer.present.enter.title":"Presentation stage (F)","viewer.present.exit":"Exit presentation stage","viewer.present.exit.title":"Exit presentation stage (F or Escape)","viewer.present.present":"Present","viewer.present.exit.label":"Exit","viewer.export.button":"Export","viewer.export.button.title":"Export diagram (E)","viewer.export.diagram":"Export diagram","viewer.export.menu":"Export","viewer.export.subtitle":"Portable, clean outputs","viewer.export.share":"Share","viewer.export.shareCard":"Share Card","viewer.export.routeShareCard":"Route Share Card","viewer.export.reachShareCard":"Reach Share Card","viewer.export.copyShareCard":"Copy Share Card","viewer.export.copyDiagram":"Copy diagram","viewer.export.clipboardPng":"PNG to clipboard","viewer.export.raster":"Raster images","viewer.export.image":"Image","viewer.export.lossless":"Lossless image","viewer.export.compact":"Compact image","viewer.export.modern":"Modern image","viewer.export.vectorMotion":"Vector and motion","viewer.export.vectorMotion.heading":"Vector \u0026 motion","viewer.export.editable":"Editable vector","viewer.export.motion6s":"6s motion","viewer.export.unsupported":"Not supported by this browser","viewer.export.clipboardUnsupported":"Clipboard image write not supported by this browser","viewer.export.clipboardUnsupported.period":"Clipboard image write not supported by this browser.","viewer.export.clipboardUnsupported.short":"Clipboard image write not supported in this browser.","viewer.export.motionUnavailable":"Motion capture unavailable in this browser","viewer.export.webmUnavailable":"WebM unavailable in this browser","viewer.export.failed":"Export failed: {message}","viewer.export.unknownVariant":"Unknown Share Card variant: {variant}","viewer.export.routeRequired":"Trace a route before exporting a Route Share Card","viewer.export.reachRequired":"Trace authored reach before exporting a Reach Share Card","viewer.export.unknown":"unknown","viewer.export.routeFailed":"Route Share Card export failed: {message}","viewer.export.reachFailed":"Reach Share Card export failed: {message}","viewer.export.copyFailed":"Copy failed: {message}","viewer.export.copiedPng":"Copied PNG to clipboard","viewer.export.copiedShare":"Copied Share Card","viewer.export.downloadedShare":"Downloaded Share Card","viewer.export.downloadedRoute":"Downloaded Route Share Card","viewer.export.downloadedReach":"Downloaded Reach Share Card","viewer.export.downloadedWebm":"Downloaded WebM","viewer.export.recording":"Recording 6 seconds of motion…","viewer.export.card.routeSummary.one":"Route: {source} → {target} · {count} directed hop","viewer.export.card.routeSummary.other":"Route: {source} → {target} · {count} directed hops","viewer.export.card.reachSummary":"Authored {direction} from {origin} · {nodes} · {links} · max {hops}","viewer.export.card.node.one":"{count} node","viewer.export.card.node.other":"{count} nodes","viewer.export.card.link.one":"{count} link","viewer.export.card.link.other":"{count} links","viewer.export.card.hop.one":"{count} hop","viewer.export.card.hop.other":"{count} hops","viewer.export.card.routeBadge":"ARCHIFY · ROUTE · {hops}","viewer.export.card.reachBadge":"ARCHIFY · {direction} REACH","viewer.export.card.defaultBadge":"ARCHIFY · {preset} · {theme}","viewer.export.direction.upstream":"Upstream","viewer.export.direction.downstream":"Downstream","viewer.export.error.canvasUnavailable":"Canvas unavailable for {label}","viewer.export.error.contextUnavailable":"2D canvas context unavailable for {label}","viewer.export.error.toBlobUnavailable":"canvas.toBlob unavailable for {label}","viewer.export.error.toBlobNull":"canvas.toBlob returned no data for {label}","viewer.export.error.variantsCombined":"Share Card variants cannot be combined","viewer.export.error.viewerState":"Share Card export could not remove temporary viewer state","viewer.export.error.routeState":"Route Card export could not preserve the resolved route safely","viewer.export.error.reachState":"Reach Card export could not preserve authored reach safely","viewer.export.error.webmRequirements":"WebM motion export requires a trace animation and browser MediaRecorder support","viewer.export.error.mediaRecorder":"MediaRecorder failed","viewer.export.error.emptyWebm":"MediaRecorder produced an empty WebM","viewer.export.error.webmBackground":"SVG background could not be loaded for WebM export","viewer.guided.region":"Guided diagram views","viewer.guided.previous":"Previous guided view","viewer.guided.previous.title":"Previous guided view ([)","viewer.guided.next":"Next guided view","viewer.guided.next.title":"Next guided view (])","viewer.guided.views":"Guided views","viewer.guided.explore":"Explore this system","viewer.guided.intro":"Step through curated paths without changing the source diagram.","viewer.guided.trail":"Story trail","viewer.guided.beat":"Beat","viewer.guided.nextBeat":"Next","viewer.guided.play":"Play guided story","viewer.guided.play.title":"Play guided story (P)","viewer.guided.pause":"Pause guided story","viewer.guided.pause.title":"Pause guided story (P)","viewer.guided.replay":"Replay guided story","viewer.guided.replay.title":"Replay guided story (P)","viewer.guided.playStory":"Play story","viewer.guided.pauseStory":"Pause","viewer.guided.replayStory":"Replay story","viewer.guided.motionUnavailable":"Story playback unavailable while motion is Still","viewer.guided.enableMotion":"Switch motion to Live to play the guided story","viewer.guided.selectBeatLink":"Select a Story Beat to copy its exact link","viewer.guided.copyMoment":"Copy moment","viewer.guided.momentCopied":"Moment link copied","viewer.guided.momentCopyFailed":"Could not copy story moment link","viewer.guided.copied":"Copied","viewer.guided.copyFailed":"Copy failed","viewer.guided.showAll":"Show all","viewer.guided.showAll.aria":"Show entire diagram","viewer.guided.chapters":"Story chapters","viewer.guided.storyTrail":"Story trail for {label}: {count} beats","viewer.guided.chapter.open":"Open chapter {index} of {total}: {label}, {count} stops","viewer.guided.chapter.current":"Current chapter {index} of {total}: {label}, {count} stops","viewer.guided.chapter.selectedNodes":"{count} selected nodes","viewer.guided.chapter.stops":"{count} stops","viewer.guided.chapter.stop.one":"{count} stop","viewer.guided.chapter.stop.other":"{count} stops","viewer.guided.chapter.current.title":"{label} — current chapter, {count} stops","viewer.guided.chapter.delta.expanded":"{stay} stay, {enter} enter, {leave} leave","viewer.guided.chapter.delta.aria":"Open chapter {index} of {total}: {label}. Chapter focus delta: {delta}","viewer.guided.chapter.delta.title":"{label} — {delta} chapter focus","viewer.guided.handoff":"{from} → {to} · via {label}","viewer.guided.share.chapter":"Chapter {index} / {total}","viewer.guided.share.initial":"Chapter 01 / 01","viewer.guided.share.default":"Guided chapter","viewer.guided.state.ready":"Ready","viewer.guided.state.playing":"Playing","viewer.guided.state.settled":"Settled","viewer.guided.state.paused":"Paused","viewer.guided.state.pinned":"Pinned","viewer.guided.state.still":"Still","viewer.guided.share.step":"Step {index} / {total} · {label}","viewer.guided.share.staticMoment":"{step} · Static moment","viewer.guided.share.complete":"{count} steps complete · {note}","viewer.guided.share.settled":"Path settled for reading.","viewer.guided.share.staticPath":"{count} steps · Static path","viewer.guided.share.ready":"{count} steps · Ready","viewer.guided.share.aria":"{state} chapter {index} of {total}: {label}. {beat}. {route}","viewer.guided.beat.start":"Beat {index} / {total} · {label} · starting point","viewer.guided.beat.forward":"Beat {index} / {total} · {from} → {to}","viewer.guided.beat.reverse":"Beat {index} / {total} · {from} → {to} · reverse authored link","viewer.guided.beat.multiple":"Beat {index} / {total} · {from} ⇄ {to} · {count} authored links","viewer.guided.beat.group":"Beat {index} / {total} · {from} · {to} · grouped · no direct link","viewer.guided.beat.aria.prefix":"Story beat {index} of {total}: {label}. ","viewer.guided.beat.aria.start":"Starting point.","viewer.guided.beat.aria.forward":"From {from} through one authored forward relationship.","viewer.guided.beat.aria.reverse":"From {from}; the authored relationship points from {to} to {from}.","viewer.guided.beat.aria.multiple":"From {from} through {count} authored relationships; shown without arbitrary motion.","viewer.guided.beat.aria.group":"Grouped from {from} with no direct authored relationship.","viewer.guided.caption.start":"Starting point","viewer.guided.caption.grouped":"Grouped transition · no direct authored link","viewer.guided.caption.more":" +{count} more","viewer.guided.caption.reverse":"Reverse authored relationship","viewer.guided.caption.relationships":"{count} authored relationships","viewer.guided.caption.relationship":"Authored relationship","viewer.guided.caption.direction":"authored direction: {from} → {to}","viewer.guided.caption.starting":"Authored starting point","viewer.guided.beatLink":"Copy link to current story moment: Beat {index} of {total}: {label}","viewer.guided.noStory":"This diagram has no authored guided story.","viewer.guide.eyebrow":"Diagram guide","viewer.guide.close":"Close diagram guide","viewer.guide.inspecting":"Inspecting compiled semantics","viewer.guide.actions":"Diagram exploration actions","viewer.guide.find":"Find any node","viewer.guide.find.hint":"Search labels, responsibilities, kinds, and stable IDs.","viewer.guide.route":"Trace a route","viewer.guide.route.aria":"Trace a directed route","viewer.guide.route.hint":"Ask how two semantic nodes connect in authored direction.","viewer.guide.map":"See the whole system","viewer.guide.map.hint":"Open Semantic Radar with a live viewport and stable nodes.","viewer.guide.lens":"Compare semantic kinds","viewer.guide.lens.hint":"Count roles, reveal their traffic, and compare direct authored links.","viewer.guide.story":"Play the guided story","viewer.guide.story.hint":"Walk the authored chapters and real relationships.","viewer.guide.present":"Enter Presentation Stage","viewer.guide.present.hint":"Give the live diagram the viewport without changing export.","viewer.guide.shortcuts":"Additional keyboard shortcuts","viewer.guide.shortcut.export":"Export","viewer.guide.shortcut.theme":"Theme","viewer.guide.shortcut.style":"Style","viewer.guide.shortcut.reset":"Reset","viewer.guide.shortcut.zoomIn":"Zoom in","viewer.guide.shortcut.zoomOut":"Zoom out","viewer.guide.shortcut.close":"Close","viewer.guide.facts":"{nodes} · {relationships} · {views}","viewer.guide.fact.node.one":"{count} semantic node","viewer.guide.fact.node.other":"{count} semantic nodes","viewer.guide.fact.relationship.one":"{count} relationship","viewer.guide.fact.relationship.other":"{count} relationships","viewer.guide.fact.view.one":"{count} guided view","viewer.guide.fact.view.other":"{count} guided views","viewer.guide.story.available.one":"Walk {count} authored chapter and its real relationships.","viewer.guide.story.available.other":"Walk {count} authored chapters and their real relationships.","viewer.guide.story.unavailable":"No authored guided story in this diagram.","viewer.guide.open":"Open diagram guide","viewer.guide.noStory":"This diagram has no authored guided story.","viewer.finder.title":"Find a node","viewer.finder.close":"Close node finder","viewer.finder.placeholder":"Search labels or IDs","viewer.finder.search":"Search diagram nodes","viewer.finder.results":"Diagram nodes","viewer.finder.empty":"No matching nodes","viewer.finder.result.focus":"Focus {label}","viewer.finder.result.routeStart":"Choose {label} as route start","viewer.finder.result.routeTarget":"Choose {label} as route destination, {links}","viewer.finder.status.empty":"No matching nodes","viewer.finder.status.count.one":"{count} matching node","viewer.finder.status.count.other":"{count} matching nodes","viewer.finder.noun.nodes":"nodes","viewer.finder.link.one":"{count} link","viewer.finder.link.other":"{count} links","viewer.finder.result.focus.one":"Focus {label}, {count} related connection","viewer.finder.result.focus.other":"Focus {label}, {count} related connections","viewer.finder.status.filtered":"{visible} of {available} {noun}","viewer.finder.status.all":"{available} {noun}","viewer.passport.eyebrow":"Semantic passport","viewer.passport.metadata":"Node metadata","viewer.passport.evidence":"Verified source evidence","viewer.passport.verified":"Verified source","viewer.passport.verificationScope":"Verified against local Git at the pinned revision. Remote access has not been checked.","viewer.passport.reach":"Authored reach","viewer.passport.reach.trace":"Trace authored reachability","viewer.passport.upstream":"Upstream","viewer.passport.downstream":"Downstream","viewer.passport.upstream.trace":"Trace upstream authored reachability","viewer.passport.downstream.trace":"Trace downstream authored reachability","viewer.passport.close":"Close semantic passport","viewer.passport.copy":"Copy link","viewer.passport.copy.focus":"Copy link to focused node","viewer.passport.relations":"Relations","viewer.passport.relations.show":"Show connected relationships","viewer.passport.relations.hide":"Hide connected relationships","viewer.passport.relations.list":"Connected relationships","viewer.passport.copyRelation":"Copy relation","viewer.passport.copyNode":"Copy node","viewer.passport.copyPinned":"Copy link to pinned relationship","viewer.passport.copySource":"Copy link to source node","viewer.passport.copy.focused.success":"Focused node link copied","viewer.passport.copy.pinned.success":"Pinned relationship link copied","viewer.passport.copy.focused.failed":"Could not copy focused node link","viewer.passport.copy.pinned.failed":"Could not copy pinned relationship link","viewer.passport.relationship.none":"No connected relationships","viewer.passport.relationship.count.one":"{count} relation","viewer.passport.relationship.count.other":"{count} relations","viewer.passport.relationship.show.one":"Show {count} connected relationship","viewer.passport.relationship.show.other":"Show {count} connected relationships","viewer.passport.relationship.summary":"{out} outgoing · {in} incoming{loops}","viewer.passport.relationship.loops":" · {count} loop","viewer.passport.relationship.explorer":"Direct relationship explorer","viewer.passport.relationship.help":"Use arrow keys to explore relationships. Press Enter or Space to pin details; Escape clears.","viewer.passport.relationship.loopsBack":"loops back","viewer.passport.relationship.connectsTo":"connects to","viewer.passport.relationship.connectsFrom":"connects from","viewer.passport.relationship.pinned":"Pinned relationship · {from} → {to} · {label}","viewer.passport.relationship.inspect":"Inspect relationship {index} of {total}: {from} to {to}, {label}. Press Enter for details.","viewer.passport.relationship.group.out":"Outgoing","viewer.passport.relationship.group.in":"Incoming","viewer.passport.relationship.group.loop":"Self loops","viewer.passport.relationship.row":"{group}: {relationship}, {neighbor}","viewer.passport.relationship.direction.out":"OUT →","viewer.passport.relationship.direction.in":"← IN","viewer.passport.relationship.direction.loop":"LOOP","viewer.passport.sourceCount.one":"{count} verified source reference","viewer.passport.sourceCount.other":"{count} verified source references","viewer.passport.sourceMarker":"SRC","viewer.passport.beacon.one":"{count} verified source; focus this node to inspect","viewer.passport.beacon.other":"{count} verified sources; focus this node to inspect","viewer.passport.repository.open":"Open verified repository revision {revision}","viewer.passport.source.open":"Open verified source {path} at revision {revision}","viewer.passport.source.openLink":"Open ↗","viewer.passport.reach.upstream.one":"Trace {count} upstream authored node","viewer.passport.reach.upstream.other":"Trace {count} upstream authored nodes","viewer.passport.reach.downstream.one":"Trace {count} downstream authored node","viewer.passport.reach.downstream.other":"Trace {count} downstream authored nodes","viewer.passport.reach.noUpstream":"No upstream authored nodes","viewer.passport.reach.noDownstream":"No downstream authored nodes","viewer.passport.reach.status":"{direction} · {nodes} nodes · {links} links · max {hops} hops","viewer.route.eyebrow":"Route probe","viewer.route.start":"Choose a start node","viewer.route.start.find":"Find start","viewer.route.start.find.aria":"Find a route start","viewer.route.copy":"Copy link","viewer.route.copy.aria":"Copy link to traced route","viewer.route.clear":"Clear","viewer.route.clear.aria":"Clear route probe","viewer.route.traced":"Traced route","viewer.route.pickTwo":"Pick two semantic nodes on the diagram","viewer.route.pickOne":"Pick a semantic node on the diagram","viewer.route.controls":"Route journey controls","viewer.route.previous":"Previous route position","viewer.route.play":"Play route journey","viewer.route.pause":"Pause route journey","viewer.route.replay":"Replay route journey","viewer.route.next":"Next route position","viewer.route.journey":"Journey","viewer.route.pause.label":"Pause","viewer.route.replay.label":"Replay","viewer.route.overview":"Overview","viewer.route.overview.aria":"Show complete route overview","viewer.route.instructions":"Choose the source, then the destination. Direction matters.","viewer.route.destination":"Choose a destination from {label}","viewer.route.destination.find":"Find target","viewer.route.destination.find.aria":"Find a reachable route destination","viewer.route.differentDestination":"Choose a different destination","viewer.route.distinct":"A route needs two distinct semantic nodes.","viewer.route.unreachable":"No directed route to {label}","viewer.route.unreachable.detail":"{target} is not reachable from {source}. Pick a highlighted destination.","viewer.route.start.instructions":"Select the source. The next step will reveal only directed destinations.","viewer.route.copy.success":"Traced route link copied","viewer.route.copy.failed":"Could not copy traced route link","viewer.route.position":"Route position {index} of {total}: {label}","viewer.route.step":"Step {index} of {total} · {phase} · {label}","viewer.route.motionRequired":"Automatic journey requires Live motion","viewer.route.trigger.clear":"Clear traced route","viewer.route.overview.status":"{nodes} · {hops} · shortest authored route","viewer.route.overview.node.one":"{count} node","viewer.route.overview.node.other":"{count} nodes","viewer.route.overview.hop.one":"{count} directed hop","viewer.route.overview.hop.other":"{count} directed hops","viewer.route.phase.playing":"Playing","viewer.route.phase.complete":"Complete","viewer.route.phase.inspecting":"Inspecting","viewer.route.destination.count.one":"{count} directed destination available. Pick a highlighted node.","viewer.route.destination.count.other":"{count} directed destinations available. Pick a highlighted node.","viewer.route.noOutgoing":"No outgoing route starts here. Clear and choose another source.","viewer.route.result.title":"{source} to {target}","viewer.route.finder.source.title":"Choose route start","viewer.route.finder.source.placeholder":"Search route sources","viewer.route.finder.source.empty":"No matching route sources","viewer.route.finder.source.results":"Nodes that can start a route","viewer.route.finder.source.noun":"route sources","viewer.route.finder.source.badge":"start","viewer.route.finder.target.title":"Destination from {label}","viewer.route.finder.target.placeholder":"Search reachable destinations","viewer.route.finder.target.empty":"No matching reachable destinations","viewer.route.finder.target.results":"Reachable route destinations","viewer.route.finder.target.noun":"reachable destinations","viewer.route.hop.one":"{count} hop","viewer.route.hop.other":"{count} hops","viewer.lens.eyebrow":"Semantic lens","viewer.lens.title":"Compare system roles","viewer.lens.close":"Close semantic lens","viewer.lens.instruction":"Choose up to two semantic kinds. One reveals its real traffic; two compare only direct authored relationships.","viewer.lens.kinds":"Semantic kinds","viewer.lens.choose":"Choose a kind to inspect its nodes and touching relationships.","viewer.lens.copy":"Copy link to semantic lens","viewer.lens.clear":"Clear semantic lens","viewer.lens.open":"Open semantic lens","viewer.lens.openActive":"Open active semantic lens","viewer.lens.legend":"Semantic legend","viewer.lens.legend.inspect.one":"Inspect {label}, {count} node","viewer.lens.legend.inspect.other":"Inspect {label}, {count} nodes","viewer.lens.kind.count.one":"{label}, {count} node","viewer.lens.kind.count.other":"{label}, {count} nodes","viewer.lens.compare.one":"{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direct relationship","viewer.lens.compare.other":"{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direct relationships","viewer.lens.single":"{nodes} · {relationships} · connected peers remain visible","viewer.lens.node.one":"{count} {label} node","viewer.lens.node.other":"{count} {label} nodes","viewer.lens.relationship.one":"{count} touching relationship","viewer.lens.relationship.other":"{count} touching relationships","viewer.radar.title":"Semantic radar","viewer.radar.building":"Building overview","viewer.radar.openFull":"Open full semantic radar","viewer.radar.open":"Open radar","viewer.radar.close":"Close semantic radar","viewer.radar.surface":"Diagram overview. Click a node to focus it, or use arrow keys to pan.","viewer.radar.click":"Click node","viewer.radar.drag":"Drag to pan","viewer.radar.space":"Semantic radar needs more MAP space.","viewer.radar.nodes":"Semantic diagram radar nodes","viewer.radar.focus":"Focus {label} from Semantic Radar","viewer.radar.status":"{count} nodes · {viewport}","viewer.radar.fullMap":"{count} nodes · full map","viewer.radar.compacted":"Radar compacted to avoid covering the Semantic Passport or MAP controls.","viewer.radar.cancelWaiting":"Cancel semantic radar waiting for more MAP space","viewer.radar.needsSpace":"Semantic radar needs more visible MAP space","viewer.radar.viewport.full":"full map","viewer.radar.viewport.width":"{percent}% width","viewer.radar.viewport.scale":"{percent}% viewport","viewer.nav.controls":"Diagram view controls","viewer.nav.route":"Trace a directed route","viewer.nav.route.title":"Trace route (R)","viewer.nav.route.short":"PATH","viewer.nav.radar":"Open semantic radar","viewer.nav.radar.title":"Semantic radar (M)","viewer.nav.radar.short":"MAP","viewer.nav.lens":"Open semantic lens","viewer.nav.lens.title":"Semantic lens (L)","viewer.nav.lens.short":"LENS","viewer.nav.find":"Find a node","viewer.nav.find.title":"Find a node (/)","viewer.nav.guide":"Open diagram guide","viewer.nav.guide.title":"Diagram guide (?)","viewer.nav.zoomOut":"Zoom out","viewer.nav.zoomOut.title":"Zoom out (-)","viewer.nav.reset":"Reset diagram view","viewer.nav.reset.title":"Reset view (0)","viewer.nav.read":"READ","viewer.nav.zoomIn":"Zoom in","viewer.nav.zoomIn.title":"Zoom in (+)","viewer.nav.camera":"{hint}. Reset diagram view","viewer.nav.camera.title":"{semantic}{hint} · reset view (0)","viewer.nav.camera.semantic":"Semantic camera active · ","viewer.nav.level.map":"MAP","viewer.nav.level.read":"READ","viewer.nav.level.full":"FULL","viewer.nav.level.auto":"AUTO","viewer.nav.detail.map":"Zoom in to reveal relationship labels and node context","viewer.nav.detail.read":"Zoom in again to reveal tags and annotations","viewer.nav.detail.full":"Full diagram detail","viewer.intent.summary":"{label}. {out} outgoing, {in} incoming{loops}. {total} connections. Press Enter for details.","viewer.intent.loops":", {count} self loop","viewer.common.copied":"Copied","viewer.common.copyFailed":"Copy failed","viewer.common.copyLink":"Copy link","viewer.common.clear":"Clear","viewer.common.close":"Close"}}</script>
+     <div class="guided-views no-print" id="guided-views" hidden aria-label="Guided diagram views">
+@@ -5180,7 +5180,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
+         <path data-edge-from="ws_private" data-edge-to="user_stream" data-edge-label="order + account events" data-edge-key="5" data-edge-id="private_frames" data-composition-points="175,385;240,385" d="M 175 385 L 240 385" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+         <path data-edge-from="user_stream" data-edge-to="event_parser" data-edge-label="ORDER_TRADE_UPDATE" data-edge-key="6" data-edge-id="event_dicts" data-composition-points="390,385;455,385" d="M 390 385 L 455 385" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+         <path data-edge-from="event_parser" data-edge-to="sqlite" data-edge-label="OrderEvent rows" data-edge-key="7" data-edge-id="events_store" data-composition-points="605,385;637.5,385;637.5,278;670,278" d="M 605 385 L 637.5 385 L 637.5 278 L 670 278" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+-        <path data-edge-from="rest_client" data-edge-to="order_guard" data-edge-label="filters + account (planned)" data-edge-key="8" data-edge-id="guard_inputs" data-composition-points="390,271;455,271" d="M 390 271 L 455 271" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
++        <path data-edge-from="rest_client" data-edge-to="order_guard" data-edge-label="filters + account" data-edge-key="8" data-edge-id="guard_inputs" data-composition-points="390,271;455,271" d="M 390 271 L 455 271" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+         <path data-edge-from="sqlite" data-edge-to="strategy" data-edge-label="ticks + order state" data-edge-key="9" data-edge-id="strategy_read" data-composition-points="820,264;852.5,264;852.5,157;885,157" d="M 820 264 L 852.5 264 L 852.5 157 L 885 157" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+         <path data-edge-from="sqlite" data-edge-to="cli" data-edge-label="order-events + status JSON" data-edge-key="10" data-edge-id="cli_read" data-composition-points="820,278;852.5,278;852.5,385;885,385" d="M 820 278 L 852.5 278 L 852.5 385 L 885 385" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+ 
+@@ -5248,15 +5248,15 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
+         <text data-detail="fine" x="315" y="289" class="t-backend" font-size="7" text-anchor="middle">HTTP</text>
+         </g>
+ 
+-        <g id="node-user_stream" data-node-id="user_stream" data-node-label="User Stream Client" tabindex="0" role="button" aria-label="Focus User Stream Client, fresh key · keepalive, 02 / Acquire" aria-pressed="false" data-node-kind="backend" data-node-sublabel="fresh key · keepalive" data-node-tag="websocket" data-node-context="02 / Acquire">
+-          <title>User Stream Client · fresh key · keepalive · 02 / Acquire · websocket</title>
++        <g id="node-user_stream" data-node-id="user_stream" data-node-label="User Stream Client" tabindex="0" role="button" aria-label="Focus User Stream Client, account key · keepalive, 02 / Acquire" aria-pressed="false" data-node-kind="backend" data-node-sublabel="account key · keepalive" data-node-tag="websocket" data-node-context="02 / Acquire">
++          <title>User Stream Client · account key · keepalive · 02 / Acquire · websocket</title>
+           <rect x="240" y="356" width="150" height="58" rx="6" class="c-mask"/>
+           <rect x="240" y="356" width="150" height="58" rx="6" class="c-backend" stroke-width="1.5"/>
+           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(246 362) scale(0.6875)">
+             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+           </g>
+           <text data-node-label="" data-detail-anchor="" x="315" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">User Stream Client</text>
+-          <text data-detail="context" x="315" y="393" class="t-muted" font-size="7" text-anchor="middle">fresh key · keepalive</text>
++          <text data-detail="context" x="315" y="393" class="t-muted" font-size="7" text-anchor="middle">account key · keepalive</text>
+         <text data-detail="fine" x="315" y="403" class="t-backend" font-size="7" text-anchor="middle">websocket</text>
+         </g>
+ 
+@@ -5272,16 +5272,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
+         <text data-detail="fine" x="530" y="175" class="t-backend" font-size="7" text-anchor="middle">normalize</text>
+         </g>
+ 
+-        <g id="node-order_guard" data-node-id="order_guard" data-node-label="Order Guard (planned)" tabindex="0" role="button" aria-label="Focus Order Guard (planned), dry-run · fail closed, 03 / Normalize &amp; Guard" aria-pressed="false" data-node-kind="security" data-node-sublabel="dry-run · fail closed" data-node-tag="live gate" data-node-context="03 / Normalize &amp; Guard">
+-          <title>Order Guard (planned) · dry-run · fail closed · 03 / Normalize &amp; Guard · live gate</title>
++        <g id="node-order_guard" data-node-id="order_guard" data-node-label="Order Guard" tabindex="0" role="button" aria-label="Focus Order Guard, metadata · fail closed, 03 / Normalize &amp; Guard" aria-pressed="false" data-node-kind="security" data-node-sublabel="metadata · fail closed" data-node-tag="live gate" data-node-context="03 / Normalize &amp; Guard">
++          <title>Order Guard · metadata · fail closed · 03 / Normalize &amp; Guard · live gate</title>
+           <rect x="455" y="242" width="150" height="58" rx="6" class="c-mask"/>
+           <rect x="455" y="242" width="150" height="58" rx="6" class="c-security" stroke-width="1.5"/>
+           <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(461 248) scale(0.6875)">
+             <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
+             <path d="m5.8 8 1.5 1.5 3-3"/>
+           </g>
+-          <text data-node-label="" data-detail-anchor="" x="530" y="263" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Order Guard (planned)</text>
+-          <text data-detail="context" x="530" y="279" class="t-muted" font-size="7" text-anchor="middle">dry-run · fail closed</text>
++          <text data-node-label="" data-detail-anchor="" x="530" y="263" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">Order Guard</text>
++          <text data-detail="context" x="530" y="279" class="t-muted" font-size="7" text-anchor="middle">metadata · fail closed</text>
+         <text data-detail="fine" x="530" y="289" class="t-security" font-size="7" text-anchor="middle">live gate</text>
+         </g>
+ 
+@@ -5378,9 +5378,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
+           <text x="637.5" y="321.5" class="t-backend" font-size="8" text-anchor="middle">OrderEvent rows</text>
+         <text data-detail="fine" x="637.5" y="332.5" class="t-dim" font-size="7" text-anchor="middle">order_events</text>
+         </g>
+-        <g data-detail="context" data-edge-from="rest_client" data-edge-to="order_guard" data-edge-label="filters + account (planned)" data-edge-key="8" data-edge-id="guard_inputs">
+-          <rect x="371.85" y="305" width="144.3" height="27" rx="4" class="c-mask"/>
+-          <text x="444" y="316" class="t-messagebus" font-size="8" text-anchor="middle">filters + account (planned)</text>
++        <g data-detail="context" data-edge-from="rest_client" data-edge-to="order_guard" data-edge-label="filters + account" data-edge-key="8" data-edge-id="guard_inputs">
++          <rect x="396.35" y="305" width="95.3" height="27" rx="4" class="c-mask"/>
++          <text x="444" y="316" class="t-messagebus" font-size="8" text-anchor="middle">filters + account</text>
+         <text data-detail="fine" x="444" y="327" class="t-dim" font-size="7" text-anchor="middle">verification</text>
+         </g>
+         <g data-detail="context" data-edge-from="sqlite" data-edge-to="strategy" data-edge-label="ticks + order state" data-edge-key="9" data-edge-id="strategy_read">
+@@ -5623,7 +5623,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
+         </div>
+         <ul>
+           <li>&bull; client.py owns listenKey create / keepalive / close</li>
+-          <li>&bull; User stream mints a key per connection; reconnects on listenKeyExpired</li>
++          <li>&bull; User stream requests an account key per connection; reconnects on listenKeyExpired</li>
+           <li>&bull; storage.py order_events keeps ids, status, fills, raw payload</li>
+         </ul>
+       </div>
+@@ -5634,9 +5634,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
+           <h3>Trading Path Boundary</h3>
+         </div>
+         <ul>
+-          <li>&bull; No Binance order placement yet; dashed elements are the next iteration</li>
+-          <li>&bull; Guard: dry-run default, MIN_NOTIONAL / tick / step filters, fail closed</li>
+-          <li>&bull; Server-side STOP_MARKET and TRAILING_STOP_MARKET are trailing candidates</li>
++          <li>&bull; Order placement is implemented; automated strategy execution remains planned</li>
++          <li>&bull; Guard: explicit dry-run, MIN_NOTIONAL / tick / step filters, fail closed</li>
++          <li>&bull; Server-side STOP_MARKET and TRAILING_STOP_MARKET use the Algo Order API</li>
+         </ul>
+       </div>
+     </div>
+diff --git a/docs/architecture/binance-trading-data-flow.json b/docs/architecture/binance-trading-data-flow.json
+index e9c6447..303a8b1 100644
+--- a/docs/architecture/binance-trading-data-flow.json
++++ b/docs/architecture/binance-trading-data-flow.json
+@@ -38,7 +38,7 @@
+       },
+       {
+         "id": "trading",
+-        "label": "Trading path (next iteration)",
++        "label": "Trading path",
+         "focus": [
+           "binance_rest",
+           "rest_client",
+@@ -46,7 +46,7 @@
+           "sqlite",
+           "strategy"
+         ],
+-        "note": "Signed orders will pass the fail-closed guard, exit via BinanceFuturesClient, and be audited; not implemented yet."
++        "note": "Signed orders pass guards and REST; private events provide subsequent order updates."
+       }
+     ]
+   },
+@@ -72,7 +72,7 @@
+       "id": "ws_market",
+       "type": "external",
+       "label": "WS /market + /public",
+-      "sublabel": "mark · book · kline · trades",
++      "sublabel": "mark \u00b7 book \u00b7 kline \u00b7 trades",
+       "stage": 0,
+       "row": 0,
+       "width": 150,
+@@ -82,7 +82,7 @@
+       "id": "binance_rest",
+       "type": "external",
+       "label": "REST /fapi",
+-      "sublabel": "filters · listenKey · orders",
++      "sublabel": "filters \u00b7 listenKey \u00b7 orders",
+       "stage": 0,
+       "row": 1,
+       "width": 150,
+@@ -112,7 +112,7 @@
+       "id": "rest_client",
+       "type": "backend",
+       "label": "BinanceFuturesClient",
+-      "sublabel": "HMAC signed · listenKey",
++      "sublabel": "HMAC signed \u00b7 listenKey",
+       "stage": 1,
+       "row": 1,
+       "width": 150,
+@@ -122,7 +122,7 @@
+       "id": "user_stream",
+       "type": "backend",
+       "label": "User Stream Client",
+-      "sublabel": "fresh key · keepalive",
++      "sublabel": "account key \u00b7 keepalive",
+       "stage": 1,
+       "row": 2,
+       "width": 150,
+@@ -141,8 +141,8 @@
+     {
+       "id": "order_guard",
+       "type": "security",
+-      "label": "Order Guard (planned)",
+-      "sublabel": "dry-run · fail closed",
++      "label": "Order Guard",
++      "sublabel": "metadata \u00b7 fail closed",
+       "stage": 2,
+       "row": 1,
+       "width": 150,
+@@ -162,7 +162,7 @@
+       "id": "sqlite",
+       "type": "database",
+       "label": "SQLite",
+-      "sublabel": "ticks · events · orders",
++      "sublabel": "ticks \u00b7 events \u00b7 orders",
+       "stage": 3,
+       "row": 1,
+       "width": 150,
+@@ -172,7 +172,7 @@
+       "id": "strategy",
+       "type": "backend",
+       "label": "Strategy (planned)",
+-      "sublabel": "BTC 3H · trailing stops",
++      "sublabel": "BTC 3H \u00b7 trailing stops",
+       "stage": 4,
+       "row": 0,
+       "width": 150,
+@@ -226,7 +226,7 @@
+       "id": "rest_reads",
+       "from": "binance_rest",
+       "to": "rest_client",
+-      "label": "filters · listenKey · account",
++      "label": "filters \u00b7 listenKey \u00b7 account",
+       "classification": "JSON",
+       "labelAt": [
+         190,
+@@ -281,7 +281,7 @@
+       "id": "guard_inputs",
+       "from": "rest_client",
+       "to": "order_guard",
+-      "label": "filters + account (planned)",
++      "label": "filters + account",
+       "classification": "verification",
+       "variant": "dashed",
+       "labelAt": [
+@@ -310,7 +310,7 @@
+       "dot": "cyan",
+       "title": "Market Stream Evidence",
+       "items": [
+-        "ws.py stream_route(): bookTicker/depth → /public, others → /market",
++        "ws.py stream_route(): bookTicker/depth \u2192 /public, others \u2192 /market",
+         "parse_market_ticks() maps mark, book, kline, aggTrade to PriceTick",
+         "binance-stream stores ticks as source=binance, market=usdm_futures"
+       ]
+@@ -320,7 +320,7 @@
+       "title": "Order Event Evidence",
+       "items": [
+         "client.py owns listenKey create / keepalive / close",
+-        "User stream mints a key per connection; reconnects on listenKeyExpired",
++        "User stream requests an account key per connection; reconnects on listenKeyExpired",
+         "storage.py order_events keeps ids, status, fills, raw payload"
+       ]
+     },
+@@ -328,9 +328,9 @@
+       "dot": "orange",
+       "title": "Trading Path Boundary",
+       "items": [
+-        "No Binance order placement yet; dashed elements are the next iteration",
+-        "Guard: dry-run default, MIN_NOTIONAL / tick / step filters, fail closed",
+-        "Server-side STOP_MARKET and TRAILING_STOP_MARKET are trailing candidates"
++        "Order placement is implemented; automated strategy execution remains planned",
++        "Guard: explicit dry-run, MIN_NOTIONAL / tick / step filters, fail closed",
++        "Server-side STOP_MARKET and TRAILING_STOP_MARKET use the Algo Order API"
+       ]
+     }
+   ]
+diff --git a/docs/trading-operations.md b/docs/trading-operations.md
+index 22c2233..1e6efba 100644
+--- a/docs/trading-operations.md
++++ b/docs/trading-operations.md
+@@ -684,3 +684,11 @@ through this routing were verified for KORU. Order acceptance does not prove
+ trigger-time fill quality. The explicitly authorized local account supervisor is
+ operated separately from the conversation; runtime evidence belongs in the local
+ SQLite state and `data/koru-management/`, not in a policy-level coverage claim.
++
++## Binance raw command boundary
++
++`binance-trade`, `binance-stop` and `binance-cancel` are manual execution primitives, outside managed trade plans, plan risk caps, pause-entries, supervisor ownership and journal/account integration. They send by default; use `--dry-run` for previews. Live eligibility is restricted to BTCUSDT and checked against current COIN/PERPETUAL/TRADING metadata. The environment allowlist can narrow support, not extend it.
++
++The local lock coordinates one API key; distinct keys for the same exchange account are not mutually excluded. Position checks are snapshots, not atomic guarantees against other account writers. Conditional-order rows are audit records, not independently verified remaining coverage. `ALGO_UPDATE` and child-order reconciliation are not implemented: unresolved orders require operator investigation. Do not resubmit unresolved orders even with the same client ID. Submission records are written after requests, so recover interrupted attempts from exchange state before further execution.
++
++Use a separate database per environment and key profile as described in the [data capture boundaries](architecture.md#binance-integration-boundaries). Algo cancellation remains fail closed if the exchange no longer retains the order needed for symbol verification.
+diff --git a/kis_hl/binance/client.py b/kis_hl/binance/client.py
+index ba0b5e1..3afb444 100644
+--- a/kis_hl/binance/client.py
++++ b/kis_hl/binance/client.py
+@@ -124,7 +124,7 @@ class BinanceFuturesClient:
+         if not self.config.api_key or (need_secret and not self.config.api_secret):
+             raise RuntimeError(
+                 "Binance credentials are missing for the selected key profile; "
+-                "set BINANCE_APIKEY/BINANCE_SECRET or PRO_BINANCE_APIKEY/PRO_BINANCE_SECRET"
++                "set BINANCE_APIKEY/BINANCE_SECRET, PRO_BINANCE_APIKEY/PRO_BINANCE_SECRET, or DEMO_BINANCE_APIKEY/DEMO_BINANCE_SECRET"
+             )
+ 
+     # ---- public market data ---------------------------------------------------------
+@@ -266,6 +266,7 @@ def normalize_symbol_filters(entry: dict[str, Any]) -> dict[str, Any]:
+         "symbol": entry.get("symbol"),
+         "status": entry.get("status"),
+         "contract_type": entry.get("contractType"),
++        "underlying_type": entry.get("underlyingType"),
+         "price_precision": int(entry.get("pricePrecision", 0)),
+         "quantity_precision": int(entry.get("quantityPrecision", 0)),
+         "tick_size": _decimal_or_none(price.get("tickSize")),
+diff --git a/kis_hl/binance/trading.py b/kis_hl/binance/trading.py
+index 85ceebb..89eba1e 100644
+--- a/kis_hl/binance/trading.py
++++ b/kis_hl/binance/trading.py
+@@ -32,6 +32,7 @@ CANCELED_STATES = frozenset({"CANCELED", "CANCELLED"})
+ # matched as " -1007/" (no word boundary: space and '-' are both non-word characters).
+ UNKNOWN_OUTCOME_RE = re.compile(r"HTTP (?:5\d\d|408)\b|\s-1007/|Unknown error|status unknown", re.IGNORECASE)
+ 
++SUPPORTED_LIVE_SYMBOLS = frozenset({"BTCUSDT"})
+ SIDES = ("BUY", "SELL")
+ ENTRY_TYPES = ("MARKET", "LIMIT")
+ TIME_IN_FORCE = ("GTC", "IOC", "FOK", "GTX")
+@@ -115,6 +116,8 @@ class BinanceTradingClient(BinanceFuturesClient):
+             raise ValueError("LIMIT orders require price")
+         if order_type == "MARKET" and price is not None:
+             raise ValueError("MARKET orders must not set price")
++        if order_type == "MARKET" and tif != "GTC":
++            raise ValueError("MARKET orders must not set time-in-force")
+         client_order_id = _client_order_id(client_order_id)
+ 
+         rules = filters or self.symbol_filters(symbol)
+@@ -239,8 +242,8 @@ class BinanceTradingClient(BinanceFuturesClient):
+         dry_run: bool = True,
+     ) -> BinanceOrderSubmission:
+         symbol = _symbol(symbol)
+-        if order_id is None and not client_order_id:
+-            raise ValueError("cancel_order requires order_id or client_order_id")
++        if (order_id is None) == (not client_order_id):
++            raise ValueError("cancel_order requires exactly one of order_id or client_order_id")
+         params: dict[str, Any] = {"symbol": symbol}
+         if client_order_id:
+             params["origClientOrderId"] = client_order_id
+@@ -258,8 +261,8 @@ class BinanceTradingClient(BinanceFuturesClient):
+     ) -> BinanceOrderSubmission:
+         """Cancel a conditional (algo) order; the endpoint identifies it by algoId or clientAlgoId."""
+         symbol = _symbol(symbol)
+-        if algo_id is None and not client_algo_id:
+-            raise ValueError("cancel_algo_order requires algo_id or client_algo_id")
++        if (algo_id is None) == (not client_algo_id):
++            raise ValueError("cancel_algo_order requires exactly one of algo_id or client_algo_id")
+         params: dict[str, Any] = {"clientAlgoId": client_algo_id} if client_algo_id else {"algoId": int(algo_id)}  # type: ignore[arg-type]
+         if not dry_run:
+             # The delete request carries no symbol, so the allowlist can only be enforced against the
+@@ -320,9 +323,23 @@ class BinanceTradingClient(BinanceFuturesClient):
+ 
+         self._require_live_symbol(symbol)
+         self._require_credentials(need_secret=True)
++        if method == "POST":
++            metadata = self.symbol_filters(symbol)
++            if (metadata.get("symbol") != symbol or metadata.get("status") != "TRADING"
++                    or metadata.get("contract_type") != "PERPETUAL" or metadata.get("underlying_type") != "COIN"):
++                raise RuntimeError("Binance metadata must confirm a trading COIN perpetual before live placement")
+         if method == "POST" and self.position_mode_is_hedge():
+             raise RuntimeError("Binance account is in hedge (dual-side) position mode; live orders require one-way mode")
+         with account_lock(self.config.base_url, self.config.api_key):
++            if method == "POST" and path == ALGO_ORDER_PATH:
++                positions = self.position_risk(symbol)
++                matches = [p for p in positions if p.get("symbol") == symbol and p.get("positionSide") == "BOTH"] if isinstance(positions, list) else []
++                amount = _optional_decimal(matches[0].get("positionAmt")) if len(matches) == 1 else None
++                if amount is None or not amount.is_finite() or amount == 0 or (amount > 0) != (params["side"] == "SELL"):
++                    raise RuntimeError("Protective order requires a matching nonzero one-way position")
++                if "quantity" in params and Decimal(params["quantity"]) != abs(amount):
++                    raise RuntimeError("Protective order quantity must match full position coverage")
++                request["verified_position_amount"] = str(amount)
+             try:
+                 response = self._request(method, path, params, signed=True)
+             except RuntimeError as exc:
+@@ -336,7 +353,13 @@ class BinanceTradingClient(BinanceFuturesClient):
+             "binance_order_submitted",
+             extra={"symbol": symbol, "type": params.get("type"), "order_id": extract_binance_order_id(response)},
+         )
+-        return BinanceOrderSubmission("submitted", False, symbol, request, response)
++        status = "submitted"
++        if method == "POST" and isinstance(response, dict):
++            state = str(response.get("algoStatus") or response.get("status") or "").upper()
++            executed = _optional_decimal(response.get("executedQty"))
++            if state in TERMINAL_FAILED_STATES and not (executed is not None and executed > 0):
++                status = "rejected"
++        return BinanceOrderSubmission(status, False, symbol, request, response)
+ 
+     def _resolve_unknown(
+         self,
+@@ -396,6 +419,8 @@ class BinanceTradingClient(BinanceFuturesClient):
+         return mark_price if mark_price is not None else self._mark_price(symbol)
+ 
+     def _require_live_symbol(self, symbol: str) -> None:
++        if symbol not in SUPPORTED_LIVE_SYMBOLS:
++            raise RuntimeError(f"Live Binance symbol {symbol} is not supported by BINANCE_LIVE_SYMBOLS; supported symbols: {sorted(SUPPORTED_LIVE_SYMBOLS)}")
+         if symbol not in self.config.live_symbols:
+             raise RuntimeError(
+                 f"Live Binance orders are limited to BINANCE_LIVE_SYMBOLS {list(self.config.live_symbols)}; got {symbol}"
+@@ -474,9 +499,12 @@ def _round_price(price: Decimal, rules: dict[str, Any], *, side: str) -> Decimal
+     (protecting a short) trigger slightly earlier, which is the conservative direction.
+     """
+     tick = rules.get("tick_size")
+-    if not tick:
+-        return price
+-    return round_to_step(price, tick, rounding=ROUND_DOWN if side == "BUY" else ROUND_UP)
++    rounded = round_to_step(price, tick, rounding=ROUND_DOWN if side == "BUY" else ROUND_UP) if tick else price
++    for key, violates in (("min_price", lambda bound: rounded < bound), ("max_price", lambda bound: rounded > bound)):
++        bound = rules.get(key)
++        if bound is not None and bound > 0 and violates(bound):
++            raise ValueError(f"price {rounded} violates {key} {bound}")
++    return rounded
+ 
+ 
+ def _require_notional(qty: Decimal, price: Decimal, rules: dict[str, Any]) -> None:
+diff --git a/kis_hl/cli.py b/kis_hl/cli.py
+index 93e1b7e..e144f09 100644
+--- a/kis_hl/cli.py
++++ b/kis_hl/cli.py
+@@ -124,6 +124,8 @@ def main(argv: list[str] | None = None) -> int:
+         return 1
+     if result is not None:
+         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True, default=str))
++        if args.command in {"binance-trade", "binance-stop", "binance-cancel"}:
++            return {"rejected": 2, "unknown": 3}.get(result.get("status"), 0)
+     return 0
+ 
+ 
+@@ -312,7 +314,7 @@ def build_parser() -> argparse.ArgumentParser:
+ 
+     binance_trade = sub.add_parser(
+         "binance-trade",
+-        help="Place a Binance USD(S)-M futures entry order (dry-run by default; --live to send)",
++        help="Place a Binance USD(S)-M futures entry order (live by default; --dry-run to validate)",
+     )
+     binance_trade.add_argument("--symbol", default="BTCUSDT")
+     binance_trade.add_argument("--side", choices=["buy", "sell"], required=True)
+@@ -322,8 +324,10 @@ def build_parser() -> argparse.ArgumentParser:
+     binance_trade.add_argument("--tif", default="GTC", help="GTC, IOC, FOK, or GTX (post-only)")
+     binance_trade.add_argument("--reduce-only", action="store_true")
+     binance_trade.add_argument("--client-order-id", help="newClientOrderId; generated when omitted")
+-    binance_trade.add_argument("--live", action="store_true", help="Send the signed order")
+-    binance_trade.add_argument(
++    trade_mode = binance_trade.add_mutually_exclusive_group()
++    trade_mode.add_argument("--dry-run", action="store_true", help="Validate without sending a signed order")
++    trade_mode.add_argument("--live", action="store_true", help="Send the signed request (default)")
++    trade_mode.add_argument(
+         "--exchange-test",
+         action="store_true",
+         help="Validate on the exchange via /fapi/v1/order/test without placing (needs credentials)",
+@@ -333,7 +337,7 @@ def build_parser() -> argparse.ArgumentParser:
+ 
+     binance_stop = sub.add_parser(
+         "binance-stop",
+-        help="Place a Binance server-side STOP_MARKET or TRAILING_STOP_MARKET (dry-run by default)",
++        help="Place a Binance server-side STOP_MARKET or TRAILING_STOP_MARKET (live by default; use --dry-run)",
+     )
+     binance_stop.add_argument("--symbol", default="BTCUSDT")
+     binance_stop.add_argument("--side", choices=["buy", "sell"], required=True, help="sell protects a long, buy protects a short")
+@@ -345,18 +349,23 @@ def build_parser() -> argparse.ArgumentParser:
+     binance_stop.add_argument("--working-type", default="MARK_PRICE", help="MARK_PRICE or CONTRACT_PRICE")
+     binance_stop.add_argument("--client-order-id")
+     binance_stop.add_argument("--source-submission-id", type=int, help="order_submissions id of the entry this protects")
+-    binance_stop.add_argument("--live", action="store_true", help="Send the signed algo order (no exchange test endpoint exists for conditional orders)")
++    stop_mode = binance_stop.add_mutually_exclusive_group()
++    stop_mode.add_argument("--dry-run", action="store_true", help="Validate without sending a signed order")
++    stop_mode.add_argument("--live", action="store_true", help="Send the signed request (default)")
+     binance_stop.add_argument("--no-store", action="store_true")
+     binance_stop.set_defaults(handler=cmd_binance_stop)
+ 
+-    binance_cancel = sub.add_parser("binance-cancel", help="Cancel a Binance order or algo (conditional) order by id (dry-run by default)")
++    binance_cancel = sub.add_parser("binance-cancel", help="Cancel a Binance order or algo (conditional) order by id (live by default; use --dry-run)")
+     binance_cancel.add_argument("--symbol", default="BTCUSDT")
+-    binance_cancel.add_argument("--order-id", type=int, help="Regular order id")
+-    binance_cancel.add_argument("--client-order-id", help="Regular order client id")
++    regular_ids = binance_cancel.add_mutually_exclusive_group()
++    regular_ids.add_argument("--order-id", type=int, help="Regular order id")
++    regular_ids.add_argument("--client-order-id", help="Regular order client id")
+     algo_ids = binance_cancel.add_mutually_exclusive_group()
+     algo_ids.add_argument("--algo-id", type=int, help="Conditional order algoId (stop / trailing)")
+     algo_ids.add_argument("--client-algo-id", help="Conditional order clientAlgoId")
+-    binance_cancel.add_argument("--live", action="store_true", help="Send the signed cancel")
++    cancel_mode = binance_cancel.add_mutually_exclusive_group()
++    cancel_mode.add_argument("--dry-run", action="store_true", help="Validate without sending a signed order")
++    cancel_mode.add_argument("--live", action="store_true", help="Send the signed request (default)")
+     binance_cancel.add_argument("--no-store", action="store_true")
+     binance_cancel.set_defaults(handler=cmd_binance_cancel)
+ 
+@@ -866,18 +875,25 @@ def cmd_binance_user_stream(args: argparse.Namespace) -> dict[str, Any]:
+     }
+ 
+ 
++def _binance_decimal(value: str, name: str) -> Decimal:
++    try:
++        return Decimal(value)
++    except Exception as exc:
++        raise ValueError(f"--{name} must be a decimal number") from exc
++
++
+ def cmd_binance_trade(args: argparse.Namespace) -> dict[str, Any]:
+     client = BinanceTradingClient(load_binance_config())
+     submission = client.place_order(
+         symbol=args.symbol,
+         side=args.side,
+         order_type=args.order_type,
+-        quantity=Decimal(args.quantity),
+-        price=Decimal(args.price) if args.price else None,
++        quantity=_binance_decimal(args.quantity, "quantity"),
++        price=_binance_decimal(args.price, "price") if args.price else None,
+         tif=args.tif,
+         reduce_only=args.reduce_only,
+         client_order_id=args.client_order_id,
+-        dry_run=not args.live,
++        dry_run=args.dry_run,
+         exchange_test=args.exchange_test,
+     )
+     result = binance_submission_to_dict(submission)
+@@ -893,25 +909,29 @@ def cmd_binance_stop(args: argparse.Namespace) -> dict[str, Any]:
+         "side": args.side,
+         "working_type": args.working_type,
+         "client_order_id": args.client_order_id,
+-        "dry_run": not args.live,
++        "dry_run": args.dry_run,
+     }
+     if args.kind == "stop-market":
++        if args.callback_rate or args.activation_price:
++            raise ValueError("--callback-rate and --activation-price require --kind trailing")
+         if not args.stop_price:
+             raise ValueError("--stop-price is required for --kind stop-market")
+         submission = client.place_stop_market(
+-            stop_price=Decimal(args.stop_price),
+-            quantity=Decimal(args.quantity) if args.quantity else None,
++            stop_price=_binance_decimal(args.stop_price, "stop-price"),
++            quantity=_binance_decimal(args.quantity, "quantity") if args.quantity else None,
+             close_position=not args.quantity,
+             **common,
+         )
+         trigger_price = submission.request["params"]["triggerPrice"]
+     else:
++        if args.stop_price:
++            raise ValueError("--stop-price requires --kind stop-market")
+         if not args.quantity or not args.callback_rate:
+             raise ValueError("--quantity and --callback-rate are required for --kind trailing")
+         submission = client.place_trailing_stop(
+-            quantity=Decimal(args.quantity),
+-            callback_rate=Decimal(args.callback_rate),
+-            activation_price=Decimal(args.activation_price) if args.activation_price else None,
++            quantity=_binance_decimal(args.quantity, "quantity"),
++            callback_rate=_binance_decimal(args.callback_rate, "callback-rate"),
++            activation_price=_binance_decimal(args.activation_price, "activation-price") if args.activation_price else None,
+             **common,
+         )
+         params = submission.request["params"]
+@@ -958,14 +978,14 @@ def cmd_binance_cancel(args: argparse.Namespace) -> dict[str, Any]:
+             symbol=args.symbol,
+             algo_id=args.algo_id,
+             client_algo_id=args.client_algo_id,
+-            dry_run=not args.live,
++            dry_run=args.dry_run,
+         )
+     else:
+         submission = client.cancel_order(
+             symbol=args.symbol,
+             order_id=args.order_id,
+             client_order_id=args.client_order_id,
+-            dry_run=not args.live,
++            dry_run=args.dry_run,
+         )
+     result = binance_submission_to_dict(submission)
+     if not args.no_store:
+diff --git a/reports/sdlc/binance-review-corrections/artifacts.json b/reports/sdlc/binance-review-corrections/artifacts.json
+index 82c5815..cf23623 100644
+--- a/reports/sdlc/binance-review-corrections/artifacts.json
++++ b/reports/sdlc/binance-review-corrections/artifacts.json
+@@ -142,6 +142,12 @@
+       "iteration": 1,
+       "decision": "PROCEED",
+       "reason": "Observed tests and concrete implementation satisfy the PR17 correction subset"
++    },
++    {
++      "at": "2026-09-24T12:11:05.810618+00:00",
++      "action": "iteration-started",
++      "stage": "build",
++      "iteration": 2
+     }
+   ],
+   "stages": {
+@@ -720,10 +726,10 @@
+     },
+     "build": {
+       "applicable": true,
+-      "status": "complete",
+-      "reason": "Observed tests and concrete implementation satisfy the PR17 correction subset",
++      "status": "running",
++      "reason": "",
+       "iteration_limit": 10,
+-      "iterations_started": 1,
++      "iterations_started": 2,
+       "history": [
+         {
+           "iteration": 1,
+@@ -928,13 +934,66 @@
+               ]
+             }
+           }
++        },
++        {
++          "iteration": 2,
++          "started_at": "2026-09-24T12:11:05.810537+00:00",
++          "objective": "Apply PR18 order safety, outcomes, tests and documentation corrections",
++          "resolution": null,
++          "inputs": [
++            {
++              "kind": "triage",
++              "path": "reports/sdlc/binance-review-corrections/triage.md",
++              "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
++            },
++            {
++              "kind": "intent",
++              "path": "reports/sdlc/binance-review-corrections/intent.md",
++              "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
++            },
++            {
++              "kind": "investigation",
++              "path": "reports/sdlc/binance-review-corrections/investigation.md",
++              "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
++            },
++            {
++              "kind": "spec",
++              "path": "reports/sdlc/binance-review-corrections/spec.md",
++              "sha256": "ea1b2aab315623d7928b1ca48273f435a4b7b6843a4a481851d5aa194292da74"
++            },
++            {
++              "kind": "design-source",
++              "path": "docs/architecture/binance-user-stream-sequence.json",
++              "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
++            },
++            {
++              "kind": "design-html",
++              "path": "docs/architecture/binance-user-stream-sequence.html",
++              "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
++            },
++            {
++              "kind": "design-validation",
++              "path": "docs/architecture/binance-user-stream-sequence.visual-check.json",
++              "sha256": "c7308af00508d767566e2ccc352f187ddc88692df32f524cf5f453c77a6bc109"
++            },
++            {
++              "kind": "plan",
++              "path": "reports/sdlc/binance-review-corrections/plan.md",
++              "sha256": "de45a801e3c069cca474d66114faeb49400bc01d44ce1e401191726e30c900c2"
++            },
++            {
++              "kind": "test-plan",
++              "path": "reports/sdlc/binance-review-corrections/test-plan.md",
++              "sha256": "412a8ff8c7ab2b4c3b07484422f660e8dbf34da749a7e443c9c54d85c7e66a3c"
++            }
++          ]
+         }
+       ]
+     },
+     "self-verification": {
+       "applicable": true,
+-      "status": "complete",
+-      "reason": "Observed tests and concrete implementation satisfy the PR17 correction subset",
++      "status": "stale",
++      "reason": "Upstream stage build re-entered",
+       "iteration_limit": 10,
+       "iterations_started": 1,
+       "history": [
+diff --git a/tests/test_binance_trading.py b/tests/test_binance_trading.py
+index b5ef493..8af9b93 100644
+--- a/tests/test_binance_trading.py
++++ b/tests/test_binance_trading.py
+@@ -4,6 +4,7 @@ import json
+ import unittest
+ from decimal import ROUND_DOWN, ROUND_UP, Decimal
+ from urllib.parse import parse_qs, urlsplit
++from unittest.mock import patch
+ 
+ from kis_hl.binance.trading import (
+     BinanceOrderSubmission,
+@@ -17,6 +18,7 @@ from kis_hl.config import BinanceConfig
+ FILTERS = {
+     "symbol": "BTCUSDT",
+     "status": "TRADING",
++                "contractType": "PERPETUAL", "underlyingType": "COIN",
+     "tick_size": Decimal("0.10"),
+     "step_size": Decimal("0.001"),
+     "min_qty": Decimal("0.001"),
+@@ -36,6 +38,7 @@ EXCHANGE_INFO = json.dumps(
+             {
+                 "symbol": "BTCUSDT",
+                 "status": "TRADING",
++                "contractType": "PERPETUAL", "underlyingType": "COIN",
+                 "pricePrecision": 2,
+                 "quantityPrecision": 3,
+                 "orderTypes": ["LIMIT", "MARKET", "STOP_MARKET", "TRAILING_STOP_MARKET"],
+@@ -78,7 +81,7 @@ class RecordingTradingClient(BinanceTradingClient):
+     def __init__(self, config: BinanceConfig, responses: dict[str, tuple[int, str]] | None = None) -> None:
+         super().__init__(config, now_ms=lambda: 1_700_000_000_000)
+         self.calls: list[dict[str, object]] = []
+-        self.responses = dict(responses or {})
++        self.responses = {"/fapi/v2/positionRisk": (200, json.dumps([{"symbol":"BTCUSDT","positionSide":"BOTH","positionAmt":"0.01"}])), "/fapi/v1/exchangeInfo": (200, EXCHANGE_INFO), **dict(responses or {})}
+ 
+     def send(self, method: str, url: str, headers: dict[str, str], body: bytes | None) -> tuple[int, dict[str, str], str]:
+         path = urlsplit(url).path
+@@ -90,7 +93,14 @@ class RecordingTradingClient(BinanceTradingClient):
+         return [f"{c['method']} {c['path']}" for c in self.calls]
+ 
+ 
+-class RoundingTests(unittest.TestCase):
++class IsolatedTradingTest(unittest.TestCase):
++    def setUp(self):
++        patcher = patch("kis_hl.binance.trading.account_lock")
++        patcher.start()
++        self.addCleanup(patcher.stop)
++
++
++class RoundingTests(IsolatedTradingTest):
+     def test_round_to_step_down_and_up(self) -> None:
+         self.assertEqual(round_to_step(Decimal("0.0019"), Decimal("0.001")), Decimal("0.001"))
+         self.assertEqual(round_to_step(Decimal("76000.04"), Decimal("0.10")), Decimal("76000.0"))
+@@ -99,7 +109,7 @@ class RoundingTests(unittest.TestCase):
+             round_to_step(Decimal("1"), Decimal("0"))
+ 
+ 
+-class PlaceOrderDryRunTests(unittest.TestCase):
++class PlaceOrderDryRunTests(IsolatedTradingTest):
+     def test_market_dry_run_builds_rounded_request_without_network(self) -> None:
+         client = RecordingTradingClient(make_config(api_key="", api_secret=""))
+         submission = client.place_order(
+@@ -170,7 +180,7 @@ class PlaceOrderDryRunTests(unittest.TestCase):
+             self.assertNotIn("X-MBX-APIKEY", call["headers"])
+ 
+ 
+-class LiveGuardTests(unittest.TestCase):
++class LiveGuardTests(IsolatedTradingTest):
+     def test_live_rejects_symbol_outside_allowlist_before_credentials(self) -> None:
+         client = RecordingTradingClient(make_config(api_key="", api_secret="", live_symbols=("BTCUSDT",)))
+         eth_filters = dict(FILTERS, symbol="ETHUSDT")
+@@ -191,7 +201,7 @@ class LiveGuardTests(unittest.TestCase):
+         with self.assertRaises(RuntimeError) as ctx:
+             client.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, dry_run=False)
+         self.assertIn("hedge", str(ctx.exception).lower())
+-        self.assertEqual(client.paths(), ["GET /fapi/v1/positionSide/dual"])
++        self.assertEqual(client.paths(), ["GET /fapi/v1/exchangeInfo", "GET /fapi/v1/positionSide/dual"])
+ 
+     def test_live_fails_closed_when_position_mode_is_not_explicit(self) -> None:
+         for body in ("{}", "[]", "null", ""):
+@@ -199,7 +209,7 @@ class LiveGuardTests(unittest.TestCase):
+             with self.assertRaises(RuntimeError) as ctx:
+                 client.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, dry_run=False)
+             self.assertIn("position mode", str(ctx.exception))
+-            self.assertEqual(client.paths(), ["GET /fapi/v1/positionSide/dual"])
++            self.assertEqual(client.paths(), ["GET /fapi/v1/exchangeInfo", "GET /fapi/v1/positionSide/dual"])
+ 
+     def test_non_finite_inputs_and_newline_ids_are_rejected(self) -> None:
+         client = RecordingTradingClient(make_config())
+@@ -217,7 +227,7 @@ class LiveGuardTests(unittest.TestCase):
+         submission = client.place_order(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.01"), filters=FILTERS, mark_price=MARK, dry_run=False)
+         self.assertEqual(submission.status, "submitted")
+         self.assertFalse(submission.dry_run)
+-        self.assertEqual(client.paths(), ["GET /fapi/v1/positionSide/dual", "POST /fapi/v1/order"])
++        self.assertEqual(client.paths(), ["GET /fapi/v1/exchangeInfo", "GET /fapi/v1/positionSide/dual", "POST /fapi/v1/order"])
+         post = client.calls[-1]
+         self.assertEqual(post["headers"]["X-MBX-APIKEY"], "test-api-key")
+         query = post["query"]
+@@ -265,7 +275,7 @@ class LiveGuardTests(unittest.TestCase):
+         self.assertEqual(client.calls, [])
+ 
+ 
+-class StopMarketTests(unittest.TestCase):
++class StopMarketTests(IsolatedTradingTest):
+     def test_close_position_stop_has_no_quantity_or_reduce_only(self) -> None:
+         client = RecordingTradingClient(make_config())
+         submission = client.place_stop_market(symbol="BTCUSDT", side="SELL", stop_price=Decimal("74000.04"), filters=FILTERS, mark_price=MARK)
+@@ -301,7 +311,7 @@ class StopMarketTests(unittest.TestCase):
+             client.place_stop_market(symbol="BTCUSDT", side="BUY", stop_price=Decimal("75000"), filters=FILTERS, mark_price=MARK)
+ 
+ 
+-class TrailingStopTests(unittest.TestCase):
++class TrailingStopTests(IsolatedTradingTest):
+     def test_trailing_stop_params_and_callback_bounds(self) -> None:
+         client = RecordingTradingClient(make_config())
+         submission = client.place_trailing_stop(
+@@ -323,7 +333,7 @@ class TrailingStopTests(unittest.TestCase):
+         self.assertEqual(client.calls, [])
+ 
+ 
+-class CancelTests(unittest.TestCase):
++class CancelTests(IsolatedTradingTest):
+     def test_cancel_dry_run_and_live_delete(self) -> None:
+         client = RecordingTradingClient(make_config(), {"/fapi/v1/order": (200, json.dumps({"orderId": 5, "status": "CANCELED"}))})
+         dry = client.cancel_order(symbol="btcusdt", order_id=5)
+@@ -348,15 +358,13 @@ class CancelTests(unittest.TestCase):
+         self.assertEqual(client2.calls, [])
+ 
+ 
+-if __name__ == "__main__":
+-    unittest.main()
+ 
+ 
+ ALGO_ACK = json.dumps({"algoId": 2146760, "clientAlgoId": "kh-algo", "algoType": "CONDITIONAL", "orderType": "STOP_MARKET", "algoStatus": "NEW", "symbol": "BTCUSDT"})
+ LAST_PRICE = json.dumps({"symbol": "BTCUSDT", "price": "76010.00"})
+ 
+ 
+-class AlgoOrderRoutingTests(unittest.TestCase):
++class AlgoOrderRoutingTests(IsolatedTradingTest):
+     """Conditional orders moved to the Algo Order API on 2025-12-09; /fapi/v1/order returns -4120."""
+ 
+     def test_stop_market_targets_algo_order_endpoint_with_algo_params(self) -> None:
+@@ -389,7 +397,7 @@ class AlgoOrderRoutingTests(unittest.TestCase):
+         client = RecordingTradingClient(make_config(), {"/fapi/v1/positionSide/dual": (200, ONE_WAY), "/fapi/v1/algoOrder": (200, ALGO_ACK)})
+         submission = client.place_stop_market(symbol="BTCUSDT", side="SELL", stop_price=Decimal("74000"), filters=FILTERS, mark_price=MARK, dry_run=False)
+         self.assertEqual(submission.status, "submitted")
+-        self.assertEqual(client.paths(), ["GET /fapi/v1/positionSide/dual", "POST /fapi/v1/algoOrder"])
++        self.assertEqual(client.paths(), ["GET /fapi/v1/exchangeInfo", "GET /fapi/v1/positionSide/dual", "GET /fapi/v2/positionRisk", "POST /fapi/v1/algoOrder"])
+         self.assertEqual(extract_binance_order_id(submission.response), "2146760")
+ 
+     def test_exchange_test_is_unavailable_for_algo_orders(self) -> None:
+@@ -431,7 +439,7 @@ class AlgoOrderRoutingTests(unittest.TestCase):
+         self.assertNotIn("symbol", client.calls[1]["query"])
+ 
+ 
+-class UnknownOutcomeTests(unittest.TestCase):
++class UnknownOutcomeTests(IsolatedTradingTest):
+     def test_5xx_unknown_error_reconciles_by_client_order_id(self) -> None:
+         found = json.dumps({"orderId": 99, "clientOrderId": "kh-x", "status": "NEW"})
+         client = RecordingTradingClient(
+@@ -484,7 +492,7 @@ class UnknownOutcomeTests(unittest.TestCase):
+         self.assertEqual(submission.status, "rejected")
+ 
+ 
+-class NotionalAndDirectionTests(unittest.TestCase):
++class NotionalAndDirectionTests(IsolatedTradingTest):
+     def test_reduce_only_entries_skip_min_notional(self) -> None:
+         client = RecordingTradingClient(make_config())
+         submission = client.place_order(symbol="BTCUSDT", side="SELL", order_type="MARKET", quantity=Decimal("0.001"), reduce_only=True, filters=FILTERS, mark_price=Decimal("49000"))
+@@ -511,7 +519,7 @@ class NotionalAndDirectionTests(unittest.TestCase):
+         self.assertEqual(ok.request["params"]["activatePrice"], "75000.00")
+ 
+ 
+-class UnknownOutcomeCodeTests(unittest.TestCase):
++class UnknownOutcomeCodeTests(IsolatedTradingTest):
+     def _client_with_order_error(self, status: int, body: str) -> RecordingTradingClient:
+         return RecordingTradingClient(make_config(), {"/fapi/v1/positionSide/dual": (200, ONE_WAY), "/fapi/v1/order": (status, body)})
+ 
+@@ -526,7 +534,7 @@ class UnknownOutcomeCodeTests(unittest.TestCase):
+             self.assertEqual(submission.status, "unknown", body)
+ 
+ 
+-class CancelAlgoSymbolGuardTests(unittest.TestCase):
++class CancelAlgoSymbolGuardTests(IsolatedTradingTest):
+     def test_live_cancel_algo_verifies_the_order_symbol_before_deleting(self) -> None:
+         client = RecordingTradingClient(make_config(live_symbols=("BTCUSDT",)))
+         original = client.send
+@@ -566,17 +574,23 @@ class CancelAlgoSymbolGuardTests(unittest.TestCase):
+         self.assertEqual(client.calls[0]["query"]["clientAlgoId"], ["kh-algo"])
+ 
+ 
+-class ReconciledStatusTests(unittest.TestCase):
++class ReconciledStatusTests(IsolatedTradingTest):
+     def _client(self, lookup_body: str, path: str) -> RecordingTradingClient:
+         client = RecordingTradingClient(make_config(), {"/fapi/v1/positionSide/dual": (200, ONE_WAY)})
+ 
+         def send(method, url, headers, body):
+             p = urlsplit(url).path
+             client.calls.append({"method": method, "path": p, "query": parse_qs(urlsplit(url).query), "headers": headers})
++            if method == "GET" and p == "/fapi/v1/exchangeInfo":
++                return 200, {}, EXCHANGE_INFO
++            if method == "GET" and p == "/fapi/v2/positionRisk":
++                return 200, {}, json.dumps([{"symbol":"BTCUSDT","positionSide":"BOTH","positionAmt":"0.01"}])
+             if method == "GET" and p == "/fapi/v1/positionSide/dual":
+                 return 200, {}, ONE_WAY
+             if method == "POST":
+                 return 503, {}, json.dumps({"code": -1000, "msg": "Unknown error"})
++            self.assertEqual(p, path)
++            self.assertEqual(method, "GET")
+             return 200, {}, lookup_body
+         client.send = send  # type: ignore[method-assign]
+         return client
+@@ -604,13 +618,17 @@ class ReconciledStatusTests(unittest.TestCase):
+         self.assertEqual(submission2.status, "submitted")
+ 
+ 
+-class ReconciledPartialFillTests(unittest.TestCase):
++class ReconciledPartialFillTests(IsolatedTradingTest):
+     def test_expired_ioc_with_executed_quantity_is_not_rejected(self) -> None:
+         client = RecordingTradingClient(make_config(), {"/fapi/v1/positionSide/dual": (200, ONE_WAY)})
+ 
+         def send(method, url, headers, body):
+             p = urlsplit(url).path
+             client.calls.append({"method": method, "path": p, "query": parse_qs(urlsplit(url).query), "headers": headers})
++            if method == "GET" and p == "/fapi/v1/exchangeInfo":
++                return 200, {}, EXCHANGE_INFO
++            if method == "GET" and p == "/fapi/v2/positionRisk":
++                return 200, {}, json.dumps([{"symbol":"BTCUSDT","positionSide":"BOTH","positionAmt":"0.01"}])
+             if method == "GET" and p == "/fapi/v1/positionSide/dual":
+                 return 200, {}, ONE_WAY
+             if method == "POST":
+@@ -623,7 +641,7 @@ class ReconciledPartialFillTests(unittest.TestCase):
+         self.assertEqual(submission.response["executedQty"], "0.004")
+ 
+ 
+-class CancelReconciliationTests(unittest.TestCase):
++class CancelReconciliationTests(IsolatedTradingTest):
+     def _client(self, lookup_body: str, lookup_status: int = 200) -> RecordingTradingClient:
+         client = RecordingTradingClient(make_config())
+ 
+@@ -666,3 +684,7 @@ class CancelReconciliationTests(unittest.TestCase):
+         self.assertEqual(submission.status, "submitted")
+         self.assertEqual(submission.request["outcome"], "reconciled_cancel")
+         self.assertEqual(client.calls[-1]["query"]["orderId"], ["5"])
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tests/test_cli.py b/tests/test_cli.py
+index 68cc895..e2d96f2 100644
+--- a/tests/test_cli.py
++++ b/tests/test_cli.py
+@@ -1051,6 +1051,11 @@ class BinanceCliTests(unittest.TestCase):
+ 
+ 
+ class BinanceOrderCliTests(unittest.TestCase):
++    def setUp(self):
++        for patcher in (patch("kis_hl.cli.load_env_file"), patch.dict("os.environ", {"BINANCE_APIKEY":"sentinel-binance-key", "BINANCE_SECRET":"sentinel-binance-secret"}, clear=True)):
++            patcher.start()
++            self.addCleanup(patcher.stop)
++
+     FILTERS = {
+         "symbol": "BTCUSDT", "status": "TRADING", "tick_size": Decimal("0.10"), "step_size": Decimal("0.001"),
+         "min_qty": Decimal("0.001"), "max_qty": Decimal("1000"), "market_max_qty": Decimal("120"),
+@@ -1059,6 +1064,8 @@ class BinanceOrderCliTests(unittest.TestCase):
+     }
+ 
+     def _run(self, argv: list[str]) -> tuple[int, dict]:
++        if "--live" not in argv and "--dry-run" not in argv and "--exchange-test" not in argv:
++            argv = [*argv, "--dry-run"]
+         stdout = io.StringIO()
+         with redirect_stdout(stdout):
+             exit_code = main(argv)
+@@ -1095,7 +1102,8 @@ class BinanceOrderCliTests(unittest.TestCase):
+             self.assertTrue(payload["dry_run"])
+             self.assertEqual(payload["request"]["params"]["quantity"], "0.010")
+             self.assertEqual(payload["request"]["params"]["price"], "75000.00")
+-            self.assertNotIn("api_key", json.dumps(payload))
++            self.assertNotIn("sentinel-binance-key", json.dumps(payload))
++            self.assertNotIn("sentinel-binance-secret", json.dumps(payload))
+             self.assertNotIn("signature", json.dumps(payload))
+             with closing(sqlite3.connect(db)) as conn:
+                 row = conn.execute("SELECT venue, symbol, side, order_type, size, price, dry_run, status FROM order_submissions").fetchone()

@@ -1,68 +1,6 @@
 {
-  "iteration": 2,
-  "decision": "PROCEED",
-  "reason": "Observed tests and concrete implementation satisfy the PR18 correction subset",
-  "authority_source": "AK review correction request and existing PR authority",
   "candidate": "232be7ad706b7cb0ee60be8c1b1a0b3a5cca5bb7a88442fc50b4341c06c271a9",
-  "next_action": "Continue PR18 corrections",
-  "inputs": [
-    {
-      "kind": "triage",
-      "path": "reports/sdlc/binance-review-corrections/triage.md",
-      "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
-    },
-    {
-      "kind": "intent",
-      "path": "reports/sdlc/binance-review-corrections/intent.md",
-      "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
-    },
-    {
-      "kind": "investigation",
-      "path": "reports/sdlc/binance-review-corrections/investigation.md",
-      "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
-    },
-    {
-      "kind": "spec",
-      "path": "reports/sdlc/binance-review-corrections/spec.md",
-      "sha256": "ea1b2aab315623d7928b1ca48273f435a4b7b6843a4a481851d5aa194292da74"
-    },
-    {
-      "kind": "design-source",
-      "path": "docs/architecture/binance-user-stream-sequence.json",
-      "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
-    },
-    {
-      "kind": "design-html",
-      "path": "docs/architecture/binance-user-stream-sequence.html",
-      "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
-    },
-    {
-      "kind": "design-validation",
-      "path": "docs/architecture/binance-user-stream-sequence.visual-check.json",
-      "sha256": "c7308af00508d767566e2ccc352f187ddc88692df32f524cf5f453c77a6bc109"
-    },
-    {
-      "kind": "plan",
-      "path": "reports/sdlc/binance-review-corrections/plan.md",
-      "sha256": "de45a801e3c069cca474d66114faeb49400bc01d44ce1e401191726e30c900c2"
-    },
-    {
-      "kind": "test-plan",
-      "path": "reports/sdlc/binance-review-corrections/test-plan.md",
-      "sha256": "412a8ff8c7ab2b4c3b07484422f660e8dbf34da749a7e443c9c54d85c7e66a3c"
-    }
-  ],
-  "outputs": [
-    {
-      "kind": "build",
-      "path": "reports/sdlc/binance-review-corrections/build.md",
-      "sha256": "a40e7518c9dd90601090bc089ab4d9d532348312e12ff528e85a980e2b9cc1a1"
-    },
-    {
-      "kind": "change-record",
-      "path": "reports/sdlc/binance-review-corrections/change18.diff",
-      "sha256": "6ad2fe578c0805c3f001726e621b1d3c2b02202673687888349c36b705d00516"
-    },
+  "sources": [
     {
       "kind": "candidate-source",
       "path": ".agents/skills/binance-api/SKILL.md",
@@ -183,15 +121,5 @@
       "path": "docs/architecture/binance-trading-data-flow.visual-check.json",
       "sha256": "a799cb7611912bcb34b5bd02578271d0e65ba05b41e5c1d1fd69d3b7944ad34e"
     }
-  ],
-  "assessment": {
-    "assessor": "Codex /root",
-    "summary": "Actual commands and evidence inspected; PR18 subset only, no exchange order verification claimed",
-    "criteria": [
-      "AC1",
-      "AC2",
-      "AC3",
-      "AC4"
-    ]
-  }
+  ]
 }

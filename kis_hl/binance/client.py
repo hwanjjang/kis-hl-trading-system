@@ -124,7 +124,7 @@ class BinanceFuturesClient:
         if not self.config.api_key or (need_secret and not self.config.api_secret):
             raise RuntimeError(
                 "Binance credentials are missing for the selected key profile; "
-                "set BINANCE_APIKEY/BINANCE_SECRET or PRO_BINANCE_APIKEY/PRO_BINANCE_SECRET"
+                "set BINANCE_APIKEY/BINANCE_SECRET, PRO_BINANCE_APIKEY/PRO_BINANCE_SECRET, or DEMO_BINANCE_APIKEY/DEMO_BINANCE_SECRET"
             )
 
     # ---- public market data ---------------------------------------------------------
@@ -266,6 +266,7 @@ def normalize_symbol_filters(entry: dict[str, Any]) -> dict[str, Any]:
         "symbol": entry.get("symbol"),
         "status": entry.get("status"),
         "contract_type": entry.get("contractType"),
+        "underlying_type": entry.get("underlyingType"),
         "price_precision": int(entry.get("pricePrecision", 0)),
         "quantity_precision": int(entry.get("quantityPrecision", 0)),
         "tick_size": _decimal_or_none(price.get("tickSize")),

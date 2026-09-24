@@ -1,4 +1,4 @@
 # Build
 
-PR17: quiet-stream renewal, credential isolation, explicit permanent failures, strict environment selection, finite market prices/raw-frame retention, test isolation and documentation. New regression tests failed before changes; green after minimal fixes.
-Candidate: 9135e15f4ef411cc286557dad0fa7f91e881eca30f7b4975c238725a2f9acc6d
+PR18: BTCUSDT support and metadata guards, terminal ack classification, protective position validation, CLI default send and explicit preview modes, incompatible flags, error exit codes, mutation-sensitive lock/allowlist tests, docs and diagrams. New regression tests failed before changes; green after minimal fixes.
+Candidate: 232be7ad706b7cb0ee60be8c1b1a0b3a5cca5bb7a88442fc50b4341c06c271a9

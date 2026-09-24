@@ -1,10 +1,10 @@
 {
   "iteration": 2,
   "decision": "PROCEED",
-  "reason": "Observed tests and concrete implementation satisfy the PR18 correction subset",
-  "authority_source": "AK review correction request and existing PR authority",
+  "reason": "Separate context verified mandatory fixes and affected behavior",
+  "authority_source": "AK review corrections; no authority to bypass automatic approval denial",
   "candidate": "232be7ad706b7cb0ee60be8c1b1a0b3a5cca5bb7a88442fc50b4341c06c271a9",
-  "next_action": "Continue PR18 corrections",
+  "next_action": "Authorized commit/push and final status; ask approval only for blocked external review",
   "inputs": [
     {
       "kind": "triage",
@@ -50,9 +50,7 @@
       "kind": "test-plan",
       "path": "reports/sdlc/binance-review-corrections/test-plan.md",
       "sha256": "412a8ff8c7ab2b4c3b07484422f660e8dbf34da749a7e443c9c54d85c7e66a3c"
-    }
-  ],
-  "outputs": [
+    },
     {
       "kind": "build",
       "path": "reports/sdlc/binance-review-corrections/build.md",
@@ -182,16 +180,59 @@
       "kind": "candidate-source",
       "path": "docs/architecture/binance-trading-data-flow.visual-check.json",
       "sha256": "a799cb7611912bcb34b5bd02578271d0e65ba05b41e5c1d1fd69d3b7944ad34e"
+    },
+    {
+      "kind": "self-verification",
+      "path": "reports/sdlc/binance-review-corrections/self-verification.md",
+      "sha256": "c687c3abb928d7373405ec21d7476fffc9823961da47e047e49ff1c41492b70e"
+    },
+    {
+      "kind": "test-results",
+      "path": "reports/sdlc/binance-review-corrections/test-results.json",
+      "sha256": "a4236de5bd72735ce2e3ce062fd194d5d7c8f967a7908715ae836c729cd4c57f"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/binance-review-corrections/logs/pr18-red.log",
+      "sha256": "45f9e88739a776d174dd1e5cd4dcfa7323138d8b7fb759aacabc65a556ea519e"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/binance-review-corrections/logs/pr18-green.log",
+      "sha256": "4904dc9f40abb7c90dbf7056d131ae8cc435bb489c1e9dd51683702cff16a306"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/binance-review-corrections/logs/pr18-post-refactor.log",
+      "sha256": "24210d86fde5f6c19515590d7a85d22637276b25c13107371c25af99d7dd4484"
+    },
+    {
+      "kind": "execution-log",
+      "path": "reports/sdlc/binance-review-corrections/logs/pr18-smoke.log",
+      "sha256": "7abb3ca6bdfa7f215b89d036621a8f1b1779de7747e6f1e56be77252a2c7b0a9"
+    }
+  ],
+  "outputs": [
+    {
+      "kind": "independent-verification",
+      "path": "reports/sdlc/binance-review-corrections/independent-verification.md",
+      "sha256": "9ca2e2bb647c580c1174307eebafb20778e1a7ad1b41a904701de487d79f4fa1"
     }
   ],
   "assessment": {
-    "assessor": "Codex /root",
-    "summary": "Actual commands and evidence inspected; PR18 subset only, no exchange order verification claimed",
+    "assessor": "Codex /root accepting independent /root/verify_review_scope evidence",
+    "summary": "Concrete reports and observed tests read; no cross-provider or merge-ready claim",
     "criteria": [
       "AC1",
       "AC2",
       "AC3",
       "AC4"
     ]
+  },
+  "verifier": {
+    "independent": true,
+    "context_id": "/root/verify_review_scope",
+    "builder_context_id": "/root",
+    "checks": "Read correction diffs and upstream reviews; ran 106 tests and 21 focused rechecks; independently challenged CLI flags and diagram correctness; final PASS"
   }
 }

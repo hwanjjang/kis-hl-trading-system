@@ -1051,6 +1051,11 @@ class BinanceCliTests(unittest.TestCase):
 
 
 class BinanceOrderCliTests(unittest.TestCase):
+    def setUp(self):
+        for patcher in (patch("kis_hl.cli.load_env_file"), patch.dict("os.environ", {"BINANCE_APIKEY":"sentinel-binance-key", "BINANCE_SECRET":"sentinel-binance-secret"}, clear=True)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
     FILTERS = {
         "symbol": "BTCUSDT", "status": "TRADING", "tick_size": Decimal("0.10"), "step_size": Decimal("0.001"),
         "min_qty": Decimal("0.001"), "max_qty": Decimal("1000"), "market_max_qty": Decimal("120"),
@@ -1059,6 +1064,8 @@ class BinanceOrderCliTests(unittest.TestCase):
     }
 
     def _run(self, argv: list[str]) -> tuple[int, dict]:
+        if "--live" not in argv and "--dry-run" not in argv and "--exchange-test" not in argv:
+            argv = [*argv, "--dry-run"]
         stdout = io.StringIO()
         with redirect_stdout(stdout):
             exit_code = main(argv)
@@ -1095,7 +1102,8 @@ class BinanceOrderCliTests(unittest.TestCase):
             self.assertTrue(payload["dry_run"])
             self.assertEqual(payload["request"]["params"]["quantity"], "0.010")
             self.assertEqual(payload["request"]["params"]["price"], "75000.00")
-            self.assertNotIn("api_key", json.dumps(payload))
+            self.assertNotIn("sentinel-binance-key", json.dumps(payload))
+            self.assertNotIn("sentinel-binance-secret", json.dumps(payload))
             self.assertNotIn("signature", json.dumps(payload))
             with closing(sqlite3.connect(db)) as conn:
                 row = conn.execute("SELECT venue, symbol, side, order_type, size, price, dry_run, status FROM order_submissions").fetchone()

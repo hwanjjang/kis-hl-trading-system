@@ -15,17 +15,12 @@ CLI commands. Facts below were verified on 2026-09-16 against
 - All REST calls go through `BinanceFuturesClient` (stdlib `urllib`, HMAC via stdlib
   `hmac`). Do not add `requests` or the `binance-futures-connector` SDK.
 - Credentials come from `.env` via `load_binance_config()`. `BINANCE_KEY_PROFILE=production`
-  selects `PRO_BINANCE_APIKEY`/`PRO_BINANCE_SECRET`. Never print or log the API key, the
+  selects `PRO_BINANCE_APIKEY`/`PRO_BINANCE_SECRET`; `demo` selects dedicated `DEMO_BINANCE_APIKEY`/`DEMO_BINANCE_SECRET` and demo URLs by default. Never print or log the API key, the
   secret, or a `listenKey`. Tests compare emptiness, never values.
 - Public reads need no key. Signed reads fail closed before any network call when the key
   or secret is empty. listenKey calls send only the `X-MBX-APIKEY` header.
-- Orders go through `BinanceTradingClient` (`kis_hl/binance/trading.py`): dry-run by default,
-  `--live` explicit, validation and rounding before any signed call, then allowlist
-  (`BINANCE_LIVE_SYMBOLS`) → credentials → one-way position mode → `account_lock` → signed
-  request. Keep that order; add the rejecting test first when you add a guard. Adding modify,
-  leverage, margin-type, or hedge-mode support is a scope change under `AGENTS.md`.
-- `POST /fapi/v1/order/test` (`exchange_test=True`, CLI `--exchange-test`) validates on the
-  exchange without placing; it is the strongest smoke an agent may run. Never run `--live`.
+- Orders go through `BinanceTradingClient` (`kis_hl/binance/trading.py`). The Python API defaults to dry-run; CLI commands send by default and use `--dry-run` for preview, per operator instruction. Supported live symbols are pinned in code to BTCUSDT; `BINANCE_LIVE_SYMBOLS` only narrows this set. Current metadata must confirm COIN/PERPETUAL/TRADING before placement. See `references/orders.md` for guards and outcomes.
+- `POST /fapi/v1/order/test` validates regular orders without placing. This skill grants no execution authority; follow `AGENTS.md` and applicable session instructions (and Claude's agent-session rules in `CLAUDE.md`).
 - Never attach a Binance MCP server (official Agent OS MCP or community) or any
   order-capable vendor tool to an agent session with live keys. Same rule as KIS/Hyperliquid.
 - Every new call needs a unit test in `tests/test_binance_client.py` or
@@ -97,10 +92,7 @@ Full path table and response keys: `references/rest-endpoints.md`.
 `/fapi/v1/algoOrder` with `algoType=CONDITIONAL`, `triggerPrice` (not `stopPrice`),
 `activatePrice` (not `activationPrice`), and `clientAlgoId`; responses carry `algoId` and
 `algoStatus`, and the user stream reports them as `ALGO_UPDATE`. There is no test endpoint for
-algo orders. Outcomes: `submitted`, `rejected` (4xx), or `unknown` (5xx / HTTP 408 / code
-`-1007` / "Unknown error" / transport failure) — an unknown outcome is reconciled once by client
-or exchange id (live → submitted, terminal with fills → submitted, terminal without fills →
-rejected, confirmed cancel → submitted) and must never be retried blindly with a new id.
+algo orders. Outcome classification and retry constraints are owned by [orders.md](references/orders.md#outcome-classification-this-repo).
 
 Rounding: quantity ROUND_DOWN to `stepSize`; BUY prices ROUND_DOWN and SELL prices ROUND_UP
 to `tickSize` (entries never more aggressive, stops trigger no later); `MIN_NOTIONAL` checked
@@ -128,7 +120,7 @@ Read them from `exchangeInfo`, never hardcode. BTCUSDT perpetual on 2026-09-16:
 | `MARKET_LOT_SIZE.maxQty` | `120` | market orders larger than this are rejected |
 | `MIN_NOTIONAL.notional` | `50` | quantity × price must be ≥ 50 USDT |
 | `PERCENT_PRICE` | ±5% of mark | limit prices outside the band are rejected |
-| `orderTypes` | LIMIT, MARKET, STOP, STOP_MARKET, TAKE_PROFIT, TAKE_PROFIT_MARKET, TRAILING_STOP_MARKET | server-side trailing stop exists (`callbackRate`, `activationPrice`) |
+| `orderTypes` | LIMIT, MARKET, STOP, STOP_MARKET, TAKE_PROFIT, TAKE_PROFIT_MARKET, TRAILING_STOP_MARKET | server-side trailing stop exists (`callbackRate`, `activatePrice`) |
 | `timeInForce` | GTC, IOC, FOK, GTX, GTD | GTX = post-only |
 
 `symbol_filters()` returns these as Decimals under `tick_size`, `step_size`, `min_qty`,
@@ -143,9 +135,7 @@ Kline intervals: `1m 3m 5m 15m 30m 1h 2h 4h 6h 8h 12h 1d 3d 1w 1M`. There is **n
   account. Response header `x-mbx-used-weight-1m` is surfaced as `client.last_used_weight`.
 - HTTP 429 = limit hit, back off. HTTP 418 = IP ban (2 minutes to 3 days). Never retry
   immediately on either.
-- Any 5xx, HTTP 408, or Binance code `-1007` after a signed order means the request may
-  have executed: this repo classifies it `unknown`, looks the order up once by client or
-  exchange id, and never retries blindly. Error `-1008` = server overload (4xx, rejected).
+- Order error handling and reconciliation follow [orders.md](references/orders.md#outcome-classification-this-repo).
 - WebSocket: one connection is valid 24 h; max 1024 streams per connection; max 10 inbound
   messages per second; the server pings every 3 minutes and closes after 10 minutes
   without a pong (`websocket-client` answers pings automatically).
@@ -170,10 +160,10 @@ Codes and messages: `references/limits-and-errors.md`.
 
 1. Confirm the path, weight, and whether it is signed in `references/rest-endpoints.md`
    or the official docs (`developers.binance.com/docs/derivatives/usds-margined-futures`).
-   For a signed path, prove it exists with an unauthenticated probe:
-   `curl -s -o /dev/null -w '%{http_code}' https://fapi.binance.com/<path>` answers **401**
-   (`-2014`) for a real route and **404** for a wrong one (this caught
-   `/fapi/v1/algoOpenOrders` vs the real `/fapi/v1/openAlgoOrders`).
+   Treat method + path as the route identity; consult current official docs before probing.
+   An authorized unauthenticated probe is supporting evidence only: status codes do not prove the contract.
+   `GET /fapi/v1/openAlgoOrders` lists open algo orders; `DELETE /fapi/v1/algoOpenOrders` is a different route.
+
 2. Add a keyword-only method on `BinanceFuturesClient` that calls `self._request(...)`
    with `signed=True` or `api_key_header=True` as needed. Normalize numbers to `Decimal`.
 3. Add a test in `tests/test_binance_client.py` using `RecordingClient` and assert the exact

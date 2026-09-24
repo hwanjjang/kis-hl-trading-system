@@ -32,6 +32,7 @@ CANCELED_STATES = frozenset({"CANCELED", "CANCELLED"})
 # matched as " -1007/" (no word boundary: space and '-' are both non-word characters).
 UNKNOWN_OUTCOME_RE = re.compile(r"HTTP (?:5\d\d|408)\b|\s-1007/|Unknown error|status unknown", re.IGNORECASE)
 
+SUPPORTED_LIVE_SYMBOLS = frozenset({"BTCUSDT"})
 SIDES = ("BUY", "SELL")
 ENTRY_TYPES = ("MARKET", "LIMIT")
 TIME_IN_FORCE = ("GTC", "IOC", "FOK", "GTX")
@@ -115,6 +116,8 @@ class BinanceTradingClient(BinanceFuturesClient):
             raise ValueError("LIMIT orders require price")
         if order_type == "MARKET" and price is not None:
             raise ValueError("MARKET orders must not set price")
+        if order_type == "MARKET" and tif != "GTC":
+            raise ValueError("MARKET orders must not set time-in-force")
         client_order_id = _client_order_id(client_order_id)
 
         rules = filters or self.symbol_filters(symbol)
@@ -239,8 +242,8 @@ class BinanceTradingClient(BinanceFuturesClient):
         dry_run: bool = True,
     ) -> BinanceOrderSubmission:
         symbol = _symbol(symbol)
-        if order_id is None and not client_order_id:
-            raise ValueError("cancel_order requires order_id or client_order_id")
+        if (order_id is None) == (not client_order_id):
+            raise ValueError("cancel_order requires exactly one of order_id or client_order_id")
         params: dict[str, Any] = {"symbol": symbol}
         if client_order_id:
             params["origClientOrderId"] = client_order_id
@@ -258,8 +261,8 @@ class BinanceTradingClient(BinanceFuturesClient):
     ) -> BinanceOrderSubmission:
         """Cancel a conditional (algo) order; the endpoint identifies it by algoId or clientAlgoId."""
         symbol = _symbol(symbol)
-        if algo_id is None and not client_algo_id:
-            raise ValueError("cancel_algo_order requires algo_id or client_algo_id")
+        if (algo_id is None) == (not client_algo_id):
+            raise ValueError("cancel_algo_order requires exactly one of algo_id or client_algo_id")
         params: dict[str, Any] = {"clientAlgoId": client_algo_id} if client_algo_id else {"algoId": int(algo_id)}  # type: ignore[arg-type]
         if not dry_run:
             # The delete request carries no symbol, so the allowlist can only be enforced against the
@@ -320,9 +323,23 @@ class BinanceTradingClient(BinanceFuturesClient):
 
         self._require_live_symbol(symbol)
         self._require_credentials(need_secret=True)
+        if method == "POST":
+            metadata = self.symbol_filters(symbol)
+            if (metadata.get("symbol") != symbol or metadata.get("status") != "TRADING"
+                    or metadata.get("contract_type") != "PERPETUAL" or metadata.get("underlying_type") != "COIN"):
+                raise RuntimeError("Binance metadata must confirm a trading COIN perpetual before live placement")
         if method == "POST" and self.position_mode_is_hedge():
             raise RuntimeError("Binance account is in hedge (dual-side) position mode; live orders require one-way mode")
         with account_lock(self.config.base_url, self.config.api_key):
+            if method == "POST" and path == ALGO_ORDER_PATH:
+                positions = self.position_risk(symbol)
+                matches = [p for p in positions if p.get("symbol") == symbol and p.get("positionSide") == "BOTH"] if isinstance(positions, list) else []
+                amount = _optional_decimal(matches[0].get("positionAmt")) if len(matches) == 1 else None
+                if amount is None or not amount.is_finite() or amount == 0 or (amount > 0) != (params["side"] == "SELL"):
+                    raise RuntimeError("Protective order requires a matching nonzero one-way position")
+                if "quantity" in params and Decimal(params["quantity"]) != abs(amount):
+                    raise RuntimeError("Protective order quantity must match full position coverage")
+                request["verified_position_amount"] = str(amount)
             try:
                 response = self._request(method, path, params, signed=True)
             except RuntimeError as exc:
@@ -336,7 +353,13 @@ class BinanceTradingClient(BinanceFuturesClient):
             "binance_order_submitted",
             extra={"symbol": symbol, "type": params.get("type"), "order_id": extract_binance_order_id(response)},
         )
-        return BinanceOrderSubmission("submitted", False, symbol, request, response)
+        status = "submitted"
+        if method == "POST" and isinstance(response, dict):
+            state = str(response.get("algoStatus") or response.get("status") or "").upper()
+            executed = _optional_decimal(response.get("executedQty"))
+            if state in TERMINAL_FAILED_STATES and not (executed is not None and executed > 0):
+                status = "rejected"
+        return BinanceOrderSubmission(status, False, symbol, request, response)
 
     def _resolve_unknown(
         self,
@@ -396,6 +419,8 @@ class BinanceTradingClient(BinanceFuturesClient):
         return mark_price if mark_price is not None else self._mark_price(symbol)
 
     def _require_live_symbol(self, symbol: str) -> None:
+        if symbol not in SUPPORTED_LIVE_SYMBOLS:
+            raise RuntimeError(f"Live Binance symbol {symbol} is not supported by BINANCE_LIVE_SYMBOLS; supported symbols: {sorted(SUPPORTED_LIVE_SYMBOLS)}")
         if symbol not in self.config.live_symbols:
             raise RuntimeError(
                 f"Live Binance orders are limited to BINANCE_LIVE_SYMBOLS {list(self.config.live_symbols)}; got {symbol}"
@@ -474,9 +499,12 @@ def _round_price(price: Decimal, rules: dict[str, Any], *, side: str) -> Decimal
     (protecting a short) trigger slightly earlier, which is the conservative direction.
     """
     tick = rules.get("tick_size")
-    if not tick:
-        return price
-    return round_to_step(price, tick, rounding=ROUND_DOWN if side == "BUY" else ROUND_UP)
+    rounded = round_to_step(price, tick, rounding=ROUND_DOWN if side == "BUY" else ROUND_UP) if tick else price
+    for key, violates in (("min_price", lambda bound: rounded < bound), ("max_price", lambda bound: rounded > bound)):
+        bound = rules.get(key)
+        if bound is not None and bound > 0 and violates(bound):
+            raise ValueError(f"price {rounded} violates {key} {bound}")
+    return rounded
 
 
 def _require_notional(qty: Decimal, price: Decimal, rules: dict[str, Any]) -> None:
