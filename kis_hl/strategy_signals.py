@@ -148,6 +148,18 @@ class Signals:
                 ).fetchone()
             if not raw or now_ms >= json.loads(raw[0])["expires_ms"]:
                 raise ValueError("Signal expired before entry")
+            signal = json.loads(raw[0])
+            if signal.get("action", "enter") != "enter":
+                raise ValueError("Only an entry decision can use the new-entry executor")
+            if "setup_input" in signal:
+                from kis_hl.strategy_tools import evaluate_setup
+
+                setup = signal["setup_input"]
+                if not isinstance(setup, dict) or setup.get("setup") not in {"breakout", "btc_3h"}:
+                    raise ValueError("New entry requires breakout or btc_3h entry setup evidence")
+                evidence = evaluate_setup(setup, now_ms=now_ms)
+                if not evidence["predicate_passed"]:
+                    raise ValueError("Strategy entry evidence is unavailable or no longer valid")
         if not p.get("grant_id"):
             return
         with self.store.connect() as db:

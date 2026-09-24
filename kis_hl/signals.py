@@ -105,8 +105,8 @@ def _normalize_candles(candles: Iterable[Mapping[str, Any]]) -> list[NormalizedC
 
 def _normalize_candle(candle: Mapping[str, Any]) -> NormalizedCandle:
     return NormalizedCandle(
-        start_ms=_optional_int(candle, "t", "start_time_ms", "startTime", "start"),
-        end_ms=_optional_int(candle, "T", "end_time_ms", "endTime", "end"),
+        start_ms=_optional_int(candle, "t", "start_time_ms", "startTime", "start", "start_ms"),
+        end_ms=_optional_int(candle, "T", "end_time_ms", "endTime", "end", "end_ms"),
         high=_required_decimal(candle, "h", "high", "high_price"),
         close=_required_decimal(candle, "c", "close", "close_price"),
         raw=candle,

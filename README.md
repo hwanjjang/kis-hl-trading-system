@@ -30,7 +30,7 @@ python -m kis_hl.cli journal status --venue kis
 
 [Trading operations](docs/trading-operations.md) documents required plan fields,
 protected entry/supervisor controls, actual-history journals, statement imports,
-and future strategy-signal grants. Journal synchronization defaults to **3 hours**
+and strategy-signal grants. Journal synchronization defaults to **3 hours**
 and is configurable; protection runs separately. KIS order summaries remain pending
 until exact execution/cost statements are supplied. Native KIS protection is not
 inferred from stop-limit names. Notification delivery is not implemented.
@@ -110,7 +110,7 @@ No live exchange execution has been verified for this feature. Mid-price signals
 can differ from native mark-price triggers; gaps, IOC residuals and outages can
 lose the latest trailing profit floor. Status shows verified coverage timestamps,
 state/reason, exit intent and attempts. See
-[the strategy design](docs/strategy_execution_design.md#implemented-trailing-management)
+[the strategy design](docs/strategy_execution_design.md#existing-protection-and-execution-limits)
 for exact scope, recovery and limitations.
 
 ## Setup
@@ -352,7 +352,7 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 - Hyperliquid stop-loss trigger orders use `--order-type stop-market`, require `--trigger-price`, and require `--reduce-only`.
 - Submitted reduce-only stop-market orders are recorded in `protective_orders` with trigger price, covered size, request ID, source order submission, and extracted Hyperliquid order ID when present.
 - Funding and spread snapshots are stored for suitability review. They do not yet block live entries automatically.
-- The current capital helper still uses `floor(value / 1000) * 1000 * 10` and the sizing helper uses ATR × N. The confirmed [#15 unit-sizing target](docs/strategy_execution_design.md#capital-model) instead uses perp account value × 10 without flooring and an explicit fixed stop for 1% risk per unit. That target is not wired into orders; existing plan limits and the BTC monitor's fixed 80 USDC entry remain unchanged.
+- Advisory `strategy size` calculations use Hyperliquid operating capital of `accountValue * 10` without flooring; KIS uses account NAV × 1. One risk unit is planned loss at the explicit fixed SL equal to 1% of operating capital. Quantity rounds down; BTC keeps its fixed 80-USDC exception. These outputs do not automatically size orders: plan quantity and existing funds/notional guards remain explicit.
 - Non-IPO assets are excluded from the mapping by default.
 - Stocks listed for less than 30 weeks are excluded from live trading.
 - `KORU` (`xyz:KORU`, instrument `hl:xyz:KORU`) is the selected South Korea exposure; `KR200` and `EWY` remain excluded. It references a leveraged ETF, not a KR200/KOSPI200 equivalent, and uses the U.S. cash-equity session. `JP225` remains preferred over `EWJ` for Japan. See `docs/trade_xyz_assets.md`; KORU live acceptance and trailing behavior remain unverified.
@@ -408,3 +408,23 @@ report SHA-256 and explicit approval of corrections. Add `--journals` to regener
 selected account journals and their combined report while preserving old reports.
 See [the account audit workflow](docs/unified-data-operations.md#account-audit-and-explicit-adjustment)
 for command examples, coverage limits and the offline smoke scenario.
+
+## Hermes strategy tools
+
+Hermes loads the shared [trend-strategy skill](.agents/skills/trend-strategy/SKILL.md)
+and owns review timing, briefings and notifications. Deterministic CLI tools supply
+facts and retain decisions; they do not place orders:
+
+```bash
+python3 -m kis_hl.cli strategy indicators --input snapshot.json
+python3 -m kis_hl.cli strategy evaluate --input setup.json
+python3 -m kis_hl.cli strategy stop --input stop.json
+python3 -m kis_hl.cli strategy size --input size.json
+python3 -m kis_hl.cli strategy register --input strategy-version.json
+python3 -m kis_hl.cli strategy decide --input decision.json
+```
+
+See [input/output contracts](docs/strategy-tools.md) for schemas, required source
+metadata and offline replay. Use [the authoring policy](docs/strategy-authoring.md)
+when adding a strategy. Existing signal/manual-grant and protected-order commands
+retain execution authority; a passing setup or stored decision does not grant it.

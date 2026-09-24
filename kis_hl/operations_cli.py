@@ -177,6 +177,12 @@ def add_commands(sub, journal_sub):
         "strategy", help="Register versioned skills and bounded execution grants"
     )
     ss = strategy.add_subparsers(dest="strategy_action", required=True)
+    for action in ["evaluate", "indicators", "stop", "size", "decide"]:
+        c = ss.add_parser(action, help="Deterministic strategy evidence; no order submission")
+        c.add_argument("--input", required=True)
+        if action != "decide":
+            c.add_argument("--as-of-ms", type=int, help="Explicit offline replay clock; no order authority")
+        c.set_defaults(handler=cmd_strategy_tool)
     for action in ["list", "register", "grant", "revoke", "grants"]:
         c = ss.add_parser(action)
         c.set_defaults(handler=cmd_strategy)
@@ -615,6 +621,24 @@ def cmd_strategy(args):
     return signals.grant(
         {**raw, "scope": scope.key, "live": args.live}, now_ms=int(time.time() * 1000)
     )
+
+
+def cmd_strategy_tool(args):
+    from kis_hl.strategy_tools import evaluate_setup, indicator_facts, initial_stop, size_position, ingest_decision
+    from kis_hl.strategy_signals import Signals
+
+    raw = json.loads(Path(args.input).read_text())
+    replay_ms = getattr(args, "as_of_ms", None)
+    now = int(time.time() * 1000) if replay_ms is None else replay_ms
+    if args.strategy_action == "evaluate":
+        return evaluate_setup(raw, now_ms=now)
+    if args.strategy_action == "indicators":
+        return indicator_facts(raw, now_ms=now)
+    if args.strategy_action == "size":
+        return size_position(raw, now_ms=now)
+    if args.strategy_action == "stop":
+        return initial_stop(raw)
+    return ingest_decision(Signals(ExecutionStore(args.db)), raw, now_ms=now)
 
 
 def cmd_signal(args):

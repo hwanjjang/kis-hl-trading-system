@@ -7,6 +7,35 @@ from kis_hl.signals import evaluate_btcusdc_futures_3h_breakout
 
 
 class SignalTests(unittest.TestCase):
+    def test_canonical_timestamps_preserve_times_and_select_latest_candle(self) -> None:
+        signal = evaluate_btcusdc_futures_3h_breakout(
+            [
+                {"start_ms": 10800000, "end_ms": 21600000, "high": "103", "close": "101"},
+                {"start_ms": 0, "end_ms": 10800000, "high": "100", "close": "95"},
+            ]
+        )
+
+        self.assertTrue(signal.should_enter)
+        self.assertEqual(signal.breakout_level, Decimal("100"))
+        self.assertEqual(signal.current_candle_start_ms, 10800000)
+        self.assertEqual(signal.current_candle_end_ms, 21600000)
+        self.assertEqual(signal.reference_candle_start_ms, 0)
+        self.assertEqual(signal.reference_candle_end_ms, 10800000)
+
+    def test_legacy_timestamp_aliases_keep_precedence(self) -> None:
+        signal = evaluate_btcusdc_futures_3h_breakout(
+            [
+                {"t": 1, "T": 2, "start_ms": 20, "end_ms": 21, "h": "100", "c": "95"},
+                {"t": 2, "T": 3, "start_ms": 10, "end_ms": 11, "h": "103", "c": "101"},
+            ]
+        )
+
+        self.assertTrue(signal.should_enter)
+        self.assertEqual(signal.current_candle_start_ms, 2)
+        self.assertEqual(signal.current_candle_end_ms, 3)
+        self.assertEqual(signal.reference_candle_start_ms, 1)
+        self.assertEqual(signal.reference_candle_end_ms, 2)
+
     def test_btc_3h_breakout_enters_when_close_breaks_previous_high(self) -> None:
         signal = evaluate_btcusdc_futures_3h_breakout(
             [
