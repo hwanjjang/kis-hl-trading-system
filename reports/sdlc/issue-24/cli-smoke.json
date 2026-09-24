@@ -1,0 +1,11 @@
+{
+  "result": "PASS",
+  "actions": [
+    "strategy evaluate",
+    "strategy register",
+    "strategy decide twice",
+    "signal list"
+  ],
+  "observed": "One immutable evidence-linked decision, duplicate replay identical, no managed orders",
+  "execution": "Real CLI and SQLite with synthetic fixtures; no network, account reads or orders"
+}

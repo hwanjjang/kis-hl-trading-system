@@ -21,7 +21,10 @@ class TradeXyzAssetTests(unittest.TestCase):
         self.assertEqual(get_trade_xyz_asset("WTIOIL").hyperliquid_coin, "xyz:CL")
 
     def test_duplicate_etf_exposures_are_not_tradable(self) -> None:
-        self.assertTrue(is_trade_xyz_symbol_tradable("KR200"))
+        self.assertTrue(is_trade_xyz_symbol_tradable("KORU"))
+        self.assertFalse(is_trade_xyz_symbol_tradable("KR200"))
+        self.assertEqual(get_trade_xyz_asset("KR200").preferred_symbol, "KORU")
+        self.assertEqual(get_trade_xyz_asset("EWY").preferred_symbol, "KORU")
         self.assertFalse(is_trade_xyz_symbol_tradable("EWY"))
         self.assertTrue(is_trade_xyz_symbol_tradable("JP225"))
         self.assertFalse(is_trade_xyz_symbol_tradable("EWJ"))

@@ -1,0 +1,4 @@
+# Scope clarification
+AK clarified the deliverable is the policy for authoring Hermes strategy skills and deterministic companion code, and completion of the existing strategy material in that form. Hermes handles timing, briefings and notification; no new generic agent runtime, approval UI, notification system or independent execution orchestrator is requested.
+Implement: canonical policy/skill, deterministic indicators and setup predicates, risk-unit tool, signal handoff through existing registry, rewritten current strategy documentation. Reuse existing managed execution and journal interfaces; document unsupported live add-up and percentage-trailing paths rather than claim to implement new exchange lifecycle support as a prerequisite for strategy tooling.
+The earlier broad spec/plan is narrowed by this user clarification. Existing scope does not authorize orders or skill decisions to bypass existing supervisor guards.

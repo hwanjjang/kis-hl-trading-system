@@ -22,11 +22,15 @@ class KisMappingsTests(unittest.TestCase):
         self.assertEqual(mappings["AAPL"].kis_exchange_code, "NAS")
         self.assertEqual(mappings["ORCL"].kis_exchange_code, "NYS")
         self.assertEqual(mappings["URNM"].kis_exchange_code, "AMS")
+        self.assertEqual(mappings["KORU"].status, "active")
+        self.assertEqual(mappings["KORU"].kis_market, "overseas")
+        self.assertEqual(mappings["KORU"].kis_exchange_code, "AMS")
+        self.assertEqual(mappings["KORU"].kis_symbol, "KORU")
 
     def test_builds_supported_index_mappings(self) -> None:
         mappings = {item.trade_symbol: item for item in build_trade_xyz_kis_mappings()}
 
-        self.assertEqual(mappings["KR200"].status, "active")
+        self.assertEqual(mappings["KR200"].status, "excluded")
         self.assertEqual(mappings["KR200"].kis_market, "domestic_index")
         self.assertEqual(mappings["KR200"].kis_symbol, "2001")
         self.assertEqual(mappings["SP500"].kis_market, "overseas_index_time")
@@ -41,7 +45,7 @@ class KisMappingsTests(unittest.TestCase):
         self.assertEqual(mappings["EWY"].status, "excluded")
         self.assertEqual(mappings["EWY"].kis_market, "overseas")
         self.assertEqual(mappings["EWY"].kis_exchange_code, "AMS")
-        self.assertIn("KR200", mappings["EWY"].reason)
+        self.assertIn("KORU", mappings["EWY"].reason)
 
     def test_preserves_reference_only_commodity_and_fx_mappings(self) -> None:
         mappings = {item.trade_symbol: item for item in build_trade_xyz_kis_mappings()}

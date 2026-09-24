@@ -41,6 +41,20 @@ class TradingHoursTests(unittest.TestCase):
         self.assertFalse(closed_decision.allowed)
         self.assertEqual(closed_decision.reason, "outside_regular_session")
 
+    def test_koru_follows_us_cash_hours_not_korea_hours(self) -> None:
+        open_decision = trading_session_decision_for_symbol(
+            "xyz:KORU",
+            now=datetime(2026, 5, 26, 10, tzinfo=ZoneInfo("America/New_York")),
+        )
+        korea_open_decision = trading_session_decision_for_symbol(
+            "xyz:KORU",
+            now=datetime(2026, 5, 27, 10, tzinfo=ZoneInfo("Asia/Seoul")),
+        )
+        self.assertTrue(open_decision.allowed)
+        self.assertEqual(open_decision.session_group, SESSION_US_CASH)
+        self.assertFalse(korea_open_decision.allowed)
+        self.assertEqual(korea_open_decision.session_group, SESSION_US_CASH)
+
     def test_krx_assets_follow_korea_regular_session(self) -> None:
         seoul = ZoneInfo("Asia/Seoul")
 

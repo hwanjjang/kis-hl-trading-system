@@ -1,626 +1,279 @@
-# Strategy Execution Design
-
-This document describes the first live-trading design for trade.xyz RWA assets on Hyperliquid. No autonomous strategy execution is enabled until the remaining guardrails, tests, and reconciliation paths are implemented.
-
-## Goals
-
-- Trade only mapped and eligible trade.xyz assets.
-- Use KIS as the preferred real-time price source when an active KIS route exists.
-- Use Hyperliquid prices when KIS cannot provide the relevant live price.
-- Size positions from portfolio value, ATR risk distance, and asset-class-specific risk multipliers.
-- Place a native Hyperliquid stop-loss after entry fill confirmation.
-- Simulate trailing-stop behavior in the application because Hyperliquid does not provide a native trailing-stop order type.
-- Keep all live entry and add-up decisions inside the underlying market session unless an explicit risk override is added.
-
-## Non-Goals
-
-- No autonomous daemon is enabled in the current implementation.
-- No short-selling strategy is defined yet. The initial design assumes long-only entries and long-position exits.
-- No broker order routing is planned for KIS. KIS is a market-data source only.
-- No optimization or parameter fitting is included in this design.
-
-## Capital Model
-
-The strategy uses an operating notional budget derived from Hyperliquid portfolio value:
-
-```text
-portfolio_floor_usdc = floor(portfolio_value_usdc / 1000) * 1000
-operating_capital_usdc = portfolio_floor_usdc * 20
-```
-
-Example:
-
-```text
-portfolio_value_usdc = 2372.90
-portfolio_floor_usdc = 2000
-operating_capital_usdc = 2000 * 20 = 40000 USDC
-```
-
-Rules:
-
-- If `portfolio_value_usdc < 1000`, the operating capital is `0` and new live entries fail closed.
-- `kis_hl.risk.calculate_operating_capital()` implements this floor-and-multiply rule.
-- Portfolio value must come from a fresh Hyperliquid account state snapshot.
-- The 20x multiplier defines strategy notional budget, not permission to ignore Hyperliquid margin, leverage, or liquidation constraints.
-- Available margin, max leverage, existing exposure, and per-asset caps must be checked before every order.
-
-## Position Sizing
-
-For each entry or add-up tranche:
-
-```text
-risk_budget_usdc = operating_capital_usdc * 0.01
-stop_distance = ATR_10D * N
-amount = risk_budget_usdc / stop_distance
-entry_notional_usdc = amount * entry_price
-```
-
-The amount is the Hyperliquid base-asset size before lot-size rounding. The final submitted amount must be rounded down to the market's allowed size precision.
-
-Example:
-
-```text
-operating_capital_usdc = 40000
-risk_budget_usdc = 400
-ATR_10D = 5
-N = 2
-stop_distance = 10
-amount = 400 / 10 = 40 units
-```
-
-Sizing guards:
-
-- ATR must be calculated from at least 11 daily bars because true range for day `t` depends on day `t - 1` close.
-- `kis_hl.risk.calculate_atr_10d()` implements the daily true-range calculation.
-- If ATR is missing, zero, stale, or calculated from incomplete daily data, live entry fails closed.
-- `amount` must pass Hyperliquid minimum size, lot precision, and notional checks.
-- Entry notional must fit within remaining operating-capital budget and account-level exposure limits.
-- Add-up tranches use the same formula, but cumulative open risk must be capped separately.
-
-## N Multipliers
-
-Initial configurable defaults:
-
-| Asset class | Initial `N` | Rationale |
-| --- | ---: | --- |
-| `equity_index` | 2.0 | Broad indexes generally gap less than single names. |
-| `etf` | 2.5 | ETF gaps and tracking differences are higher than broad cash indexes. |
-| `commodity` | 2.5 | Futures and spot-style commodity references can move sharply around inventory, weather, and macro events. |
-| `fx` | 2.0 | FX is continuous on weekdays and usually lower-gap than equities. |
-| `stock` | 3.0 | Single-name equities have event and gap risk. |
-
-These are starting configuration values, not permanent strategy constants. They must be backtested and reviewed per asset class before live automation.
-
-## Initial Stop-Loss
-
-After an entry order is filled and the actual average entry price is known:
-
-```text
-long_stop_price = average_entry_price - (ATR_10D * N)
-```
-
-The execution engine must submit a reduce-only Hyperliquid stop-loss order for the filled position size. The preferred order is a stop-market style trigger order, because a stop-limit can fail to fill during a fast move.
-
-Required behavior:
-
-- Do not assume the requested entry price is the filled price.
-- Wait for fill confirmation from Hyperliquid user-state/order/fill data.
-- If a position opens and the stop-loss order cannot be placed, immediately submit a reduce-only market exit or enter a manual-intervention state.
-- Store the stop order ID, client order ID, trigger price, covered size, and source ATR snapshot.
-- Reconcile open positions and open stops on every restart.
-
-Hyperliquid supports trigger-style orders through the exchange endpoint and `tp`/`sl` order semantics. The project wraps stop-market trigger payloads through `HyperliquidTradingClient.place_order(order_type="stop-market")` and `place_stop_loss_order()`. Submitted reduce-only stop-market orders are persisted in `protective_orders`, but full automation still needs fill reconciliation, ATR snapshot linkage, and restart reconciliation against live open orders.
-
-## Application-Level Trailing Exit
-
-### Implemented trailing management
-
-The `trailing enroll/run/status/replay` CLI now implements explicit management of
-an existing protected long. The broader entry/add-up daemon below remains a plan.
-Implementation differences from the original proposal are deliberate:
-
-- Enrollment requires an existing fully filled single entry and verified fixed SL;
-  it does not place either order. ATR is frozen from 11 matching closed HL daily
-  bars at enrollment, not retrospectively claimed to be the original entry ATR.
-  No pre-enrollment intraday watermark is inferred. The existing SL must be at
-  least as protective as the newly configured initial floor.
-- `Trail` consumes receive-time allMids samples because this feed has no exchange
-  event timestamp. Late/out-of-order samples are rejected (zero lateness window).
-  The first bucket and any bucket with an excessive gap are ineligible for H/T
-  updates. Closed valid bars alone ratchet T; fresh ticks check crossings.
-- The CLI runs a single position per worker under a process-held account lock.
-  REST reconciliation runs every 10 seconds and before new exit attempts; no
-  user-stream reconciliation adapter or multi-host ownership lease is added.
-- `trailing_positions`, `trailing_exit_intents`, `trailing_exit_attempts` and
-  `trailing_events` are owned by `kis_hl.trailing_storage` in the same SQLite file.
-  The snapshot is versioned; a unique decision and updated threshold commit in one
-  transaction. Attempts start UNKNOWN before sending and retain their cloid/raw
-  response. They supplement the existing manual order/protective audit tables.
-- Missing/insufficient native protection enters latched MANUAL_INTERVENTION,
-  rather than attempting an unreviewed emergency price/slippage policy. Unknown
-  submissions reconcile without blind retry; confirmed terminal attempts may
-  retry residual size up to 3 attempts / 120 seconds. Dust and limit exhaustion
-  require intervention. Existing verification guards are not relaxed for exits.
-- Fill-ledger continuity must cover the original entry through current size.
-  Truncated/missing history, extra buys, reversals and unowned open orders fail
-  closed. A non-atomic fill/position mismatch waits in RECONCILING for consistent
-  snapshots. Native stop cleanup requires flatness and terminal attempt evidence;
-  disappearance from open orders alone is insufficient to prove stop termination.
-- Paper enrollment and offline replay cannot mutate live orders. A paper crossing
-  records PAPER_EXIT and assumes no fill. Replay end/invalid input closes that
-  paper run only. `run --recover` is explicit, preserves retry budgets, and never
-  adopts another position generation.
-
-The implementation is covered by offline tests; no live fill, disconnect or
-cancellation behavior has been verified. Keep the diagram labeled Proposed v1:
-its initial-stop stage describes the full intended lifecycle, while this CLI
-starts after that stage has been confirmed externally. CLI usage is in README.
-
-
-### Original first-release proposal (implementation scope above)
-
-Use an application-managed trailing exit plus an independently resting native
-Hyperliquid stop-loss. Keep the native stop at its initial protective level in
-v1; the application submits a reduce-only exit when its trailing threshold is
-crossed. This preserves the existing strategy model and avoids adding stop
-replacement races to the first release. A process outage preserves only the
-native stop, not the latest application profit-protection level.
-
-Scope: long-only perpetual positions, one managed position per account/dex/coin,
-within the existing live eligibility rules. Spot management, shorts, automatic
-adoption of manual positions, add-ups, and concurrent strategies on the same coin
-are outside the first release. Disable managed-symbol entries while an exit or
-recovery is pending. No live asset set is widened by this proposal.
-
-### Calculation and activation
-
-Freeze `ATR_10D`, `N`, their source/version, and price units when the initial fill
-is reconciled. Let `E` be the actual volume-weighted entry price and `D = ATR_10D * N`.
-Reject non-positive inputs and a non-positive initial stop.
-
-```text
-initial_stop = E - D
-H = E
-T = initial_stop
-on each valid closed post-entry 9-minute bar:
-    H = max(H, bar.high)
-    T = max(T, initial_stop, H - D)
-on each fresh selected price P, including immediately after a T update:
-    if P <= T: persist one exit intent
-```
-
-Activate after the native stop is confirmed live with sufficient coverage. No
-profit-activation threshold or automatic breakeven rule is added in v1. ATR is
-not recomputed during the position, so increased volatility cannot widen the
-stop. Both H and T are monotonic. If tick rounding is needed, use the legal long
-sell-stop level at or below the raw threshold; validate the risk impact and never
-lower an already established effective threshold. Use Decimal calculations.
-
-Example: E=100, ATR=2, N=2 gives D=4 and initial stop=96. A closed bar high of 108
-raises T to 104. A later high of 106 leaves T at 104. A fresh price of 104 or lower
-creates an exit intent; the execution price is not guaranteed to be 104.
-
-### Candles and price basis
-
-Use event-time UTC buckets `[floor(t / 540000) * 540000, start + 540000)`.
-Only post-fill ticks contribute. Discard the entry bucket from watermark updates
-if complete post-entry coverage cannot be established. Finalize after a bounded,
-configured lateness allowance; ignore duplicates and quarantine events arriving
-after finalization. Never revise past decisions using later data. Persist the
-processed bar ID with H/T so a replay cannot apply a bar twice. Missing or degraded
-bars do not advance H; the last valid T remains active for fresh-price checks.
-The 9-minute delay intentionally ignores unclosed intrabar highs.
-
-The broader strategy prefers KIS when a usable route exists. For trailing v1,
-pin the management price source to Hyperliquid for the position lifetime and use
-Hyperliquid daily ATR in the same instrument units. This is a deliberate narrower
-management policy: entry signals may still use KIS, but raw KIS prices or ATR must
-not be compared with Hyperliquid entry prices or thresholds. If matching ATR is
-unavailable, automated management must not be activated for a new entry.
-
-Use the existing allMids stream for application bars and crossing checks; label
-these as mid-price signals. Hyperliquid native TP/SL triggers use mark price, so
-the two protections may fire at different times. A future mark-based mode needs
-a tested market-context adapter and its own persisted price basis.
-
-Supporting KIS-managed trails later requires an explicit, versioned conversion
-contract for currency, units, instrument scale and market basis. Maintain a
-separate watermark per source basis; neither switch sources under an old H/T nor
-blend ticks in a candle. A source change must reconcile the conversion and
-protective level before resuming. Unverifiable conversion means degraded mode.
-
-Freshness must be per symbol, with monotonic receive-age, source event time when
-available, connection generation and gap flags. allMids receive time alone does
-not prove that the underlying market traded recently. Reject invalid prices,
-out-of-order updates and replay snapshots as new high-watermark evidence. Set
-freshness and reconnect thresholds explicitly in the paper-run configuration;
-calibrate them from recorded feed cadence before live release.
-
-### Execution and state
-
-```text
-RECOVERING -> PROTECTED -> EXIT_PENDING -> FLAT_CLEANUP -> CLOSED
-                  |             |
-                  v             v
-               DEGRADED <-> RECONCILING
-unprotected position -> EMERGENCY_EXIT or MANUAL_INTERVENTION
-```
-
-DEGRADED means the fixed native protection remains verified, but trailing updates
-are suspended. If protection is unknown, enter RECONCILING; do not label a locally
-stored stop as verified protection. Keep the prior T and resume only with fresh,
-consistent data. Once an exit intent exists, a price rebound does not cancel it.
-
-1. Serialize actions per account/dex/coin under a process lock held for the full
-   worker lifetime. Use one supervised CLI worker and one submission owner per
-   account; multi-host writers are outside v1. A SQLite transaction atomically
-   saves the threshold decision, state transition and exit intent before sending.
-2. Reconcile current position and known outstanding exit orders. Submit only the
-   remaining positive long size, rounded to permitted lot precision, with
-   `reduce_only=True`, a bounded slippage price and IOC semantics.
-3. Persist an exchange-compatible 128-bit cloid before sending. The local
-   `client_request_id` is not an exchange cloid. Track each attempt separately;
-   cloid is a reconciliation key, not a guarantee of exactly-once submission.
-4. On timeout, record UNKNOWN and query order status, open orders, fills and
-   position before any resend. An absent open order alone does not prove failure.
-   If acceptance remains ambiguous, block resubmission and require reconciliation.
-5. IOC acceptance is not full closure. Reconcile fills and residual position;
-   use a new linked attempt only after the previous attempt is terminal. Bound
-   retries by count/time/slippage. On exhaustion retain protection, block entries
-   and raise a structured manual-intervention event. Do not silently increase
-   slippage. Handle residual dust explicitly rather than rounding it to flat.
-6. Keep the native stop active during exit submission. If it triggers concurrently,
-   refresh size and cancel any now-unneeded managed exit orders. Every exit must
-   be reduce-only so a race cannot open a short.
-7. Confirm the actual position is flat, cancel this position generation's remaining
-   managed protective orders, and confirm cleanup before permitting re-entry.
-   A stale reduce-only stop could otherwise affect a future position in the same
-   coin. Never cancel unowned/manual orders.
-
-The unsafe `market_open()` reduce-only path is now fixed. Generic reduce-only
-market orders verify the side against the current position and submit a rounded,
-fixed-side reduce-only IOC through `exchange.order`. The trailing worker uses its
-reconciled quantity and persisted cloid with the same explicit IOC semantics.
-Per-order rejection responses are returned as `status="rejected"`; successful
-submission still requires independent fill/coverage verification.
-
-Keep existing allowlist, metadata freshness and credential guards. Current
-reduce-only paths bypass entry-session checks but still require recent metadata
-verification. If that guard blocks a needed exit, record it and escalate while
-retaining the native stop. A separate authorization policy for exits from an
-existing verified position would require an explicit safety-policy change.
-
-### Persistence and recovery
-
-Extend the already proposed `position_state` with position-generation ID,
-account/dex/coin, initial fill identity/time, side/size, E, frozen ATR/N/D, initial
-stop, price basis, H/T, last processed bar, native stop identifiers, last verified
-coverage/time, state and version. Store prices/sizes as decimal strings.
-
-Add `exit_intents` containing a unique decision key `(position_id, exit_reason)`,
-trigger event/threshold, status and creation time. Add `exit_order_attempts` linked
-to that intent with cloid, exchange oid, requested/filled size, limit price,
-response/error, reconciliation status and timestamps. Reuse `order_submissions`
-for raw submission evidence and extend `protective_orders` for reconciled status;
-its local active flag alone is insufficient. Keep dry-run and live state isolated.
-
-On startup, acquire ownership, disable entries and reconcile actual account state,
-managed open orders and unresolved attempts before consuming new signals. Restore
-H/T from SQLite; never reset them to the current price. Replay only complete,
-verified same-source post-entry data. For an unfillable data gap, keep the last
-saved T and report missed-high uncertainty; do not invent an outage watermark.
-If a fresh price is already below T, create or resume the same exit intent.
-
-A manual partial close updates residual size and stop coverage. An unexpected
-increase, reversal or unknown position generation enters MANUAL_INTERVENTION;
-never silently adopt it. A confirmed external full close goes through cleanup.
-A missing native stop blocks entries and invokes the initial-stop failure policy.
-
-Log position_id, intent_id, attempt_id, cloid/oid, event time, source/basis,
-old/new H/T, quantity, state transition, cause, action and result. Persist pending
-intent and state before external effects; log transitions rather than every tick.
-
-### Implementation lanes and acceptance gates
-
-These are sequential implementation slices, not authorization to trade live:
-
-| Slice | Intended files | Required evidence |
-| --- | --- | --- |
-| Safe exit primitive | `kis_hl/hyperliquid/client.py`, matching client tests, Hyperliquid skill references | SDK receives reduce-only IOC and cloid; tick/lot, rejection and timeout tests |
-| Pure trailing calculation | New `kis_hl/trailing.py`, `tests/test_trailing.py` | H/T never decrease; equality crossing; frozen ATR; entry bucket, duplicates, gaps and stale-price tests |
-| Durable state | `kis_hl/storage.py`, matching storage tests | Atomic intent/state write, unique decisions, generation isolation, crash recovery |
-| Reconciliation and worker | New `kis_hl/trailing_runner.py`, client/info and websocket adapters, matching tests | Unknown acceptance, partial fills, simultaneous native stop, manual changes, missing protection, restart and worker ownership tests |
-| CLI and paper rollout | `kis_hl/cli.py`, CLI tests, README and owning docs | Dry-run default, explicit management enrollment, recorded-tick replay, no unintended writes to live state |
-
-Write behavior tests before each production slice. Test crash points before send,
-after exchange acceptance but before local acknowledgement, and during cleanup.
-Existing websocket clients need integration; they do not provide this state
-machine by themselves. Expose status including degraded reason and verified stop
-coverage before exposing a long-running management command.
-
-Native stop ratcheting is a later option when preserving the latest profit floor
-through an application outage is required. Add modify/cancel wrappers with their
-own safety tests, coalesce improvements and reconcile every ambiguous response.
-Do not implement cancel-then-create as an unprotected two-step replacement, and
-do not assume modify failure preserves the old stop without verification. Never
-submit a replacement trigger already crossed; use the reconciled exit path.
-
-Outstanding live risks: sampled mid-price bars can miss traded highs, market/mark
-basis can diverge, gaps can exceed the stop or slippage tolerance, IOC can leave
-residuals, and an application outage loses trailing updates. Exchange order and
-reconnect behavior must be validated before live activation. No profit or maximum
-loss guarantee follows from this design.
-
-## Entry And Add-Up Model
-
-The initial strategy model is long-only and trend-following.
-
-### Universe Filter
-
-An asset is eligible for signal evaluation only when all conditions pass:
-
-- `trade_xyz_assets.tradable = 1`.
-- The Hyperliquid `xyz:` market has a recent successful verification row.
-- The latest Hyperliquid `xyz` universe snapshot still contains the symbol.
-- Recent funding-rate and spread snapshots are available for suitability review.
-- Daily bars and ATR are fresh.
-- The latest weekly close is above 30-week EMA. `kis_hl.risk.calculate_30w_ema_status()` implements the current weekly EMA calculation from daily bars.
-- The underlying market session is open according to `docs/trading_hours.md`.
-- The live price source is fresh.
-
-### High-Probability Entry Gate
-
-Every entry and add-up signal must pass a quality gate before risk sizing and order preparation. This gate keeps trade selection systematic instead of discretionary.
-
-Required checks:
-
-- Trend: the higher timeframe trend must agree with the trade direction. For this project, long-only entries require the 30-week EMA filter to pass and should prefer higher-high/higher-low structure on daily or 4H context.
-- Confluence: the setup must have more than one supporting factor. Accepted factors can include support/resistance, moving-average alignment, prior breakout level, ATR band interaction, or another documented level. Confluence that is not machine-coded yet must be recorded as operator notes before live approval.
-- Price action confirmation: the selected candle must confirm the entry. Examples include a close above resistance, a breakout-and-retest close, a rejection candle at support, or a bullish reversal pattern after pullback. A tick-only move is not enough for normal entries.
-- Plan completeness: entry basis, stop-loss basis, take-profit or management plan, ATR snapshot, N value, and risk budget must be known before the order is sent.
-- Risk and management: per-tranche risk must remain within the configured cap, stop-loss placement must be ready, and the trade must have a rule for breakeven stop movement or trailing-exit handling after price moves in favor.
-- Reviewability: the setup label and entry-quality notes must be journalable so the completed trade can be reviewed against the original reason for entry.
-
-The first implemented BTC rule satisfies only the price-action part of this gate by checking a closed 3H spot candle breakout. It still needs persisted confluence notes, trade-plan records, and fill-aware management before it should be treated as a fully automated high-probability entry system.
-
-### Breakout Entry
-
-Default intent:
-
-- Buy when price breaks above a configured resistance or lookback high.
-- Require confirmation from the selected live source.
-- Store the breakout level, ATR snapshot, N value, operating-capital snapshot, and signal timestamp.
-
-BTCUSDC futures rule:
-
-- Resolve explicit futures symbols such as `BTCUSDC-PERP`, `BTC-PERP`, and `BTCPERP` to the Hyperliquid `BTC` perp coin.
-- Use Hyperliquid BTC spot websocket mids as the monitoring price source.
-- Build closed `3h` spot candles from those mids.
-- The default breakout level is the immediately prior closed 3H candle high.
-- A long-entry signal is valid when the latest closed 3H spot candle close is strictly greater than that breakout level.
-- `--lookback-candles` can evaluate against the highest high across more prior candles, but the production default remains the immediately prior candle until backtests select a broader lookback.
-- `kis_hl.signals.evaluate_btcusdc_futures_3h_breakout()` implements the candle breakout check.
-- `kis_hl.btc_strategy.BtcSpotBreakoutPerpStrategy` wires spot websocket ticks to the breakout rule and creates a BTC perp long-entry plan.
-
-BTCUSDC futures execution defaults:
-
-- Entry instrument: Hyperliquid `BTC` perp via `BTCUSDC-PERP`.
-- Entry side: long.
-- Entry order type: market.
-- Entry notional: `80 USDC`.
-- Entry size: `80 / entry_price`.
-- Stop-loss: reduce-only stop-market sell.
-- Stop-loss trigger: `entry_price - (ATR(10D) * 2)`.
-- ATR source: explicit `--atr-10d` override or Hyperliquid BTC perp `1d` candle snapshot.
-
-Current limits:
-
-- The monitor prevents duplicate entries only inside the running process.
-- Existing BTC positions are not reconciled before live entry.
-- Stop placement uses the signal close as entry reference until fill reconciliation is implemented.
-- A restart can forget that an entry was already planned unless persisted position state is added.
-
-### Pullback Add-Up
-
-Default intent:
-
-- Add only after the initial breakout position is profitable or at least not violating the current stop.
-- Wait for a pullback toward a configured reference such as a short moving average, prior breakout level, or ATR band.
-- Add when price resumes upward from the pullback area.
-
-Guards:
-
-- Do not add below the current effective stop.
-- Do not add if cumulative open risk exceeds the portfolio-level risk cap.
-- Each add-up tranche must have its own sizing record and stop-distance calculation.
-
-### Rebreakout Add-Up
-
-Default intent:
-
-- Add when price breaks above the most recent post-entry swing high or consolidation high.
-- Require the 30-week EMA filter and session guard to still pass.
-- Recompute available risk and exposure before adding.
-
-## Portfolio Risk Caps
-
-Initial caps to implement before live automation:
-
-- Per-tranche risk: `1%` of operating capital.
-- Per-asset cumulative open risk: configurable, initially `2%` of operating capital.
-- Total portfolio open risk: configurable, initially `6%` of operating capital.
-- Max gross notional: no more than `operating_capital_usdc`.
-- Max add-up count per asset: configurable, initially `2` after the first entry.
-
-Open risk should be calculated from current stop distances, not from original entry intent. If a stop is raised or a trailing exit reduces risk, the available risk budget can be recalculated.
-
-## Websocket Architecture
-
-### KIS Stream Manager
-
-Responsibilities:
-
-- Authenticate REST and websocket credentials.
-- Subscribe to real-time price feeds for active KIS routes.
-- Maintain per-symbol stream status, last message timestamp, and parse errors.
-- Reconnect with bounded exponential backoff.
-- Resubscribe after reconnect.
-- Emit normalized `price_tick` events with source, symbol, exchange, price, size, event time, receive time, and raw payload reference.
-
-The official KIS sample repository uses websocket authentication before starting websocket subscriptions and includes domestic and overseas stock realtime examples. This project implements approval-key acquisition, subscription payload construction, ping echo handling, reconnects, and stale detection in `kis_hl.kis.ws`.
-
-### Hyperliquid Stream Manager
-
-Responsibilities:
-
-- Subscribe to `allMids` for the `xyz` dex for RWA prices.
-- Subscribe to user fill/order/clearinghouse state streams for execution reconciliation.
-- Optionally subscribe to candle feeds for fallback bars, but local 9-minute bars should still be built from normalized ticks for consistency.
-- Detect stale streams and reconnect with backoff.
-- Emit normalized ticks and execution events.
-
-Hyperliquid websocket subscriptions return a subscription response and then channel-specific data messages. The official websocket docs include `allMids` subscriptions, user events, fills, BBO, and candle subscriptions. This project implements subscribe payloads, heartbeat pings, reconnects, stale detection, and `allMids` tick parsing in `kis_hl.hyperliquid.ws`.
-
-## Data Flow
+# Strategy integration design
+
+This document describes the completed strategy-skill/tool contract and its boundary
+with existing execution. Strategy selection rules live in the canonical
+[trend-strategy skill](../.agents/skills/trend-strategy/SKILL.md), not in a second
+strategy daemon. The [authoring policy](strategy-authoring.md) defines which work
+belongs in skills versus deterministic code. Hermes owns review timing, agent
+invocation, conversation, briefings and notification delivery.
+
+## Current responsibilities
+
+| Component | Implemented responsibility |
+| --- | --- |
+| `trend-strategy` skill | Long breakout, pullback/rebreakout review, confluence, risk-unit proposals, management reasoning and the BTC exception |
+| `kis_hl.strategy_tools` | Closed/fresh input validation, ATR/30W EMA evidence, numeric setup predicates, ATR stop proposal, explicit-stop sizing and validated decision ingestion |
+| `kis_hl.risk` | Decimal capital, ATR, EMA, asset-class N and risk-unit calculations |
+| `kis_hl.strategy_signals` | Immutable strategy versions/decisions, expiry, bounded grants and explicit entry authority; rechecks skill evidence before entry |
+| `kis_hl.managed_execution` / gateways | Existing protected entry, fill reconciliation, account ownership, native/local protection, restart recovery and exit cleanup |
+| `kis_hl.trailing` / worker | Existing local frozen-ATR trailing calculation and supervised management; native provider integration remains explicit |
+| Existing journal ledger | Actual-fill synchronization, strategy attribution and completed-trade review |
+| Hermes | Contextual strategy decisions, review cadence, user-selected units and briefing/notification workflow |
+
+This replaces the original proposal to build a strategy-evaluation daemon and a
+new set of parallel strategy/position tables. Reuse the existing registry, managed
+positions/attempts and journal ledger. Strategy skill/tool completion does not
+assert that every historical live-execution proposal is implemented.
+
+## Decision and execution flow
 
 ```mermaid
 flowchart LR
-  HLAccount["Hyperliquid account state"] --> Capital["Operating capital calculator"]
-  DailyBars["market_daily_bars"] --> ATR["ATR(10D) and 30W EMA"]
-  KISWS["KIS websocket"] --> Ticks["Normalized tick bus"]
-  HLWS["Hyperliquid websocket"] --> Ticks
-  Ticks --> Bars9m["9-minute bar builder"]
-  Capital --> Risk["Risk and sizing engine"]
-  ATR --> Risk
-  Bars9m --> Signals["Breakout / pullback / rebreakout signals"]
-  Signals --> Risk
-  Risk --> Session["Trading-hours guard"]
-  Session --> Execution["Hyperliquid execution"]
-  Execution --> Stops["Native stop-loss orders"]
-  Bars9m --> Trail["Application trailing exit"]
-  Trail --> Execution
-  Execution --> SQLite["SQLite audit tables"]
+  Data["Explicit market/account evidence"] --> Tools["Deterministic CLI tools"]
+  Hermes["Hermes + trend-strategy skill"] --> Tools
+  Tools --> Hermes
+  Hermes --> Decision["strategy decide: immutable evidence + rationale"]
+  Decision --> Approval["Explicit manual authority or bounded grant"]
+  Approval --> Plan["Existing execution plan + preflight"]
+  Plan --> Managed["Fill-aware supervisor and protection"]
+  Managed --> Journal["Actual-fill journal"]
 ```
 
-## Proposed SQLite Tables
+The skill chooses and explains context; code tests precise predicates and performs
+arithmetic. `predicate_passed` alone is not a signal, permission, risk approval or
+proof of protective coverage. Setup, stop and sizing outputs carry
+`order_authorized: false`. Invalid/stale inputs produce unavailable evidence;
+missing facts must not become empty positions or zero risk.
 
-The existing `market_ticks`, `market_daily_bars`, and `order_submissions` tables are useful but not enough for a live strategy daemon.
+`strategy decide` accepts the existing registered strategy/version and signal
+identity fields plus action, original setup inputs, confluence and management
+rationale. It recomputes evidence and persists it in the existing immutable signal
+record, including source/snapshot identity and an input digest. An identical
+replay is idempotent; changed inputs need a new decision ID. Existing signal/plan
+identifiers provide journal attribution without inventing realized trades.
 
-Proposed additions:
+The current signal executor accepts entry actions only. Hold/add/reduce/exit and
+no-trade records remain advisory; they cannot be accidentally replayed as new
+entries. The supervisor rechecks source-evidence freshness and the entry predicate
+before entry in addition to its existing execution checks. Legacy `signal ingest`
+remains compatible; skills use the validated `strategy decide` interface.
 
-| Table | Purpose |
-| --- | --- |
-| `portfolio_snapshots` | Hyperliquid account value, margin, and derived operating capital. |
-| `market_price_ticks` | Normalized tick stream with source freshness metadata. |
-| `market_9m_bars` | Local 9-minute OHLCV bars by selected source. |
-| `asset_indicators` | ATR(10D), 30W EMA, latest weekly close, and calculation inputs. |
-| `strategy_signals` | Breakout, pullback add-up, rebreakout add-up, trailing-exit signals. |
-| `position_plans` | Intended size, stop distance, N, operating-capital snapshot, and risk budget. |
-| `position_state` | Current reconciled Hyperliquid position, average entry, covered stop size, and high watermark. |
-| `protective_orders` | Native stop-loss order IDs, trigger prices, status, and coverage checks. |
-| `trade_journal_entries` | Completed trade records and review-statistics snapshots. |
-| `stream_status` | Per-source connection health, last event time, reconnect count, and active subscriptions. |
+## Confirmed capital and risk policy
 
-Already implemented market-review tables:
+### Capital model
 
-| Table | Purpose |
-| --- | --- |
-| `trade_xyz_universe_snapshots` | Point-in-time Hyperliquid `xyz` universe snapshots, including new and missing symbols. |
-| `trade_xyz_universe_assets` | Per-market metadata from each universe snapshot, including 24h base volume, 24h notional volume, and open interest when Hyperliquid provides them. |
-| `market_funding_rates` | Hyperliquid hourly funding-rate and premium history by `xyz` symbol. |
-| `market_spread_snapshots` | Top-of-book best bid, best ask, mid, absolute spread, spread bps, and top-level size snapshots. |
+Hyperliquid operating capital uses the selected perpetual account value × 10,
+without a thousand-USDC floor or a below-1000 exclusion. KIS uses selected account
+NAV × 1, valued in the execution currency with an explicit FX basis when needed.
+Do not pool main/subaccounts, spot balances or other-dex collateral into the chosen
+HL account value. Available funds are a separate constraint. The multiplier does
+not set venue leverage or waive margin requirements.
 
-All tables should store raw payload references or raw JSON where external schemas may change.
+### Position sizing
 
-## Trade Journal
+One unit represents planned fixed-stop loss of 1% of operating capital. For example,
+2372.90 USDC yields 23729 USDC operating capital and 237.29 USDC planned risk per
+unit. The unit calculator accepts the actual proposed entry and fixed SL, rounds
+quantity down to the supplied lot step, and reports realized planned risk after
+rounding. A below-minimum result cannot be rounded up silently. Costs, slippage
+and gaps mean actual losses are not guaranteed to equal planned stop risk.
 
-Every completed trade should produce a journal entry. Until position close reconciliation is implemented, operators should call `journal add` manually after a trade is fully closed.
+### Portfolio risk caps
 
-The required statistics snapshot is calculated from unweighted per-trade net return percentages and includes:
+The confirmed policy removes the former 2% per-asset / 6% total stop-risk caps and
+two-add-up count limit. Existing funds, order-notional, correlated exposure,
+max-loss and authorization bounds remain in force; this is not permission to
+remove executable safety checks. No maximum unit count is invented by the skill.
+A better trailing threshold may inform another proposal but cannot silently
+increase an approved quantity or replace the fixed SL used to size a new tranche.
 
-- Average profit.
-- Average loss.
-- Success/failure ratio, calculated as average profit divided by absolute average loss.
-- Win rate, calculated over non-breakeven trades.
-- Adjusted success/failure ratio, weighting average profit and loss by win and loss frequency.
-- Max profit.
-- Max loss.
-- Average profit holding days.
-- Average loss holding days.
+`strategy stop` reuses execution-instrument ATR(10D) and asset-class N defaults.
+The sizing tool accepts a final explicit stop, including a justified structural
+stop. Short-side arithmetic is available to the calculator; this skill and managed
+execution remain long-only. The BTC exception keeps fixed 80-USDC entry notional
+and perpetual ATR × 2 instead of silently migrating to unit sizing.
 
-The journal stores a statistics snapshot with each entry so the review context is preserved even if later trades change aggregate results. The legacy `adjusted_outcome` input remains storage-compatible but does not alter the required statistics. `.agents/skills/trade-journal/` owns the detailed record and formula contract.
+## Data and price basis
 
-## Execution State Machine
+The [tool contract](strategy-tools.md) defines explicit snapshot/bar schemas.
+The initial adapter uses complete UTC daily and weekly buckets, rejects partial
+weeks and gaps in weekly/confirmation history, and makes history depth/freshness
+requirements observable. Existing collectors/data tools remain responsible for
+source coverage and calendar normalization. No new data daemon is installed.
 
-```text
-DISABLED
-  -> READY after config, assets, daily bars, indicators, streams, and account snapshot pass checks
-READY
-  -> ENTRY_PENDING after a valid breakout signal and risk approval
-ENTRY_PENDING
-  -> POSITION_OPEN after fill reconciliation
-  -> READY if entry order expires, cancels, or rejects
-POSITION_OPEN
-  -> STOP_ARMING immediately after fill
-STOP_ARMING
-  -> PROTECTED after native stop-loss confirmation
-  -> EMERGENCY_EXIT if native stop-loss cannot be armed
-PROTECTED
-  -> ADD_PENDING after pullback or rebreakout add-up approval
-  -> EXIT_PENDING after trailing exit, native stop trigger, manual exit, or session/risk override
-ADD_PENDING
-  -> STOP_ARMING after add fill reconciliation
-EXIT_PENDING
-  -> READY after position is flat and managed protective-order cleanup is confirmed
-EMERGENCY_EXIT
-  -> READY only after position is flat and reconciliation is clean
-```
+The strategy prefers a usable configured KIS reference route; explicit HL fallback
+is allowed when its basis is appropriate. Never blend providers inside a candle
+or carry a watermark across price bases. Analysis indices, leveraged ETFs and
+perpetuals are distinct instruments. Entry/stop sizing uses execution-instrument
+prices and ATR, even when market timing comes from another series. Cross-venue
+comparison/fallback rules remain owned by [operations](trading-operations.md#cross-venue-timing-and-preferred-execution-policy).
 
-## Failure Policy
+### Breakout entry
 
-Live entries and add-ups fail closed when:
+The BTC three-hour strategy is independent and opt-in under the
+[activation policy](trading-operations.md#btc-three-hour-strategy-activation-policy).
+A general BTC review does not activate it; review, monitoring and trading authority
+remain separate.
 
-- Portfolio value is stale or below the minimum floor.
-- ATR or 30W EMA is missing or stale.
-- Hyperliquid metadata verification is stale.
-- The underlying market session is closed.
-- Both KIS and Hyperliquid live prices are stale.
-- Position size cannot be rounded safely.
-- Recent funding or spread data is missing when the operator has configured these checks as mandatory.
-- Native stop-loss cannot be submitted after a fill.
-- Open position state cannot be reconciled.
+For BTC, spot 3H candles supply only the timing predicate; perpetual data supplies
+execution price, ATR, quantity and protection. The shared skill uses the existing
+closed-candle BTC predicate through the deterministic wrapper.
 
-Risk-reduction exits may continue when:
+## Existing protection and execution limits
 
-- The primary KIS stream is stale but Hyperliquid fallback prices are fresh.
-- The underlying market session is closed but an emergency exit is required.
-- A native stop order is missing, partially covering, or rejected.
+Use the protected operations path for authorized orders. It persists attempts
+before network I/O, reconciles actual fills and unknown outcomes, retains account
+ownership and handles restart/cleanup. Order acknowledgement is not verified
+coverage. Missing or inconsistent protection follows the existing intervention
+policy, not a strategy-specific raw-order workaround.
 
-Every abnormal path must produce structured logs with cause, action, and result.
+Local trailing uses the existing `Trail`: frozen ATR distance, closed valid
+post-entry nine-minute bars for high/threshold updates, fresh ticks for crossing,
+monotonic thresholds and preserved state on restart. Native trailing uses a
+different continuous mark-price contract. Preserve the chosen provider and fixed
+SL during trailing activation; do not claim one provider is equivalent to another.
+Immediate activation means the earliest supported verified point after fill and
+protection, with no profit/breakeven prerequisite. Detailed lifecycle and recovery
+behavior remain in [protected operations](trading-operations.md).
 
-## Implementation Sequence
+The following execution capabilities are separate from completing the strategy
+skill and its deterministic tools:
 
-1. Add pure calculation modules and tests for operating capital, ATR(10D), 30W EMA, stop distance, and amount rounding.
-2. Add asset-class `N` configuration and tests.
-3. Add the session guard using `docs/trading_hours.md`.
-4. Persist and reconcile Hyperliquid trigger stop-loss orders across restarts.
-5. Wire KIS and Hyperliquid websocket clients into persistent tick tables.
-6. Add 9-minute bar building and source freshness logic.
-7. Add signal generation for breakout, pullback add-up, and rebreakout add-up.
-8. Add reconciliation for positions, fills, native stops, and restart recovery.
-9. Add dry-run/paper replay mode using recorded ticks and daily bars.
-10. Enable live mode only after end-to-end dry-run evidence exists.
+- **Live add-ups:** the current supervisor requires flat entry and owns one active
+  position per account/instrument. The skill and tools can evaluate and size an
+  add proposal, but cannot submit it by bypassing those guards. Tranche-aware
+  execution/protection is a separate execution change.
+- **Arbitrary fixed-stop plans:** the tool can calculate against an explicit stop;
+  the current managed plan expresses ATR distance and rechecks execution ATR.
+  An authorized plan must represent the same risk basis. Do not silently substitute
+  another stop to make a proposal executable.
+- **Managed percentage TS and partial reductions:** available low-level fields or
+  advisory decisions do not establish an end-to-end managed contract. Use only
+  supported existing controls and expose unavailable capabilities.
+- **Legacy BTC monitor:** its direct entry/requested-size stop path is not the
+  skill's protected execution path. Its in-process deduplication and signal-price
+  protection remain legacy limitations; use persisted skill decisions and the
+  managed path for this workflow.
+- **Cross-venue automatic routing:** Hermes can review explicit pairs and prepare
+  independent proposals. Broker eligibility/fallback and asynchronous venue
+  outcomes cannot be inferred from shared timing; current plans use explicit IDs.
 
-## References
+These limits are reported, not hidden behind successful strategy-tool tests. No
+live order, outage or cancellation behavior was verified by this change.
 
-- Hyperliquid websocket subscriptions: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/websocket/subscriptions
-- Hyperliquid exchange endpoint: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/exchange-endpoint
-- Hyperliquid order types: https://hyperliquid.gitbook.io/hyperliquid-docs/trading/order-types
-- Korea Investment Open Trading API sample repository: https://github.com/koreainvestment/open-trading-api
-- KIS domestic websocket sample: https://github.com/koreainvestment/open-trading-api/blob/main/examples_user/domestic_stock/domestic_stock_examples_ws.py
-- KIS overseas websocket sample: https://github.com/koreainvestment/open-trading-api/blob/main/examples_user/overseas_stock/overseas_stock_examples_ws.py
+## Daily-volatility execution and close-briefing reference requirements
 
-- Hyperliquid TP/SL trigger basis: https://hyperliquid.gitbook.io/hyperliquid-docs/trading/take-profit-and-stop-loss-orders-tp-sl
-- Hyperliquid SDK order helpers: https://github.com/hyperliquid-dex/hyperliquid-python-sdk/blob/master/hyperliquid/exchange.py
+These requirements do not change active plans, live orders or implementation
+defaults. Current execution behavior is owned by
+[trading operations](trading-operations.md). Research and calibration limits are
+in the [multiplier guide](trailing-multiplier-guide.md).
 
-Trailing IOC attempts carry a signed `expiresAfter` equal to the source price receive time plus its configured freshness budget. Local age checks include all reconciliation work; the exchange expiry also bounds delayed delivery. An expiry rejection consumes the existing bounded retry budget.
+#### Executable TS: shared daily ATR, separate multipliers
+
+Native and nine-minute TS use the same completed-daily-bar ATR calculation with
+separate multipliers. Nine minutes describes the local trailing cadence, not
+the volatility timeframe. User numerical examples are illustrations only, not
+selected values, baselines, candidate grids or calibration priors. In a subsequent
+explicit decision, the user accepted starting at nine-minute `2 * ATR(10D)` and
+native `3 * the same ATR(10D)`, then adjusting gradually from observed results.
+These are approved initial policy values, not empirically optimal parameters.
+The separately scoped BTC retrospective rule is unchanged. Independent distances
+are implemented; this policy record alone does not authorize live activation.
+Existing positions and orders are not silently migrated.
+
+Native and nine-minute TS are executable protection: an active authorized
+trigger begins closing without waiting for daily briefing analysis. Triggering
+does not guarantee immediate or complete fills. Current local `Trail.tick`
+ratchets from complete nine-minute sampled buckets and checks each fresh price
+for breaches. Managed HL uses best bid, legacy trailing uses allMids, and native
+trailing follows continuous mark price. Compare effective thresholds rather
+than multiplier ordering alone, because watermarks and price bases differ.
+Managed plans support independent `local_atr_multiple` and
+`native_atr_multiple` over the same frozen ATR; each falls back to legacy
+`atr_multiple` when omitted. `fixed_stop_price` preserves an explicit SL independently.
+See [operations](trading-operations.md) for validation and activation requirements.
+
+#### Close-based TS: explicitly selected automatic or manual mode
+
+Close-based TS defaults to manual/briefing-reference mode unless the user
+explicitly requests automatic execution. An omitted mode is manual, not unresolved
+permission to trade. Use the reference in close briefings without creating exit
+intents or changing protective orders. Automatic mode requires explicit selection,
+validated parameters and execution authority. Do not switch an active position's
+explicit mode silently; persist the selected mode with its authority.
+
+Both modes use volatility calculated from completed daily closes alone, not
+highs/lows. For initial manual status checks, the accepted starting calculation
+is `V_close = mean(last 10 abs(C_t - C_(t-1)) values)` with a reference distance
+of `3 * V_close`, requiring eleven completed daily closes. Give this a distinct
+metric identifier instead of redefining standard ATR. This is an observation
+starting point, not an empirically calibrated loss boundary; review and adjust
+from recorded outcomes. Watermark initialization and update semantics still need
+specification before an executable implementation. Do not inherit the manual
+multiplier into automatic mode without explicitly selecting and validating that
+mode's parameters and authority.
+
+- Automatic: after a valid finalized daily close meets the explicitly configured
+  TS condition, an authorized management path persists a reconciled exit intent
+  and executes under existing safety rules. Do not trigger from an unfinished
+  daily candle or assume a fill at the recorded close. Confirmed exits remain
+  latched and reconcile partial fills and competing native/local exits.
+- Manual/briefing: report the level, crossing, timestamp, data quality and chart/
+  strategy context. A crossing is evidence, not a mandatory sell, and creates no
+  exit intent, executable order, or protection change. A subsequent trade needs
+  a separate applicable decision and authorization.
+
+Chart analysis or another selected strategy may support selling before TS in
+either mode; TS is not an AND gate for all exits. A briefing recommendation is
+not itself an order. Native/local protection remains independent and must not be
+delayed, widened or disabled merely to wait for the daily-close policy. Confirm
+concurrent protection explicitly: an intrabar stop can preempt daily confirmation.
+
+Pin instrument, price basis, daily session/timezone, finalization and entry-day
+coverage. Missing inputs yield an explicit unavailable/degraded state, never an
+invented crossing; retain verified protection. Do not substitute the next
+session's opening quote for the previous daily close.
+
+#### Entry SL and strategy decisions remain independent
+
+At entry, choose SL from chart structure and relevant strategy evidence. A
+pullback setup can use an invalidation price rather than an ATR multiple. Support
+an explicit stop price and rationale; volatility-derived SL is an option, not
+a universal requirement. Briefing references neither define nor replace the
+actual protective entry SL.
+
+Size using approved entry-to-protective-stop loss exposure, costs and account
+risk limits, not the briefing reference or a tighter TS distance. Do not widen
+existing stops or increase size without authorization. Keep chart/strategy sells,
+executable TS triggers and analytical reference crossings distinct in records.
+A strategy sell need not wait for TS; a briefing recommendation is not an order.
+
+#### Verification and research requirements
+
+For executable TS, test shared daily ATR with independent multipliers, ratchet
+and breach semantics, gaps, restart idempotency, partial fills, native/local
+races and reduce-only cleanup. Compare net returns, costs, drawdowns, tail loss
+and giveback under fixed entry/SL/strategy rules. Daily OHLC cannot establish
+native intrabar trigger ordering.
+
+For both close modes, test invariance to high/low-only changes, finalized daily
+inputs, explicit missing-data output and explicit mode selection. Manual mode
+must create no exit intent/order/protection change on a crossing; evaluate its
+briefing usefulness and warning quality. Automatic mode requires authorized,
+idempotent exit handling, partial-fill reconciliation and native/local race
+coverage; evaluate net returns and tail risks with realistic post-close fills.
+A mode change must not retrospectively execute an old manual-mode observation
+without a newly authorized, reconciled decision.
+
+These requirements are documented, not implemented or empirically validated.
+This clarification starts no orders, monitors or scheduled jobs.
+
+## Verification and use
+
+See [CLI contracts and input examples](strategy-tools.md) and
+[usage](../README.md#hermes-strategy-tools). Representative tests cover valid and
+unavailable setups, strict breakout boundaries, post-entry add-up evidence,
+fixed-stop sizing, rounding/minimums, immutable evidence and action/expiry guards.
+Reuse the existing supervisor/trailing/journal tests. A focused CLI run with
+recorded fixtures and temporary SQLite checks the actual integration; no live
+fault injection, exhaustive venue matrix or new notification test suite is needed.
