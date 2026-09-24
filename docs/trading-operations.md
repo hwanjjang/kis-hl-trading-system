@@ -182,6 +182,9 @@ Operating assets for advisory risk-unit calculations are now specified:
   nonzero spot balances. Per-DEX `accountValue` is never a fallback. Duplicate
   collateral, unknown/standard/legacy/portfolio modes, unvalued non-USDC balances,
   stale/missing evidence or mismatched account/currency block automatic sizing.
+  Nonzero or malformed `evmEscrows`, `borrowed` or `supplied` components and
+  contradictory `portfolioMarginEnabled` evidence also block sizing. Zero-valued
+  optional components do not add capital; no unsupported valuation is inferred.
   Adding a valuation/account mode requires its own supported reconciliation.
   Buying power is separate: add preflight uses account/instrument `activeAssetData`
   and conservatively takes the smaller of its directional `maxTradeSzs`; it retains
@@ -749,6 +752,11 @@ pending tranche is blocked. The supervisor rereads position, orders, eligibility
 account total, lot/tick, quote/spread and buying power before submission. A changed
 quantity requires a new approval. It never resumes account-wide entries. Rejection
 or expiry preserves existing SL/TS and records the tranche rejection reason.
+Classified transient `/info` transport failures or HTTP 408/429/500/502/503/504
+before any send leave the tranche `QUEUED` for the existing supervisor's next tick.
+Authority/expiry are checked before each read and again after successful preflight.
+Identity, schema and permanent HTTP errors still reject; a signed unknown outcome
+never qualifies for this read retry and cannot be resent.
 
 Partial add fills receive incremental fixed-SL coverage at the confirmed fixed
 stop. The owner keeps its ATR and local watermark; the local TS always targets the
@@ -757,6 +765,11 @@ management submits one full-current-size reduce-only overlay and verifies its
 native ID/readback. All older native trails and their watermarks remain intact.
 Coverage counts a verified full-sized trail, not a sum of small trails. Any native
 protective partial fill latches the same bounded full-residual exit as a local TS.
+Cancellation, rejection or expiry of an established older trail does not request
+an exit when another owned, active, verified native trail covers all residual
+exposure. Without that full coverage (including a single terminated trail), it
+still requests immediate bounded residual exit; waiting or unverified trails do
+not substitute for coverage. Actual protective fills always retain the exit latch.
 Unknown/rejected overlays retain verified fixed SL, block further risk and enter
 intervention. Failed incremental SL uses bounded grace/recovery without blindly
 canceling verified protection. No amendment or cancellation resets a trail.

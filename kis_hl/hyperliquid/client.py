@@ -25,6 +25,10 @@ from kis_hl.hyperliquid.trailing import positive, price_increment, retracement_w
 logger = get_logger(__name__)
 
 
+class TransientInfoError(RuntimeError):
+    """A retryable read failure; never used for signed exchange submissions."""
+
+
 @dataclass(frozen=True, slots=True)
 class OrderSubmission:
     status: str
@@ -56,12 +60,17 @@ class HyperliquidInfoClient:
                 self.last_raw_body = raw_body
                 return json.loads(text) if text else {}
         except urllib.error.HTTPError as exc:
+            if exc.code in {408, 429, 500, 502, 503, 504}:
+                exc.close()
+                raise TransientInfoError(f"Hyperliquid info temporarily unavailable: HTTP {exc.code}") from exc
             text = exc.read().decode("utf-8")
             try:
                 payload = json.loads(text) if text else {}
             except json.JSONDecodeError:
                 payload = {"raw": text}
             raise RuntimeError(f"Hyperliquid info request failed: HTTP {exc.code} {payload}") from exc
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
+            raise TransientInfoError("Hyperliquid info transport temporarily unavailable") from exc
 
     def all_mids(self, *, dex: str | None = None) -> dict[str, str]:
         payload: dict[str, Any] = {"type": "allMids"}

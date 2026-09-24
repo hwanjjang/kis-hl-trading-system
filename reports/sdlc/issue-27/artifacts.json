@@ -171,6 +171,62 @@
       "iteration": 1,
       "decision": "PROCEED",
       "reason": "Current deliverable assessed against issue 27 and local authority; evidence supports the next stage"
+    },
+    {
+      "at": "2026-09-24T17:52:15.690925+00:00",
+      "action": "iteration-started",
+      "stage": "build",
+      "iteration": 2
+    },
+    {
+      "at": "2026-09-24T17:57:26.392364+00:00",
+      "action": "iteration-finished",
+      "stage": "build",
+      "iteration": 2,
+      "decision": "PROCEED",
+      "reason": "All three assessed review findings corrected with focused regression evidence"
+    },
+    {
+      "at": "2026-09-24T17:57:26.558029+00:00",
+      "action": "iteration-started",
+      "stage": "self-verification",
+      "iteration": 2
+    },
+    {
+      "at": "2026-09-24T18:00:15.463499+00:00",
+      "action": "iteration-finished",
+      "stage": "self-verification",
+      "iteration": 2,
+      "decision": "PROCEED",
+      "reason": "Current correction evidence and source digests assessed; all requested local checks passed"
+    },
+    {
+      "at": "2026-09-24T18:00:15.644043+00:00",
+      "action": "iteration-started",
+      "stage": "independent-verification",
+      "iteration": 2
+    },
+    {
+      "at": "2026-09-24T18:00:15.943597+00:00",
+      "action": "iteration-finished",
+      "stage": "independent-verification",
+      "iteration": 2,
+      "decision": "PROCEED",
+      "reason": "Current correction evidence and source digests assessed; all requested local checks passed"
+    },
+    {
+      "at": "2026-09-24T18:00:16.143930+00:00",
+      "action": "iteration-started",
+      "stage": "completion",
+      "iteration": 2
+    },
+    {
+      "at": "2026-09-24T18:00:16.367947+00:00",
+      "action": "iteration-finished",
+      "stage": "completion",
+      "iteration": 2,
+      "decision": "PROCEED",
+      "reason": "Current correction evidence and source digests assessed; all requested local checks passed"
     }
   ],
   "stages": {
@@ -807,9 +863,9 @@
     "build": {
       "applicable": true,
       "status": "complete",
-      "reason": "Current deliverable assessed against issue 27 and local authority; evidence supports the next stage",
+      "reason": "All three assessed review findings corrected with focused regression evidence",
       "iteration_limit": 10,
-      "iterations_started": 1,
+      "iterations_started": 2,
       "history": [
         {
           "iteration": 1,
@@ -1092,15 +1148,302 @@
               ]
             }
           }
+        },
+        {
+          "iteration": 2,
+          "started_at": "2026-09-24T17:52:15.690872+00:00",
+          "objective": "Correct review 5308021468: native coverage reconciliation, transient preflight reads and ambiguous capital; AK authorizes fix and push",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/issue-27/triage.md",
+              "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/issue-27.md",
+              "sha256": "e00f96692030d08b586e06ce55c0b5f8334bc6cca21be40ff23957bad98be2ed"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/issue-27/investigation.md",
+              "sha256": "20a436bc2fe42ab236397d0285fb7270902455101c7567e06a4006c5c573a2ee"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/issue-27.md",
+              "sha256": "60a6ba7d7345a591a36bcdddc388e10b4951e47178f57f7e6ea199efe82b2ba9"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/issue-27/diagram-validation.json",
+              "sha256": "c2183d3b3b29f821551af0563815a8f3851cf182f2bb295f19b8791cb27c447b"
+            },
+            {
+              "kind": "browser-evidence",
+              "path": "reports/sdlc/issue-27/diagram-browser.json",
+              "sha256": "c550565ed2bc2ba17abff2d669f7fa260dcac6997876f3e7ad97ebaafeb5c6f7"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/issue-27/design.md",
+              "sha256": "9c67462b032a51f3bb7657cc7f9f754817bc34b6e1ffb970f0c32c12b59ee42c"
+            },
+            {
+              "kind": "plan",
+              "path": "plans/issue-27.md",
+              "sha256": "50c11a49823556499e635a215da0441e3591cb32d047c9d0bf990a3b674520cd"
+            },
+            {
+              "kind": "test-plan",
+              "path": "reports/sdlc/issue-27/test-plan.md",
+              "sha256": "755bbbbe82f78b9e672c0ee4cdbb1f772792a0ae2e5e6783b996ba6aa4bb8b82"
+            }
+          ],
+          "finished_at": "2026-09-24T17:57:26.392309+00:00",
+          "receipt": {
+            "iteration": 2,
+            "decision": "PROCEED",
+            "reason": "All three assessed review findings corrected with focused regression evidence",
+            "authority_source": "AK: implement corrections and push PR30; no merge/live activation",
+            "candidate": "041bf4a9cba10b7b31446951bebbc545129d54c0a18c0e875c7a9baca9ab2189",
+            "next_action": "Final scope, smoke and independent verification",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/issue-27/triage.md",
+                "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/issue-27.md",
+                "sha256": "e00f96692030d08b586e06ce55c0b5f8334bc6cca21be40ff23957bad98be2ed"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/issue-27/investigation.md",
+                "sha256": "20a436bc2fe42ab236397d0285fb7270902455101c7567e06a4006c5c573a2ee"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/issue-27.md",
+                "sha256": "60a6ba7d7345a591a36bcdddc388e10b4951e47178f57f7e6ea199efe82b2ba9"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/issue-27/diagram-validation.json",
+                "sha256": "c2183d3b3b29f821551af0563815a8f3851cf182f2bb295f19b8791cb27c447b"
+              },
+              {
+                "kind": "browser-evidence",
+                "path": "reports/sdlc/issue-27/diagram-browser.json",
+                "sha256": "c550565ed2bc2ba17abff2d669f7fa260dcac6997876f3e7ad97ebaafeb5c6f7"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/issue-27/design.md",
+                "sha256": "9c67462b032a51f3bb7657cc7f9f754817bc34b6e1ffb970f0c32c12b59ee42c"
+              },
+              {
+                "kind": "plan",
+                "path": "plans/issue-27.md",
+                "sha256": "50c11a49823556499e635a215da0441e3591cb32d047c9d0bf990a3b674520cd"
+              },
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/issue-27/test-plan.md",
+                "sha256": "755bbbbe82f78b9e672c0ee4cdbb1f772792a0ae2e5e6783b996ba6aa4bb8b82"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "build",
+                "path": "reports/sdlc/issue-27/review-fix-build.md",
+                "sha256": "ef954dd1c5ae7fbdbbb5bf5dd6be83d93a5d6e0e187916f606ff7574dff859b7"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/issue-27/review-fix-changes.diff",
+                "sha256": "80017085476afaaab55ddae27170d6353dc0ab253832835ad61539dac4603354"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/SKILL.md",
+                "sha256": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/info-endpoint.md",
+                "sha256": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/limits-and-errors.md",
+                "sha256": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/SKILL.md",
+                "sha256": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/references/strategy.md",
+                "sha256": "1d6844577ac7ab827f00503d0fbc47c2a0b078d1a4293d9d5747086ad28b0f1a"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "README.md",
+                "sha256": "7cb435440ace433c5247d0331439d650e56ae1da272e6df71494365687810b48"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture.md",
+                "sha256": "311bfef4d203868630d4d01353a80ebcfd556836c3d4e5654a4cc7b32daa4a62"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy-tools.md",
+                "sha256": "7510dc9393d865627536397ba6e927c8e881c373d5b3c1b67511a383f7e6b17f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy_execution_design.md",
+                "sha256": "4bd3841aaef44dcfeec57d54a42ec135840933ab94508c04fec0d125d7ab4907"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/trading-operations.md",
+                "sha256": "ac2ee7c894a5fb1f66c3b3a987b684169f86b8bfe41e68d1bc1bb7d673103de6"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/account_capital.py",
+                "sha256": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/conditional_add.py",
+                "sha256": "14833a4a6a09100d3f3b6578fc802b868d94f91ccd74878665ffea48e2ab2170"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/client.py",
+                "sha256": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_execution.py",
+                "sha256": "15203945adfabba91da059069be37cad340be0a16bef954811efd1996d1c61ec"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_gateways.py",
+                "sha256": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/manual_adoption.py",
+                "sha256": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/operations_cli.py",
+                "sha256": "6c870b2411a2f9388196ab5d67e225132c968f1d11642d5c8384644f9577a09f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_signals.py",
+                "sha256": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_tools.py",
+                "sha256": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "scripts/smoke_conditional_add.py",
+                "sha256": "451c5705bf0dfdbcd2b8c8bfa5014d61ac545b5b90de9e76668d755b7971fd6f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_conditional_add.py",
+                "sha256": "966dadf31088239d8b52d8976966e93da73ac4ba8d71fae45fc5c8795a7a04f2"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_hyperliquid_client.py",
+                "sha256": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_managed_gateways.py",
+                "sha256": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_manual_adoption.py",
+                "sha256": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_strategy_tools.py",
+                "sha256": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Correction preserves existing ownership, full residual exits, signed UNKNOWN non-retry and capital ambiguity guards",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4",
+                "AC5"
+              ]
+            }
+          }
         }
       ]
     },
     "self-verification": {
       "applicable": true,
       "status": "complete",
-      "reason": "Current deliverable assessed against issue 27 and local authority; evidence supports the next stage",
+      "reason": "Current correction evidence and source digests assessed; all requested local checks passed",
       "iteration_limit": 10,
-      "iterations_started": 1,
+      "iterations_started": 2,
       "history": [
         {
           "iteration": 1,
@@ -1553,15 +1896,477 @@
               ]
             }
           }
+        },
+        {
+          "iteration": 2,
+          "started_at": "2026-09-24T17:57:26.557966+00:00",
+          "objective": "Verify correction candidate, final changed-scope tests and additional offline CLI smoke",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/issue-27/triage.md",
+              "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/issue-27.md",
+              "sha256": "e00f96692030d08b586e06ce55c0b5f8334bc6cca21be40ff23957bad98be2ed"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/issue-27/investigation.md",
+              "sha256": "20a436bc2fe42ab236397d0285fb7270902455101c7567e06a4006c5c573a2ee"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/issue-27.md",
+              "sha256": "60a6ba7d7345a591a36bcdddc388e10b4951e47178f57f7e6ea199efe82b2ba9"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/issue-27/diagram-validation.json",
+              "sha256": "c2183d3b3b29f821551af0563815a8f3851cf182f2bb295f19b8791cb27c447b"
+            },
+            {
+              "kind": "browser-evidence",
+              "path": "reports/sdlc/issue-27/diagram-browser.json",
+              "sha256": "c550565ed2bc2ba17abff2d669f7fa260dcac6997876f3e7ad97ebaafeb5c6f7"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/issue-27/design.md",
+              "sha256": "9c67462b032a51f3bb7657cc7f9f754817bc34b6e1ffb970f0c32c12b59ee42c"
+            },
+            {
+              "kind": "plan",
+              "path": "plans/issue-27.md",
+              "sha256": "50c11a49823556499e635a215da0441e3591cb32d047c9d0bf990a3b674520cd"
+            },
+            {
+              "kind": "test-plan",
+              "path": "reports/sdlc/issue-27/test-plan.md",
+              "sha256": "755bbbbe82f78b9e672c0ee4cdbb1f772792a0ae2e5e6783b996ba6aa4bb8b82"
+            },
+            {
+              "kind": "build",
+              "path": "reports/sdlc/issue-27/review-fix-build.md",
+              "sha256": "ef954dd1c5ae7fbdbbb5bf5dd6be83d93a5d6e0e187916f606ff7574dff859b7"
+            },
+            {
+              "kind": "change-record",
+              "path": "reports/sdlc/issue-27/review-fix-changes.diff",
+              "sha256": "80017085476afaaab55ddae27170d6353dc0ab253832835ad61539dac4603354"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/SKILL.md",
+              "sha256": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/info-endpoint.md",
+              "sha256": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/limits-and-errors.md",
+              "sha256": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/trend-strategy/SKILL.md",
+              "sha256": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/trend-strategy/references/strategy.md",
+              "sha256": "1d6844577ac7ab827f00503d0fbc47c2a0b078d1a4293d9d5747086ad28b0f1a"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "README.md",
+              "sha256": "7cb435440ace433c5247d0331439d650e56ae1da272e6df71494365687810b48"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture.md",
+              "sha256": "311bfef4d203868630d4d01353a80ebcfd556836c3d4e5654a4cc7b32daa4a62"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/strategy-tools.md",
+              "sha256": "7510dc9393d865627536397ba6e927c8e881c373d5b3c1b67511a383f7e6b17f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/strategy_execution_design.md",
+              "sha256": "4bd3841aaef44dcfeec57d54a42ec135840933ab94508c04fec0d125d7ab4907"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/trading-operations.md",
+              "sha256": "ac2ee7c894a5fb1f66c3b3a987b684169f86b8bfe41e68d1bc1bb7d673103de6"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/account_capital.py",
+              "sha256": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/conditional_add.py",
+              "sha256": "14833a4a6a09100d3f3b6578fc802b868d94f91ccd74878665ffea48e2ab2170"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/hyperliquid/client.py",
+              "sha256": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_execution.py",
+              "sha256": "15203945adfabba91da059069be37cad340be0a16bef954811efd1996d1c61ec"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_gateways.py",
+              "sha256": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/manual_adoption.py",
+              "sha256": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/operations_cli.py",
+              "sha256": "6c870b2411a2f9388196ab5d67e225132c968f1d11642d5c8384644f9577a09f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/strategy_signals.py",
+              "sha256": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/strategy_tools.py",
+              "sha256": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "scripts/smoke_conditional_add.py",
+              "sha256": "451c5705bf0dfdbcd2b8c8bfa5014d61ac545b5b90de9e76668d755b7971fd6f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_conditional_add.py",
+              "sha256": "966dadf31088239d8b52d8976966e93da73ac4ba8d71fae45fc5c8795a7a04f2"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_hyperliquid_client.py",
+              "sha256": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_managed_gateways.py",
+              "sha256": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_manual_adoption.py",
+              "sha256": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_strategy_tools.py",
+              "sha256": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+            }
+          ],
+          "finished_at": "2026-09-24T18:00:15.463422+00:00",
+          "receipt": {
+            "iteration": 2,
+            "decision": "PROCEED",
+            "reason": "Current correction evidence and source digests assessed; all requested local checks passed",
+            "authority_source": "AK implement corrections and push PR30; no merge/live activation",
+            "candidate": "041bf4a9cba10b7b31446951bebbc545129d54c0a18c0e875c7a9baca9ab2189",
+            "next_action": "Continue correction handoff",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/issue-27/triage.md",
+                "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/issue-27.md",
+                "sha256": "e00f96692030d08b586e06ce55c0b5f8334bc6cca21be40ff23957bad98be2ed"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/issue-27/investigation.md",
+                "sha256": "20a436bc2fe42ab236397d0285fb7270902455101c7567e06a4006c5c573a2ee"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/issue-27.md",
+                "sha256": "60a6ba7d7345a591a36bcdddc388e10b4951e47178f57f7e6ea199efe82b2ba9"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/issue-27/diagram-validation.json",
+                "sha256": "c2183d3b3b29f821551af0563815a8f3851cf182f2bb295f19b8791cb27c447b"
+              },
+              {
+                "kind": "browser-evidence",
+                "path": "reports/sdlc/issue-27/diagram-browser.json",
+                "sha256": "c550565ed2bc2ba17abff2d669f7fa260dcac6997876f3e7ad97ebaafeb5c6f7"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/issue-27/design.md",
+                "sha256": "9c67462b032a51f3bb7657cc7f9f754817bc34b6e1ffb970f0c32c12b59ee42c"
+              },
+              {
+                "kind": "plan",
+                "path": "plans/issue-27.md",
+                "sha256": "50c11a49823556499e635a215da0441e3591cb32d047c9d0bf990a3b674520cd"
+              },
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/issue-27/test-plan.md",
+                "sha256": "755bbbbe82f78b9e672c0ee4cdbb1f772792a0ae2e5e6783b996ba6aa4bb8b82"
+              },
+              {
+                "kind": "build",
+                "path": "reports/sdlc/issue-27/review-fix-build.md",
+                "sha256": "ef954dd1c5ae7fbdbbb5bf5dd6be83d93a5d6e0e187916f606ff7574dff859b7"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/issue-27/review-fix-changes.diff",
+                "sha256": "80017085476afaaab55ddae27170d6353dc0ab253832835ad61539dac4603354"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/SKILL.md",
+                "sha256": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/info-endpoint.md",
+                "sha256": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/limits-and-errors.md",
+                "sha256": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/SKILL.md",
+                "sha256": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/references/strategy.md",
+                "sha256": "1d6844577ac7ab827f00503d0fbc47c2a0b078d1a4293d9d5747086ad28b0f1a"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "README.md",
+                "sha256": "7cb435440ace433c5247d0331439d650e56ae1da272e6df71494365687810b48"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture.md",
+                "sha256": "311bfef4d203868630d4d01353a80ebcfd556836c3d4e5654a4cc7b32daa4a62"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy-tools.md",
+                "sha256": "7510dc9393d865627536397ba6e927c8e881c373d5b3c1b67511a383f7e6b17f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy_execution_design.md",
+                "sha256": "4bd3841aaef44dcfeec57d54a42ec135840933ab94508c04fec0d125d7ab4907"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/trading-operations.md",
+                "sha256": "ac2ee7c894a5fb1f66c3b3a987b684169f86b8bfe41e68d1bc1bb7d673103de6"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/account_capital.py",
+                "sha256": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/conditional_add.py",
+                "sha256": "14833a4a6a09100d3f3b6578fc802b868d94f91ccd74878665ffea48e2ab2170"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/client.py",
+                "sha256": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_execution.py",
+                "sha256": "15203945adfabba91da059069be37cad340be0a16bef954811efd1996d1c61ec"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_gateways.py",
+                "sha256": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/manual_adoption.py",
+                "sha256": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/operations_cli.py",
+                "sha256": "6c870b2411a2f9388196ab5d67e225132c968f1d11642d5c8384644f9577a09f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_signals.py",
+                "sha256": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_tools.py",
+                "sha256": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "scripts/smoke_conditional_add.py",
+                "sha256": "451c5705bf0dfdbcd2b8c8bfa5014d61ac545b5b90de9e76668d755b7971fd6f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_conditional_add.py",
+                "sha256": "966dadf31088239d8b52d8976966e93da73ac4ba8d71fae45fc5c8795a7a04f2"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_hyperliquid_client.py",
+                "sha256": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_managed_gateways.py",
+                "sha256": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_manual_adoption.py",
+                "sha256": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_strategy_tools.py",
+                "sha256": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "self-verification",
+                "path": "reports/sdlc/issue-27/review-fix-verification.md",
+                "sha256": "ed022cf3521fcb719fe77337e97f95ba8d2dffd46c9c6edfcb26e9938cb183bb"
+              },
+              {
+                "kind": "test-results",
+                "path": "reports/sdlc/issue-27/review-fix-test-results.json",
+                "sha256": "089f9cee795c50086011fe8df3c1ae6055a47f29409ce191398035501eeb847e"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/review-fix-red.log",
+                "sha256": "94ea3021c7fbc44d1296eff264b0e2c267a998c9645fbd6c1f8093d5c8712521"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/review-fix-independent.md",
+                "sha256": "384dec9390c717687553312283fe6b8b2c262667aff9e5ab2d557f0829f0c4c5"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/review-fix-scope.log",
+                "sha256": "24ab72cc4489090e67dd56888124b5538936286b10a8c0ef38dc479132164471"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/review-fix-smoke.log",
+                "sha256": "830924602cea5460a409e19c7738a25448e63c02e8b38a1e3f6e5195e439d1e9"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Assessed actual corrections, passing local evidence, scope and limitations",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4",
+                "AC5"
+              ]
+            }
+          }
         }
       ]
     },
     "independent-verification": {
       "applicable": true,
       "status": "complete",
-      "reason": "Current deliverable assessed against issue 27 and local authority; evidence supports the next stage",
+      "reason": "Current correction evidence and source digests assessed; all requested local checks passed",
       "iteration_limit": 10,
-      "iterations_started": 1,
+      "iterations_started": 2,
       "history": [
         {
           "iteration": 1,
@@ -2055,6 +2860,509 @@
               "checks": "Separate verifier read source/docs, ran184tests and CLI/SQLite smoke, independently reproduced and verified four corrected findings; report contains exact source digests"
             }
           }
+        },
+        {
+          "iteration": 2,
+          "started_at": "2026-09-24T18:00:15.643984+00:00",
+          "objective": "Assess current correction independent-verification evidence at authorized PR push endpoint",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/issue-27/triage.md",
+              "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/issue-27.md",
+              "sha256": "e00f96692030d08b586e06ce55c0b5f8334bc6cca21be40ff23957bad98be2ed"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/issue-27/investigation.md",
+              "sha256": "20a436bc2fe42ab236397d0285fb7270902455101c7567e06a4006c5c573a2ee"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/issue-27.md",
+              "sha256": "60a6ba7d7345a591a36bcdddc388e10b4951e47178f57f7e6ea199efe82b2ba9"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/issue-27/diagram-validation.json",
+              "sha256": "c2183d3b3b29f821551af0563815a8f3851cf182f2bb295f19b8791cb27c447b"
+            },
+            {
+              "kind": "browser-evidence",
+              "path": "reports/sdlc/issue-27/diagram-browser.json",
+              "sha256": "c550565ed2bc2ba17abff2d669f7fa260dcac6997876f3e7ad97ebaafeb5c6f7"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/issue-27/design.md",
+              "sha256": "9c67462b032a51f3bb7657cc7f9f754817bc34b6e1ffb970f0c32c12b59ee42c"
+            },
+            {
+              "kind": "plan",
+              "path": "plans/issue-27.md",
+              "sha256": "50c11a49823556499e635a215da0441e3591cb32d047c9d0bf990a3b674520cd"
+            },
+            {
+              "kind": "test-plan",
+              "path": "reports/sdlc/issue-27/test-plan.md",
+              "sha256": "755bbbbe82f78b9e672c0ee4cdbb1f772792a0ae2e5e6783b996ba6aa4bb8b82"
+            },
+            {
+              "kind": "build",
+              "path": "reports/sdlc/issue-27/review-fix-build.md",
+              "sha256": "ef954dd1c5ae7fbdbbb5bf5dd6be83d93a5d6e0e187916f606ff7574dff859b7"
+            },
+            {
+              "kind": "change-record",
+              "path": "reports/sdlc/issue-27/review-fix-changes.diff",
+              "sha256": "80017085476afaaab55ddae27170d6353dc0ab253832835ad61539dac4603354"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/SKILL.md",
+              "sha256": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/info-endpoint.md",
+              "sha256": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/limits-and-errors.md",
+              "sha256": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/trend-strategy/SKILL.md",
+              "sha256": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/trend-strategy/references/strategy.md",
+              "sha256": "1d6844577ac7ab827f00503d0fbc47c2a0b078d1a4293d9d5747086ad28b0f1a"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "README.md",
+              "sha256": "7cb435440ace433c5247d0331439d650e56ae1da272e6df71494365687810b48"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture.md",
+              "sha256": "311bfef4d203868630d4d01353a80ebcfd556836c3d4e5654a4cc7b32daa4a62"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/strategy-tools.md",
+              "sha256": "7510dc9393d865627536397ba6e927c8e881c373d5b3c1b67511a383f7e6b17f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/strategy_execution_design.md",
+              "sha256": "4bd3841aaef44dcfeec57d54a42ec135840933ab94508c04fec0d125d7ab4907"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/trading-operations.md",
+              "sha256": "ac2ee7c894a5fb1f66c3b3a987b684169f86b8bfe41e68d1bc1bb7d673103de6"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/account_capital.py",
+              "sha256": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/conditional_add.py",
+              "sha256": "14833a4a6a09100d3f3b6578fc802b868d94f91ccd74878665ffea48e2ab2170"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/hyperliquid/client.py",
+              "sha256": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_execution.py",
+              "sha256": "15203945adfabba91da059069be37cad340be0a16bef954811efd1996d1c61ec"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_gateways.py",
+              "sha256": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/manual_adoption.py",
+              "sha256": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/operations_cli.py",
+              "sha256": "6c870b2411a2f9388196ab5d67e225132c968f1d11642d5c8384644f9577a09f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/strategy_signals.py",
+              "sha256": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/strategy_tools.py",
+              "sha256": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "scripts/smoke_conditional_add.py",
+              "sha256": "451c5705bf0dfdbcd2b8c8bfa5014d61ac545b5b90de9e76668d755b7971fd6f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_conditional_add.py",
+              "sha256": "966dadf31088239d8b52d8976966e93da73ac4ba8d71fae45fc5c8795a7a04f2"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_hyperliquid_client.py",
+              "sha256": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_managed_gateways.py",
+              "sha256": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_manual_adoption.py",
+              "sha256": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_strategy_tools.py",
+              "sha256": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+            },
+            {
+              "kind": "self-verification",
+              "path": "reports/sdlc/issue-27/review-fix-verification.md",
+              "sha256": "ed022cf3521fcb719fe77337e97f95ba8d2dffd46c9c6edfcb26e9938cb183bb"
+            },
+            {
+              "kind": "test-results",
+              "path": "reports/sdlc/issue-27/review-fix-test-results.json",
+              "sha256": "089f9cee795c50086011fe8df3c1ae6055a47f29409ce191398035501eeb847e"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/review-fix-red.log",
+              "sha256": "94ea3021c7fbc44d1296eff264b0e2c267a998c9645fbd6c1f8093d5c8712521"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/review-fix-independent.md",
+              "sha256": "384dec9390c717687553312283fe6b8b2c262667aff9e5ab2d557f0829f0c4c5"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/review-fix-scope.log",
+              "sha256": "24ab72cc4489090e67dd56888124b5538936286b10a8c0ef38dc479132164471"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/review-fix-smoke.log",
+              "sha256": "830924602cea5460a409e19c7738a25448e63c02e8b38a1e3f6e5195e439d1e9"
+            }
+          ],
+          "finished_at": "2026-09-24T18:00:15.943545+00:00",
+          "receipt": {
+            "iteration": 2,
+            "decision": "PROCEED",
+            "reason": "Current correction evidence and source digests assessed; all requested local checks passed",
+            "authority_source": "AK implement corrections and push PR30; no merge/live activation",
+            "candidate": "041bf4a9cba10b7b31446951bebbc545129d54c0a18c0e875c7a9baca9ab2189",
+            "next_action": "Continue correction handoff",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/issue-27/triage.md",
+                "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/issue-27.md",
+                "sha256": "e00f96692030d08b586e06ce55c0b5f8334bc6cca21be40ff23957bad98be2ed"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/issue-27/investigation.md",
+                "sha256": "20a436bc2fe42ab236397d0285fb7270902455101c7567e06a4006c5c573a2ee"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/issue-27.md",
+                "sha256": "60a6ba7d7345a591a36bcdddc388e10b4951e47178f57f7e6ea199efe82b2ba9"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/issue-27/diagram-validation.json",
+                "sha256": "c2183d3b3b29f821551af0563815a8f3851cf182f2bb295f19b8791cb27c447b"
+              },
+              {
+                "kind": "browser-evidence",
+                "path": "reports/sdlc/issue-27/diagram-browser.json",
+                "sha256": "c550565ed2bc2ba17abff2d669f7fa260dcac6997876f3e7ad97ebaafeb5c6f7"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/issue-27/design.md",
+                "sha256": "9c67462b032a51f3bb7657cc7f9f754817bc34b6e1ffb970f0c32c12b59ee42c"
+              },
+              {
+                "kind": "plan",
+                "path": "plans/issue-27.md",
+                "sha256": "50c11a49823556499e635a215da0441e3591cb32d047c9d0bf990a3b674520cd"
+              },
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/issue-27/test-plan.md",
+                "sha256": "755bbbbe82f78b9e672c0ee4cdbb1f772792a0ae2e5e6783b996ba6aa4bb8b82"
+              },
+              {
+                "kind": "build",
+                "path": "reports/sdlc/issue-27/review-fix-build.md",
+                "sha256": "ef954dd1c5ae7fbdbbb5bf5dd6be83d93a5d6e0e187916f606ff7574dff859b7"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/issue-27/review-fix-changes.diff",
+                "sha256": "80017085476afaaab55ddae27170d6353dc0ab253832835ad61539dac4603354"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/SKILL.md",
+                "sha256": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/info-endpoint.md",
+                "sha256": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/limits-and-errors.md",
+                "sha256": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/SKILL.md",
+                "sha256": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/references/strategy.md",
+                "sha256": "1d6844577ac7ab827f00503d0fbc47c2a0b078d1a4293d9d5747086ad28b0f1a"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "README.md",
+                "sha256": "7cb435440ace433c5247d0331439d650e56ae1da272e6df71494365687810b48"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture.md",
+                "sha256": "311bfef4d203868630d4d01353a80ebcfd556836c3d4e5654a4cc7b32daa4a62"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy-tools.md",
+                "sha256": "7510dc9393d865627536397ba6e927c8e881c373d5b3c1b67511a383f7e6b17f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy_execution_design.md",
+                "sha256": "4bd3841aaef44dcfeec57d54a42ec135840933ab94508c04fec0d125d7ab4907"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/trading-operations.md",
+                "sha256": "ac2ee7c894a5fb1f66c3b3a987b684169f86b8bfe41e68d1bc1bb7d673103de6"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/account_capital.py",
+                "sha256": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/conditional_add.py",
+                "sha256": "14833a4a6a09100d3f3b6578fc802b868d94f91ccd74878665ffea48e2ab2170"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/client.py",
+                "sha256": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_execution.py",
+                "sha256": "15203945adfabba91da059069be37cad340be0a16bef954811efd1996d1c61ec"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_gateways.py",
+                "sha256": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/manual_adoption.py",
+                "sha256": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/operations_cli.py",
+                "sha256": "6c870b2411a2f9388196ab5d67e225132c968f1d11642d5c8384644f9577a09f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_signals.py",
+                "sha256": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_tools.py",
+                "sha256": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "scripts/smoke_conditional_add.py",
+                "sha256": "451c5705bf0dfdbcd2b8c8bfa5014d61ac545b5b90de9e76668d755b7971fd6f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_conditional_add.py",
+                "sha256": "966dadf31088239d8b52d8976966e93da73ac4ba8d71fae45fc5c8795a7a04f2"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_hyperliquid_client.py",
+                "sha256": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_managed_gateways.py",
+                "sha256": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_manual_adoption.py",
+                "sha256": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_strategy_tools.py",
+                "sha256": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+              },
+              {
+                "kind": "self-verification",
+                "path": "reports/sdlc/issue-27/review-fix-verification.md",
+                "sha256": "ed022cf3521fcb719fe77337e97f95ba8d2dffd46c9c6edfcb26e9938cb183bb"
+              },
+              {
+                "kind": "test-results",
+                "path": "reports/sdlc/issue-27/review-fix-test-results.json",
+                "sha256": "089f9cee795c50086011fe8df3c1ae6055a47f29409ce191398035501eeb847e"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/review-fix-red.log",
+                "sha256": "94ea3021c7fbc44d1296eff264b0e2c267a998c9645fbd6c1f8093d5c8712521"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/review-fix-independent.md",
+                "sha256": "384dec9390c717687553312283fe6b8b2c262667aff9e5ab2d557f0829f0c4c5"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/review-fix-scope.log",
+                "sha256": "24ab72cc4489090e67dd56888124b5538936286b10a8c0ef38dc479132164471"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/review-fix-smoke.log",
+                "sha256": "830924602cea5460a409e19c7738a25448e63c02e8b38a1e3f6e5195e439d1e9"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "independent-verification",
+                "path": "reports/sdlc/issue-27/review-fix-independent.md",
+                "sha256": "384dec9390c717687553312283fe6b8b2c262667aff9e5ab2d557f0829f0c4c5"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Assessed actual corrections, passing local evidence, scope and limitations",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4",
+                "AC5"
+              ]
+            },
+            "verifier": {
+              "independent": true,
+              "context_id": "/root/verify_issue27",
+              "builder_context_id": "/root",
+              "checks": "Independent192tests, final-client34,15 network-forbidden probes, CLI smoke and exact digests; separate report PASS"
+            }
+          }
         }
       ]
     },
@@ -2085,9 +3393,9 @@
     "completion": {
       "applicable": true,
       "status": "complete",
-      "reason": "Current deliverable assessed against issue 27 and local authority; evidence supports the next stage",
+      "reason": "Current correction evidence and source digests assessed; all requested local checks passed",
       "iteration_limit": 10,
-      "iterations_started": 1,
+      "iterations_started": 2,
       "history": [
         {
           "iteration": 1,
@@ -2576,6 +3884,513 @@
             "assessment": {
               "assessor": "/root",
               "summary": "Reviewed actual completion contents and linked outcomes, preserving offline-only limits and no live authority",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4",
+                "AC5"
+              ]
+            }
+          }
+        },
+        {
+          "iteration": 2,
+          "started_at": "2026-09-24T18:00:16.143852+00:00",
+          "objective": "Assess current correction completion evidence at authorized PR push endpoint",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/issue-27/triage.md",
+              "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/issue-27.md",
+              "sha256": "e00f96692030d08b586e06ce55c0b5f8334bc6cca21be40ff23957bad98be2ed"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/issue-27/investigation.md",
+              "sha256": "20a436bc2fe42ab236397d0285fb7270902455101c7567e06a4006c5c573a2ee"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/issue-27.md",
+              "sha256": "60a6ba7d7345a591a36bcdddc388e10b4951e47178f57f7e6ea199efe82b2ba9"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/issue-27/diagram-validation.json",
+              "sha256": "c2183d3b3b29f821551af0563815a8f3851cf182f2bb295f19b8791cb27c447b"
+            },
+            {
+              "kind": "browser-evidence",
+              "path": "reports/sdlc/issue-27/diagram-browser.json",
+              "sha256": "c550565ed2bc2ba17abff2d669f7fa260dcac6997876f3e7ad97ebaafeb5c6f7"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/issue-27/design.md",
+              "sha256": "9c67462b032a51f3bb7657cc7f9f754817bc34b6e1ffb970f0c32c12b59ee42c"
+            },
+            {
+              "kind": "plan",
+              "path": "plans/issue-27.md",
+              "sha256": "50c11a49823556499e635a215da0441e3591cb32d047c9d0bf990a3b674520cd"
+            },
+            {
+              "kind": "test-plan",
+              "path": "reports/sdlc/issue-27/test-plan.md",
+              "sha256": "755bbbbe82f78b9e672c0ee4cdbb1f772792a0ae2e5e6783b996ba6aa4bb8b82"
+            },
+            {
+              "kind": "build",
+              "path": "reports/sdlc/issue-27/review-fix-build.md",
+              "sha256": "ef954dd1c5ae7fbdbbb5bf5dd6be83d93a5d6e0e187916f606ff7574dff859b7"
+            },
+            {
+              "kind": "change-record",
+              "path": "reports/sdlc/issue-27/review-fix-changes.diff",
+              "sha256": "80017085476afaaab55ddae27170d6353dc0ab253832835ad61539dac4603354"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/SKILL.md",
+              "sha256": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/info-endpoint.md",
+              "sha256": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/limits-and-errors.md",
+              "sha256": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/trend-strategy/SKILL.md",
+              "sha256": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/trend-strategy/references/strategy.md",
+              "sha256": "1d6844577ac7ab827f00503d0fbc47c2a0b078d1a4293d9d5747086ad28b0f1a"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "README.md",
+              "sha256": "7cb435440ace433c5247d0331439d650e56ae1da272e6df71494365687810b48"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture.md",
+              "sha256": "311bfef4d203868630d4d01353a80ebcfd556836c3d4e5654a4cc7b32daa4a62"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/strategy-tools.md",
+              "sha256": "7510dc9393d865627536397ba6e927c8e881c373d5b3c1b67511a383f7e6b17f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/strategy_execution_design.md",
+              "sha256": "4bd3841aaef44dcfeec57d54a42ec135840933ab94508c04fec0d125d7ab4907"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/trading-operations.md",
+              "sha256": "ac2ee7c894a5fb1f66c3b3a987b684169f86b8bfe41e68d1bc1bb7d673103de6"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/account_capital.py",
+              "sha256": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/conditional_add.py",
+              "sha256": "14833a4a6a09100d3f3b6578fc802b868d94f91ccd74878665ffea48e2ab2170"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/hyperliquid/client.py",
+              "sha256": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_execution.py",
+              "sha256": "15203945adfabba91da059069be37cad340be0a16bef954811efd1996d1c61ec"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_gateways.py",
+              "sha256": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/manual_adoption.py",
+              "sha256": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/operations_cli.py",
+              "sha256": "6c870b2411a2f9388196ab5d67e225132c968f1d11642d5c8384644f9577a09f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/strategy_signals.py",
+              "sha256": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/strategy_tools.py",
+              "sha256": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "scripts/smoke_conditional_add.py",
+              "sha256": "451c5705bf0dfdbcd2b8c8bfa5014d61ac545b5b90de9e76668d755b7971fd6f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_conditional_add.py",
+              "sha256": "966dadf31088239d8b52d8976966e93da73ac4ba8d71fae45fc5c8795a7a04f2"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_hyperliquid_client.py",
+              "sha256": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_managed_gateways.py",
+              "sha256": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_manual_adoption.py",
+              "sha256": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_strategy_tools.py",
+              "sha256": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+            },
+            {
+              "kind": "self-verification",
+              "path": "reports/sdlc/issue-27/review-fix-verification.md",
+              "sha256": "ed022cf3521fcb719fe77337e97f95ba8d2dffd46c9c6edfcb26e9938cb183bb"
+            },
+            {
+              "kind": "test-results",
+              "path": "reports/sdlc/issue-27/review-fix-test-results.json",
+              "sha256": "089f9cee795c50086011fe8df3c1ae6055a47f29409ce191398035501eeb847e"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/review-fix-red.log",
+              "sha256": "94ea3021c7fbc44d1296eff264b0e2c267a998c9645fbd6c1f8093d5c8712521"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/review-fix-independent.md",
+              "sha256": "384dec9390c717687553312283fe6b8b2c262667aff9e5ab2d557f0829f0c4c5"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/review-fix-scope.log",
+              "sha256": "24ab72cc4489090e67dd56888124b5538936286b10a8c0ef38dc479132164471"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/review-fix-smoke.log",
+              "sha256": "830924602cea5460a409e19c7738a25448e63c02e8b38a1e3f6e5195e439d1e9"
+            },
+            {
+              "kind": "independent-verification",
+              "path": "reports/sdlc/issue-27/review-fix-independent.md",
+              "sha256": "384dec9390c717687553312283fe6b8b2c262667aff9e5ab2d557f0829f0c4c5"
+            }
+          ],
+          "finished_at": "2026-09-24T18:00:16.367900+00:00",
+          "receipt": {
+            "iteration": 2,
+            "decision": "PROCEED",
+            "reason": "Current correction evidence and source digests assessed; all requested local checks passed",
+            "authority_source": "AK implement corrections and push PR30; no merge/live activation",
+            "candidate": "041bf4a9cba10b7b31446951bebbc545129d54c0a18c0e875c7a9baca9ab2189",
+            "next_action": "Commit/push existing PR",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/issue-27/triage.md",
+                "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/issue-27.md",
+                "sha256": "e00f96692030d08b586e06ce55c0b5f8334bc6cca21be40ff23957bad98be2ed"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/issue-27/investigation.md",
+                "sha256": "20a436bc2fe42ab236397d0285fb7270902455101c7567e06a4006c5c573a2ee"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/issue-27.md",
+                "sha256": "60a6ba7d7345a591a36bcdddc388e10b4951e47178f57f7e6ea199efe82b2ba9"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/issue-27/diagram-validation.json",
+                "sha256": "c2183d3b3b29f821551af0563815a8f3851cf182f2bb295f19b8791cb27c447b"
+              },
+              {
+                "kind": "browser-evidence",
+                "path": "reports/sdlc/issue-27/diagram-browser.json",
+                "sha256": "c550565ed2bc2ba17abff2d669f7fa260dcac6997876f3e7ad97ebaafeb5c6f7"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/issue-27/design.md",
+                "sha256": "9c67462b032a51f3bb7657cc7f9f754817bc34b6e1ffb970f0c32c12b59ee42c"
+              },
+              {
+                "kind": "plan",
+                "path": "plans/issue-27.md",
+                "sha256": "50c11a49823556499e635a215da0441e3591cb32d047c9d0bf990a3b674520cd"
+              },
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/issue-27/test-plan.md",
+                "sha256": "755bbbbe82f78b9e672c0ee4cdbb1f772792a0ae2e5e6783b996ba6aa4bb8b82"
+              },
+              {
+                "kind": "build",
+                "path": "reports/sdlc/issue-27/review-fix-build.md",
+                "sha256": "ef954dd1c5ae7fbdbbb5bf5dd6be83d93a5d6e0e187916f606ff7574dff859b7"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/issue-27/review-fix-changes.diff",
+                "sha256": "80017085476afaaab55ddae27170d6353dc0ab253832835ad61539dac4603354"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/SKILL.md",
+                "sha256": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/info-endpoint.md",
+                "sha256": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/limits-and-errors.md",
+                "sha256": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/SKILL.md",
+                "sha256": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/references/strategy.md",
+                "sha256": "1d6844577ac7ab827f00503d0fbc47c2a0b078d1a4293d9d5747086ad28b0f1a"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "README.md",
+                "sha256": "7cb435440ace433c5247d0331439d650e56ae1da272e6df71494365687810b48"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture.md",
+                "sha256": "311bfef4d203868630d4d01353a80ebcfd556836c3d4e5654a4cc7b32daa4a62"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy-tools.md",
+                "sha256": "7510dc9393d865627536397ba6e927c8e881c373d5b3c1b67511a383f7e6b17f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy_execution_design.md",
+                "sha256": "4bd3841aaef44dcfeec57d54a42ec135840933ab94508c04fec0d125d7ab4907"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/trading-operations.md",
+                "sha256": "ac2ee7c894a5fb1f66c3b3a987b684169f86b8bfe41e68d1bc1bb7d673103de6"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/account_capital.py",
+                "sha256": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/conditional_add.py",
+                "sha256": "14833a4a6a09100d3f3b6578fc802b868d94f91ccd74878665ffea48e2ab2170"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/client.py",
+                "sha256": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_execution.py",
+                "sha256": "15203945adfabba91da059069be37cad340be0a16bef954811efd1996d1c61ec"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_gateways.py",
+                "sha256": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/manual_adoption.py",
+                "sha256": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/operations_cli.py",
+                "sha256": "6c870b2411a2f9388196ab5d67e225132c968f1d11642d5c8384644f9577a09f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_signals.py",
+                "sha256": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_tools.py",
+                "sha256": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "scripts/smoke_conditional_add.py",
+                "sha256": "451c5705bf0dfdbcd2b8c8bfa5014d61ac545b5b90de9e76668d755b7971fd6f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_conditional_add.py",
+                "sha256": "966dadf31088239d8b52d8976966e93da73ac4ba8d71fae45fc5c8795a7a04f2"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_hyperliquid_client.py",
+                "sha256": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_managed_gateways.py",
+                "sha256": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_manual_adoption.py",
+                "sha256": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_strategy_tools.py",
+                "sha256": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+              },
+              {
+                "kind": "self-verification",
+                "path": "reports/sdlc/issue-27/review-fix-verification.md",
+                "sha256": "ed022cf3521fcb719fe77337e97f95ba8d2dffd46c9c6edfcb26e9938cb183bb"
+              },
+              {
+                "kind": "test-results",
+                "path": "reports/sdlc/issue-27/review-fix-test-results.json",
+                "sha256": "089f9cee795c50086011fe8df3c1ae6055a47f29409ce191398035501eeb847e"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/review-fix-red.log",
+                "sha256": "94ea3021c7fbc44d1296eff264b0e2c267a998c9645fbd6c1f8093d5c8712521"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/review-fix-independent.md",
+                "sha256": "384dec9390c717687553312283fe6b8b2c262667aff9e5ab2d557f0829f0c4c5"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/review-fix-scope.log",
+                "sha256": "24ab72cc4489090e67dd56888124b5538936286b10a8c0ef38dc479132164471"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/review-fix-smoke.log",
+                "sha256": "830924602cea5460a409e19c7738a25448e63c02e8b38a1e3f6e5195e439d1e9"
+              },
+              {
+                "kind": "independent-verification",
+                "path": "reports/sdlc/issue-27/review-fix-independent.md",
+                "sha256": "384dec9390c717687553312283fe6b8b2c262667aff9e5ab2d557f0829f0c4c5"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "completion",
+                "path": "reports/sdlc/issue-27/review-fix-completion.md",
+                "sha256": "adb0afb4888c29d2823ec3e152c9a092d2736a7a30a0b5ca15a121fabfbffe16"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Assessed actual corrections, passing local evidence, scope and limitations",
               "criteria": [
                 "AC1",
                 "AC2",

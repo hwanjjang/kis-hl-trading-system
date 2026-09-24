@@ -104,6 +104,34 @@ def add_plan(row):
 
 
 class CapitalTests(unittest.TestCase):
+    def test_extra_collateral_and_liabilities_fail_closed(self):
+        for field in ("borrowed", "supplied"):
+            for value in ("1", "-1", None, "NaN", {}, "bad"):
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    request = sizing()
+                    request["capital_evidence"]["spot"]["balances"][0][field] = value
+                    size_position(request, now_ms=NOW)
+        for escrows in (None, {}, [None], [{}],
+                        [dict(coin="HYPE", token=150, total="1")],
+                        [dict(coin="USDC", token=0, total="NaN")]):
+            with self.subTest(escrows=escrows), self.assertRaises(ValueError):
+                request = sizing()
+                request["capital_evidence"]["spot"]["evmEscrows"] = escrows
+                size_position(request, now_ms=NOW)
+        for mode in (True, None, "false"):
+            with self.subTest(mode=mode), self.assertRaises(ValueError):
+                request = sizing()
+                request["capital_evidence"]["spot"]["portfolioMarginEnabled"] = mode
+                size_position(request, now_ms=NOW)
+
+    def test_zero_optional_components_do_not_duplicate_capital(self):
+        request = sizing()
+        spot = request["capital_evidence"]["spot"]
+        spot["balances"][0].update(borrowed="0", supplied="0.0")
+        spot.update(portfolioMarginEnabled=False,
+                    evmEscrows=[dict(coin="USDC", token=0, total="0")])
+        self.assertEqual(size_position(request, now_ms=NOW)["risk_budget"], "100.00")
+
     def test_total_not_perp_segment_is_capital_source(self):
         result = size_position(sizing(equity="123"), now_ms=NOW)
         self.assertEqual(result["equity"], "1000")
@@ -124,6 +152,87 @@ class CapitalTests(unittest.TestCase):
 
 
 class ConditionalAddTests(unittest.TestCase):
+    def test_terminated_old_trail_retains_full_overlay_across_reopen(self):
+        for status in ("canceled", "rejected", "expired"):
+            with self.subTest(status=status):
+                # Reuse the complete partial-fill/overlay lifecycle fixture.
+                case = ConditionalAddTests()
+                case.setUp()
+                try:
+                    case.test_native_overlay_preserves_old_watermark_and_covers_combined_size()
+                    trails = [a for a in case.g.sent if a["kind"] == "trailing"]
+                    case.g.orders[trails[0]["id"]]["status"] = status
+                    store = ExecutionStore(case.store.path)
+                    worker = Supervisor(store, case.g, live=True)
+                    for tick in (20, 21):
+                        row = worker.step(case.row["id"], NOW+tick)
+                        self.assertEqual(row["state"], "PROTECTED")
+                        self.assertFalse(row["exit_requested_ms"])
+                        self.assertEqual(Decimal(row["trailing_covered_size"]), Decimal("1.5"))
+                    self.assertEqual(len([a for a in case.g.sent if a["kind"] == "trailing"]), 2)
+                    self.assertFalse(any(a["kind"] in {"exit", "cancel"} for a in case.g.sent))
+                finally:
+                    case.doCleanups()
+
+    def test_terminated_trail_without_verified_full_overlay_exits(self):
+        for change in ({"size": "1"}, {"active": False},
+                       {"trailing_readback_error": "Unverified condition"},
+                       {"status": "canceled"}):
+            with self.subTest(change=change):
+                case = ConditionalAddTests()
+                case.setUp()
+                try:
+                    case.test_native_overlay_preserves_old_watermark_and_covers_combined_size()
+                    trails = [a for a in case.g.sent if a["kind"] == "trailing"]
+                    case.g.orders[trails[0]["id"]]["status"] = "canceled"
+                    case.g.orders[trails[1]["id"]].update(change)
+                    case.worker.step(case.row["id"], NOW+20)
+                    self.assertEqual(case.g.sent[-1]["kind"], "exit")
+                    self.assertEqual(case.g.sent[-1]["quantity"], "1.5")
+                finally:
+                    case.doCleanups()
+
+    def test_transient_read_recovers_once_after_reopen(self):
+        from kis_hl.hyperliquid.client import TransientInfoError
+        self.authorize()
+        original = self.g.preflight
+        def fail(*args, **kwargs):
+            raise TransientInfoError("Temporary read unavailable")
+        self.g.preflight = fail
+        self.worker.step(self.row["id"], NOW+10)
+        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
+        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+        self.g.preflight = original
+        self.store = ExecutionStore(self.path)
+        self.worker = Supervisor(self.store, self.g, live=True)
+        for tick in (11, 12):
+            self.worker.step(self.row["id"], NOW+tick)
+        self.assertEqual(len([a for a in self.g.sent if a["kind"] == "add"]), 1)
+
+    def test_transient_read_does_not_extend_authority(self):
+        from kis_hl.hyperliquid.client import TransientInfoError
+        self.authorize()
+        calls = []
+        def fail(*args, **kwargs):
+            calls.append(1)
+            raise TransientInfoError("Temporary read unavailable")
+        self.g.preflight = fail
+        self.worker.step(self.row["id"], NOW+10)
+        self.worker.step(self.row["id"], self.plan["expires_ms"]+1)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
+        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+
+    def test_identity_runtime_error_is_not_retried(self):
+        self.authorize()
+        def fail(*args, **kwargs):
+            raise RuntimeError("Hyperliquid activeAssetData identity mismatch")
+        self.g.preflight = fail
+        for tick in (10, 11):
+            self.worker.step(self.row["id"], NOW+tick)
+        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
+        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)

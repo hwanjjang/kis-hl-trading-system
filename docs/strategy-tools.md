@@ -116,7 +116,9 @@ The example's market rules are fixtures; read actual lot/minimum metadata.
 HL equity is the selected account's reconciled total balance. `capital_evidence`
 is mandatory; caller `equity` is not a fallback. Supported unified USDC balances
 count overlapping spot/perp/DEX collateral once. Unknown modes, duplicate collateral,
-unvalued assets, stale evidence or wrong account/currency block sizing. Capture
+unvalued assets, stale evidence or wrong account/currency block sizing. Reconciliation
+also rejects nonzero/malformed escrow, borrowed or supplied components and
+contradictory portfolio-margin state. Obtain
 source evidence through `account capital --venue hyperliquid`. KIS equity is the selected account NAV valued in the
 execution currency, with an explicit FX basis when needed. Buying power is a
 separate preflight constraint. Output includes rounded quantity, notional, planned

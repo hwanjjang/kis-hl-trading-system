@@ -24,11 +24,29 @@ def reconcile_capital(evidence, *, scope, now_ms, max_age_ms):
         raise ValueError("Account-total scope/currency mismatch")
     if evidence.get("account_mode") != "unifiedAccount":
         raise ValueError("Account-total reconciliation requires verified unifiedAccount mode")
-    balances = evidence.get("spot", {}).get("balances")
+    spot = evidence.get("spot")
+    if not isinstance(spot, dict):
+        raise ValueError("Complete unified spot state required")
+    if spot.get("portfolioMarginEnabled", False) is not False:
+        raise ValueError("Contradictory or unknown portfolio-margin evidence")
+    escrows = spot.get("evmEscrows", [])
+    if not isinstance(escrows, list):
+        raise ValueError("Unknown escrow collateral")
+    for item in escrows:
+        if (not isinstance(item, dict) or type(item.get("token")) is not int
+                or item["token"] < 0 or not isinstance(item.get("coin"), str)
+                or not item["coin"] or decimal(item.get("total")) != 0):
+            raise ValueError("Escrow collateral requires supported account-total reconciliation")
+    balances = spot.get("balances")
     if not isinstance(balances, list) or not balances:
         raise ValueError("Complete unified spot balances required")
     seen, total = set(), decimal("0")
     for item in balances:
+        if not isinstance(item, dict):
+            raise ValueError("Unknown collateral balance")
+        for field in ("borrowed", "supplied"):
+            if decimal(item.get(field, "0")) != 0:
+                raise ValueError("Borrowed/supplied balance requires supported account-total reconciliation")
         token = item.get("token")
         if type(token) is not int or token < 0 or token in seen:
             raise ValueError("Overlapping or unknown collateral identity")

@@ -70,6 +70,9 @@ def preflight_add(gateway, store, owner, tranche, now):
     from kis_hl.managed_execution import validate_plan
     from kis_hl.strategy_signals import Signals
     p = tranche["plan"]
+    # A persistent read outage must not keep expired/revoked authority queued.
+    validate_plan(p, now)
+    Signals(store).check_authority({**owner, "plan": p}, now_ms=now)
     pre = gateway.preflight(p, now)
     now = int(pre.get("observed_now_ms", now))
     validate_plan(p, now)

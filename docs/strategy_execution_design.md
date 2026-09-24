@@ -67,8 +67,10 @@ without a thousand-USDC floor or a below-1000 exclusion. KIS uses selected accou
 NAV × 1, valued in the execution currency with an explicit FX basis when needed.
 Keep main/subaccounts separate and count overlapping spot/perp/DEX collateral
 only once. Missing or ambiguous total reconciliation blocks automatic sizing.
-The initial implementation supports verified unified USDC-only balances; other
-modes/valuations require explicit supported reconciliation. Available funds are a separate constraint. The multiplier does
+The initial implementation supports verified unified USDC-only balances; nonzero
+or malformed escrow, borrowed/supplied components and contradictory portfolio
+mode evidence are rejected. Other modes/valuations require explicit supported
+reconciliation. Available funds are a separate constraint. The multiplier does
 not set venue leverage or waive margin requirements.
 
 ### Position sizing

@@ -75,8 +75,12 @@ the unhandled-rejection gap in `place_order()`.
 
 ## Failure modes worth handling in this repo
 
-- `HyperliquidInfoClient.post_info` raises `RuntimeError` on `HTTPError`, including the
-  decoded body. HTTP 429 shows up there; treat it as backoff-and-retry, not as a bug.
+- `HyperliquidInfoClient.post_info` classifies transport URL/timeout/connection errors
+  and HTTP 408/429/500/502/503/504 as `TransientInfoError` (a `RuntimeError` subclass).
+  Permanent HTTP failures remain `RuntimeError`; schema/identity errors are not
+  transient. The client itself does not retry. Conditional add preflight may retry
+  transient reads on existing supervisor ticks within approval expiry, before any
+  signed send. Never apply this classification to unknown signed submissions.
 - The `xyz` dex can be halted by its deployer (`haltTrading`), which cancels resting
   orders and settles positions at mark. A previously verified asset can therefore stop
   trading between the verification check and the order.

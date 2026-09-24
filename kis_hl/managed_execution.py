@@ -840,30 +840,38 @@ class Supervisor:
                 trails = [a for a in attempts if a["kind"] == "trailing"]
                 row["trailing_covered_size"] = "0"
                 waiting = False
+                terminated_trail = False
+                row.pop("native_trailing_intervention", None)
                 for a in trails:
                     order = orders.get(a.get("order_id"), {})
                     if not a.get("order_id"):
                         row["native_trailing_intervention"] = True
                         row["state"], row["reason"] = "INTERVENTION", "Native trailing rejected or outcome unknown; retain fixed SL and reconcile manually"
-                        break
+                        continue
                     if a["status"].lower() in TERMINAL:
-                        # A protective execution/cancellation never resets a watermark.
-                        row.pop("native_trailing_intervention", None)
-                        row["exit_requested_ms"] = row["exit_requested_ms"] or now
-                        break
+                        if a["status"].lower() == "filled":
+                            row["exit_requested_ms"] = row["exit_requested_ms"] or now
+                        else:
+                            terminated_trail = True
+                        continue
                     if order.get("trailing_readback_error"):
                         row["native_trailing_intervention"] = True
                         row["state"], row["reason"] = "INTERVENTION", "Native trailing condition unverified; retain fixed SL and await valid readback"
-                        break
+                        continue
                     if (order.get("status") == "open" and order.get("kind") == "trailing"
                           and order.get("side") == "sell" and order.get("reduce_only") is True
                           and order.get("retracement_unit") == "quote"
                           and decimal(order.get("retracement", "0")) == decimal(a["retracement"])):
-                        row.pop("native_trailing_intervention", None)
                         order_size = decimal(order["size"], positive=True)
                         waiting |= order.get("active") is False and order_size >= size
                         if order.get("active") is True:
                             row["trailing_covered_size"] = str(max(decimal(row["trailing_covered_size"]), min(size, order_size)))
+                # An older terminated trail need not force an exit when another
+                # owned, active native trail still covers the entire residual.
+                if terminated_trail and decimal(row["trailing_covered_size"]) < size:
+                    row["exit_requested_ms"] = row["exit_requested_ms"] or now
+                if row["exit_requested_ms"]:
+                    row.pop("native_trailing_intervention", None)
                 # Keep every prior native order/watermark. Add one full-size overlay
                 # only after owned add fills terminate; inherited local TS covers
                 # the full position throughout partial fills and overlay activation.
@@ -884,7 +892,8 @@ class Supervisor:
                         and decimal(row["trailing_covered_size"]) < size
                         and now - trails[-1]["created_ms"] >= p["protection_grace_ms"]):
                     row["exit_requested_ms"] = row["exit_requested_ms"] or now
-                protected = protected and decimal(row["trailing_covered_size"]) >= size
+                protected = (protected and decimal(row["trailing_covered_size"]) >= size
+                             and not row.get("native_trailing_intervention"))
                 if not protected and not row["exit_requested_ms"] and not row.get("native_trailing_intervention"):
                     row["state"], row["reason"] = "PROTECTING", "Await entry terminality and verified native trailing coverage"
             if protected and fresh and not row["exit_requested_ms"]:
@@ -1071,6 +1080,7 @@ class Supervisor:
 
     def _try_add(self, row, now):
         from kis_hl.conditional_add import preflight_add
+        from kis_hl.hyperliquid.client import TransientInfoError
         for tranche in self.store.tranches(row["id"]):
             if tranche["status"] != "QUEUED":
                 continue
@@ -1084,6 +1094,10 @@ class Supervisor:
                        for x in self.store.list(row["scope"])):
                     raise ValueError("Other account exposure needs reconciliation")
                 sizing, now = preflight_add(self.gateway, self.store, row, tranche, now)
+            except TransientInfoError as exc:
+                tranche["reason"] = str(exc)
+                self.store.save_tranche(tranche)
+                continue  # No durable send attempt: revalidate within expiry next tick.
             except (ValueError, KeyError, TypeError, RuntimeError, OSError) as exc:
                 tranche.update(status="REJECTED", reason=str(exc))
                 self.store.save_tranche(tranche)
