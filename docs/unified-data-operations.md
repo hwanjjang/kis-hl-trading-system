@@ -528,3 +528,7 @@ missing-source rejection and immutable exports. The runner forbids network and
 uses a temporary working directory with synthetic credentials. It neither reads
 `.env` nor touches the operational DB. This smoke is distinct from unit tests and
 from an actual live-account retention/recoverability check.
+
+### Binance tick capture exception
+
+`binance-stream` currently records observational ticks in legacy storage, outside canonical analysis inputs. See [architecture boundaries](architecture.md#binance-integration-boundaries) for isolation, throughput and replay limitations. Canonical Binance ingestion is a separate integration step.

@@ -46,9 +46,13 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.hyperliquid.client` wraps Hyperliquid public info calls with standard HTTP, including wallet asset state reads for the configured address, and uses `hyperliquid-python-sdk` only for signed trading. This avoids custom signing code.
 
+`kis_hl.binance.client` wraps Binance USDⓈ-M futures REST calls with standard HTTP: public exchange info, mark/index price and funding, top of book, and klines, plus HMAC-SHA256 signed read-only account, position, and order reads. It exposes user-stream key lifecycle methods; the stream runner owns connection and renewal scheduling. It places no orders.
+
+`kis_hl.binance.ws` builds stream URLs, maintains market and private connections, and normalizes market/order frames for storage. Connection routing and key renewal are owned by the [Binance API skill](../.agents/skills/binance-api/SKILL.md#6-websocket). Quiet private streams stay connected; socket failures and expired keys reconnect.
+
 `kis_hl.assets` normalizes user-facing symbols into Hyperliquid L1 names. `BTCUSDC` resolves to `UBTC/USDC` spot, while explicit futures aliases such as `BTCUSDC-PERP`, `BTC-PERP`, and `BTCPERP` resolve to the Hyperliquid `BTC` perp coin. Live spot orders resolve the pair through `spotMeta` to the `@index` order coin. trade.xyz assets resolve to `xyz:ASSET`.
 
-`kis_hl.storage` persists raw KIS payloads, daily OHLCV bars, order submissions, reduce-only stop-market protective orders, completed trade journal entries, trade.xyz asset rows, Hyperliquid verification checks, KIS market-data mapping rows, secondary reference-data mapping rows, live `xyz` universe snapshots, funding-rate rows, and spread snapshots in SQLite. Raw payloads are stored because vendor schemas and exchange responses can change.
+`kis_hl.storage` persists raw KIS payloads, daily OHLCV bars, order submissions, venue order-status events (`order_events`), reduce-only stop-market protective orders, completed trade journal entries, trade.xyz asset rows, Hyperliquid verification checks, KIS market-data mapping rows, secondary reference-data mapping rows, live `xyz` universe snapshots, funding-rate rows, and spread snapshots in SQLite. Raw payloads are stored because vendor schemas and exchange responses can change.
 
 `kis_hl.trade_xyz_assets` defines the curated trade.xyz asset mapping seed. `trade_xyz_assets` rows in SQLite drive RWA eligibility: non-IPO assets and stocks listed for less than 30 weeks are excluded, `KR200` and `EWY` are excluded in favor of `KORU`, and `EWJ` is excluded in favor of `JP225`. KORU is a leveraged ETF reference using U.S. cash-equity hours, not an equivalent KR200/KOSPI200 contract. Its KIS mapping supplies quotes only; it does not add a KIS execution instrument. See [asset policy and seed refresh](trade_xyz_assets.md). The seed also records Specification Index commodity and FX references. `trade_xyz_asset_checks` records actual Hyperliquid metadata availability and is required for live trade.xyz orders. `trade_xyz_kis_mappings` records which KIS quote route, if any, can provide reference market data for the same trade.xyz asset.
 
@@ -94,6 +98,12 @@ Interactive, code-grounded views generated from repository revision
 - [Live order request sequence](architecture/live-order-sequence.html)
 - [Market data, eligibility, and audit flow](architecture/market-data-flow.html)
 
+Binance views describe the current PR implementation and its explicitly planned extensions:
+
+- [Binance user data stream lifecycle](architecture/binance-user-stream-sequence.html)
+- [Binance trading, market stream, and order event flow](architecture/binance-trading-data-flow.html) (order placement is shown as planned)
+- [Binance order round trip](architecture/binance-order-roundtrip-sequence.html) (planned: guard, signed submit, fill confirmation over the user stream)
+
 ```mermaid
 flowchart LR
   Env[".env"] --> Config["Config loader"]
@@ -125,6 +135,7 @@ flowchart LR
 - Hyperliquid stop-loss trigger orders are reduce-only and require an explicit trigger price.
 - The CLI stores raw order responses and protective-order rows so order IDs, statuses, trigger prices, and covered size remain auditable.
 - Secrets are never logged intentionally and `.env` is ignored by git.
+- Binance is integrated as a read-only data plane first. Signed reads and the user data stream fail closed without credentials, and no Binance order path exists yet.
 
 ## Assumptions
 
@@ -144,6 +155,8 @@ flowchart LR
 - Hyperliquid funding and spread snapshots are stored for suitability review only. They are not yet wired into automatic entry rejection, position sizing changes, or liquidation-risk checks.
 - Hyperliquid SDK behavior for spot market orders should be tested with a small live or testnet order before using spot market orders operationally.
 - The trailing worker consumes Hyperliquid allMids through the maintained connection layer. Persistent raw tick tables and unified KIS/Hyperliquid strategy orchestration remain unimplemented.
+- The Binance user data stream parser follows the documented `ORDER_TRADE_UPDATE` schema and unit tests, but has not yet been exercised against a live or demo Binance session. Verify field names on the futures demo environment before relying on stored `order_events` for reconciliation.
+- For Binance stream routing and protocol constraints, see the [Binance API skill](../.agents/skills/binance-api/SKILL.md). Run separate processes for incompatible stream groups.
 
 ## Trailing management components
 
@@ -248,3 +261,9 @@ design. The first implementation uses validated dataset payloads in a shared
 fact table rather than every proposed physical table. The actual supported
 adapters, precision/coverage limits, rollout, persistence and maintenance commands
 are documented in [unified data operations](unified-data-operations.md).
+
+### Binance integration boundaries
+
+Binance tick capture deliberately uses the legacy `market_ticks` table. It is not an input to the canonical `data`/`market` analysis plane; that cutover requires instrument registration and an ingestion contract. Captured normalized tick payloads retain the original frame under `frame`.
+
+Use separate `--db` paths for each Binance environment and key profile: legacy ticks and order events have no account/environment columns. Streams are observational, with no replay or REST gap reconciliation. Per-tick synchronous SQLite writes can lag high-volume streams; use `--no-store` for observation until a bounded buffered writer is implemented. Storage failures and reconnects can leave gaps. These tables must not serve as authoritative protection or position state.

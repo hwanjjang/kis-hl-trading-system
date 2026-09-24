@@ -1,0 +1,1303 @@
+{
+  "schema_version": 1,
+  "task_id": "binance-review-corrections",
+  "mode": "implementation",
+  "change_kind": "behavior",
+  "endpoint": "pr",
+  "criteria": [
+    "AC1",
+    "AC2",
+    "AC3",
+    "AC4"
+  ],
+  "created_at": "2026-09-24T11:46:40.562500+00:00",
+  "events": [
+    {
+      "at": "2026-09-24T11:46:40.562542+00:00",
+      "action": "initialized",
+      "stage": null
+    },
+    {
+      "at": "2026-09-24T11:52:55.556650+00:00",
+      "action": "iteration-started",
+      "stage": "triage",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-24T11:52:55.643512+00:00",
+      "action": "iteration-finished",
+      "stage": "triage",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Evidence reviewed against the user correction scope"
+    },
+    {
+      "at": "2026-09-24T11:53:06.502430+00:00",
+      "action": "iteration-started",
+      "stage": "intent",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-24T11:53:06.605838+00:00",
+      "action": "iteration-finished",
+      "stage": "intent",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Evidence reviewed against the user correction scope"
+    },
+    {
+      "at": "2026-09-24T11:53:06.768425+00:00",
+      "action": "iteration-started",
+      "stage": "investigation",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-24T11:53:06.863489+00:00",
+      "action": "iteration-finished",
+      "stage": "investigation",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Evidence reviewed against the user correction scope"
+    },
+    {
+      "at": "2026-09-24T11:53:07.035378+00:00",
+      "action": "iteration-started",
+      "stage": "spec",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-24T11:53:07.142800+00:00",
+      "action": "iteration-finished",
+      "stage": "spec",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Evidence reviewed against the user correction scope"
+    },
+    {
+      "at": "2026-09-24T11:53:07.313056+00:00",
+      "action": "iteration-started",
+      "stage": "design",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-24T11:53:07.429075+00:00",
+      "action": "iteration-finished",
+      "stage": "design",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Evidence reviewed against the user correction scope"
+    },
+    {
+      "at": "2026-09-24T11:53:07.617220+00:00",
+      "action": "iteration-started",
+      "stage": "plan",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-24T11:53:07.735634+00:00",
+      "action": "iteration-finished",
+      "stage": "plan",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Evidence reviewed against the user correction scope"
+    },
+    {
+      "at": "2026-09-24T11:53:07.902326+00:00",
+      "action": "iteration-started",
+      "stage": "test-design",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-24T11:53:08.008815+00:00",
+      "action": "iteration-finished",
+      "stage": "test-design",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Evidence reviewed against the user correction scope"
+    },
+    {
+      "at": "2026-09-24T11:53:08.134625+00:00",
+      "action": "iteration-started",
+      "stage": "build",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-24T11:55:06.156287+00:00",
+      "action": "iteration-finished",
+      "stage": "build",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Observed tests and concrete implementation satisfy the PR17 correction subset"
+    },
+    {
+      "at": "2026-09-24T11:55:06.287131+00:00",
+      "action": "iteration-started",
+      "stage": "self-verification",
+      "iteration": 1
+    },
+    {
+      "at": "2026-09-24T11:55:42.105524+00:00",
+      "action": "iteration-finished",
+      "stage": "self-verification",
+      "iteration": 1,
+      "decision": "PROCEED",
+      "reason": "Observed tests and concrete implementation satisfy the PR17 correction subset"
+    }
+  ],
+  "stages": {
+    "triage": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Evidence reviewed against the user correction scope",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-24T11:52:55.556622+00:00",
+          "objective": "Assess triage evidence for review corrections",
+          "resolution": null,
+          "inputs": [],
+          "finished_at": "2026-09-24T11:52:55.643484+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Evidence reviewed against the user correction scope",
+            "authority_source": "AK: review results corrections; prior commit/PR scope",
+            "candidate": "PR17 working tree from b149a528",
+            "next_action": "Continue scoped corrections",
+            "inputs": [],
+            "outputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/binance-review-corrections/triage.md",
+                "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+              }
+            ],
+            "assessment": {
+              "assessor": "Codex /root",
+              "summary": "Read and assessed concrete upstream artifacts and current implementation; no live calls authorized by this receipt",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "intent": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Evidence reviewed against the user correction scope",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-24T11:53:06.502377+00:00",
+          "objective": "Assess intent evidence for review corrections",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/binance-review-corrections/triage.md",
+              "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+            }
+          ],
+          "finished_at": "2026-09-24T11:53:06.605815+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Evidence reviewed against the user correction scope",
+            "authority_source": "AK: review results corrections; prior commit/PR scope",
+            "candidate": "PR17 working tree from b149a528",
+            "next_action": "Continue scoped corrections",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/binance-review-corrections/triage.md",
+                "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/binance-review-corrections/intent.md",
+                "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+              }
+            ],
+            "assessment": {
+              "assessor": "Codex /root",
+              "summary": "Read and assessed concrete upstream artifacts and current implementation; no live calls authorized by this receipt",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "investigation": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Evidence reviewed against the user correction scope",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-24T11:53:06.768353+00:00",
+          "objective": "Assess investigation evidence for review corrections",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/binance-review-corrections/triage.md",
+              "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/binance-review-corrections/intent.md",
+              "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+            }
+          ],
+          "finished_at": "2026-09-24T11:53:06.863442+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Evidence reviewed against the user correction scope",
+            "authority_source": "AK: review results corrections; prior commit/PR scope",
+            "candidate": "PR17 working tree from b149a528",
+            "next_action": "Continue scoped corrections",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/binance-review-corrections/triage.md",
+                "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/binance-review-corrections/intent.md",
+                "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/binance-review-corrections/investigation.md",
+                "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
+              }
+            ],
+            "assessment": {
+              "assessor": "Codex /root",
+              "summary": "Read and assessed concrete upstream artifacts and current implementation; no live calls authorized by this receipt",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "spec": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Evidence reviewed against the user correction scope",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-24T11:53:07.035317+00:00",
+          "objective": "Assess spec evidence for review corrections",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/binance-review-corrections/triage.md",
+              "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/binance-review-corrections/intent.md",
+              "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/binance-review-corrections/investigation.md",
+              "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
+            }
+          ],
+          "finished_at": "2026-09-24T11:53:07.142753+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Evidence reviewed against the user correction scope",
+            "authority_source": "AK: review results corrections; prior commit/PR scope",
+            "candidate": "PR17 working tree from b149a528",
+            "next_action": "Continue scoped corrections",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/binance-review-corrections/triage.md",
+                "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/binance-review-corrections/intent.md",
+                "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/binance-review-corrections/investigation.md",
+                "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "spec",
+                "path": "reports/sdlc/binance-review-corrections/spec.md",
+                "sha256": "ea1b2aab315623d7928b1ca48273f435a4b7b6843a4a481851d5aa194292da74"
+              }
+            ],
+            "assessment": {
+              "assessor": "Codex /root",
+              "summary": "Read and assessed concrete upstream artifacts and current implementation; no live calls authorized by this receipt",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "design": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Evidence reviewed against the user correction scope",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-24T11:53:07.313016+00:00",
+          "objective": "Assess design evidence for review corrections",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/binance-review-corrections/triage.md",
+              "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/binance-review-corrections/intent.md",
+              "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/binance-review-corrections/investigation.md",
+              "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
+            },
+            {
+              "kind": "spec",
+              "path": "reports/sdlc/binance-review-corrections/spec.md",
+              "sha256": "ea1b2aab315623d7928b1ca48273f435a4b7b6843a4a481851d5aa194292da74"
+            }
+          ],
+          "finished_at": "2026-09-24T11:53:07.429024+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Evidence reviewed against the user correction scope",
+            "authority_source": "AK: review results corrections; prior commit/PR scope",
+            "candidate": "PR17 working tree from b149a528",
+            "next_action": "Continue scoped corrections",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/binance-review-corrections/triage.md",
+                "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/binance-review-corrections/intent.md",
+                "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/binance-review-corrections/investigation.md",
+                "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
+              },
+              {
+                "kind": "spec",
+                "path": "reports/sdlc/binance-review-corrections/spec.md",
+                "sha256": "ea1b2aab315623d7928b1ca48273f435a4b7b6843a4a481851d5aa194292da74"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/binance-user-stream-sequence.json",
+                "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/binance-user-stream-sequence.html",
+                "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
+              },
+              {
+                "kind": "design-validation",
+                "path": "docs/architecture/binance-user-stream-sequence.visual-check.json",
+                "sha256": "c7308af00508d767566e2ccc352f187ddc88692df32f524cf5f453c77a6bc109"
+              }
+            ],
+            "assessment": {
+              "assessor": "Codex /root",
+              "summary": "Read and assessed concrete upstream artifacts and current implementation; no live calls authorized by this receipt",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "plan": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Evidence reviewed against the user correction scope",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-24T11:53:07.617163+00:00",
+          "objective": "Assess plan evidence for review corrections",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/binance-review-corrections/triage.md",
+              "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/binance-review-corrections/intent.md",
+              "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/binance-review-corrections/investigation.md",
+              "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
+            },
+            {
+              "kind": "spec",
+              "path": "reports/sdlc/binance-review-corrections/spec.md",
+              "sha256": "ea1b2aab315623d7928b1ca48273f435a4b7b6843a4a481851d5aa194292da74"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/binance-user-stream-sequence.json",
+              "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/binance-user-stream-sequence.html",
+              "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
+            },
+            {
+              "kind": "design-validation",
+              "path": "docs/architecture/binance-user-stream-sequence.visual-check.json",
+              "sha256": "c7308af00508d767566e2ccc352f187ddc88692df32f524cf5f453c77a6bc109"
+            }
+          ],
+          "finished_at": "2026-09-24T11:53:07.735592+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Evidence reviewed against the user correction scope",
+            "authority_source": "AK: review results corrections; prior commit/PR scope",
+            "candidate": "PR17 working tree from b149a528",
+            "next_action": "Continue scoped corrections",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/binance-review-corrections/triage.md",
+                "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/binance-review-corrections/intent.md",
+                "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/binance-review-corrections/investigation.md",
+                "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
+              },
+              {
+                "kind": "spec",
+                "path": "reports/sdlc/binance-review-corrections/spec.md",
+                "sha256": "ea1b2aab315623d7928b1ca48273f435a4b7b6843a4a481851d5aa194292da74"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/binance-user-stream-sequence.json",
+                "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/binance-user-stream-sequence.html",
+                "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
+              },
+              {
+                "kind": "design-validation",
+                "path": "docs/architecture/binance-user-stream-sequence.visual-check.json",
+                "sha256": "c7308af00508d767566e2ccc352f187ddc88692df32f524cf5f453c77a6bc109"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "plan",
+                "path": "reports/sdlc/binance-review-corrections/plan.md",
+                "sha256": "de45a801e3c069cca474d66114faeb49400bc01d44ce1e401191726e30c900c2"
+              }
+            ],
+            "assessment": {
+              "assessor": "Codex /root",
+              "summary": "Read and assessed concrete upstream artifacts and current implementation; no live calls authorized by this receipt",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "test-design": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Evidence reviewed against the user correction scope",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-24T11:53:07.902278+00:00",
+          "objective": "Assess test-design evidence for review corrections",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/binance-review-corrections/triage.md",
+              "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/binance-review-corrections/intent.md",
+              "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/binance-review-corrections/investigation.md",
+              "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
+            },
+            {
+              "kind": "spec",
+              "path": "reports/sdlc/binance-review-corrections/spec.md",
+              "sha256": "ea1b2aab315623d7928b1ca48273f435a4b7b6843a4a481851d5aa194292da74"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/binance-user-stream-sequence.json",
+              "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/binance-user-stream-sequence.html",
+              "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
+            },
+            {
+              "kind": "design-validation",
+              "path": "docs/architecture/binance-user-stream-sequence.visual-check.json",
+              "sha256": "c7308af00508d767566e2ccc352f187ddc88692df32f524cf5f453c77a6bc109"
+            },
+            {
+              "kind": "plan",
+              "path": "reports/sdlc/binance-review-corrections/plan.md",
+              "sha256": "de45a801e3c069cca474d66114faeb49400bc01d44ce1e401191726e30c900c2"
+            }
+          ],
+          "finished_at": "2026-09-24T11:53:08.008770+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Evidence reviewed against the user correction scope",
+            "authority_source": "AK: review results corrections; prior commit/PR scope",
+            "candidate": "PR17 working tree from b149a528",
+            "next_action": "Continue scoped corrections",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/binance-review-corrections/triage.md",
+                "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/binance-review-corrections/intent.md",
+                "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/binance-review-corrections/investigation.md",
+                "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
+              },
+              {
+                "kind": "spec",
+                "path": "reports/sdlc/binance-review-corrections/spec.md",
+                "sha256": "ea1b2aab315623d7928b1ca48273f435a4b7b6843a4a481851d5aa194292da74"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/binance-user-stream-sequence.json",
+                "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/binance-user-stream-sequence.html",
+                "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
+              },
+              {
+                "kind": "design-validation",
+                "path": "docs/architecture/binance-user-stream-sequence.visual-check.json",
+                "sha256": "c7308af00508d767566e2ccc352f187ddc88692df32f524cf5f453c77a6bc109"
+              },
+              {
+                "kind": "plan",
+                "path": "reports/sdlc/binance-review-corrections/plan.md",
+                "sha256": "de45a801e3c069cca474d66114faeb49400bc01d44ce1e401191726e30c900c2"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/binance-review-corrections/test-plan.md",
+                "sha256": "412a8ff8c7ab2b4c3b07484422f660e8dbf34da749a7e443c9c54d85c7e66a3c"
+              }
+            ],
+            "assessment": {
+              "assessor": "Codex /root",
+              "summary": "Read and assessed concrete upstream artifacts and current implementation; no live calls authorized by this receipt",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "build": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Observed tests and concrete implementation satisfy the PR17 correction subset",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-24T11:53:08.134565+00:00",
+          "objective": "Correct reviewed Binance behavior on the two stacked branches",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/binance-review-corrections/triage.md",
+              "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/binance-review-corrections/intent.md",
+              "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/binance-review-corrections/investigation.md",
+              "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
+            },
+            {
+              "kind": "spec",
+              "path": "reports/sdlc/binance-review-corrections/spec.md",
+              "sha256": "ea1b2aab315623d7928b1ca48273f435a4b7b6843a4a481851d5aa194292da74"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/binance-user-stream-sequence.json",
+              "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/binance-user-stream-sequence.html",
+              "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
+            },
+            {
+              "kind": "design-validation",
+              "path": "docs/architecture/binance-user-stream-sequence.visual-check.json",
+              "sha256": "c7308af00508d767566e2ccc352f187ddc88692df32f524cf5f453c77a6bc109"
+            },
+            {
+              "kind": "plan",
+              "path": "reports/sdlc/binance-review-corrections/plan.md",
+              "sha256": "de45a801e3c069cca474d66114faeb49400bc01d44ce1e401191726e30c900c2"
+            },
+            {
+              "kind": "test-plan",
+              "path": "reports/sdlc/binance-review-corrections/test-plan.md",
+              "sha256": "412a8ff8c7ab2b4c3b07484422f660e8dbf34da749a7e443c9c54d85c7e66a3c"
+            }
+          ],
+          "finished_at": "2026-09-24T11:55:06.156209+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Observed tests and concrete implementation satisfy the PR17 correction subset",
+            "authority_source": "AK review correction request and existing PR authority",
+            "candidate": "9135e15f4ef411cc286557dad0fa7f91e881eca30f7b4975c238725a2f9acc6d",
+            "next_action": "Continue PR18 corrections",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/binance-review-corrections/triage.md",
+                "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/binance-review-corrections/intent.md",
+                "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/binance-review-corrections/investigation.md",
+                "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
+              },
+              {
+                "kind": "spec",
+                "path": "reports/sdlc/binance-review-corrections/spec.md",
+                "sha256": "ea1b2aab315623d7928b1ca48273f435a4b7b6843a4a481851d5aa194292da74"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/binance-user-stream-sequence.json",
+                "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/binance-user-stream-sequence.html",
+                "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
+              },
+              {
+                "kind": "design-validation",
+                "path": "docs/architecture/binance-user-stream-sequence.visual-check.json",
+                "sha256": "c7308af00508d767566e2ccc352f187ddc88692df32f524cf5f453c77a6bc109"
+              },
+              {
+                "kind": "plan",
+                "path": "reports/sdlc/binance-review-corrections/plan.md",
+                "sha256": "de45a801e3c069cca474d66114faeb49400bc01d44ce1e401191726e30c900c2"
+              },
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/binance-review-corrections/test-plan.md",
+                "sha256": "412a8ff8c7ab2b4c3b07484422f660e8dbf34da749a7e443c9c54d85c7e66a3c"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "build",
+                "path": "reports/sdlc/binance-review-corrections/build.md",
+                "sha256": "adceb5b1bd87adad9b9493973eff3e81961ff02d208be2d17cca9b7e688c1f01"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/binance-review-corrections/change17.diff",
+                "sha256": "2f6d1aa900f9b0df373fae122d6b890a94916b35439db22b321fd7f85e80d353"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/binance-api/SKILL.md",
+                "sha256": "afd99d8bbedfbb093e754de665b3ac40eaa5a84d4ba1e70d6e92aa2ee52ea1a5"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/binance-api/references/limits-and-errors.md",
+                "sha256": "621a6c8d7baa77ab7f3d545af0711a7576afe653defb64475adcd5b38acff9e8"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/binance-api/references/websocket.md",
+                "sha256": "254238580a507005a6d81cb75da38dff601a39802a678b5d5356c2ac272494ee"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "README.md",
+                "sha256": "92e7305f427175995d758299811f5ba47d9670131a125a4fee93155a895b9758"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture.md",
+                "sha256": "0a6a2556a16a405cc3505b9b8c623d899085f84347c0d5a120d5f7f2922b4515"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/binance-user-stream-sequence.html",
+                "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/binance-user-stream-sequence.json",
+                "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/unified-data-operations.md",
+                "sha256": "615c0c007c3d82ad97fc2911548935cba442908cbabffa2670d3180469ebfc87"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/binance/client.py",
+                "sha256": "67a554de94a23a6a8413518d64599ec5073347edcfd4aaca2d7c736fc1d1c75b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/binance/ws.py",
+                "sha256": "6f51c4cf3452a8fb2ea2aaabbd748a966f582b750c51531b073488cd85736e40"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/config.py",
+                "sha256": "43ea8022e37d848977c7bfae380bb450a60c60d992e394f748e6e63fcec17ced"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/streaming.py",
+                "sha256": "552dd6c21a8cfb377d973ab9ad5d748a09c75551c148f05a64879b443cc3206f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_cli.py",
+                "sha256": "017d26a85db9e9f0865060540d4b7508e8d2bb089ceaac89379b7cc1ff13b05e"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_config.py",
+                "sha256": "11fb3e5f695fe5714b4c328aa3c00c482cc2400c7feb5a7ec4dea491a2757b8c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_binance_review_regressions.py",
+                "sha256": "be07f6f0cec406fdefa671a80e1937820a7c2ab8af9ae005b2aeeb03d6095db6"
+              }
+            ],
+            "assessment": {
+              "assessor": "Codex /root",
+              "summary": "Actual commands and evidence inspected; PR17 subset only, no exchange order verification claimed",
+              "criteria": [
+                "AC1",
+                "AC3"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "self-verification": {
+      "applicable": true,
+      "status": "complete",
+      "reason": "Observed tests and concrete implementation satisfy the PR17 correction subset",
+      "iteration_limit": 10,
+      "iterations_started": 1,
+      "history": [
+        {
+          "iteration": 1,
+          "started_at": "2026-09-24T11:55:06.287077+00:00",
+          "objective": "Verify PR17 tests and loopback smoke",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/binance-review-corrections/triage.md",
+              "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+            },
+            {
+              "kind": "intent",
+              "path": "reports/sdlc/binance-review-corrections/intent.md",
+              "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/binance-review-corrections/investigation.md",
+              "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
+            },
+            {
+              "kind": "spec",
+              "path": "reports/sdlc/binance-review-corrections/spec.md",
+              "sha256": "ea1b2aab315623d7928b1ca48273f435a4b7b6843a4a481851d5aa194292da74"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/binance-user-stream-sequence.json",
+              "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/binance-user-stream-sequence.html",
+              "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
+            },
+            {
+              "kind": "design-validation",
+              "path": "docs/architecture/binance-user-stream-sequence.visual-check.json",
+              "sha256": "c7308af00508d767566e2ccc352f187ddc88692df32f524cf5f453c77a6bc109"
+            },
+            {
+              "kind": "plan",
+              "path": "reports/sdlc/binance-review-corrections/plan.md",
+              "sha256": "de45a801e3c069cca474d66114faeb49400bc01d44ce1e401191726e30c900c2"
+            },
+            {
+              "kind": "test-plan",
+              "path": "reports/sdlc/binance-review-corrections/test-plan.md",
+              "sha256": "412a8ff8c7ab2b4c3b07484422f660e8dbf34da749a7e443c9c54d85c7e66a3c"
+            },
+            {
+              "kind": "build",
+              "path": "reports/sdlc/binance-review-corrections/build.md",
+              "sha256": "adceb5b1bd87adad9b9493973eff3e81961ff02d208be2d17cca9b7e688c1f01"
+            },
+            {
+              "kind": "change-record",
+              "path": "reports/sdlc/binance-review-corrections/change17.diff",
+              "sha256": "2f6d1aa900f9b0df373fae122d6b890a94916b35439db22b321fd7f85e80d353"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/binance-api/SKILL.md",
+              "sha256": "afd99d8bbedfbb093e754de665b3ac40eaa5a84d4ba1e70d6e92aa2ee52ea1a5"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/binance-api/references/limits-and-errors.md",
+              "sha256": "621a6c8d7baa77ab7f3d545af0711a7576afe653defb64475adcd5b38acff9e8"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/binance-api/references/websocket.md",
+              "sha256": "254238580a507005a6d81cb75da38dff601a39802a678b5d5356c2ac272494ee"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "README.md",
+              "sha256": "92e7305f427175995d758299811f5ba47d9670131a125a4fee93155a895b9758"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture.md",
+              "sha256": "0a6a2556a16a405cc3505b9b8c623d899085f84347c0d5a120d5f7f2922b4515"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/binance-user-stream-sequence.html",
+              "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/binance-user-stream-sequence.json",
+              "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/unified-data-operations.md",
+              "sha256": "615c0c007c3d82ad97fc2911548935cba442908cbabffa2670d3180469ebfc87"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/binance/client.py",
+              "sha256": "67a554de94a23a6a8413518d64599ec5073347edcfd4aaca2d7c736fc1d1c75b"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/binance/ws.py",
+              "sha256": "6f51c4cf3452a8fb2ea2aaabbd748a966f582b750c51531b073488cd85736e40"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/config.py",
+              "sha256": "43ea8022e37d848977c7bfae380bb450a60c60d992e394f748e6e63fcec17ced"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/streaming.py",
+              "sha256": "552dd6c21a8cfb377d973ab9ad5d748a09c75551c148f05a64879b443cc3206f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_cli.py",
+              "sha256": "017d26a85db9e9f0865060540d4b7508e8d2bb089ceaac89379b7cc1ff13b05e"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_config.py",
+              "sha256": "11fb3e5f695fe5714b4c328aa3c00c482cc2400c7feb5a7ec4dea491a2757b8c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_binance_review_regressions.py",
+              "sha256": "be07f6f0cec406fdefa671a80e1937820a7c2ab8af9ae005b2aeeb03d6095db6"
+            }
+          ],
+          "finished_at": "2026-09-24T11:55:42.105479+00:00",
+          "receipt": {
+            "iteration": 1,
+            "decision": "PROCEED",
+            "reason": "Observed tests and concrete implementation satisfy the PR17 correction subset",
+            "authority_source": "AK review correction request and existing PR authority",
+            "candidate": "9135e15f4ef411cc286557dad0fa7f91e881eca30f7b4975c238725a2f9acc6d",
+            "next_action": "Continue PR18 corrections",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/binance-review-corrections/triage.md",
+                "sha256": "e78f695bd9b1e7db456ce5b5f07e30827c0c6a420cefe1dd4cd5e3e638170fed"
+              },
+              {
+                "kind": "intent",
+                "path": "reports/sdlc/binance-review-corrections/intent.md",
+                "sha256": "4eb3eb2b53340099305000f3cf61dee11b7053bcd75accd9862b97aa900337eb"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/binance-review-corrections/investigation.md",
+                "sha256": "e79c19d1013006e992bd5acb3919f9a7e4008b9f2bd16cd09d602f0a91ae0989"
+              },
+              {
+                "kind": "spec",
+                "path": "reports/sdlc/binance-review-corrections/spec.md",
+                "sha256": "ea1b2aab315623d7928b1ca48273f435a4b7b6843a4a481851d5aa194292da74"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/binance-user-stream-sequence.json",
+                "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/binance-user-stream-sequence.html",
+                "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
+              },
+              {
+                "kind": "design-validation",
+                "path": "docs/architecture/binance-user-stream-sequence.visual-check.json",
+                "sha256": "c7308af00508d767566e2ccc352f187ddc88692df32f524cf5f453c77a6bc109"
+              },
+              {
+                "kind": "plan",
+                "path": "reports/sdlc/binance-review-corrections/plan.md",
+                "sha256": "de45a801e3c069cca474d66114faeb49400bc01d44ce1e401191726e30c900c2"
+              },
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/binance-review-corrections/test-plan.md",
+                "sha256": "412a8ff8c7ab2b4c3b07484422f660e8dbf34da749a7e443c9c54d85c7e66a3c"
+              },
+              {
+                "kind": "build",
+                "path": "reports/sdlc/binance-review-corrections/build.md",
+                "sha256": "adceb5b1bd87adad9b9493973eff3e81961ff02d208be2d17cca9b7e688c1f01"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/binance-review-corrections/change17.diff",
+                "sha256": "2f6d1aa900f9b0df373fae122d6b890a94916b35439db22b321fd7f85e80d353"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/binance-api/SKILL.md",
+                "sha256": "afd99d8bbedfbb093e754de665b3ac40eaa5a84d4ba1e70d6e92aa2ee52ea1a5"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/binance-api/references/limits-and-errors.md",
+                "sha256": "621a6c8d7baa77ab7f3d545af0711a7576afe653defb64475adcd5b38acff9e8"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/binance-api/references/websocket.md",
+                "sha256": "254238580a507005a6d81cb75da38dff601a39802a678b5d5356c2ac272494ee"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "README.md",
+                "sha256": "92e7305f427175995d758299811f5ba47d9670131a125a4fee93155a895b9758"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture.md",
+                "sha256": "0a6a2556a16a405cc3505b9b8c623d899085f84347c0d5a120d5f7f2922b4515"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/binance-user-stream-sequence.html",
+                "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/binance-user-stream-sequence.json",
+                "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/unified-data-operations.md",
+                "sha256": "615c0c007c3d82ad97fc2911548935cba442908cbabffa2670d3180469ebfc87"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/binance/client.py",
+                "sha256": "67a554de94a23a6a8413518d64599ec5073347edcfd4aaca2d7c736fc1d1c75b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/binance/ws.py",
+                "sha256": "6f51c4cf3452a8fb2ea2aaabbd748a966f582b750c51531b073488cd85736e40"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/config.py",
+                "sha256": "43ea8022e37d848977c7bfae380bb450a60c60d992e394f748e6e63fcec17ced"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/streaming.py",
+                "sha256": "552dd6c21a8cfb377d973ab9ad5d748a09c75551c148f05a64879b443cc3206f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_cli.py",
+                "sha256": "017d26a85db9e9f0865060540d4b7508e8d2bb089ceaac89379b7cc1ff13b05e"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_config.py",
+                "sha256": "11fb3e5f695fe5714b4c328aa3c00c482cc2400c7feb5a7ec4dea491a2757b8c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_binance_review_regressions.py",
+                "sha256": "be07f6f0cec406fdefa671a80e1937820a7c2ab8af9ae005b2aeeb03d6095db6"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "self-verification",
+                "path": "reports/sdlc/binance-review-corrections/self-verification.md",
+                "sha256": "088a1b0b1eb30fd69c737964c92eee7b3444631160dd982e58739105669c892c"
+              },
+              {
+                "kind": "test-results",
+                "path": "reports/sdlc/binance-review-corrections/test-results.json",
+                "sha256": "df16094321fe33184ec12c3bb1e012793822860cff37f1c2cd97f91a888a7cfe"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/binance-review-corrections/logs/pr17-red.log",
+                "sha256": "65f73912522010676dfbd764b92de7b8f15a68f99e2df5610ac01e6dc31f4e36"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/binance-review-corrections/logs/pr17-green.log",
+                "sha256": "77a1ba1c0f7193d4b311608d4ef1b127a241887ed445a6c52c69775ba9c0b986"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/binance-review-corrections/logs/pr17-post-refactor.log",
+                "sha256": "65ae126ba8ed3620c65a4099e0be4e8d2a728ff554d6ece9551b03ee6ebf06b1"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/binance-review-corrections/logs/pr17-smoke.log",
+                "sha256": "4e56182e8d739c9b95b8e9fc9bb7bbec3f0e1c5c4feee7da3b6e7ddcdc4ff209"
+              }
+            ],
+            "assessment": {
+              "assessor": "Codex /root",
+              "summary": "Actual commands and evidence inspected; PR17 subset only, no exchange order verification claimed",
+              "criteria": [
+                "AC1",
+                "AC3"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "independent-verification": {
+      "applicable": true,
+      "status": "pending",
+      "reason": "",
+      "iteration_limit": 10,
+      "iterations_started": 0,
+      "history": []
+    },
+    "pr-review": {
+      "applicable": true,
+      "status": "pending",
+      "reason": "",
+      "iteration_limit": 10,
+      "iterations_started": 0,
+      "history": []
+    },
+    "correction": {
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No correction requested",
+      "iteration_limit": 10,
+      "iterations_started": 0,
+      "history": []
+    },
+    "merge": {
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "Excluded by implementation/pr route",
+      "iteration_limit": 10,
+      "iterations_started": 0,
+      "history": []
+    },
+    "completion": {
+      "applicable": true,
+      "status": "pending",
+      "reason": "",
+      "iteration_limit": 10,
+      "iterations_started": 0,
+      "history": []
+    }
+  }
+}

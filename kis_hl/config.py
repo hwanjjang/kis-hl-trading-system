@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping
+from urllib.parse import urlsplit
 
 KIS_BASE_URLS = {
     "sim": "https://openapivts.koreainvestment.com:29443",
@@ -18,6 +19,10 @@ KIS_WS_URLS = {
 
 HL_MAINNET_URL = "https://api.hyperliquid.xyz"
 HL_TESTNET_URL = "https://api.hyperliquid-testnet.xyz"
+BINANCE_MAINNET_URL = "https://fapi.binance.com"
+BINANCE_TESTNET_URL = "https://demo-fapi.binance.com"
+BINANCE_MAINNET_WS_URL = "wss://fstream.binance.com"
+BINANCE_TESTNET_WS_URL = "wss://demo-fstream.binance.com"
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +69,20 @@ class HyperliquidConfig:
             raise ValueError("Subaccount target must differ from master")
         if self.account_address.lower() != self.subaccount_address.lower():
             raise ValueError("Execution account must match the configured subaccount")
+
+
+@dataclass(frozen=True, slots=True)
+class BinanceConfig:
+    """USD(S)-M futures connection settings. Credentials may be empty for public reads."""
+
+    base_url: str
+    ws_market_url: str
+    ws_public_url: str
+    ws_user_url: str
+    api_key: str = field(repr=False)
+    api_secret: str = field(repr=False)
+    key_profile: str
+    recv_window_ms: int = 5000
 
 
 def load_env_file(path: str | Path = ".env", *, override: bool = False) -> None:
@@ -163,6 +182,48 @@ def load_hyperliquid_config(env: Mapping[str, str] | None = None) -> Hyperliquid
         private_key=private_key,
         key_profile=profile,
         ws_url=source.get("HYPERLIQUID_WS_URL", "").strip(),
+    )
+
+
+def load_binance_config(env: Mapping[str, str] | None = None) -> BinanceConfig:
+    source = os.environ if env is None else env
+    profile = source.get("BINANCE_KEY_PROFILE", "default").strip().lower()
+    if profile not in {"default", "production"}:
+        raise RuntimeError("BINANCE_KEY_PROFILE must be 'default' or 'production'")
+    if profile == "production":
+        api_key_name = "PRO_BINANCE_APIKEY"
+        api_secret_name = "PRO_BINANCE_SECRET"
+    else:
+        api_key_name = "BINANCE_APIKEY"
+        api_secret_name = "BINANCE_SECRET"
+
+    testnet_value = source.get("BINANCE_TESTNET", "false").strip().lower()
+    if testnet_value not in {"true", "false"}:
+        raise RuntimeError("BINANCE_TESTNET must be 'true' or 'false'")
+    testnet = testnet_value == "true"
+    for name in ("BINANCE_BASE_URL", "BINANCE_WS_MARKET_URL", "BINANCE_WS_PUBLIC_URL", "BINANCE_WS_USER_URL"):
+        if name not in source:
+            continue
+        parsed = urlsplit(source[name].strip())
+        scheme = "https" if name == "BINANCE_BASE_URL" else "wss"
+        if parsed.scheme != scheme or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise RuntimeError(f"{name} must be a {scheme} URL without credentials, query or fragment")
+        main_hosts = {"fapi.binance.com", "fstream.binance.com"}
+        demo_hosts = {"demo-fapi.binance.com", "demo-fstream.binance.com", "testnet.binancefuture.com", "stream.binancefuture.com"}
+        if parsed.hostname in (main_hosts if testnet else demo_hosts):
+            raise RuntimeError(f"{name} conflicts with BINANCE_TESTNET")
+    rest_default = BINANCE_TESTNET_URL if testnet else BINANCE_MAINNET_URL
+    ws_default = BINANCE_TESTNET_WS_URL if testnet else BINANCE_MAINNET_WS_URL
+
+    return BinanceConfig(
+        base_url=source.get("BINANCE_BASE_URL", rest_default).strip().rstrip("/"),
+        ws_market_url=source.get("BINANCE_WS_MARKET_URL", ws_default + "/market").strip().rstrip("/"),
+        ws_public_url=source.get("BINANCE_WS_PUBLIC_URL", ws_default + "/public").strip().rstrip("/"),
+        ws_user_url=source.get("BINANCE_WS_USER_URL", ws_default + "/private").strip().rstrip("/"),
+        api_key=source.get(api_key_name, "").strip(),
+        api_secret=source.get(api_secret_name, "").strip(),
+        key_profile=profile,
+        recv_window_ms=int(source.get("BINANCE_RECV_WINDOW_MS", "5000")),
     )
 
 

@@ -174,6 +174,21 @@ signer or querying roles. `routing_verified=false` means a dry run is not proof 
 exchange authorization. Review these fields and `hl-account` before execution.
 See [subaccount operating limits](docs/trading-operations.md#explicit-hyperliquid-subaccount-routing).
 
+Binance USDⓈ-M futures uses exchange API keys. Public market data needs no key; signed
+reads and the user data stream need both values:
+
+```bash
+BINANCE_KEY_PROFILE=default
+BINANCE_APIKEY=...
+BINANCE_SECRET=...
+BINANCE_TESTNET=false
+```
+
+Set `BINANCE_KEY_PROFILE=production` to use `PRO_BINANCE_APIKEY` and `PRO_BINANCE_SECRET`.
+`BINANCE_TESTNET=true` switches to the futures demo environment. Keys must not have
+withdrawal permission and should be IP-restricted. This iteration only reads: it does not
+place, cancel, or modify Binance orders.
+
 ## Commands
 
 Verify the configured KIS account and read its domestic balance summary:
@@ -215,6 +230,34 @@ Fetch public asset/account state for the selected profile's effective execution 
 ```bash
 python -m kis_hl.cli hl-account
 python -m kis_hl.cli hl-account --dex xyz
+```
+
+Inspect Binance USDⓈ-M futures symbol filters, mark price, and klines (public, no key):
+
+```bash
+python -m kis_hl.cli binance-info --symbol BTCUSDT
+python -m kis_hl.cli binance-mark --symbol BTCUSDT
+python -m kis_hl.cli binance-candles --symbol BTCUSDT --interval 1h --limit 100
+```
+
+Stream Binance market data over websocket and store ticks in `market_ticks`
+(`source=binance`, `market=usdm_futures`). Stream tokens are `mark`, `book`, `trade`, and
+`kline:<interval>`. Binance serves `book` (top of book) from a separate `/public` route, so
+it needs its own run; `mark`, `trade`, and `kline` share the `/market` route:
+
+```bash
+python -m kis_hl.cli binance-stream --symbol BTCUSDT --streams mark,trade --max-messages 50
+python -m kis_hl.cli binance-stream --symbol BTCUSDT --streams book --max-messages 50
+python -m kis_hl.cli binance-stream --symbol BTCUSDT --streams kline:1h --no-store --max-messages 10
+```
+
+Read regular open orders (conditional/algo orders require the order-execution extension) and non-zero positions (signed, read-only), stream order-status events
+through the user data stream into `order_events`, and list what was stored:
+
+```bash
+python -m kis_hl.cli binance-orders --symbol BTCUSDT
+python -m kis_hl.cli binance-user-stream --max-messages 20
+python -m kis_hl.cli binance-order-events --symbol BTCUSDT --limit 20
 ```
 
 Create or refresh the local trade.xyz asset mapping table:
@@ -366,12 +409,16 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 - Check `xyz-assets universe-collect` for newly listed `xyz` markets before expanding the curated eligibility table.
 - Review recent funding and spread data before opening or adding to a trade.xyz position, especially for single-name stocks and newly added markets.
 - Use an approved Hyperliquid API wallet per trading process to avoid nonce collisions.
+- Binance integration is a read-only data plane for now: public market data, signed account/order reads, and websocket order-status events. No `binance-*` command places orders, and there is no `--live` flag for Binance.
+- Binance `listenKey` values are treated like credentials: they are never printed or stored. For connection and renewal behavior, see the [Binance stream reference](.agents/skills/binance-api/references/websocket.md).
+- Binance kline intervals do not include `3h`; use `1h` bars or tick-built candles for the 3H strategy.
 
 ## References
 
 - `AGENTS.md` holds the shared agent rules, and `CLAUDE.md` is the Claude Code entry point with the file-ownership table used to keep documentation single-sourced.
 - `.agents/skills/kis-open-api/` (also linked as `.claude/skills/kis-open-api/`) is the KIS Open API skill for Claude Code and Codex: auth/transport rules, endpoint and TR ID tables, websocket protocol, and a search script over the official `koreainvestment/open-trading-api` samples.
 - `.agents/skills/hyperliquid-api/` (also linked as `.claude/skills/hyperliquid-api/`) owns Hyperliquid REST/WebSocket, symbol, sizing, rate-limit, and rejection rules used by this repo.
+- `.agents/skills/binance-api/` (also linked as `.claude/skills/binance-api/`) owns Binance USDⓈ-M futures REST/WebSocket, signing, listenKey, filter, rate-limit, and error-code rules used by this repo.
 - `.agents/skills/trade-journal/` (also linked as `.claude/skills/trade-journal/`) owns the completed-trade record contract and the nine Minervini-style review-statistics formulas.
 - `../ccxt-tradingview-webhook` for KIS TR IDs, token caching, and request throttling patterns.
 - `../grid-bot-rotation-strategy` for official Hyperliquid Python SDK usage.

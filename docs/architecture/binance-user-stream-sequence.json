@@ -1,0 +1,247 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Binance User Data Stream Lifecycle",
+    "output": "docs/architecture/binance-user-stream-sequence.html",
+    "viewBox": [
+      1080,
+      560
+    ],
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "views": [
+      {
+        "id": "connect",
+        "label": "Connect with a listenKey",
+        "focus": [
+          "cli",
+          "user_ws",
+          "rest",
+          "binance_rest",
+          "binance_ws"
+        ],
+        "note": "Every connection attempt requests an account listenKey before opening the socket."
+      },
+      {
+        "id": "persist",
+        "label": "Persist order events",
+        "focus": [
+          "binance_ws",
+          "user_ws",
+          "sqlite"
+        ],
+        "note": "ORDER_TRADE_UPDATE frames become order_events rows; other events are passed through."
+      },
+      {
+        "id": "renew",
+        "label": "Keepalive and expiry",
+        "focus": [
+          "user_ws",
+          "rest",
+          "binance_rest",
+          "binance_ws"
+        ],
+        "note": "Quiet streams stay connected; renewals retry transient errors and expiry reconnects."
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "cli",
+      "type": "frontend",
+      "label": "CLI",
+      "sublabel": "binance-user-stream"
+    },
+    {
+      "id": "user_ws",
+      "type": "backend",
+      "label": "User stream",
+      "sublabel": "BinanceUserStreamClient"
+    },
+    {
+      "id": "rest",
+      "type": "backend",
+      "label": "REST client",
+      "sublabel": "BinanceFuturesClient"
+    },
+    {
+      "id": "binance_rest",
+      "type": "external",
+      "label": "Binance REST",
+      "sublabel": "fapi /listenKey"
+    },
+    {
+      "id": "binance_ws",
+      "type": "external",
+      "label": "Binance WS",
+      "sublabel": "fstream /private"
+    },
+    {
+      "id": "sqlite",
+      "type": "database",
+      "label": "SQLite",
+      "sublabel": "order_events"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 294,
+      "label": "Connect"
+    },
+    {
+      "from": 302,
+      "to": 362,
+      "label": "Stream and persist"
+    },
+    {
+      "from": 370,
+      "to": 486,
+      "label": "Keepalive and expiry"
+    }
+  ],
+  "messages": [
+    {
+      "from": "cli",
+      "to": "user_ws",
+      "y": 168,
+      "label": "run(max_messages, max_reconnects)",
+      "variant": "emphasis"
+    },
+    {
+      "from": "user_ws",
+      "to": "rest",
+      "y": 196,
+      "label": "create_listen_key()",
+      "variant": "emphasis"
+    },
+    {
+      "from": "rest",
+      "to": "binance_rest",
+      "y": 224,
+      "label": "POST /fapi/v1/listenKey (X-MBX-APIKEY)",
+      "variant": "security"
+    },
+    {
+      "from": "binance_rest",
+      "to": "rest",
+      "y": 252,
+      "label": "listenKey, valid 60 min",
+      "variant": "return"
+    },
+    {
+      "from": "user_ws",
+      "to": "binance_ws",
+      "y": 280,
+      "label": "connect /private/ws/<listenKey>",
+      "variant": "emphasis"
+    },
+    {
+      "from": "binance_ws",
+      "to": "user_ws",
+      "y": 320,
+      "label": "ORDER_TRADE_UPDATE frame",
+      "variant": "dashed"
+    },
+    {
+      "from": "user_ws",
+      "to": "sqlite",
+      "y": 348,
+      "label": "store_order_event(parse_order_event)",
+      "variant": "emphasis"
+    },
+    {
+      "from": "user_ws",
+      "to": "rest",
+      "y": 388,
+      "label": "keepalive_listen_key() every 30 min on idle",
+      "variant": "dashed"
+    },
+    {
+      "from": "rest",
+      "to": "binance_rest",
+      "y": 416,
+      "label": "PUT /fapi/v1/listenKey",
+      "variant": "security"
+    },
+    {
+      "from": "binance_ws",
+      "to": "user_ws",
+      "y": 444,
+      "label": "listenKeyExpired: close, backoff, reconnect",
+      "variant": "security"
+    },
+    {
+      "from": "user_ws",
+      "to": "rest",
+      "y": 472,
+      "label": "create_listen_key() again",
+      "variant": "emphasis"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "user_ws",
+      "from": 162,
+      "to": 354,
+      "type": "backend"
+    },
+    {
+      "participant": "rest",
+      "from": 190,
+      "to": 258,
+      "type": "backend"
+    },
+    {
+      "participant": "binance_ws",
+      "from": 274,
+      "to": 326,
+      "type": "external"
+    },
+    {
+      "participant": "sqlite",
+      "from": 342,
+      "to": 354,
+      "type": "database"
+    },
+    {
+      "participant": "user_ws",
+      "from": 382,
+      "to": 478,
+      "type": "backend"
+    },
+    {
+      "participant": "rest",
+      "from": 410,
+      "to": 422,
+      "type": "backend"
+    },
+    {
+      "participant": "binance_ws",
+      "from": 438,
+      "to": 450,
+      "type": "external"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Key Per Connection",
+      "items": [
+        "The transport factory mints a listenKey before each socket open",
+        "The maintained runner keeps a placeholder URL; the factory supplies the real one",
+        "No listenKey is logged or printed"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Bounded Renewal",
+      "items": [
+        "Keepalive on idle ticks every 30 minutes, under the 60 minute expiry",
+        "listenKeyExpired raises inside the handler so the runner reconnects",
+        "order_events keeps a venue column; this iteration places no orders"
+      ]
+    }
+  ]
+}

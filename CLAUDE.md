@@ -27,6 +27,7 @@ link to it instead.
 | trade.xyz asset universe, eligibility, exclusions | `docs/trade_xyz_assets.md` + `kis_hl/trade_xyz_assets.py` | Doc explains policy, code is the seed of record |
 | KIS endpoints, TR IDs, auth, rate limits, websocket protocol | `.agents/skills/kis-open-api/` | Symlinked as `.claude/skills/kis-open-api/` |
 | Hyperliquid endpoints, order schema, asset ids, tick/lot rules, rate limits, websocket protocol | `.agents/skills/hyperliquid-api/` | Symlinked as `.claude/skills/hyperliquid-api/` |
+| Binance USDⓈ-M futures endpoints, signing, listenKey lifecycle, stream names, symbol filters, rate limits, error codes | `.agents/skills/binance-api/` | Symlinked as `.claude/skills/binance-api/` |
 | Completed-trade journal record contract, review-statistics formulas, and edge cases | `.agents/skills/trade-journal/` | Symlinked as `.claude/skills/trade-journal/` |
 | Session observation, skill-improvement workflow, observation log | `.agents/skills/task-observer/` | Symlinked as `.claude/skills/task-observer/`; activation rule lives in `AGENTS.md` |
 | Coding behavior guidelines (assumptions, surgical changes, success criteria) | `.agents/skills/karpathy-guidelines/` | Symlinked as `.claude/skills/karpathy-guidelines/`; activation rule lives in `AGENTS.md` |
@@ -50,6 +51,10 @@ must be corrected.
   `/info` type or `/exchange` action lookup, symbol-to-coin/asset-id resolution,
   tick/lot sizing, or order-rejection question, and keep its tables in sync with
   `kis_hl/hyperliquid/client.py` and `kis_hl/hyperliquid/ws.py`.
+- Use the `binance-api` skill for any Binance REST or WebSocket work, `/fapi` path or
+  signed-request question, listenKey or user-data-stream issue, stream-name or symbol-filter
+  lookup, and keep its tables in sync with `kis_hl/binance/client.py` and
+  `kis_hl/binance/ws.py`.
 - Use the `trade-journal` skill for completed-position record boundaries, journal
   statistics, `journal add`/`journal stats`, or changes to
   `kis_hl/trade_journal.py`, and keep its formula references synchronized with tests.

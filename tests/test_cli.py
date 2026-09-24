@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import sqlite3
@@ -853,6 +854,164 @@ class CliTests(unittest.TestCase):
             payload = json.loads(stdout.getvalue())
             self.assertEqual(payload["succeeded"], 1)
             self.assertEqual(payload["stored"], 1)
+
+
+
+
+class BinanceCliTests(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(patch.stopall)
+        patch("kis_hl.cli.load_env_file").start()
+        patch.dict("os.environ", {}, clear=True).start()
+
+    EXCHANGE_INFO = {
+        "serverTime": 1,
+        "rateLimits": [{"rateLimitType": "REQUEST_WEIGHT", "limit": 2400}],
+        "symbols": [
+            {
+                "symbol": "BTCUSDT",
+                "status": "TRADING",
+                "contractType": "PERPETUAL",
+                "pricePrecision": 2,
+                "quantityPrecision": 3,
+                "orderTypes": ["LIMIT", "TRAILING_STOP_MARKET"],
+                "timeInForce": ["GTC"],
+                "filters": [
+                    {"filterType": "PRICE_FILTER", "tickSize": "0.10"},
+                    {"filterType": "LOT_SIZE", "stepSize": "0.001", "minQty": "0.001"},
+                    {"filterType": "MIN_NOTIONAL", "notional": "50"},
+                ],
+            }
+        ],
+    }
+
+    def _run(self, argv: list[str]) -> tuple[int, dict]:
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            exit_code = main(argv)
+        text = stdout.getvalue()
+        return exit_code, (json.loads(text) if text.strip() else {})
+
+    def test_binance_info_outputs_filters_without_credentials(self) -> None:
+        with patch("kis_hl.cli.BinanceFuturesClient") as client_cls:
+            client_cls.return_value.exchange_info.return_value = self.EXCHANGE_INFO
+            exit_code, payload = self._run(["binance-info", "--symbol", "btcusdt"])
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["symbol"], "BTCUSDT")
+        self.assertEqual(payload["filters"]["tick_size"], "0.10")
+        self.assertEqual(payload["filters"]["min_notional"], "50")
+        self.assertEqual(payload["rate_limits"][0]["limit"], 2400)
+        self.assertNotIn("api_key", json.dumps(payload))
+        client_cls.return_value.exchange_info.assert_called_once_with("BTCUSDT")
+
+    def test_binance_mark_and_candles_pass_arguments(self) -> None:
+        with patch("kis_hl.cli.BinanceFuturesClient") as client_cls:
+            instance = client_cls.return_value
+            instance.premium_index.return_value = {"markPrice": "1"}
+            instance.book_ticker.return_value = {"bidPrice": "1", "askPrice": "2"}
+            instance.last_used_weight = 3
+            exit_code, payload = self._run(["binance-mark", "--symbol", "BTCUSDT"])
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["premium_index"]["markPrice"], "1")
+            self.assertEqual(payload["used_weight_1m"], 3)
+
+            instance.klines.return_value = [{"t": 1, "c": Decimal("2")}]
+            exit_code, payload = self._run(
+                ["binance-candles", "--symbol", "BTCUSDT", "--interval", "1h", "--limit", "5", "--start-ms", "7"]
+            )
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["count"], 1)
+            instance.klines.assert_called_once_with("BTCUSDT", "1h", limit=5, start_time_ms=7, end_time_ms=None)
+
+    def test_binance_orders_filters_zero_positions(self) -> None:
+        with patch("kis_hl.cli.BinanceFuturesClient") as client_cls:
+            instance = client_cls.return_value
+            instance.open_orders.return_value = [{"orderId": 1}]
+            instance.position_risk.return_value = [
+                {"symbol": "BTCUSDT", "positionAmt": "0.010"},
+                {"symbol": "ETHUSDT", "positionAmt": "0"},
+            ]
+            instance.last_used_weight = None
+            exit_code, payload = self._run(["binance-orders", "--symbol", "btcusdt"])
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["symbol"], "BTCUSDT")
+        self.assertEqual([p["symbol"] for p in payload["positions"]], ["BTCUSDT"])
+        self.assertEqual(payload["open_orders"], [{"orderId": 1}])
+
+    def test_binance_stream_stores_ticks(self) -> None:
+        class FakeMarketClient:
+            def __init__(self, _config: object, *, streams: list[str], on_message: object) -> None:
+                self.streams = streams
+                self.on_message = on_message
+
+            def run(self, *, max_messages: int | None = None, max_reconnects: int | None = None) -> WebSocketStatus:
+                self.on_message(
+                    {
+                        "stream": "btcusdt@markPrice@1s",
+                        "data": {"e": "markPriceUpdate", "E": 5, "s": "BTCUSDT", "p": "100.5", "r": "0.0001"},
+                    }
+                )
+                return WebSocketStatus(url="wss://example.test", state="stopped")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "t.sqlite")
+            with patch("kis_hl.cli.BinanceMarketStreamClient", FakeMarketClient):
+                exit_code, payload = self._run(
+                    ["--db", db, "binance-stream", "--symbol", "BTCUSDT", "--streams", "mark,kline:1h", "--max-messages", "1"]
+                )
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["streams"], ["btcusdt@markPrice@1s", "btcusdt@kline_1h"])
+            self.assertEqual(payload["ticks"], {"mark_price": 1})
+            self.assertEqual(payload["stored"], 1)
+            with closing(sqlite3.connect(db)) as conn:
+                row = conn.execute("SELECT source, market, symbol, last_price FROM market_ticks").fetchone()
+            self.assertEqual(row, ("binance", "usdm_futures", "BTCUSDT", "100.5"))
+
+    def test_binance_stream_rejects_unknown_stream_token(self) -> None:
+        with patch("kis_hl.cli.BinanceMarketStreamClient") as client_cls:
+            exit_code, _payload = self._run(["binance-stream", "--streams", "depth"])
+        self.assertEqual(exit_code, 1)
+        client_cls.assert_not_called()
+
+    def test_binance_stream_rejects_mixed_route_streams(self) -> None:
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), patch("kis_hl.binance.ws._default_transport_factory", side_effect=AssertionError("network forbidden")) as transport:
+            exit_code, _payload = self._run(["binance-stream", "--streams", "mark,book", "--max-reconnects", "0"])
+        transport.assert_not_called()
+        self.assertEqual(exit_code, 1)
+        self.assertIn("/public", stderr.getvalue())
+
+    def test_binance_user_stream_stores_order_events_and_lists_them(self) -> None:
+        order_update = {
+            "e": "ORDER_TRADE_UPDATE",
+            "E": 10,
+            "o": {"s": "BTCUSDT", "c": "cli-1", "S": "BUY", "o": "LIMIT", "x": "NEW", "X": "NEW", "i": 7, "p": "1", "q": "2", "R": False},
+        }
+
+        class FakeUserClient:
+            def __init__(self, _config: object, _rest: object, *, on_message: object) -> None:
+                self.on_message = on_message
+
+            def run(self, *, max_messages: int | None = None, max_reconnects: int | None = None) -> WebSocketStatus:
+                self.on_message({"e": "ACCOUNT_UPDATE", "a": {}})
+                self.on_message(order_update)
+                return WebSocketStatus(url="wss://example.test", state="stopped")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "t.sqlite")
+            with patch("kis_hl.cli.BinanceUserStreamClient", FakeUserClient):
+                exit_code, payload = self._run(["--db", db, "binance-user-stream", "--max-messages", "2"])
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["other_events"], {"ACCOUNT_UPDATE": 1})
+            self.assertEqual(payload["stored"], 1)
+            self.assertEqual(payload["order_events"][0]["client_order_id"], "cli-1")
+            self.assertNotIn("payload", payload["order_events"][0])
+
+            exit_code, listed = self._run(["--db", db, "binance-order-events", "--symbol", "btcusdt"])
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(listed["count"], 1)
+            self.assertEqual(listed["events"][0]["order_id"], "7")
+            self.assertEqual(listed["events"][0]["payload"]["e"], "ORDER_TRADE_UPDATE")
 
 
 if __name__ == "__main__":
