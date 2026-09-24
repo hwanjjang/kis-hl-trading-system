@@ -92,12 +92,24 @@ The proposed approval flow is signal -> agent proposal -> user-selected risk uni
 -> bounded entry and protective management. These requirements do not authorize
 live orders, change active plans, or implement conversational approval handling.
 
+Policy reconciliation (2026-09-24): the user's final instruction confirmed
+[issue #15](https://github.com/hwanjjang/kis-hl-trading-system/issues/15) as the
+risk-unit authority. It supersedes this section's earlier thousand-USDC flooring,
+below-1000 guard and undecided cumulative-unit-limit wording from `758a511`.
+The target calculation and its implementation gap are owned by the strategy
+document's [capital](strategy_execution_design.md#capital-model),
+[sizing](strategy_execution_design.md#position-sizing) and
+[risk-cap](strategy_execution_design.md#portfolio-risk-caps) sections. No active
+plan, live guard or execution authority changes through this reconciliation.
+
 Confirmed user semantics:
 
 - One risk unit is a planned loss at the fixed stop-loss equal to 1% of the
   account's defined operating assets, not a purchase notional of 1% of assets.
   Keep sizing tied to the fixed SL; do not increase quantity merely because a
-  tighter trailing exit might close earlier. Costs and execution uncertainty
+  tighter trailing exit might close earlier. Separately, #15 permits verified
+  improvements in existing stops to free budget for a new tranche; that tranche
+  still needs its own fixed-stop sizing and authorization. Costs and execution uncertainty
   must be included in the proposal; realized loss is not guaranteed to stay at 1%.
 - "TS starting amount" means position profit required before trailing activation,
   not an instrument price. The user's selected behavior is immediate activation
@@ -109,24 +121,22 @@ Confirmed user semantics:
   fixed SL while TS is being established and after activation under the existing
   protection policy. Waiting or acknowledged-but-unverified TS is not active coverage.
 
-Operating assets for advisory risk-unit calculations are now specified:
-
-- Hyperliquid: use the existing thousand-USDC flooring convention with the updated
-  multiplier of 10: `floor(portfolio_value_usdc / 1000) * 1000 * 10`. Use a fresh
-  snapshot of the intended account, never pooled main/subaccount equity. The
-  below-1000 guard remains. One unit is 1% of this derived budget, which can
-  approach 10% of unmultiplied account equity; disclose both risk percentages.
-  This is not an instruction to set exchange leverage to 10x or to ignore margin
-  and liquidation constraints.
-- KIS: use the actual selected account's net asset value (cash plus marked holdings,
-  net of liabilities), without a leverage multiplier or thousand-unit flooring.
-  Report account scope, valuation time and currency. Do not double-count domestic
-  and overseas views of the same account; currency conversion requires a fresh,
-  explicit FX basis. Buying power is a separate constraint, not account NAV.
+Operating assets follow the confirmed #15 target linked above. Hyperliquid uses
+the selected perp account's value without the current helper's flooring. Disclose
+both operating-capital and unmultiplied-account risk percentages: before rounding
+and costs, one unit at the target 10x budget risks 10% of that account value. This
+is not an instruction to set exchange leverage to 10x. KIS 1x remains a documented
+rule only within #15; it does not add unit sizing to existing KIS order routing.
+Account scope, valuation time and currency must be explicit; never pool accounts
+or treat buying power as account equity.
 
 Scheduled advisory briefings must include fixed SL, recommended TS percentage,
 immediate activation with loss exits allowed, per-unit quantity/notional/risk and
-recommended versus maximum permitted units when data and limits support them.
+the proposed unit count with available-margin evidence. Under #15 there is no
+preset per-asset/portfolio unit cap or add-up count limit; distinguish actual
+funds and existing plan constraints from such a policy cap. If margin is short,
+report the shortfall for the user's fund-or-skip decision; do not silently add funds
+or bypass current execution checks.
 Missing evidence must appear as an explicit unavailable field, not invented sizing.
 Every scheduled strategy review must also use fresh read-only account state:
 holdings, quantities, average entries, valuation/P&L, cash or margin, pending orders
@@ -136,12 +146,15 @@ source time and account scope, and distinguish unavailable evidence from empty
 positions. Never infer active protection from an acknowledgement or local plan.
 This notification requirement does not authorize orders or activate management.
 
-Still unresolved: recommended and maximum unit limits, percentage-trailing
-configuration through the managed path, and the bounded approval/expiry and
+Still unresolved: percentage-trailing configuration through the managed path
+and the bounded approval/expiry and
 execution-failure contract. The current
 managed trailing path still uses frozen ATR quote distance; low-level percentage
 support does not establish end-to-end managed support. Implementation and tests are
-required before the proposed approval workflow can execute trades.
+required before the proposed approval workflow can execute trades. The absence
+of preset cumulative unit caps is decided, not an unresolved limit to invent.
+Current managed execution remains long-only; #15's symmetric short calculation
+and the separate short-trailing follow-up are not claims of working short management.
 
 ## Prepare and submit
 

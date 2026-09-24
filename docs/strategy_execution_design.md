@@ -1,6 +1,22 @@
 # Strategy Execution Design
 
-This document describes the first live-trading design for trade.xyz RWA assets on Hyperliquid. No autonomous strategy execution is enabled until the remaining guardrails, tests, and reconciliation paths are implemented.
+This document records the original autonomous entry/add-up design for trade.xyz
+RWA assets and the separately implemented trailing worker. The broader strategy
+orchestrator remains unimplemented. For the current multi-venue order supervisor,
+native trailing with local backup, and risk-unit requirements, use
+[protected trading operations](trading-operations.md). Original proposals below
+are not proof that those behaviors are active in the current supervisor.
+
+## Risk-policy authority and implementation status
+
+On 2026-09-24, the user confirmed that the decisions in
+[issue #15](https://github.com/hwanjjang/kis-hl-trading-system/issues/15)
+are authoritative for risk-unit sizing. This supersedes the conflicting
+requirements introduced in commit `758a511` and the original cumulative-risk
+and add-up-count caps below. It does not change executable behavior: implementing
+#15 remains separate work. The capital and position-sizing sections distinguish
+the target contract from the current helpers; operational approval and protection
+behavior remains owned by [trading operations](trading-operations.md).
 
 ## Goals
 
@@ -9,73 +25,81 @@ This document describes the first live-trading design for trade.xyz RWA assets o
 - Use Hyperliquid prices when KIS cannot provide the relevant live price.
 - Size positions from portfolio value, ATR risk distance, and asset-class-specific risk multipliers.
 - Place a native Hyperliquid stop-loss after entry fill confirmation.
-- Simulate trailing-stop behavior in the application because Hyperliquid does not provide a native trailing-stop order type.
+- Retain the original application-level trailing design; the current supervisor also supports native trailing with local backup as described in the operations document.
 - Keep all live entry and add-up decisions inside the underlying market session unless an explicit risk override is added.
 
 ## Non-Goals
 
-- No autonomous daemon is enabled in the current implementation.
-- No short-selling strategy is defined yet. The initial design assumes long-only entries and long-position exits.
-- No broker order routing is planned for KIS. KIS is a market-data source only.
+- No autonomous entry/add-up strategy daemon is implemented; the separately invoked order supervisor manages explicitly supplied plans.
+- The current strategy and trailing management remain long-only. Issue #15 requires symmetric long/short unit calculations; short-side trailing is a separate follow-up, not implemented support.
+- KIS was a market-data source in this original Hyperliquid strategy design. Current KIS order routing and account-local protection are documented in the operations document.
 - No optimization or parameter fitting is included in this design.
 
 ## Capital Model
 
-The strategy uses an operating notional budget derived from Hyperliquid portfolio value:
+Confirmed target under #15:
 
 ```text
-portfolio_floor_usdc = floor(portfolio_value_usdc / 1000) * 1000
-operating_capital_usdc = portfolio_floor_usdc * 10
+operating_capital_usdc = perp_account_value_usdc * 10
 ```
 
-Example:
+Use the intended account's perp clearinghouse `marginSummary.accountValue` only;
+exclude spot balances and other-dex collateral. Do not pool main/subaccounts.
+Remove the thousand-USDC flooring step and the below-1000 capital guard. Positive
+capital, valid stop distance and exchange minimum-size requirements still apply.
+The KIS 1x rule is documentation-only within #15; it adds no KIS unit-sizing
+implementation and does not remove existing KIS order routing.
+
+Example of the target (before lot rounding and costs):
 
 ```text
-portfolio_value_usdc = 2372.90
-portfolio_floor_usdc = 2000
-operating_capital_usdc = 2000 * 10 = 20000 USDC
+perp_account_value_usdc = 2372.90
+operating_capital_usdc = 2372.90 * 10 = 23729 USDC
+risk_per_unit_usdc = 23729 * 0.01 = 237.29 USDC
 ```
 
-Rules:
+Current implementation gap:
 
-- If `portfolio_value_usdc < 1000`, the operating capital is `0` and new live entries fail closed.
-- `kis_hl.risk.calculate_operating_capital()` implements this floor-and-multiply rule.
-- Portfolio value must come from a fresh Hyperliquid account state snapshot.
-- The 10x multiplier defines strategy notional budget, not permission to ignore Hyperliquid margin, leverage, or liquidation constraints.
-- Available margin, max leverage, existing exposure, and per-asset caps must be checked before every order.
+- `calculate_operating_capital()` still returns `floor(value / 1000) * 1000 * 10`, including zero below 1000. Its tests still assert this current behavior; #15 must change both.
+- No production order path calls this helper to size orders automatically. Existing managed plans carry explicit quantities and limits; this documentation does not resize them.
+- The 10x multiplier is a sizing budget, not an exchange leverage setting. Fresh account evidence and actual venue constraints remain necessary.
+- #15 specifies no new per-asset maximum-leverage guard and a report/user-decision flow for an isolated-margin shortfall at the stop, rather than an automatic block solely for that condition. That flow is not implemented; this document does not disable current funds, margin or exposure checks.
 
 ## Position Sizing
 
-For each entry or add-up tranche:
+Confirmed unit-sizing target for each entry or add-up tranche:
 
 ```text
-risk_budget_usdc = operating_capital_usdc * 0.01
-stop_distance = ATR_10D * N
-amount = risk_budget_usdc / stop_distance
-entry_notional_usdc = amount * entry_price
+risk_per_unit = operating_capital * 0.01
+stop_distance = expected_entry_price - fixed_stop_price  # long
+stop_distance = fixed_stop_price - expected_entry_price  # short
+amount = round_down(unit_count * risk_per_unit / stop_distance, lot_size)
+planned_loss_at_stop = amount * stop_distance
+entry_notional = amount * expected_entry_price
 ```
 
-The amount is the Hyperliquid base-asset size before lot-size rounding. The final submitted amount must be rounded down to the market's allowed size precision.
+Entry price and the tranche's confirmed fixed stop must be known; reject missing
+inputs or non-positive/wrong-side stop distance. ATR × N can derive a proposed
+stop, but the unit calculator must accept the explicit stop. Round quantity down;
+report a below-minimum result rather than silently rounding up. Report costs and
+execution uncertainty separately; planned loss is not a realized-loss guarantee.
 
-Example:
+Example using the target capital above:
 
 ```text
-operating_capital_usdc = 20000
-risk_budget_usdc = 200
-ATR_10D = 5
-N = 2
-stop_distance = 10
-amount = 200 / 10 = 20 base-asset units
+unit_count = 1
+expected_entry_price = 100
+fixed_stop_price = 90
+raw_amount = 237.29 / 10 = 23.729 base-asset units
 ```
 
-Sizing guards:
+Current helper and implementation boundaries:
 
-- ATR must be calculated from at least 11 daily bars because true range for day `t` depends on day `t - 1` close.
-- `kis_hl.risk.calculate_atr_10d()` implements the daily true-range calculation.
-- If ATR is missing, zero, stale, or calculated from incomplete daily data, live entry fails closed.
-- `amount` must pass Hyperliquid minimum size, lot precision, and notional checks.
-- Entry notional must fit within remaining operating-capital budget and account-level exposure limits.
-- Add-up tranches use the same formula, but cumulative open risk must be capped separately.
+- `calculate_position_size()` remains an ATR/N-based helper; explicit-stop unit sizing and its CLI integration are not implemented.
+- ATR(10D) needs at least 11 daily bars for previous-close true ranges; `calculate_atr_10d()` supplies that calculation.
+- Each future add-up stores its own unit count, entry, stop, distance, quantity and planned risk after rounding.
+- The BTC 3H monitor is explicitly outside #15: retain fixed 80 USDC notional and ATR(10D) × 2 stop.
+- Current managed-plan funds, lot/tick and exposure checks remain in effect until a separately tested implementation changes them.
 
 ## N Multipliers
 
@@ -431,7 +455,7 @@ Default intent:
 Guards:
 
 - Do not add below the current effective stop.
-- Do not add if cumulative open risk exceeds the portfolio-level risk cap.
+- Under #15, no preset cumulative unit cap or add-up count limit is imposed. Report available margin and let the user decide whether to fund or skip a tranche when margin is short; the approval/execution integration is still pending.
 - Each add-up tranche must have its own sizing record and stop-distance calculation.
 
 ### Rebreakout Add-Up
@@ -444,15 +468,20 @@ Default intent:
 
 ## Portfolio Risk Caps
 
-Initial caps to implement before live automation:
+The original proposed 2% per-asset cap, 6% portfolio cap and maximum two add-ups
+are superseded by #15. There is no preset per-asset cumulative unit cap, portfolio
+unit cap or add-up count limit in the confirmed target. One unit defines 1% planned
+loss at the fixed stop; it is not a one-unit maximum per tranche.
 
-- Per-tranche risk: `1%` of operating capital.
-- Per-asset cumulative open risk: configurable, initially `2%` of operating capital.
-- Total portfolio open risk: configurable, initially `6%` of operating capital.
-- Max gross notional: no more than `operating_capital_usdc`.
-- Max add-up count per asset: configurable, initially `2` after the first entry.
+Recalculate open risk from current stop prices. Under #15, a verified trailing-stop
+improvement can free unit budget for another entry/add-up. Each new tranche still
+uses its own entry and fixed-stop distance; do not substitute an anticipated
+tighter trailing threshold to inflate that tranche's size. This reuse is a target
+workflow, not automatic permission to submit another order.
 
-Open risk should be calculated from current stop distances, not from original entry intent. If a stop is raised or a trailing exit reduces risk, the available risk budget can be recalculated.
+Current managed-plan gross/correlated notional limits and execution checks remain
+mandatory. They are different from the proposed cumulative loss-at-stop unit caps;
+this documentation does not remove them or invent an unlimited execution grant.
 
 ## Websocket Architecture
 
@@ -580,7 +609,7 @@ EMERGENCY_EXIT
 
 Live entries and add-ups fail closed when:
 
-- Portfolio value is stale or below the minimum floor.
+- Account value is stale, unavailable or non-positive. The confirmed #15 target has no 1,000-USDC minimum; the current helper still needs to be updated.
 - ATR or 30W EMA is missing or stale.
 - Hyperliquid metadata verification is stale.
 - The underlying market session is closed.
