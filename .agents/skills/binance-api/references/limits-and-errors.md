@@ -17,7 +17,7 @@ confirmed failure.
 
 | Code | Meaning | Action |
 |---|---|---|
-| -1000 | unknown | retry with backoff |
+| -1000 / -1006 / -1007 | unknown execution outcome | reconcile orders before any retry; see [orders.md](orders.md) |
 | -1003 | too many requests | back off; check weight header |
 | -1008 | server overloaded | reduce-only / close orders are exempt |
 | -1021 | timestamp outside recvWindow | sync clock; compare with `/fapi/v1/time` |
@@ -27,7 +27,7 @@ confirmed failure.
 | -1121 | invalid symbol | check `exchangeInfo` |
 | -2014 / -2015 | bad API key format / invalid key, IP, or permissions | verify key, IP whitelist, futures permission |
 
-## Order-path codes (for the future order iteration)
+## Order-path codes
 
 | Code | Meaning |
 |---|---|
@@ -43,3 +43,5 @@ confirmed failure.
 | -4028 | leverage not valid |
 | -4131 | counterparty best price does not meet PERCENT_PRICE |
 | -4164 | order notional below MIN_NOTIONAL |
+
+Binance documents `-1008` as definite overload rejection, including HTTP 503. The client currently treats 5xx conservatively as unknown and looks up once; no automatic order retry.

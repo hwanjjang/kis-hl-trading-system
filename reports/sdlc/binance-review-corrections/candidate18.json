@@ -1,0 +1,125 @@
+{
+  "candidate": "232be7ad706b7cb0ee60be8c1b1a0b3a5cca5bb7a88442fc50b4341c06c271a9",
+  "sources": [
+    {
+      "kind": "candidate-source",
+      "path": ".agents/skills/binance-api/SKILL.md",
+      "sha256": "d5f4d6abb2e389a13e6c00d020d779734a71083eebd2d59cf8d487e37d5241ec"
+    },
+    {
+      "kind": "candidate-source",
+      "path": ".agents/skills/binance-api/references/limits-and-errors.md",
+      "sha256": "159c4161cff1f19ab6f50548d08668461442d1fe53157ff9f7c702569dc61f91"
+    },
+    {
+      "kind": "candidate-source",
+      "path": ".agents/skills/binance-api/references/orders.md",
+      "sha256": "fc3de0e19f9977e23f00e49ec6c1110bdfb81e925765c6c4d742f0acaa781043"
+    },
+    {
+      "kind": "candidate-source",
+      "path": ".agents/skills/binance-api/references/rest-endpoints.md",
+      "sha256": "e9fdb711fff9ffa370788e623d73a0c7cfb2bd6cba28762c1fc80828c2e968e9"
+    },
+    {
+      "kind": "candidate-source",
+      "path": ".agents/skills/binance-api/references/websocket.md",
+      "sha256": "7a9a3e12c90d7119d2000e58fb0044ff6ba53b51134e46206a374b547598a8ca"
+    },
+    {
+      "kind": "candidate-source",
+      "path": ".env.example",
+      "sha256": "cd2513d66f3eee8044c5ff7cc31c38275b25db219e73ceba5b7e9b1ea320a67d"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "CLAUDE.md",
+      "sha256": "406f4b55ff723580ab5aa2ed62ac600228ec9997b3d432ae04bad38caeabaca4"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "README.md",
+      "sha256": "e591b3a7800e15cb3c3502e2743e4656a79848511e9000e4bc6080fd41f2cd82"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture.md",
+      "sha256": "864ef7351a88a47b376c1b09d7b6e3a1f219f753f6241c8fae13e25416740fe5"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/binance-order-roundtrip-sequence.html",
+      "sha256": "cef398c854bcefb46994eb10b3f56aeac3e753a9bbf6aa79e4f3719383f9e1ca"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/binance-order-roundtrip-sequence.json",
+      "sha256": "9f9a6bd5a803ed807f4c9217aecebda20e363f88cf8a3cbc5fec7538728788f4"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/binance-trading-data-flow.html",
+      "sha256": "e91b1e05cbf4bb8cfac54b0bd75738cf0eff7dabe5ecc5f31f9f376dc4dc8f42"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/binance-trading-data-flow.json",
+      "sha256": "62dc3f024600df03faff40258b62a76eeee256cba4fecb244976e07575e8c940"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/trading-operations.md",
+      "sha256": "84c76f9e06de6a1e57aa3e527a939d442194200b755b83abf428ed3eefe69e12"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/binance/client.py",
+      "sha256": "ac977025e9a52ae7bc0bb27e74b9c046431e5a9aa7e264950749a2b48349a23e"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/binance/trading.py",
+      "sha256": "6ca0f3d2560c61a5f2debec3b73af02baf024b97ef873ce086397f7a0c649b72"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/cli.py",
+      "sha256": "b2768ebe536854d1bf2c7a4a297a3a2b0d7b9c109e3df9c26ff990ac472502a5"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_binance_trading.py",
+      "sha256": "a17a17bf64a0133709f23911c53b7771cc61d2543ada54f539291b4c9a8d041b"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_cli.py",
+      "sha256": "df8fac483fdf7c9a22f7f7fc10b633c45f83dd83ac8fe6844ddbdad9dd5d6754"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_binance_order_review.py",
+      "sha256": "418383f69947bb546a70a6edaf5d933d773814a12997f186bd625a1675e6fe23"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/binance-order-roundtrip-sequence.visual-check.html",
+      "sha256": "648e5e48455c1d3e3956b82fe48f74f517f6cc39bbd0ccfd9dffed41c555c36d"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/binance-order-roundtrip-sequence.visual-check.json",
+      "sha256": "52681d39492bc7e7dd32c0f4944514c0356fc7cbf82058f177fc155b415854f3"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/binance-trading-data-flow.visual-check.html",
+      "sha256": "805a7be99a8975a2eb999484cb47bfa61bcbfe0f2eae157dd45d86b267bef9a5"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/binance-trading-data-flow.visual-check.json",
+      "sha256": "a799cb7611912bcb34b5bd02578271d0e65ba05b41e5c1d1fd69d3b7944ad34e"
+    }
+  ]
+}

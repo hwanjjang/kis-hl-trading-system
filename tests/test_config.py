@@ -117,5 +117,27 @@ class BinanceConfigTests(unittest.TestCase):
         self.assertFalse(config.api_secret)
 
 
+class BinanceTradingConfigTests(unittest.TestCase):
+    def test_live_symbols_default_and_parsing(self) -> None:
+        from kis_hl.config import load_binance_config
+
+        self.assertEqual(load_binance_config({}).live_symbols, ("BTCUSDT",))
+        parsed = load_binance_config({"BINANCE_LIVE_SYMBOLS": " btcusdt, ethusdt ,, "})
+        self.assertEqual(parsed.live_symbols, ("BTCUSDT", "ETHUSDT"))
+        self.assertEqual(load_binance_config({"BINANCE_LIVE_SYMBOLS": ""}).live_symbols, ())
+
+    def test_demo_profile_uses_demo_keys_and_demo_urls(self) -> None:
+        from kis_hl.config import load_binance_config
+
+        config = load_binance_config({"BINANCE_KEY_PROFILE": "demo", "DEMO_BINANCE_APIKEY": "dk", "DEMO_BINANCE_SECRET": "ds", "BINANCE_APIKEY": "k"})
+        self.assertEqual(config.key_profile, "demo")
+        self.assertEqual(config.api_key, "dk")
+        self.assertEqual(config.api_secret, "ds")
+        self.assertEqual(config.base_url, "https://demo-fapi.binance.com")
+        self.assertEqual(config.ws_user_url, "wss://demo-fstream.binance.com/private")
+        mainnet_override = load_binance_config({"BINANCE_KEY_PROFILE": "demo", "BINANCE_TESTNET": "false"})
+        self.assertEqual(mainnet_override.base_url, "https://fapi.binance.com")
+
+
 if __name__ == "__main__":
     unittest.main()

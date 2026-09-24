@@ -8,7 +8,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any, Callable
 
 from kis_hl.config import BinanceConfig
@@ -124,7 +124,7 @@ class BinanceFuturesClient:
         if not self.config.api_key or (need_secret and not self.config.api_secret):
             raise RuntimeError(
                 "Binance credentials are missing for the selected key profile; "
-                "set BINANCE_APIKEY/BINANCE_SECRET or PRO_BINANCE_APIKEY/PRO_BINANCE_SECRET"
+                "set BINANCE_APIKEY/BINANCE_SECRET, PRO_BINANCE_APIKEY/PRO_BINANCE_SECRET, or DEMO_BINANCE_APIKEY/DEMO_BINANCE_SECRET"
             )
 
     # ---- public market data ---------------------------------------------------------
@@ -153,6 +153,14 @@ class BinanceFuturesClient:
 
     def book_ticker(self, symbol: str) -> dict[str, Any]:
         return self._request("GET", "/fapi/v1/ticker/bookTicker", {"symbol": _normalize_symbol(symbol)})
+
+    def last_price(self, symbol: str) -> Decimal:
+        """Latest traded (contract) price from ``/fapi/v1/ticker/price``."""
+        payload = self._request("GET", "/fapi/v1/ticker/price", {"symbol": _normalize_symbol(symbol)})
+        try:
+            return Decimal(str(payload["price"]))
+        except (KeyError, TypeError, InvalidOperation) as exc:
+            raise RuntimeError(f"Binance ticker/price for {symbol} did not include a usable price") from exc
 
     def klines(
         self,
@@ -194,6 +202,24 @@ class BinanceFuturesClient:
     def open_orders(self, symbol: str | None = None) -> list[dict[str, Any]]:
         params = {"symbol": _normalize_symbol(symbol)} if symbol else None
         return self._request("GET", "/fapi/v1/openOrders", params, signed=True)
+
+    def open_algo_orders(self, symbol: str | None = None) -> list[dict[str, Any]]:
+        """Open conditional (algo) orders: STOP_MARKET, TRAILING_STOP_MARKET, and friends.
+
+        Path verified on 2026-09-19: ``/fapi/v1/openAlgoOrders`` answers an unauthenticated GET
+        with 401 -2014 (route exists); ``/fapi/v1/algoOpenOrders`` answers 404.
+        """
+        params = {"symbol": _normalize_symbol(symbol)} if symbol else None
+        payload = self._request("GET", "/fapi/v1/openAlgoOrders", params, signed=True)
+        if isinstance(payload, dict):
+            return list(payload.get("orders", []))
+        return list(payload) if isinstance(payload, list) else []
+
+    def algo_order_status(self, *, algo_id: int | None = None, client_algo_id: str | None = None) -> dict[str, Any]:
+        if algo_id is None and not client_algo_id:
+            raise ValueError("algo_order_status requires algo_id or client_algo_id")
+        params: dict[str, Any] = {"clientAlgoId": client_algo_id} if client_algo_id else {"algoId": algo_id}
+        return self._request("GET", "/fapi/v1/algoOrder", params, signed=True)
 
     def order_status(
         self,
@@ -240,6 +266,7 @@ def normalize_symbol_filters(entry: dict[str, Any]) -> dict[str, Any]:
         "symbol": entry.get("symbol"),
         "status": entry.get("status"),
         "contract_type": entry.get("contractType"),
+        "underlying_type": entry.get("underlyingType"),
         "price_precision": int(entry.get("pricePrecision", 0)),
         "quantity_precision": int(entry.get("quantityPrecision", 0)),
         "tick_size": _decimal_or_none(price.get("tickSize")),

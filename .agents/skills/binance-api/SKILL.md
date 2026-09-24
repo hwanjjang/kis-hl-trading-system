@@ -15,14 +15,12 @@ CLI commands. Facts below were verified on 2026-09-16 against
 - All REST calls go through `BinanceFuturesClient` (stdlib `urllib`, HMAC via stdlib
   `hmac`). Do not add `requests` or the `binance-futures-connector` SDK.
 - Credentials come from `.env` via `load_binance_config()`. `BINANCE_KEY_PROFILE=production`
-  selects `PRO_BINANCE_APIKEY`/`PRO_BINANCE_SECRET`. Never print or log the API key, the
+  selects `PRO_BINANCE_APIKEY`/`PRO_BINANCE_SECRET`; `demo` selects dedicated `DEMO_BINANCE_APIKEY`/`DEMO_BINANCE_SECRET` and demo URLs by default. Never print or log the API key, the
   secret, or a `listenKey`. Tests compare emptiness, never values.
 - Public reads need no key. Signed reads fail closed before any network call when the key
   or secret is empty. listenKey calls send only the `X-MBX-APIKEY` header.
-- **This repo places no Binance orders yet.** Adding `POST /fapi/v1/order`, cancel, modify,
-  leverage, or margin-type changes is a scope change under `AGENTS.md` trading safety: it
-  needs a dry-run default, rejecting tests first, `--live` off by default, and demo-environment
-  evidence before a live path.
+- Orders go through `BinanceTradingClient` (`kis_hl/binance/trading.py`). The Python API defaults to dry-run; CLI commands send by default and use `--dry-run` for preview, per operator instruction. Supported live symbols are pinned in code to BTCUSDT; `BINANCE_LIVE_SYMBOLS` only narrows this set. Current metadata must confirm COIN/PERPETUAL/TRADING before placement. See `references/orders.md` for guards and outcomes.
+- `POST /fapi/v1/order/test` validates regular orders without placing. This skill grants no execution authority; follow `AGENTS.md` and applicable session instructions (and Claude's agent-session rules in `CLAUDE.md`).
 - Never attach a Binance MCP server (official Agent OS MCP or community) or any
   order-capable vendor tool to an agent session with live keys. Same rule as KIS/Hyperliquid.
 - Every new call needs a unit test in `tests/test_binance_client.py` or
@@ -77,6 +75,31 @@ Full path table and response keys: `references/rest-endpoints.md`.
 | `order_status(symbol, order_id= / client_order_id=)` | `GET /fapi/v1/order` (signed) | reconciliation |
 | `create_listen_key()` / `keepalive_listen_key()` / `close_listen_key()` | `/fapi/v1/listenKey` | `binance-user-stream` |
 
+`BinanceTradingClient` (`kis_hl/binance/trading.py`, subclass of the client above):
+
+| Method | Path | CLI |
+|---|---|---|
+| `place_order(symbol, side, order_type, quantity, price=, tif=, reduce_only=, client_order_id=, dry_run=True, exchange_test=False)` | `POST /fapi/v1/order` (`/order/test`) | `binance-trade` |
+| `place_stop_market(symbol, side, stop_price, quantity=, close_position=True, working_type=)` | `POST /fapi/v1/algoOrder` (`algoType=CONDITIONAL`, type `STOP_MARKET`, `triggerPrice`) | `binance-stop --kind stop-market` |
+| `place_trailing_stop(symbol, side, quantity, callback_rate, activation_price=, working_type=)` | `POST /fapi/v1/algoOrder` (type `TRAILING_STOP_MARKET`, `activatePrice`) | `binance-stop --kind trailing` |
+| `cancel_order(symbol, order_id= / client_order_id=)` | `DELETE /fapi/v1/order` | `binance-cancel --order-id` |
+| `cancel_algo_order(symbol, algo_id= / client_algo_id=)` | `DELETE /fapi/v1/algoOrder` | `binance-cancel --algo-id` |
+| `open_algo_orders(symbol)` / `algo_order_status(algo_id= / client_algo_id=)` | `GET /fapi/v1/openAlgoOrders`, `GET /fapi/v1/algoOrder` (signed) | `binance-orders`, reconciliation |
+| `position_mode_is_hedge()` | `GET /fapi/v1/positionSide/dual` (signed) | live guard |
+
+**Conditional orders use the Algo Order API.** Since 2025-12-09 `POST /fapi/v1/order` rejects
+`STOP_MARKET`, `STOP`, `TAKE_PROFIT*`, and `TRAILING_STOP_MARKET` with `-4120`; they go to
+`/fapi/v1/algoOrder` with `algoType=CONDITIONAL`, `triggerPrice` (not `stopPrice`),
+`activatePrice` (not `activationPrice`), and `clientAlgoId`; responses carry `algoId` and
+`algoStatus`, and the user stream reports them as `ALGO_UPDATE`. There is no test endpoint for
+algo orders. Outcome classification and retry constraints are owned by [orders.md](references/orders.md#outcome-classification-this-repo).
+
+Rounding: quantity ROUND_DOWN to `stepSize`; BUY prices ROUND_DOWN and SELL prices ROUND_UP
+to `tickSize` (entries never more aggressive, stops trigger no later); `MIN_NOTIONAL` checked
+with the limit price or the mark price, except for reduce-only exits (Binance exempts them).
+Trigger and activation directions are checked against the mark price for `MARK_PRICE` and the
+last traded price for `CONTRACT_PRICE`. Parameter reference: `references/orders.md`.
+
 `kis_hl/binance/ws.py`: `mark_price_stream`, `book_ticker_stream`, `kline_stream`,
 `agg_trade_stream`, `stream_route`, `market_stream_url`, `user_stream_url`, `BinanceMarketStreamClient`,
 `BinanceUserStreamClient`, `parse_market_ticks`, `parse_order_event`, `order_event_to_row`.
@@ -97,7 +120,7 @@ Read them from `exchangeInfo`, never hardcode. BTCUSDT perpetual on 2026-09-16:
 | `MARKET_LOT_SIZE.maxQty` | `120` | market orders larger than this are rejected |
 | `MIN_NOTIONAL.notional` | `50` | quantity × price must be ≥ 50 USDT |
 | `PERCENT_PRICE` | ±5% of mark | limit prices outside the band are rejected |
-| `orderTypes` | LIMIT, MARKET, STOP, STOP_MARKET, TAKE_PROFIT, TAKE_PROFIT_MARKET, TRAILING_STOP_MARKET | server-side trailing stop exists (`callbackRate`, `activationPrice`) |
+| `orderTypes` | LIMIT, MARKET, STOP, STOP_MARKET, TAKE_PROFIT, TAKE_PROFIT_MARKET, TRAILING_STOP_MARKET | server-side trailing stop exists (`callbackRate`, `activatePrice`) |
 | `timeInForce` | GTC, IOC, FOK, GTX, GTD | GTX = post-only |
 
 `symbol_filters()` returns these as Decimals under `tick_size`, `step_size`, `min_qty`,
@@ -112,9 +135,7 @@ Kline intervals: `1m 3m 5m 15m 30m 1h 2h 4h 6h 8h 12h 1d 3d 1w 1M`. There is **n
   account. Response header `x-mbx-used-weight-1m` is surfaced as `client.last_used_weight`.
 - HTTP 429 = limit hit, back off. HTTP 418 = IP ban (2 minutes to 3 days). Never retry
   immediately on either.
-- HTTP 503 with `"Unknown error"` means the request may have executed: verify via
-  `order_status()` or the user stream before retrying. 503 `"Service Unavailable"` is a
-  confirmed failure. Error `-1008` = server overload.
+- Order error handling and reconciliation follow [orders.md](references/orders.md#outcome-classification-this-repo).
 - WebSocket: one connection is valid 24 h; max 1024 streams per connection; max 10 inbound
   messages per second; the server pings every 3 minutes and closes after 10 minutes
   without a pong (`websocket-client` answers pings automatically).
@@ -139,6 +160,10 @@ Codes and messages: `references/limits-and-errors.md`.
 
 1. Confirm the path, weight, and whether it is signed in `references/rest-endpoints.md`
    or the official docs (`developers.binance.com/docs/derivatives/usds-margined-futures`).
+   Treat method + path as the route identity; consult current official docs before probing.
+   An authorized unauthenticated probe is supporting evidence only: status codes do not prove the contract.
+   `GET /fapi/v1/openAlgoOrders` lists open algo orders; `DELETE /fapi/v1/algoOpenOrders` is a different route.
+
 2. Add a keyword-only method on `BinanceFuturesClient` that calls `self._request(...)`
    with `signed=True` or `api_key_header=True` as needed. Normalize numbers to `Decimal`.
 3. Add a test in `tests/test_binance_client.py` using `RecordingClient` and assert the exact
@@ -152,6 +177,7 @@ Probe a public response shape (read-only): `scripts/fapi_get.sh /fapi/v1/premium
 
 - `references/rest-endpoints.md` — public and signed paths, parameters, weights, response keys.
 - `references/websocket.md` — stream names, payload keys, user-data events and field legend.
+- `references/orders.md` — order placement, stop, trailing, cancel parameters and responses.
 - `references/limits-and-errors.md` — rate limits, HTTP status semantics, error codes.
 - `scripts/fapi_get.sh` — GET a public `/fapi` path for shape checking.
 

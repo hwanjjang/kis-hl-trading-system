@@ -12,6 +12,13 @@ from typing import Any
 
 from kis_hl.assets import resolve_hyperliquid_symbol
 from kis_hl.binance.client import BinanceFuturesClient, normalize_symbol_filters
+from kis_hl.binance.trading import (
+    ACTIVE_ALGO_STATES,
+    BinanceOrderSubmission,
+    BinanceTradingClient,
+    extract_binance_order_id,
+)
+from kis_hl.binance.trading import submission_to_dict as binance_submission_to_dict
 from kis_hl.binance.ws import (
     BINANCE_MARKET,
     BINANCE_SOURCE,
@@ -74,6 +81,7 @@ from kis_hl.storage import (
     seed_trade_xyz_reference_mappings,
     seed_trade_xyz_kis_mappings,
     seed_trade_xyz_assets,
+    deactivate_protective_orders,
     store_market_payload,
     store_order_event,
     store_order_submission,
@@ -116,6 +124,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if result is not None:
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True, default=str))
+        if args.command in {"binance-trade", "binance-stop", "binance-cancel"}:
+            return {"rejected": 2, "unknown": 3}.get(result.get("status"), 0)
     return 0
 
 
@@ -301,6 +311,63 @@ def build_parser() -> argparse.ArgumentParser:
     binance_order_events.add_argument("--symbol")
     binance_order_events.add_argument("--limit", type=int, default=50)
     binance_order_events.set_defaults(handler=cmd_binance_order_events)
+
+    binance_trade = sub.add_parser(
+        "binance-trade",
+        help="Place a Binance USD(S)-M futures entry order (live by default; --dry-run to validate)",
+    )
+    binance_trade.add_argument("--symbol", default="BTCUSDT")
+    binance_trade.add_argument("--side", choices=["buy", "sell"], required=True)
+    binance_trade.add_argument("--order-type", choices=["market", "limit"], required=True)
+    binance_trade.add_argument("--quantity", required=True, help="Base asset quantity; rounded down to stepSize")
+    binance_trade.add_argument("--price", help="Limit price; rounded to tickSize (buy down, sell up)")
+    binance_trade.add_argument("--tif", default="GTC", help="GTC, IOC, FOK, or GTX (post-only)")
+    binance_trade.add_argument("--reduce-only", action="store_true")
+    binance_trade.add_argument("--client-order-id", help="newClientOrderId; generated when omitted")
+    trade_mode = binance_trade.add_mutually_exclusive_group()
+    trade_mode.add_argument("--dry-run", action="store_true", help="Validate without sending a signed order")
+    trade_mode.add_argument("--live", action="store_true", help="Send the signed request (default)")
+    trade_mode.add_argument(
+        "--exchange-test",
+        action="store_true",
+        help="Validate on the exchange via /fapi/v1/order/test without placing (needs credentials)",
+    )
+    binance_trade.add_argument("--no-store", action="store_true")
+    binance_trade.set_defaults(handler=cmd_binance_trade)
+
+    binance_stop = sub.add_parser(
+        "binance-stop",
+        help="Place a Binance server-side STOP_MARKET or TRAILING_STOP_MARKET (live by default; use --dry-run)",
+    )
+    binance_stop.add_argument("--symbol", default="BTCUSDT")
+    binance_stop.add_argument("--side", choices=["buy", "sell"], required=True, help="sell protects a long, buy protects a short")
+    binance_stop.add_argument("--kind", choices=["stop-market", "trailing"], required=True)
+    binance_stop.add_argument("--stop-price", help="STOP_MARKET trigger price")
+    binance_stop.add_argument("--quantity", help="Required for trailing; for stop-market disables closePosition")
+    binance_stop.add_argument("--callback-rate", help="Trailing callback in percent, 0.1 to 10")
+    binance_stop.add_argument("--activation-price", help="Optional trailing activation price")
+    binance_stop.add_argument("--working-type", default="MARK_PRICE", help="MARK_PRICE or CONTRACT_PRICE")
+    binance_stop.add_argument("--client-order-id")
+    binance_stop.add_argument("--source-submission-id", type=int, help="order_submissions id of the entry this protects")
+    stop_mode = binance_stop.add_mutually_exclusive_group()
+    stop_mode.add_argument("--dry-run", action="store_true", help="Validate without sending a signed order")
+    stop_mode.add_argument("--live", action="store_true", help="Send the signed request (default)")
+    binance_stop.add_argument("--no-store", action="store_true")
+    binance_stop.set_defaults(handler=cmd_binance_stop)
+
+    binance_cancel = sub.add_parser("binance-cancel", help="Cancel a Binance order or algo (conditional) order by id (live by default; use --dry-run)")
+    binance_cancel.add_argument("--symbol", default="BTCUSDT")
+    regular_ids = binance_cancel.add_mutually_exclusive_group()
+    regular_ids.add_argument("--order-id", type=int, help="Regular order id")
+    regular_ids.add_argument("--client-order-id", help="Regular order client id")
+    algo_ids = binance_cancel.add_mutually_exclusive_group()
+    algo_ids.add_argument("--algo-id", type=int, help="Conditional order algoId (stop / trailing)")
+    algo_ids.add_argument("--client-algo-id", help="Conditional order clientAlgoId")
+    cancel_mode = binance_cancel.add_mutually_exclusive_group()
+    cancel_mode.add_argument("--dry-run", action="store_true", help="Validate without sending a signed order")
+    cancel_mode.add_argument("--live", action="store_true", help="Send the signed request (default)")
+    binance_cancel.add_argument("--no-store", action="store_true")
+    binance_cancel.set_defaults(handler=cmd_binance_cancel)
 
     trade = sub.add_parser("trade", help="Prepare or submit a Hyperliquid order")
     trade.add_argument("--symbol", required=True)
@@ -703,16 +770,40 @@ def cmd_binance_candles(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def cmd_binance_orders(args: argparse.Namespace) -> dict[str, Any]:
-    client = BinanceFuturesClient(load_binance_config())
+    config = load_binance_config()
+    client = BinanceFuturesClient(config)
     open_orders = client.open_orders(args.symbol)
     positions = [
         position
         for position in client.position_risk(args.symbol)
         if Decimal(str(position.get("positionAmt", "0") or "0")) != 0
     ]
+    algo_scope: Any = args.symbol.upper() if args.symbol else "account"
+    algo_complete = True
+    if args.symbol:
+        open_algo_orders = client.open_algo_orders(args.symbol)
+    else:
+        try:
+            open_algo_orders = client.open_algo_orders(None)
+        except RuntimeError as exc:
+            if "-1102" not in str(exc):
+                raise
+            # Fallback if the exchange insists on a symbol: query every symbol that has an open
+            # order, a position, or is in the live allowlist, and say the view is incomplete.
+            algo_symbols = sorted(
+                {str(o.get("symbol")).upper() for o in open_orders if o.get("symbol")}
+                | {str(p.get("symbol")).upper() for p in positions if p.get("symbol")}
+                | set(config.live_symbols)
+            )
+            open_algo_orders = [order for symbol in algo_symbols for order in client.open_algo_orders(symbol)]
+            algo_scope = algo_symbols
+            algo_complete = False
     return {
         "symbol": args.symbol.upper() if args.symbol else None,
         "open_orders": open_orders,
+        "open_algo_orders": open_algo_orders,
+        "open_algo_orders_scope": algo_scope,
+        "open_algo_orders_complete": algo_complete,
         "positions": positions,
         "used_weight_1m": client.last_used_weight,
     }
@@ -782,6 +873,160 @@ def cmd_binance_user_stream(args: argparse.Namespace) -> dict[str, Any]:
         "other_events": other_events,
         "stored": stored,
     }
+
+
+def _binance_decimal(value: str, name: str) -> Decimal:
+    try:
+        return Decimal(value)
+    except Exception as exc:
+        raise ValueError(f"--{name} must be a decimal number") from exc
+
+
+def cmd_binance_trade(args: argparse.Namespace) -> dict[str, Any]:
+    client = BinanceTradingClient(load_binance_config())
+    submission = client.place_order(
+        symbol=args.symbol,
+        side=args.side,
+        order_type=args.order_type,
+        quantity=_binance_decimal(args.quantity, "quantity"),
+        price=_binance_decimal(args.price, "price") if args.price else None,
+        tif=args.tif,
+        reduce_only=args.reduce_only,
+        client_order_id=args.client_order_id,
+        dry_run=args.dry_run,
+        exchange_test=args.exchange_test,
+    )
+    result = binance_submission_to_dict(submission)
+    if not args.no_store:
+        result["stored_id"] = _store_binance_submission(args.db, submission, result)
+    return result
+
+
+def cmd_binance_stop(args: argparse.Namespace) -> dict[str, Any]:
+    client = BinanceTradingClient(load_binance_config())
+    common = {
+        "symbol": args.symbol,
+        "side": args.side,
+        "working_type": args.working_type,
+        "client_order_id": args.client_order_id,
+        "dry_run": args.dry_run,
+    }
+    if args.kind == "stop-market":
+        if args.callback_rate or args.activation_price:
+            raise ValueError("--callback-rate and --activation-price require --kind trailing")
+        if not args.stop_price:
+            raise ValueError("--stop-price is required for --kind stop-market")
+        submission = client.place_stop_market(
+            stop_price=_binance_decimal(args.stop_price, "stop-price"),
+            quantity=_binance_decimal(args.quantity, "quantity") if args.quantity else None,
+            close_position=not args.quantity,
+            **common,
+        )
+        trigger_price = submission.request["params"]["triggerPrice"]
+    else:
+        if args.stop_price:
+            raise ValueError("--stop-price requires --kind stop-market")
+        if not args.quantity or not args.callback_rate:
+            raise ValueError("--quantity and --callback-rate are required for --kind trailing")
+        submission = client.place_trailing_stop(
+            quantity=_binance_decimal(args.quantity, "quantity"),
+            callback_rate=_binance_decimal(args.callback_rate, "callback-rate"),
+            activation_price=_binance_decimal(args.activation_price, "activation-price") if args.activation_price else None,
+            **common,
+        )
+        params = submission.request["params"]
+        trigger_price = params.get("activatePrice") or f"callback:{params['callbackRate']}%"
+    result = binance_submission_to_dict(submission)
+    if not args.no_store:
+        stored_id = _store_binance_submission(args.db, submission, result)
+        result["stored_id"] = stored_id
+        params = submission.request["params"]
+        # A submitted algo order is only "active" while the exchange still holds it (NEW,
+        # TRIGGERING, TRIGGERED); a reconciled FINISHED/CANCELED/EXPIRED one must not be.
+        exchange_state = str((submission.response or {}).get("algoStatus", "")).upper() if isinstance(submission.response, dict) else ""
+        live_ok = not submission.dry_run and submission.status == "submitted"
+        active = live_ok and (exchange_state == "" or exchange_state in ACTIVE_ALGO_STATES)
+        stored_status = submission.status if active or not live_ok else exchange_state.lower()
+        result["protective_order_id"] = store_protective_order(
+            args.db,
+            venue=BINANCE_SOURCE,
+            symbol=submission.symbol,
+            resolved_symbol=submission.symbol,
+            side=params["side"],
+            order_type=params["type"],
+            trigger_price=trigger_price,
+            covered_size=params.get("quantity", "position"),
+            order_id=extract_binance_order_id(submission.response),
+            client_request_id=params.get("clientAlgoId") or params.get("newClientOrderId"),
+            source_order_submission_id=args.source_submission_id,
+            dry_run=submission.dry_run,
+            active=active,
+            status=stored_status,
+            response=result,
+            submitted_at_ms=result["submitted_at_ms"],
+        )
+    return result
+
+
+def cmd_binance_cancel(args: argparse.Namespace) -> dict[str, Any]:
+    client = BinanceTradingClient(load_binance_config())
+    is_algo = args.algo_id is not None or bool(args.client_algo_id)
+    if is_algo and (args.order_id is not None or args.client_order_id):
+        raise ValueError("pass either a regular order id (--order-id/--client-order-id) or an algo id (--algo-id/--client-algo-id), not both")
+    if is_algo:
+        submission = client.cancel_algo_order(
+            symbol=args.symbol,
+            algo_id=args.algo_id,
+            client_algo_id=args.client_algo_id,
+            dry_run=args.dry_run,
+        )
+    else:
+        submission = client.cancel_order(
+            symbol=args.symbol,
+            order_id=args.order_id,
+            client_order_id=args.client_order_id,
+            dry_run=args.dry_run,
+        )
+    result = binance_submission_to_dict(submission)
+    if not args.no_store:
+        result["stored_id"] = _store_binance_submission(args.db, submission, result)
+        # Only a confirmed live cancel changes local protective-order state; dry-run, rejected,
+        # and unknown outcomes leave it untouched.
+        if is_algo and not submission.dry_run and submission.status == "submitted":
+            # Deactivate by the identifier the exchange confirmed, falling back to the one requested.
+            ack = submission.response if isinstance(submission.response, dict) else {}
+            confirmed_algo_id = ack.get("algoId", args.algo_id)
+            confirmed_client_id = ack.get("clientAlgoId") if ack.get("clientAlgoId") else args.client_algo_id
+            result["deactivated_protective_order_ids"] = deactivate_protective_orders(
+                args.db,
+                venue=BINANCE_SOURCE,
+                order_id=str(confirmed_algo_id) if confirmed_algo_id is not None else None,
+                client_request_id=confirmed_client_id if confirmed_algo_id is None else None,
+                symbol=submission.symbol,
+                base_url=submission.request.get("base_url"),
+                key_profile=submission.request.get("key_profile"),
+            )
+    return result
+
+
+def _store_binance_submission(db_path: str, submission: BinanceOrderSubmission, result: dict[str, Any]) -> int:
+    params = submission.request["params"]
+    is_cancel = submission.request.get("method") == "DELETE"
+    is_algo = submission.request.get("path") == "/fapi/v1/algoOrder"
+    return store_order_submission(
+        db_path,
+        venue=BINANCE_SOURCE,
+        symbol=submission.symbol,
+        resolved_symbol=submission.symbol,
+        side="n/a" if is_cancel else str(params.get("side")),
+        order_type=("cancel-algo" if is_algo else "cancel") if is_cancel else str(params.get("type")),
+        size=str(params.get("quantity", "position" if params.get("closePosition") else "n/a")),
+        price=params.get("price") or params.get("triggerPrice") or params.get("activatePrice"),
+        dry_run=submission.dry_run,
+        status=submission.status,
+        response=result,
+        submitted_at_ms=result["submitted_at_ms"],
+    )
 
 
 def cmd_binance_order_events(args: argparse.Namespace) -> dict[str, Any]:

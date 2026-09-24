@@ -181,13 +181,15 @@ reads and the user data stream need both values:
 BINANCE_KEY_PROFILE=default
 BINANCE_APIKEY=...
 BINANCE_SECRET=...
-BINANCE_TESTNET=false
 ```
 
-Set `BINANCE_KEY_PROFILE=production` to use `PRO_BINANCE_APIKEY` and `PRO_BINANCE_SECRET`.
-`BINANCE_TESTNET=true` switches to the futures demo environment. Keys must not have
-withdrawal permission and should be IP-restricted. This iteration only reads: it does not
-place, cancel, or modify Binance orders.
+Set `BINANCE_KEY_PROFILE=production` to use `PRO_BINANCE_APIKEY` and `PRO_BINANCE_SECRET`,
+or `BINANCE_KEY_PROFILE=demo` to use `DEMO_BINANCE_APIKEY` and `DEMO_BINANCE_SECRET` against the
+futures demo environment (leave `BINANCE_TESTNET` unset; the demo profile picks the demo URLs by
+itself, and `BINANCE_TESTNET=true|false` only overrides that choice). Keys
+must not have withdrawal permission and should be IP-restricted. Live Binance orders are limited
+to the supported BTCUSDT perpetual and `BINANCE_LIVE_SYMBOLS` (default `BTCUSDT`); set it to an empty value to disable live Binance
+orders entirely.
 
 ## Commands
 
@@ -251,13 +253,35 @@ python -m kis_hl.cli binance-stream --symbol BTCUSDT --streams book --max-messag
 python -m kis_hl.cli binance-stream --symbol BTCUSDT --streams kline:1h --no-store --max-messages 10
 ```
 
-Read regular open orders (conditional/algo orders require the order-execution extension) and non-zero positions (signed, read-only), stream order-status events
+Read regular and conditional (algo) open orders and non-zero positions (signed, read-only), stream order-status events
 through the user data stream into `order_events`, and list what was stored:
 
 ```bash
 python -m kis_hl.cli binance-orders --symbol BTCUSDT
 python -m kis_hl.cli binance-user-stream --max-messages 20
 python -m kis_hl.cli binance-order-events --symbol BTCUSDT --limit 20
+```
+
+Place Binance USDⓈ-M futures orders. These commands send orders by default. Use `--dry-run`
+to print a locally validated request without signed calls. `--live` remains a compatibility alias. `--exchange-test` validates on
+the exchange through `/fapi/v1/order/test` without placing anything:
+
+```bash
+python -m kis_hl.cli binance-trade --symbol BTCUSDT --side buy --order-type limit --quantity 0.002 --price 70000 --dry-run
+python -m kis_hl.cli binance-trade --symbol BTCUSDT --side buy --order-type market --quantity 0.002 --exchange-test
+python -m kis_hl.cli binance-trade --symbol BTCUSDT --side buy --order-type market --quantity 0.002 --live
+```
+
+Protect a position with server-side stops. `stop-market` without `--quantity` uses
+`closePosition=true` (closes the whole position at trigger); `trailing` needs `--quantity` and
+`--callback-rate` (percent, 0.1 to 10). Both go through the Algo Order API, which has no test
+endpoint, so `--exchange-test` exists only for `binance-trade`. Both are stored in `protective_orders`. Live stops check the current position direction; sized stops must cover its full current quantity. `--source-submission-id` is an optional operator-provided audit link, not a validated entry relationship. The examples below preview protection:
+
+```bash
+python -m kis_hl.cli binance-stop --symbol BTCUSDT --side sell --kind stop-market --stop-price 68000 --dry-run
+python -m kis_hl.cli binance-stop --symbol BTCUSDT --side sell --kind trailing --quantity 0.002 --callback-rate 1.5 --dry-run
+python -m kis_hl.cli binance-cancel --symbol BTCUSDT --order-id 123456 --live
+python -m kis_hl.cli binance-cancel --symbol BTCUSDT --algo-id 2146760 --live
 ```
 
 Create or refresh the local trade.xyz asset mapping table:
@@ -383,7 +407,7 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 
 ## Safety Notes
 
-- Live trading is opt-in with `--live`.
+- Hyperliquid and KIS raw trading is opt-in with `--live`; Binance raw orders send by default with `--dry-run` for preview.
 - BTC/USDC resolves to Hyperliquid mainnet spot `UBTC/USDC` because Hyperliquid remaps the UI label. Live spot orders resolve that pair through `spotMeta` and submit the `@index` coin expected by HyperCore.
 - BTCUSDC futures should be passed as `BTCUSDC-PERP`, `BTC-PERP`, or `BTCPERP`; these resolve to Hyperliquid's `BTC` perp coin.
 - The BTCUSDC futures 3H breakout rule is implemented as signal evaluation only. It does not place a live order by itself.
@@ -409,8 +433,12 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 - Check `xyz-assets universe-collect` for newly listed `xyz` markets before expanding the curated eligibility table.
 - Review recent funding and spread data before opening or adding to a trade.xyz position, especially for single-name stocks and newly added markets.
 - Use an approved Hyperliquid API wallet per trading process to avoid nonce collisions.
-- Binance integration is a read-only data plane for now: public market data, signed account/order reads, and websocket order-status events. No `binance-*` command places orders, and there is no `--live` flag for Binance.
-- Binance `listenKey` values are treated like credentials: they are never printed or stored. For connection and renewal behavior, see the [Binance stream reference](.agents/skills/binance-api/references/websocket.md).
+- Binance order commands send by default; use `--dry-run` to preview. Live placement requires the supported BTCUSDT symbol, configured allowlist, current crypto-perpetual metadata, credentials and one-way mode.
+- Binance order validation and rounding follow the [order contract](.agents/skills/binance-api/references/orders.md). A local dry-run cannot guarantee exchange acceptance.
+- Binance stops run on the exchange through the Algo Order API (`/fapi/v1/algoOrder`): `STOP_MARKET` with `closePosition=true` and `TRAILING_STOP_MARKET` with `callbackRate`. They are recorded in `protective_orders` with their `algoId`, cancelled with `binance-cancel --algo-id` (the order is looked up first, the cancel is refused if its symbol is not the requested, allowlisted one, and a confirmed live cancel marks the local `protective_orders` row inactive), and fills are confirmed through the user data stream, not the REST acknowledgement.
+- See the [outcome contract](.agents/skills/binance-api/references/orders.md#outcome-classification-this-repo). Exit codes are 2 for rejected and 3 for unknown. Resolve exchange state before resubmitting; reusing a client ID is not durable idempotency.
+- Reduce-only exits skip the local `MIN_NOTIONAL` check because Binance exempts them; trigger and activation directions are checked against the mark price (`MARK_PRICE`) or the last price (`CONTRACT_PRICE`).
+- Binance stream keys are never printed or stored. See the [stream lifecycle](.agents/skills/binance-api/references/websocket.md).
 - Binance kline intervals do not include `3h`; use `1h` bars or tick-built candles for the 3H strategy.
 
 ## References
@@ -475,3 +503,5 @@ See [input/output contracts](docs/strategy-tools.md) for schemas, required sourc
 metadata and offline replay. Use [the authoring policy](docs/strategy-authoring.md)
 when adding a strategy. Existing signal/manual-grant and protected-order commands
 retain execution authority; a passing setup or stored decision does not grant it.
+
+Binance raw order commands operate outside managed trade plans and supervision; see [operating boundaries](docs/trading-operations.md#binance-raw-command-boundary).

@@ -76,7 +76,7 @@ Liquidation: `c` = `autoclose-...`; ADL: `c` = `adl_autoclose`.
   `a.P[]` positions (`s`, `pa` amount, `ep` entry, `up` unrealized, `mt` margin type, `ps`).
 - `MARGIN_CALL`: positions at risk.
 - `listenKeyExpired`: no more events until a new key is used (not a socket close).
-- `ALGO_UPDATE`: conditional-order lifecycle (NEW, TRIGGERING, TRIGGERED, FINISHED, REJECTED, EXPIRED).
+- `ALGO_UPDATE`: conditional-order lifecycle (NEW, TRIGGERING, TRIGGERED, FINISHED, CANCELED, REJECTED, EXPIRED).
 
 The CLI counts non-order events under `other_events`; only `ORDER_TRADE_UPDATE` is stored.
 

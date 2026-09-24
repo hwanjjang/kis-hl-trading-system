@@ -38,7 +38,7 @@
       },
       {
         "id": "trading",
-        "label": "Trading path (next iteration)",
+        "label": "Trading path",
         "focus": [
           "binance_rest",
           "rest_client",
@@ -46,7 +46,7 @@
           "sqlite",
           "strategy"
         ],
-        "note": "Signed orders will pass the fail-closed guard, exit via BinanceFuturesClient, and be audited; not implemented yet."
+        "note": "Signed orders pass guards and REST; private events provide subsequent order updates."
       }
     ]
   },
@@ -72,7 +72,7 @@
       "id": "ws_market",
       "type": "external",
       "label": "WS /market + /public",
-      "sublabel": "mark · book · kline · trades",
+      "sublabel": "mark \u00b7 book \u00b7 kline \u00b7 trades",
       "stage": 0,
       "row": 0,
       "width": 150,
@@ -82,7 +82,7 @@
       "id": "binance_rest",
       "type": "external",
       "label": "REST /fapi",
-      "sublabel": "filters · listenKey · orders",
+      "sublabel": "filters \u00b7 listenKey \u00b7 orders",
       "stage": 0,
       "row": 1,
       "width": 150,
@@ -112,7 +112,7 @@
       "id": "rest_client",
       "type": "backend",
       "label": "BinanceFuturesClient",
-      "sublabel": "HMAC signed · listenKey",
+      "sublabel": "HMAC signed \u00b7 listenKey",
       "stage": 1,
       "row": 1,
       "width": 150,
@@ -122,7 +122,7 @@
       "id": "user_stream",
       "type": "backend",
       "label": "User Stream Client",
-      "sublabel": "fresh key · keepalive",
+      "sublabel": "account key \u00b7 keepalive",
       "stage": 1,
       "row": 2,
       "width": 150,
@@ -141,8 +141,8 @@
     {
       "id": "order_guard",
       "type": "security",
-      "label": "Order Guard (planned)",
-      "sublabel": "dry-run · fail closed",
+      "label": "Order Guard",
+      "sublabel": "metadata \u00b7 fail closed",
       "stage": 2,
       "row": 1,
       "width": 150,
@@ -162,7 +162,7 @@
       "id": "sqlite",
       "type": "database",
       "label": "SQLite",
-      "sublabel": "ticks · events · orders",
+      "sublabel": "ticks \u00b7 events \u00b7 orders",
       "stage": 3,
       "row": 1,
       "width": 150,
@@ -172,7 +172,7 @@
       "id": "strategy",
       "type": "backend",
       "label": "Strategy (planned)",
-      "sublabel": "BTC 3H · trailing stops",
+      "sublabel": "BTC 3H \u00b7 trailing stops",
       "stage": 4,
       "row": 0,
       "width": 150,
@@ -226,7 +226,7 @@
       "id": "rest_reads",
       "from": "binance_rest",
       "to": "rest_client",
-      "label": "filters · listenKey · account",
+      "label": "filters \u00b7 listenKey \u00b7 account",
       "classification": "JSON",
       "labelAt": [
         190,
@@ -281,7 +281,7 @@
       "id": "guard_inputs",
       "from": "rest_client",
       "to": "order_guard",
-      "label": "filters + account (planned)",
+      "label": "filters + account",
       "classification": "verification",
       "variant": "dashed",
       "labelAt": [
@@ -310,7 +310,7 @@
       "dot": "cyan",
       "title": "Market Stream Evidence",
       "items": [
-        "ws.py stream_route(): bookTicker/depth → /public, others → /market",
+        "ws.py stream_route(): bookTicker/depth \u2192 /public, others \u2192 /market",
         "parse_market_ticks() maps mark, book, kline, aggTrade to PriceTick",
         "binance-stream stores ticks as source=binance, market=usdm_futures"
       ]
@@ -320,7 +320,7 @@
       "title": "Order Event Evidence",
       "items": [
         "client.py owns listenKey create / keepalive / close",
-        "User stream mints a key per connection; reconnects on listenKeyExpired",
+        "User stream requests an account key per connection; reconnects on listenKeyExpired",
         "storage.py order_events keeps ids, status, fills, raw payload"
       ]
     },
@@ -328,9 +328,9 @@
       "dot": "orange",
       "title": "Trading Path Boundary",
       "items": [
-        "No Binance order placement yet; dashed elements are the next iteration",
-        "Guard: dry-run default, MIN_NOTIONAL / tick / step filters, fail closed",
-        "Server-side STOP_MARKET and TRAILING_STOP_MARKET are trailing candidates"
+        "Order placement is implemented; automated strategy execution remains planned",
+        "Guard: explicit dry-run, MIN_NOTIONAL / tick / step filters, fail closed",
+        "Server-side STOP_MARKET and TRAILING_STOP_MARKET use the Algo Order API"
       ]
     }
   ]

@@ -1,3 +1,3 @@
 # Self verification
 
-PR17 full suite: 573 passing before two additional fatal-error tests; final affected suite 78 passing. Real loopback REST/WS and SQLite smoke passes after changes. No vendor signed/live calls. Archify browser checks pass; 1440x900 image inspected.
+PR18 full suite: 647 passing. Affected suite 110 passing. Real loopback HTTPS CLI smoke: four explicit dry-run commands, four SQLite submissions and no active protection; zero signed requests. No vendor signed/live calls. Archify browser checks pass; 1440x900 image inspected.
