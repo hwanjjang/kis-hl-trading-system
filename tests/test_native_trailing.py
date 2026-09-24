@@ -102,6 +102,25 @@ class NativeTrailingManagedTests(unittest.TestCase):
         self.worker.step(row["id"], 4)  # native trailing
         return row
 
+    def test_independent_frozen_distances_preserve_fixed_stop_after_restart(self):
+        p = plan(trailing_provider="native", local_atr_multiple="1.5", native_atr_multiple="3")
+        row = self.store.enqueue("scope", p, live=True, now_ms=1)
+        self.worker.step(row["id"], 2)
+        self.g.size = self.g.filled = "1"
+        self.g.orders[self.g.sent[0]["id"]]["status"] = "filled"
+        self.worker.step(row["id"], 3)
+        self.worker.step(row["id"], 4)
+        saved = self.store.get(row["id"])
+        self.assertEqual(saved["trail"]["distance"], "3.0")
+        self.assertEqual(self.g.sent[1]["trigger_price"], "96")
+        self.assertEqual(Decimal(self.g.sent[2]["retracement"]), Decimal("6"))
+        self.g.orders[self.g.sent[2]["id"]].update(active=True, retracement="6", retracement_unit="quote")
+        self.worker = Supervisor(self.store, self.g, live=True)
+        result = self.worker.step(row["id"], 5)
+        self.assertEqual(result["state"], "PROTECTED")
+        self.assertEqual(result["trail"]["distance"], "3.0")
+        self.assertEqual(len(self.g.sent), 3)
+
     def condition_error(self):
         row = self.start()
         order = self.g.orders[self.g.sent[-1]["id"]]
@@ -402,6 +421,34 @@ class NativeTrailingManagedTests(unittest.TestCase):
 
 
 class NativeTrailingReadbackTests(unittest.TestCase):
+    def test_directional_activation_rejects_immediate_value(self):
+        from kis_hl.hyperliquid.trailing import parse_trailing_condition, trailing_readback
+        order = {"orderType": "Trailing Stop Market", "isTrigger": True,
+                 "reduceOnly": True, "side": "A"}
+        for direction in ("above", "below"):
+            condition = f"activation {direction} immediate, retracement 5, best 100"
+            with self.subTest(direction=direction, check="parse"), self.assertRaises(ValueError):
+                parse_trailing_condition(condition)
+            with self.subTest(direction=direction, check="readback"), self.assertRaises(ValueError):
+                trailing_readback(order | {"triggerCondition": condition}, retracement=Decimal("5"))
+
+    def test_live_immediate_activation_clause_is_verified(self):
+        from kis_hl.hyperliquid.trailing import trailing_readback
+        order = {"orderType": "Trailing Stop Market", "isTrigger": True,
+                 "reduceOnly": True, "side": "A",
+                 "triggerCondition": "Activation immediate, retracement 5.9583, best 20.931"}
+        result = trailing_readback(order, retracement=Decimal("5.9583"))
+        self.assertTrue(result["active"])
+        self.assertEqual(result["trigger_price"], "14.9727")
+        for condition in (
+            "activation immediate, activation immediate, retracement 5.9583",
+            "activation immediate, activation above 20, retracement 5.9583",
+            "activation above 20, activation immediate, retracement 5.9583",
+            "activation unknown, retracement 5.9583",
+        ):
+            with self.subTest(condition=condition), self.assertRaises(ValueError):
+                trailing_readback(order | {"triggerCondition": condition}, retracement=Decimal("5.9583"))
+
     def test_known_syntax_is_distinct_from_managed_semantic_matching(self):
         from kis_hl.hyperliquid.trailing import parse_trailing_condition, trailing_readback
         result = parse_trailing_condition("retracement 5.0000%, activation above 100, best waiting")

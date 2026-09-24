@@ -1,7 +1,8 @@
 # Daily-volatility trailing multiplier calibration guide
 
 Status: user-accepted initial native/nine-minute TS policy values, not validated
-optimal settings, implemented independent distances, or live activation.
+optimal settings or live activation. Independent distances are implemented as
+supported configuration, not live authorization.
 Close-only TS supports explicit automatic/manual selection. The accepted manual
 status-check starting value is three times the ten-day mean absolute daily close
 change, not an automatic execution default.
@@ -61,9 +62,11 @@ adjustment rather than treating them as permanent or optimal:
 
 This subsequent explicit acceptance is separate from the user's earlier
 illustration, which remains neither a baseline nor a candidate. These values
-are not empirically optimal, an approved live order change, or an implemented
-independent-distance configuration. Prior example-anchored proposals remain
-withdrawn.
+are not empirically optimal or an approved live order change. Independent-distance
+parameters are implemented and support this configuration without authorizing live
+activation. KORU native trailing submission, readback, and cancellation have been
+observed; trigger-time fill remains unverified. Prior example-anchored proposals
+remain withdrawn.
 
 Independent rationale: Schwab discusses 1.5–2 ATR for allowing more movement than
 one ATR.[2] StockCharts' established Chandelier reference uses 3 ATR for trailing

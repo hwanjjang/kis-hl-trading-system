@@ -67,7 +67,10 @@ includes both stop kinds. Do not recreate a previously accepted terminal trail
 automatically because that resets its watermark; preserve residual-exit handling.
 
 Evidence digest and investigation: `reports/sdlc/hyperliquid-native-trailing/`.
-No live exchange orders were used to verify this integration.
+An authorized KORU subaccount rollout verified trailing submission, active
+order-ID readback and cancellation. The observed readback explicitly includes
+`Activation immediate`; accept that clause while rejecting duplicate/conflicting
+activation clauses. This does not verify trigger-time fill quality.
 
 ## Order action
 

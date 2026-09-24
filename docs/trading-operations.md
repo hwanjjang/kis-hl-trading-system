@@ -23,7 +23,9 @@ South Korea trade.xyz exposure uses `hl:xyz:KORU`; `KR200` and `EWY` remain
 excluded. KORU references a leveraged ETF, not an equivalent KOSPI200 contract,
 and uses U.S. cash-equity hours. The KIS `AMS` / `KORU` mapping supplies quotes
 only; it adds no KIS execution instrument. See [asset policy](trade_xyz_assets.md).
-KORU live order acceptance and native trailing-stop behavior remain unverified.
+KORU fixed-SL placement, native trailing submission/active readback and cancellation
+were verified in an authorized subaccount rollout. Trigger-time execution and
+fill quality remain unverified.
 
 KIS DRAM's AMEX order route, USD currency and whole-share lot were observed through
 `search-info` on 2026-09-12. That verifies broker metadata, not order acceptance.
@@ -103,6 +105,30 @@ or scheduled job. Do not infer that a BTC position originated from this strategy
 merely because it is a BTC position. Strategy mechanics and implementation limits
 remain in [the breakout design](strategy_execution_design.md#breakout-entry).
 
+## BTC retrospective trailing-exit review rule
+
+For BTC historical reviews, the user-confirmed trailing distance is exactly
+`1 * ATR(10D)` frozen at purchase time. Ratchet the high watermark only from
+completed nine-minute bars after entry; do not substitute hourly highs, a fixed
+percentage trail, continuously updated highs, or ATR calculated at review time.
+Activation has no profit prerequisite. A missed exit means the prescribed TS exit
+condition was met before the actual exit, not merely that unrealized profit later
+turned into a loss. Do not infer trading intent from the resulting position sign.
+
+This confirmation specifies the trailing distance and watermark cadence, not a
+new close-confirmed exit policy: preserve the distinction between bar-completion
+ratcheting and the subsequent price-crossing trigger. Reconstruct purchase-time
+ATR from the matching instrument's fully closed daily bars using the repository
+ATR formula when the original snapshot is absent, and label it reconstructed.
+Historical trade candles are not the original allMids/bid/mark feed; proxy replay
+cannot certify an actual missed execution. Require contiguous sub-nine-minute
+source data, exclude incomplete entry buckets, and report unavailable history.
+Do not silently reset ATR/watermarks at adds or partial exits; disclose assumptions
+and leave ambiguous position-management episodes unresolved.
+
+This is a review requirement only. It changes no active plan, order, live trailing
+implementation, initial SL multiplier, or account risk authorization.
+
 ## User-approved risk units
 
 Hermes owns signal review -> proposal -> user-selected risk units. The repository
@@ -132,7 +158,8 @@ Confirmed user semantics:
   Fixed SL describes the selected protective level, not a requirement to derive
   it from ATR. Chart-defined entry SL and independent strategy exits are specified
   in [the daily-volatility requirements](strategy_execution_design.md#daily-volatility-execution-and-close-briefing-reference-requirements);
-  these requirements are not yet implemented by the shared-distance managed plan.
+  explicit fixed stops and independent trailing distances are supported by the
+  managed plan; automatic chart-strategy exits remain separate.
 - "TS starting amount" means position profit required before trailing activation,
   not an instrument price. The user's selected behavior is immediate activation
   without a profit or breakeven prerequisite. A trailing exit at a loss is allowed.
@@ -204,7 +231,9 @@ limits are decimal strings; durations and UTC epoch milliseconds are integers.
 | `instrument`, `signal_instrument` | Explicit execution and analysis IDs |
 | `strategy`, `strategy_version` | Attribution and immutable strategy version |
 | `quantity`, `limit_price` | Long-entry size and execution-instrument price |
-| `atr`, `atr_multiple` | Frozen execution-instrument ATR(10D) and stop distance multiplier |
+| `atr`, `atr_multiple` | Frozen execution-instrument ATR(10D) and legacy default distance multiplier |
+| `local_atr_multiple`, `native_atr_multiple` | Optional independent trailing multipliers; each omitted value falls back to `atr_multiple` |
+| `fixed_stop_price` | Optional explicit positive initial SL below entry, independent of trailing distances; loss limits still apply |
 | `max_notional`, `max_loss` | Per-entry notional and planned initial loss limits |
 | `max_portfolio_notional`, `max_correlated_notional` | Same-account, same-currency gross exposure caps including pending orders |
 | `max_spread_bps`, `max_entry_deviation_bps` | Spread and entry-price band limits |
@@ -280,7 +309,7 @@ Hermes can inspect progress with `order status --id POSITION_ID` and return to t
 user while the supervisor continues. The local backup requires that worker to stay
 alive; a conversation session is not the protection loop. See the
 [protection contract and rollout limits](#protection-and-controls) for failures,
-provider overrides and the still-unverified live exchange contract.
+provider overrides and the remaining live trigger/execution verification limits.
 
 An optional registered-signal path uses `signal execute --id ID --input PLAN --manual` or `--grant ID` instead of `order submit`, and queues into the same
 supervisor. Live signal execution also needs `--live`. Signal ingestion alone
@@ -305,7 +334,8 @@ process, not the agent conversation, owns the ongoing loop.
    daily bars. Policy numbers are explicit user/strategy inputs, never invented by
    the harness. Set `harness` to `hermes` when evidenced.
 3. Supply an existing full-sized reduce-only native Stop Market SL at or above the
-   ATR risk floor. If none exists, establish and verify it separately under the
+   plan fixed-stop floor (`fixed_stop_price`, otherwise the legacy ATR floor).
+   If none exists, establish and verify it separately under the
    chosen policy first; adoption creates no entry or fixed-SL order.
 4. Queue the handoff. Without `--live` this is paper-only. The running account
    supervisor can consume it without releasing its process lock:
@@ -356,7 +386,8 @@ plans retain their settings; absent historical selectors mean local, and an abse
 historical backup field does not silently enable a second policy.
 
 Native mode follows the best **continuous mark price** since exchange activation,
-using the plan's frozen ATR distance rounded down to the distance's own precision
+using frozen ATR times `native_atr_multiple` (falling back to `atr_multiple`),
+rounded down to the distance's own precision
 (metadata decimal tick and five significant figures, with integer exemption).
 The normalized distance is persisted before entry; a distance that rounds to zero
 blocks entry.
@@ -398,16 +429,28 @@ a timeout exit while fixed SL is verified. Active matching readback establishes
 trailing coverage. Fixed-SL coverage loss retains its existing grace/exit policy;
 termination of an accepted trail still latches a residual exit instead of
 recreating a trail with a reset watermark. Flat cleanup requires both
-fixed SL and trailing orders to be confirmed terminal. Live acceptance, response
-shapes and exchange execution have **not** been exercised; unexpected condition
-formats never count as trailing protection. See the [API contract](../.agents/skills/hyperliquid-api/references/exchange-endpoint.md#native-trailing-stop).
+fixed SL and trailing orders to be confirmed terminal. Authorized KORU subaccount
+submission and active readback have been exercised, including the explicit
+`Activation immediate` clause. Trigger-time exchange execution and fill quality
+remain unverified; unexpected condition formats never count as trailing protection. See the [API contract](../.agents/skills/hyperliquid-api/references/exchange-endpoint.md#native-trailing-stop).
 
-Existing positions are never migrated automatically. Before rolling back to a
+Existing positions are never migrated automatically. For the explicitly requested
+KORU management, a native trailing threshold below the estimated liquidation price
+is accepted as intentional trailing behavior: it may rise as price advances. This
+comparison alone must not reject management or force a wider/narrower trail; retain
+the independently verified fixed SL. It does not guarantee a fill before liquidation.
+After a verified full exit by any cause (native TS, local TS, fixed SL, strategy or
+manual execution), cancel and reconcile every order explicitly associated with that
+position. Do not cancel unrelated instruments/accounts, or remove remaining-size
+protection merely because a partial exit occurred. Explicitly inventory external
+related order IDs before adoption; do not infer ownership from matching size alone.
+Before rolling back to a
 version without native support, reconcile and close native-managed positions and
 their owned orders. Switching an active plan to local is not a recovery action.
 
-The existing trailing rule is preserved: initial floor equals actual entry minus
-frozen ATR distance; complete continuous nine-minute buckets can raise the
+The local trailing rule uses actual entry minus frozen ATR times
+`local_atr_multiple` (falling back to `atr_multiple`); complete continuous
+nine-minute buckets can raise the
 watermark. The long threshold never decreases. Restart/disconnection discards
 the partial bucket; a latched exit survives a rebound and process death.
 
@@ -636,5 +679,8 @@ stubbed, and a user-authorized live subaccount reduce-only fixed Stop Market ord
 independently read back with the expected target, size and trigger. The live path
 also exposed an SDK boundary requirement: pass numeric `triggerPx` to the Python
 SDK, which serializes the wire string. Tests exercise that real serializer.
-Live cancellation and native trailing submission through this routing remain
-**unverified**. Order acceptance does not prove trigger-time fill quality.
+Live native-trailing cancellation, replacement submission and active readback
+through this routing were verified for KORU. Order acceptance does not prove
+trigger-time fill quality. The explicitly authorized local account supervisor is
+operated separately from the conversation; runtime evidence belongs in the local
+SQLite state and `data/koru-management/`, not in a policy-level coverage claim.

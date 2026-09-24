@@ -228,9 +228,12 @@ Stop Market readback, local trailing by default, and durable client IDs for norm
 orders. Explicit native trailing plans use continuous mark-price tracking after
 terminal entry and fixed-SL coverage, retaining the fixed SL. Only the acknowledged
 native order ID can establish trailing ownership; unknown outcomes require
-intervention. Live trailing acceptance/execution is unverified. All trading CLIs must
-use the same SQLite path. A managed owner blocks raw new entries and legacy
-enrollment; only the in-process current entry attempt receives a submission permit.
+intervention. KORU native trailing submission, readback, and cancellation have been
+observed; trigger-time fill remains unverified. Independent fixed-SL, local-trailing,
+and native-trailing parameters are implemented; supported configuration is not live
+authorization. All trading CLIs must use the same SQLite path. A managed owner
+blocks raw new entries and legacy enrollment; only the in-process current entry
+attempt receives a submission permit.
 
 Journal retention must be anchored by current `userFills`; a short old-window page
 does not prove completeness. Unknown spot/fee-currency identities are retained

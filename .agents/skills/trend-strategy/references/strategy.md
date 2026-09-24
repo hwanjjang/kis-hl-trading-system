@@ -67,9 +67,10 @@ claim percentage TS support from the quote-distance managed interface.
 
 The [daily-volatility policy](../../../../docs/strategy_execution_design.md#daily-volatility-execution-and-close-briefing-reference-requirements)
 owns the accepted initial local/native daily-ATR multipliers and close-only
-manual/automatic modes. Independent distances remain an execution requirement,
-not a supported setting to claim or silently apply. A manual reference crossing
-is briefing evidence only; automatic mode needs explicit selection and authority.
+manual/automatic modes. Independent local/native distances are supported; use
+the operations contract rather than silently migrating existing orders. Close TS
+defaults to manual briefing reference unless explicitly requested otherwise.
+A manual crossing never grants exit authority.
 Entry SL and chart-based exits remain independent of trailing references.
 
 Hold when the thesis and observed protection remain valid. Consider reduction or

@@ -120,15 +120,22 @@ def validate_plan(plan, now_ms):
     if plan["expires_ms"] <= now_ms:
         raise ValueError("Trade plan has expired")
     quantity, price = decimal(plan["quantity"]), decimal(plan["limit_price"])
-    distance = decimal(plan["atr"]) * decimal(plan["atr_multiple"])
+    distance = (price - decimal(plan["fixed_stop_price"], positive=True)
+                if "fixed_stop_price" in plan
+                else decimal(plan["atr"]) * decimal(plan["atr_multiple"]))
     if (
-        distance >= price
+        distance <= 0 or distance >= price
         or quantity * distance > decimal(plan["max_loss"])
         or quantity * price > decimal(plan["max_notional"])
     ):
         raise ValueError(
             "Plan exceeds loss/notional limits or has an invalid initial stop"
         )
+    for key in ("local_atr_multiple", "native_atr_multiple"):
+        if key in plan:
+            decimal(plan[key], positive=True)
+    if decimal(plan["atr"]) * decimal(plan.get("local_atr_multiple", plan["atr_multiple"])) >= price:
+        raise ValueError("Local trailing distance must leave a positive initial threshold")
     provider = plan.get("trailing_provider", "native" if plan["instrument"].startswith("hl:") else "local")
     if provider not in {"local", "native"}:
         raise ValueError("trailing_provider must be local or native")
@@ -550,7 +557,8 @@ class Supervisor:
                 raise ValueError("Native trailing provider unavailable")
             if native_trailing:
                 row["native_trailing_distance"] = wire_decimal(normalize_quote_retracement(
-                    decimal(p["stop_distance"]), decimal(snap["trailing_price_step"])))
+                    decimal(p["atr"]) * decimal(p.get("native_atr_multiple", p["atr_multiple"])),
+                    decimal(snap["trailing_price_step"])))
             row["baseline"] = snap.get("baseline", {})
             row["baseline_start_ms"] = snap.get("baseline_start_ms", row["created_ms"])
             row["atr_source"] = snap["atr_source"]
@@ -658,10 +666,12 @@ class Supervisor:
                     now,
                 )
                 return
-            if size != 0 or entry_active or unresolved_exits:
+            if size != 0:
                 self.store.save(row, now)
                 return
-            # Once flat, known owned stops can be canceled even after an exit deadline.
+            # Once flat, known owned orders can be canceled even after an exit deadline.
+        if size == 0 and entry_filled > 0:
+            row["cancel_entry"] = True
         if size == 0 and entry_filled == 0:
             if entry_attempts and not entry_active:
                 self._state(row, "CLOSED", "Entry ended without exposure", now)
@@ -677,11 +687,13 @@ class Supervisor:
                 row["trail"] = Trail.create(
                     entry=decimal(snap["entry_price"], positive=True),
                     atr=decimal(p["atr"]),
-                    multiple=decimal(p["atr_multiple"]),
+                    multiple=decimal(p.get("local_atr_multiple", p["atr_multiple"])),
                     opened_ms=now,
                 ).to_dict()
             trail = Trail.from_dict(row["trail"])
             # Additional fills may tighten the risk floor but never reset a ratchet.
+            fixed_floor = (decimal(p["fixed_stop_price"]) if "fixed_stop_price" in p
+                           else max(trail.entry, decimal(snap["entry_price"])) - decimal(p["stop_distance"]))
             trail.threshold = max(
                 trail.threshold, decimal(snap["entry_price"]) - trail.distance
             )
@@ -692,6 +704,9 @@ class Supervisor:
             ):
                 row["exit_requested_ms"] = row["exit_requested_ms"] or now
             row["trail"] = trail.to_dict()
+            if (not self.gateway.native_sl and p["allow_local_sl"] and fresh
+                    and decimal(snap["price"], positive=True) <= fixed_floor):
+                row["exit_requested_ms"] = row["exit_requested_ms"] or now
             if self.gateway.native_sl:
                 covered = Decimal(0)
                 for a in stops:
@@ -705,8 +720,7 @@ class Supervisor:
                         and order.get("reduce_only") is True
                         and order.get("trigger_type") == "sl"
                         and decimal(order.get("trigger_price", "0"))
-                        >= max(trail.entry, decimal(snap["entry_price"]))
-                        - trail.distance
+                        >= fixed_floor
                     ):
                         covered += decimal(order["size"], positive=True)
                         if a.get("coverage_recorded") != order:
@@ -740,10 +754,7 @@ class Supervisor:
                     and not row["exit_requested_ms"]
                 ):
                     trigger = (
-                        max(
-                            trail.entry - trail.distance,
-                            decimal(snap["entry_price"]) - trail.distance,
-                        )
+                        fixed_floor
                         / decimal(snap["price_step"])
                     ).to_integral_value(rounding=ROUND_UP) * decimal(snap["price_step"])
                     execution_price = (
@@ -801,7 +812,8 @@ class Supervisor:
                 elif protected and fresh and not entry_active and not row["exit_requested_ms"]:
                     # Older in-flight rows have no preflight distance yet.
                     distance = normalize_quote_retracement(
-                        decimal(row.get("native_trailing_distance", trail.distance)),
+                        decimal(row.get("native_trailing_distance",
+                            decimal(p["atr"]) * decimal(p.get("native_atr_multiple", p["atr_multiple"])))),
                         decimal(snap["trailing_price_step"]))
                     row["native_trailing_distance"] = wire_decimal(distance)
                     self._state(row, "PROTECTING", "Fixed SL verified; awaiting native trailing readback", now)
@@ -937,11 +949,12 @@ class Supervisor:
                 self._send(row, "exit", now, quantity=str(qty), price=str(price))
             self._state(row, "EXIT_PENDING", "Reconcile exit before any retry", now)
             return
-        if size == 0 and entry_filled > 0 and not entry_active and not unresolved_exits:
-            for a in stops:
+        if size == 0 and entry_filled > 0 and not entry_active:
+            cleanup = stops + unresolved_exits
+            for a in cleanup:
                 target = a.get("order_id")
                 if not target:
-                    raise ValueError("Unknown stop still needs cleanup")
+                    raise ValueError("Unknown owned order still needs cleanup")
                 prior = [
                     x
                     for x in attempts
@@ -951,7 +964,7 @@ class Supervisor:
                     self._state(
                         row,
                         "INTERVENTION",
-                        "Stop cleanup cancellation budget exhausted",
+                        "Owned-order cleanup cancellation budget exhausted",
                         now,
                     )
                     return
@@ -961,11 +974,12 @@ class Supervisor:
                         "cancel",
                         now,
                         target_id=target,
-                        quantity=a["quantity"],
+                        quantity=str(decimal(orders[target]["size"], positive=True)),
                         price="0",
+                        organization_id=a.get("organization_id", ""),
                     )
-            if stops:
-                self._state(row, "CLEANUP", "Flat; awaiting stop terminality", now)
+            if cleanup:
+                self._state(row, "CLEANUP", "Flat; awaiting owned-order terminality", now)
             else:
                 self._state(
                     row,

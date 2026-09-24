@@ -61,6 +61,11 @@ def parse_trailing_condition(condition):
         raise ValueError("Missing native trailing condition")
     fields = {}
     for part in condition.split(","):
+        if re.fullmatch(r"\s*activation\s+immediate\s*", part, re.IGNORECASE):
+            if "activation" in fields:
+                raise ValueError("Duplicate native trailing condition clause")
+            fields["activation"] = "immediate"
+            continue
         match = re.fullmatch(r"\s*(retracement|best|activation\s+(above|below))\s+(\S+)\s*", part, re.IGNORECASE)
         if not match:
             raise ValueError("Unverified native trailing condition format")
@@ -79,7 +84,7 @@ def parse_trailing_condition(condition):
     best = fields.get("best", "waiting")
     result = {"retracement": wire_decimal(distance), "retracement_unit": unit,
               "active": best.lower() != "waiting"}
-    if "activation" in fields:
+    if "activation_direction" in fields:
         result.update(activation_price=wire_decimal(positive(fields["activation"])),
                       activation_direction=fields["activation_direction"])
     if result["active"]:

@@ -117,6 +117,17 @@ class ManagedExecutionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_plan(p, 1)
 
+    def test_independent_parameters_fail_closed_before_enrollment(self):
+        for key in ("local_atr_multiple", "native_atr_multiple"):
+            for value in ("0", "-1", "NaN", "Infinity", None):
+                with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                    validate_plan(plan(**{key: value}), 1)
+        for value in ("0", "100", "101", "NaN", "94"):
+            with self.subTest(fixed_stop_price=value), self.assertRaises(ValueError):
+                validate_plan(plan(fixed_stop_price=value), 1)
+        with self.assertRaises(ValueError):
+            validate_plan(plan(local_atr_multiple="50"), 1)
+
     def test_kis_preview_requires_explicit_verified_tick(self):
         p = plan()
         p["instrument"] = "kis:SPY"
@@ -173,6 +184,18 @@ class ManagedExecutionTests(unittest.TestCase):
         self.assertEqual(self.g.sent[-1]["price"], "95.04")
         self.worker.step(row["id"], 30)
         self.assertEqual(self.store.get(row["id"])["state"], "PROTECTED")
+
+    def test_independent_local_sl_fallback_exits_at_fixed_stop(self):
+        self.g.native_sl = False
+        row = self.queue(plan(fixed_stop_price="98", local_atr_multiple="3"))
+        self.worker.step(row["id"], 10)
+        self.g.size = self.g.filled = "1"
+        self.g.orders[self.g.sent[0]["id"]]["status"] = "filled"
+        snapshot = self.g.snapshot
+        self.g.snapshot = lambda *a: snapshot(*a) | {"price": "97"}
+        result = self.worker.step(row["id"], 20)
+        self.assertEqual(result["trail"]["threshold"], "94")
+        self.assertEqual(self.g.sent[-1]["kind"], "exit")
 
     def test_transient_snapshot_failure_recovers_local_protection(self):
         row = self.queue()
@@ -324,6 +347,81 @@ class ManagedExecutionTests(unittest.TestCase):
         self.worker.step(row["id"], 100)
         self.worker.step(row["id"], 110)
         self.assertEqual(self.store.get(row["id"])["state"], "CLOSED")
+
+    def test_manual_full_exit_cancels_partial_entry_remainder(self):
+        row = self.queue()
+        self.worker.step(row["id"], 10)
+        self.g.size = self.g.filled = "0.4"
+        self.worker.step(row["id"], 20)
+        self.g.size = "0"
+        self.worker.step(row["id"], 30)
+        self.assertEqual(self.g.orders[self.g.sent[0]["id"]]["status"], "canceled")
+        self.worker.step(row["id"], 40)
+        self.assertEqual(self.worker.step(row["id"], 50)["state"], "CLOSED")
+
+    def test_external_full_exit_cleans_resting_owned_exit_and_stop(self):
+        p = plan()
+        p.update(quantity="10", max_notional="1001", max_loss="50",
+                 max_correlated_notional="1000")
+        row = self.queue(p)
+        self.worker.step(row["id"], 10)
+        self.g.size = self.g.filled = "10"
+        self.g.orders[self.g.sent[0]["id"]]["status"] = "filled"
+        self.worker.step(row["id"], 20)
+        self.store.request_exit(row["id"], 25)
+        self.worker.step(row["id"], 30)
+        stop_id, exit_id = self.g.sent[1]["id"], self.g.sent[2]["id"]
+        exit_attempt = self.store.attempts(row["id"])[-1]
+        self.store.update_attempt(exit_attempt, organization_id="broker-route")
+        self.assertEqual(exit_attempt["quantity"], "10")
+        self.g.orders[exit_id]["size"] = "6"  # Four filled before the manual close.
+        cancellations = []
+        original_cancel = self.g.cancel
+        def cancel(row, attempt):
+            cancellations.append(dict(attempt))
+            return original_cancel(row, attempt)
+        self.g.cancel = cancel
+        self.g.orders["unrelated"] = {"status": "open"}
+        saved = self.store.get(row["id"])
+        saved.update(state="INTERVENTION", reason="Exit deadline exhausted")
+        self.store.save(saved)
+        self.g.size = "0"  # A verified manual close, not the resting managed exit.
+        result = self.worker.step(row["id"], 100000)
+        self.assertEqual(result["state"], "CLEANUP")
+        self.assertEqual(self.g.orders[stop_id]["status"], "canceled")
+        self.assertEqual(self.g.orders[exit_id]["status"], "canceled")
+        cancel = next(a for a in cancellations if a["target_id"] == exit_id)
+        self.assertEqual(cancel["quantity"], "6")
+        self.assertEqual(cancel.get("organization_id"), "broker-route")
+        self.assertEqual(self.g.orders["unrelated"]["status"], "open")
+        self.assertEqual(self.worker.step(row["id"], 100010)["state"], "CLOSED")
+
+    def test_flat_exit_cleanup_requires_valid_remaining_size(self):
+        self.g.native_sl = False
+        row = self.queue()
+        self.worker.step(row["id"], 10)
+        self.g.size = self.g.filled = "1"
+        self.g.orders[self.g.sent[0]["id"]]["status"] = "filled"
+        self.store.request_exit(row["id"], 15)
+        self.worker.step(row["id"], 20)
+        exit_id = self.g.sent[-1]["id"]
+        self.assertEqual(self.g.sent[-1]["kind"], "exit")
+        self.g.size = "0"
+        cancellations = []
+        self.g.cancel = lambda row, attempt: cancellations.append(dict(attempt))
+        evidence = [None, {}, {"size": None}, {"size": "0"}, {"size": "-1"},
+                    {"size": "NaN"}, {"size": "Infinity"}, {"size": "invalid"}]
+        for order in evidence:
+            with self.subTest(order=order):
+                if order is None:
+                    self.g.orders.pop(exit_id, None)
+                else:
+                    self.g.orders[exit_id] = {"status": "open", **order}
+                result = self.worker.step(row["id"], 30)
+                self.assertEqual(cancellations, [])
+                self.assertFalse(any(a["kind"] == "cancel"
+                                     for a in self.store.attempts(row["id"])))
+                self.assertEqual(result["state"], "INTERVENTION")
 
     def test_existing_live_owner_blocks_raw_entry(self):
         from kis_hl.managed_execution import guard_external_entry, entry_permit

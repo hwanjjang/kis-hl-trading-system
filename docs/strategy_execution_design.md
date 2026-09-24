@@ -177,9 +177,9 @@ selected values, baselines, candidate grids or calibration priors. In a subseque
 explicit decision, the user accepted starting at nine-minute `2 * ATR(10D)` and
 native `3 * the same ATR(10D)`, then adjusting gradually from observed results.
 These are approved initial policy values, not empirically optimal parameters.
-The separately scoped BTC retrospective rule is unchanged. Independent-distance
-implementation and live activation are not completed or authorized by this
-policy record; existing positions and orders are not silently migrated.
+The separately scoped BTC retrospective rule is unchanged. Independent distances
+are implemented; this policy record alone does not authorize live activation.
+Existing positions and orders are not silently migrated.
 
 Native and nine-minute TS are executable protection: an active authorized
 trigger begins closing without waiting for daily briefing analysis. Triggering
@@ -188,15 +188,19 @@ ratchets from complete nine-minute sampled buckets and checks each fresh price
 for breaches. Managed HL uses best bid, legacy trailing uses allMids, and native
 trailing follows continuous mark price. Compare effective thresholds rather
 than multiplier ordering alone, because watermarks and price bases differ.
-Current managed plans share frozen ATR distance across native/local trailing and
-initial SL. Separate multiplier support remains an implementation requirement.
+Managed plans support independent `local_atr_multiple` and
+`native_atr_multiple` over the same frozen ATR; each falls back to legacy
+`atr_multiple` when omitted. `fixed_stop_price` preserves an explicit SL independently.
+See [operations](trading-operations.md) for validation and activation requirements.
 
 #### Close-based TS: explicitly selected automatic or manual mode
 
-The user selects between automatic execution and manual/briefing-reference use
-according to the situation. Neither mode is universally mandated. Missing or
-ambiguous mode selection must not authorize automatic trading. Do not switch an
-active position's mode silently. Persist the selected mode with its authority.
+Close-based TS defaults to manual/briefing-reference mode unless the user
+explicitly requests automatic execution. An omitted mode is manual, not unresolved
+permission to trade. Use the reference in close briefings without creating exit
+intents or changing protective orders. Automatic mode requires explicit selection,
+validated parameters and execution authority. Do not switch an active position's
+explicit mode silently; persist the selected mode with its authority.
 
 Both modes use volatility calculated from completed daily closes alone, not
 highs/lows. For initial manual status checks, the accepted starting calculation
