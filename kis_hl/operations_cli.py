@@ -33,8 +33,11 @@ def scope_client(venue, account=None):
             raise ValueError("Requested KIS account differs from configured account")
         return Scope("kis", client.config.mode, client.config.account_id), client
     config = load_hyperliquid_config()
-    if account:
-        config = replace(config, account_address=account)
+    if account and account.lower() != config.account_address.lower():
+        # An explicit public-read override must never retain a signer or silently
+        # carry the configured subaccount route into a different account scope.
+        config = replace(config, account_address=account, private_key="",
+                         master_account_address="", subaccount_address="")
     return Scope(
         "hyperliquid",
         "testnet" if "testnet" in config.base_url else "mainnet",

@@ -183,11 +183,14 @@ class HyperliquidClientTests(unittest.TestCase):
         self.assertTrue(submission.request["trigger_is_market"])
 
     def test_live_stop_market_uses_hyperliquid_trigger_payload(self) -> None:
+        from hyperliquid.utils.signing import order_type_to_wire
+
         class FakeExchange:
             def __init__(self) -> None:
                 self.calls: list[tuple[object, ...]] = []
 
             def order(self, *args: object) -> dict[str, object]:
+                order_type_to_wire(args[4])
                 self.calls.append(args)
                 return {"status": "ok"}
 
@@ -223,7 +226,7 @@ class HyperliquidClientTests(unittest.TestCase):
         self.assertEqual(call[3], 95000.0)
         self.assertEqual(
             call[4],
-            {"trigger": {"isMarket": True, "triggerPx": "95000", "tpsl": "sl"}},
+            {"trigger": {"isMarket": True, "triggerPx": 95000.0, "tpsl": "sl"}},
         )
         self.assertEqual(call[5], True)
 

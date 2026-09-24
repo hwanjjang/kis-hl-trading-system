@@ -43,6 +43,22 @@ Asset IDs and spot indices differ between mainnet and testnet. Never hardcode an
 Wallet credentials: `HYPERLIQUID_WALLETADDRESS` (the account that holds the funds) and
 `HYPERLIQUID_PRIVATEKEY` (ideally an approved API wallet, not the master key).
 `HYPERLIQUID_KEY_PROFILE=production` switches to `PRO_HYPERLIQUID_*`.
+Optional `HYPERLIQUID_SUBACCOUNT_ADDRESS` / `PRO_HYPERLIQUID_SUBACCOUNT_ADDRESS`
+select an explicit execution target for that profile only. With a target,
+`WALLETADDRESS` remains the master and the key must derive that master; API agents
+are deliberately unsupported for subaccount routing. No profile fallback occurs.
+
+Keep `config.account_address` effective for all reads/locks/storage/supervision,
+and preserve `master_account_address` separately. Pass the target as SDK
+`vault_address` as well as effective `account_address`: only `vault_address`
+participates in subaccount signing and the exchange envelope. Before every SDK use
+(including a cached client), require target `userRole=subAccount`, matching
+`data.master`, and master `userRole=user`. Missing or unexpected evidence fails
+closed. Never infer a bad signer from master/target address inequality alone.
+Dry-run routing identity is unverified and performs no network or signing work.
+When changing routing, audit account-address consumers and `dataclasses.replace`
+paths; arbitrary public-read overrides must not retain execution credentials.
+Operating limits: `docs/trading-operations.md#explicit-hyperliquid-subaccount-routing`.
 
 ## 2. Two endpoints, two trust levels
 
@@ -89,6 +105,7 @@ Three different names exist for the same market. Keep them straight:
 
 | Method | info `type` | Used by |
 |---|---|---|
+| `user_role(user=)` | `userRole` | subaccount target/master identity preflight before SDK use |
 | `all_mids(dex=)` | `allMids` | `hl-mids`, `xyz-assets verify` |
 | `spot_meta()` | `spotMeta` | spot `@index` resolution |
 | `meta_and_asset_ctxs(dex=)` | `metaAndAssetCtxs` | `xyz-assets universe-collect` |

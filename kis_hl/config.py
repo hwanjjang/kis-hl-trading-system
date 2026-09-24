@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
@@ -50,6 +51,19 @@ class HyperliquidConfig:
     private_key: str
     key_profile: str
     ws_url: str = ""
+    master_account_address: str = ""
+    subaccount_address: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.subaccount_address:
+            return
+        for address in (self.master_account_address, self.subaccount_address, self.account_address):
+            if not re.fullmatch(r"0x[0-9a-fA-F]{40}", address):
+                raise ValueError("Subaccount routing requires valid master and execution addresses")
+        if self.subaccount_address.lower() == self.master_account_address.lower():
+            raise ValueError("Subaccount target must differ from master")
+        if self.account_address.lower() != self.subaccount_address.lower():
+            raise ValueError("Execution account must match the configured subaccount")
 
 
 def load_env_file(path: str | Path = ".env", *, override: bool = False) -> None:
@@ -115,16 +129,18 @@ def load_kis_config(env: Mapping[str, str] | None = None) -> KisConfig:
 
 
 def load_hyperliquid_config(env: Mapping[str, str] | None = None) -> HyperliquidConfig:
-    source = env or os.environ
+    source = os.environ if env is None else env
     profile = source.get("HYPERLIQUID_KEY_PROFILE", "default").strip().lower()
     if profile not in {"default", "production"}:
         raise RuntimeError("HYPERLIQUID_KEY_PROFILE must be 'default' or 'production'")
     if profile == "production":
         address_name = "PRO_HYPERLIQUID_WALLETADDRESS"
         private_key_name = "PRO_HYPERLIQUID_PRIVATEKEY"
+        subaccount_name = "PRO_HYPERLIQUID_SUBACCOUNT_ADDRESS"
     else:
         address_name = "HYPERLIQUID_WALLETADDRESS"
         private_key_name = "HYPERLIQUID_PRIVATEKEY"
+        subaccount_name = "HYPERLIQUID_SUBACCOUNT_ADDRESS"
 
     if "HYPERLIQUID_BASE_URL" in source:
         base_url = source["HYPERLIQUID_BASE_URL"]
@@ -137,9 +153,13 @@ def load_hyperliquid_config(env: Mapping[str, str] | None = None) -> Hyperliquid
     if private_key and not private_key.startswith("0x"):
         private_key = "0x" + private_key
 
+    master = source.get(address_name, "").strip()
+    subaccount = source.get(subaccount_name, "").strip()
     return HyperliquidConfig(
         base_url=base_url,
-        account_address=source.get(address_name, "").strip(),
+        account_address=subaccount or master,
+        master_account_address=master,
+        subaccount_address=subaccount,
         private_key=private_key,
         key_profile=profile,
         ws_url=source.get("HYPERLIQUID_WS_URL", "").strip(),

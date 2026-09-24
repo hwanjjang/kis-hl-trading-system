@@ -209,6 +209,12 @@ class HyperliquidInfoClient:
             }
         return result
 
+    def user_role(self, *, user: str | None = None) -> dict[str, Any]:
+        result = self.post_info({"type": "userRole", "user": self._resolve_user(user)})
+        if not isinstance(result, dict) or result.get("role") not in {"user", "agent", "vault", "subAccount", "missing"}:
+            raise RuntimeError("Hyperliquid userRole returned an unexpected response")
+        return result
+
     def _resolve_user(self, user: str | None) -> str:
         resolved = (user or self.config.account_address).strip()
         if not resolved:
@@ -284,6 +290,7 @@ class HyperliquidTradingClient:
         execution_price = price if price is not None else trigger_price
 
         request = {
+            **self._routing_identity(),
             "client_request_id": uuid4().hex,
             "cloid": cloid,
             "expires_after_ms": expires_after_ms,
@@ -344,6 +351,7 @@ class HyperliquidTradingClient:
                     f"{resolved.coin}: {session_decision.reason}"
                 )
         _info, exchange = self._load_sdk()
+        request["routing_verified"] = bool(self.config.subaccount_address)
         order_coin = self._resolve_live_order_coin(resolved)
         request["order_coin"] = order_coin
         is_buy = normalized_side == "buy"
@@ -381,7 +389,7 @@ class HyperliquidTradingClient:
                     order_payload = {
                         "trigger": {
                             "isMarket": True,
-                            "triggerPx": _decimal_to_api_string(trigger_price),
+                            "triggerPx": float(trigger_price),
                             "tpsl": normalized_tpsl,
                         }
                     }
@@ -453,7 +461,7 @@ class HyperliquidTradingClient:
         activation = positive(activation_price) if activation_price is not None else None
         if expires_after_ms is not None and (type(expires_after_ms) is not int or expires_after_ms <= 0):
             raise ValueError("expires_after_ms must be a positive integer timestamp")
-        request = {"resolved_coin": resolved.coin, "side": side, "size": str(size),
+        request = {**self._routing_identity(), "resolved_coin": resolved.coin, "side": side, "size": str(size),
                    "order_type": "trailing-stop", "reduce_only": True,
                    "retracement": retrace, "activation_price": str(activation) if activation else None}
         if dry_run:
@@ -465,6 +473,7 @@ class HyperliquidTradingClient:
         if self.config.base_url not in {"https://api.hyperliquid.xyz", "https://api.hyperliquid-testnet.xyz"}:
             raise ValueError("Native trailing requires an official Hyperliquid endpoint")
         info, exchange = self._load_sdk()
+        request["routing_verified"] = bool(self.config.subaccount_address)
         asset_id = info.name_to_asset(resolved.coin)
         decimals = info.asset_to_sz_decimals[asset_id]
         if type(decimals) is not int or not 0 <= decimals <= 6:
@@ -508,7 +517,7 @@ class HyperliquidTradingClient:
         resolved = resolve_hyperliquid_symbol(symbol, dex=dex)
         if not isinstance(oid, int) or isinstance(oid, bool) or oid <= 0:
             raise ValueError("oid must be a positive integer")
-        request = {"resolved_coin": resolved.coin, "oid": oid, "action": "cancel"}
+        request = {**self._routing_identity(), "resolved_coin": resolved.coin, "oid": oid, "action": "cancel"}
         if dry_run:
             return OrderSubmission("dry_run", True, resolved, request, {"skipped": "dry_run"})
         if not is_supported_live_asset(resolved):
@@ -516,6 +525,7 @@ class HyperliquidTradingClient:
         self._require_recent_verification(resolved)
         self._require_credentials()
         _, exchange = self._load_sdk()
+        request["routing_verified"] = bool(self.config.subaccount_address)
         try:
             response = exchange.cancel(self._resolve_live_order_coin(resolved), oid)
         except Exception:
@@ -530,7 +540,7 @@ class HyperliquidTradingClient:
         return info.user_state(self.config.account_address)
 
     def _load_sdk(self) -> tuple[Any, Any]:
-        if self._sdk:
+        if self._sdk and not self.config.subaccount_address:
             return self._sdk
         try:
             from eth_account import Account
@@ -542,15 +552,45 @@ class HyperliquidTradingClient:
             ) from exc
 
         wallet = Account.from_key(self.config.private_key)
+        self._validate_subaccount_routing(wallet.address)
+        if self._sdk:
+            return self._sdk
         info = Info(base_url=self.config.base_url, skip_ws=True, perp_dexs=["", "xyz"])
         exchange = Exchange(
             wallet=wallet,
             base_url=self.config.base_url,
             account_address=self.config.account_address,
+            vault_address=self.config.subaccount_address or None,
             perp_dexs=["", "xyz"],
         )
         self._sdk = (info, exchange)
         return self._sdk
+
+    def _routing_identity(self) -> dict[str, Any]:
+        return {
+            "account_address": self.config.account_address,
+            "master_account_address": self.config.master_account_address or self.config.account_address,
+            "vault_address": self.config.subaccount_address or None,
+            "key_profile": self.config.key_profile,
+            "routing_verified": False,
+        }
+
+    def _validate_subaccount_routing(self, signer_address: str) -> None:
+        if not self.config.subaccount_address:
+            return
+        master = self.config.master_account_address.lower()
+        # Agent authorization for subaccounts is not inferred from balances or an
+        # agent role. This implementation deliberately supports master only.
+        if signer_address.lower() != master:
+            raise RuntimeError("Subaccount routing requires the configured master signer; API agents are not supported")
+        public = HyperliquidInfoClient(self.config)
+        target_role = public.user_role()
+        data = target_role.get("data")
+        if (target_role["role"] != "subAccount" or not isinstance(data, dict)
+                or not isinstance(data.get("master"), str) or data["master"].lower() != master):
+            raise RuntimeError("Subaccount target role or master relationship did not match")
+        if public.user_role(user=self.config.master_account_address)["role"] != "user":
+            raise RuntimeError("Configured subaccount master must have user role")
 
     def _require_credentials(self) -> None:
         missing = []
