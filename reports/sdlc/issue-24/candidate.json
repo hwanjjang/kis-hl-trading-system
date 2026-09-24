@@ -1,0 +1,24 @@
+{
+  "candidate": "code-sha256:bdab0feb69e05ee6090e51daf6bd392a3a2cc86fc5c1ecb35ec9bc0b7effa59c",
+  "base": "758a511aefd37f89f9eec1bfcd3157484bc2566e",
+  "files": {
+    ".agents/skills/trend-strategy/SKILL.md": "8bf6fed5824c60df852e982063fc2730c4128679028812bef9bc5e1b972f7b5e",
+    ".agents/skills/trend-strategy/references/strategy.md": "45bdd877156fc5c5c081c63ff59b6c9709b6cd6e0aee033e1808196abd94e43b",
+    "AGENTS.md": "7116a20ad81eb38bbe3686df803c2a033ab57f38786e03a00446a6019892dbbd",
+    "CLAUDE.md": "3e9508fef23fabf14f997868ee1b5ffc5ff1cc2eefdc9408c947d697c3f44f16",
+    "README.md": "9ba8f15a794aa58a7e49d25bc3be2598f5a4aa7f351fe25d1243ad9d09998700",
+    "docs/architecture.md": "ebd7d2d436466609feb0d7209b5387d32c1da403043b805c52ae7a8f7e6947ff",
+    "docs/strategy-authoring.md": "572c405baa34d7ca2a813c6b8e2ad618ea5e453b18f72c7254dc2401ab01da87",
+    "docs/strategy-tools.md": "cad55db555940ba031622201b51dc5e6acac2c40859110640a27a3e74af3e44e",
+    "docs/strategy_execution_design.md": "bd60450720f76c2b56206e96b6f37d63909982bef9e0bd2db7c085b1a806f74d",
+    "docs/trading-operations.md": "7513fc48c2b795083d813904c5956266223cfc4384f2d3a92a54dac27d8153f3",
+    "kis_hl/operations_cli.py": "cbfb804710c1f363fa16ccd7ea419f38b06ee79574bcccc64316810676cbf1e5",
+    "kis_hl/risk.py": "fb506289900442e3615cbc4f24ab451f40783ba5f275e6eae6b7c2fdea42503f",
+    "kis_hl/strategy_signals.py": "9942451d23a5c17ef53ac19d3b9a8cc0a90e5ee13b106ad833dbaf9f739563bb",
+    "kis_hl/strategy_tools.py": "a849846dc1da927dd1866910a2853c18e22dcfce43f4f74eb05166711b4b12a7",
+    "tests/test_risk.py": "040cebc2e5de19c1e186fb5b5cdfbd6ae2cff682e6530805078e94f6615a7bc1",
+    "tests/test_strategy_signals.py": "53450bf2ea3209109f5a34980e79c83d36b5b270a88a3ea46193e30967f2d3ff",
+    "tests/test_strategy_tools.py": "03f43107fae9e6d64586a0391158d06bd4bbae8ca812997edbae2def20569afd"
+  },
+  "identity_scope": "Runtime/test files; docs and skill hashes separately recorded and independently reviewed"
+}

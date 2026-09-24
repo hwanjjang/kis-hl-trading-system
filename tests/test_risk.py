@@ -10,13 +10,14 @@ from kis_hl.risk import (
     calculate_operating_capital,
     calculate_position_size,
     n_multiplier_for_asset_class,
+    calculate_risk_units,
 )
 
 
 class RiskTests(unittest.TestCase):
-    def test_operating_capital_floors_portfolio_to_thousands_and_applies_multiple(self) -> None:
-        self.assertEqual(calculate_operating_capital(Decimal("2372.90")), Decimal("20000"))
-        self.assertEqual(calculate_operating_capital(Decimal("999.99")), Decimal("0"))
+    def test_operating_capital_tracks_equity_without_flooring(self) -> None:
+        self.assertEqual(calculate_operating_capital(Decimal("2372.90")), Decimal("23729"))
+        self.assertEqual(calculate_operating_capital(Decimal("999.99")), Decimal("9999.90"))
         self.assertEqual(calculate_operating_capital(Decimal("1000")), Decimal("10000"))
 
     def test_default_hl_capital_flows_into_one_unit_risk(self) -> None:
@@ -24,9 +25,26 @@ class RiskTests(unittest.TestCase):
             operating_capital_usdc=calculate_operating_capital(Decimal("2372.90")),
             atr=Decimal("5"), n=Decimal("2"), entry_price=Decimal("100"),
         )
-        self.assertEqual(size.risk_budget_usdc, Decimal("200"))
-        self.assertEqual(size.amount, Decimal("20"))
-        self.assertEqual(size.entry_notional_usdc, Decimal("2000"))
+        self.assertEqual(size.risk_budget_usdc, Decimal("237.29"))
+        self.assertEqual(size.amount, Decimal("23.729"))
+        self.assertEqual(size.entry_notional_usdc, Decimal("2372.90"))
+
+    def test_units_use_explicit_stop_and_round_down_once(self):
+        size = calculate_risk_units(capital="1000", entry="100", stop="97", units="2", quantity_step="1")
+        self.assertEqual(size["quantity"], Decimal("6"))
+        self.assertEqual(size["risk"], Decimal("18"))
+        self.assertEqual(size["risk_budget"], Decimal("20"))
+        self.assertFalse(size["below_minimum"])
+
+    def test_units_reject_invalid_basis_and_do_not_round_up_minimum(self):
+        for stop in [None, "100", "101", "NaN"]:
+            with self.subTest(stop=stop), self.assertRaises(ValueError):
+                calculate_risk_units(capital="1000", entry="100", stop=stop, units="1", quantity_step="1")
+        size = calculate_risk_units(capital="10", entry="100", stop="97", units="1", quantity_step="1")
+        self.assertEqual(size["quantity"], 0)
+        self.assertTrue(size["below_minimum"])
+        short = calculate_risk_units(capital="1000", entry="100", stop="103", units="1", quantity_step="1", side="short")
+        self.assertEqual(short["quantity"], 3)
 
     def test_position_size_uses_one_percent_risk_budget_and_atr_stop_distance(self) -> None:
         size = calculate_position_size(

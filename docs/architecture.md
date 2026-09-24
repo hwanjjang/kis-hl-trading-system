@@ -50,11 +50,11 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.storage` persists raw KIS payloads, daily OHLCV bars, order submissions, reduce-only stop-market protective orders, completed trade journal entries, trade.xyz asset rows, Hyperliquid verification checks, KIS market-data mapping rows, secondary reference-data mapping rows, live `xyz` universe snapshots, funding-rate rows, and spread snapshots in SQLite. Raw payloads are stored because vendor schemas and exchange responses can change.
 
-`kis_hl.trade_xyz_assets` defines the curated trade.xyz asset mapping seed. `trade_xyz_assets` rows in SQLite drive RWA eligibility: non-IPO assets and stocks listed for less than 30 weeks are excluded, `EWY` is excluded in favor of `KR200`, and `EWJ` is excluded in favor of `JP225`. The seed also records Specification Index commodity and FX references. `trade_xyz_asset_checks` records actual Hyperliquid metadata availability and is required for live trade.xyz orders. `trade_xyz_kis_mappings` records which KIS quote route, if any, can provide reference market data for the same trade.xyz asset.
+`kis_hl.trade_xyz_assets` defines the curated trade.xyz asset mapping seed. `trade_xyz_assets` rows in SQLite drive RWA eligibility: non-IPO assets and stocks listed for less than 30 weeks are excluded, `KR200` and `EWY` are excluded in favor of `KORU`, and `EWJ` is excluded in favor of `JP225`. The seed also records Specification Index commodity and FX references. `trade_xyz_asset_checks` records actual Hyperliquid metadata availability and is required for live trade.xyz orders. `trade_xyz_kis_mappings` records which KIS quote route, if any, can provide reference market data for the same trade.xyz asset.
 
 `kis_hl.cli` provides operational commands. Live orders require `--live`; dry-run is the default.
 
-`docs/strategy_execution_design.md` records the planned strategy daemon design for operating-capital sizing, ATR stop-losses, application-level trailing exits, add-up logic, and KIS/Hyperliquid websocket responsibilities. Explicit protected-position trailing management is implemented as a supervised CLI worker; the broader autonomous entry/add-up strategy daemon remains unimplemented.
+`docs/strategy_execution_design.md` records the strategy skill/tool integration and existing execution limits. Hermes loads `.agents/skills/trend-strategy/` for strategy judgment and owns timing/briefings/notification. `kis_hl.strategy_tools` supplies deterministic indicators, setup predicates, ATR stop proposals, risk-unit sizing and decision evidence through the existing CLI. Decisions reuse `strategy_signals`; protected execution and trailing remain in the existing supervisor rather than a new strategy daemon.
 
 ## Data Flow
 

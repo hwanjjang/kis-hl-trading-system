@@ -82,6 +82,14 @@ class SignalsTests(unittest.TestCase):
                 "s1", "scope", plan(), live=True, manual=True, now_ms=1001
             )
 
+    def test_hold_or_add_decision_cannot_be_used_as_a_new_entry(self):
+        for action in ["hold", "no_trade", "exit", "reduce", "add"]:
+            original = self.signals.list()[0]
+            self.signals.ingest({**original, "id": action, "action": action}, now_ms=2)
+            with self.subTest(action=action), self.assertRaisesRegex(ValueError, "entry"):
+                self.signals.execute(action, "scope", plan(), manual=True, now_ms=3)
+        self.assertEqual(self.store.list(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

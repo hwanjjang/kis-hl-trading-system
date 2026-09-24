@@ -1,0 +1,7 @@
+# Specification (current scope)
+Canonical contracts: docs/strategy-authoring.md, .agents/skills/trend-strategy/ and docs/strategy-tools.md. Existing strategy design now owns integration/status, not a planned agent daemon.
+Expose strategy indicators/evaluate/stop/size/decide through existing CLI. Explicit snapshots carry source, instrument, currency, complete closed bars and freshness. Code calculates facts; Hermes judges confluence/context. Reuse risk and BTC helpers. No network side effects from tools.
+Record raw setup input, recomputed numeric evidence and rationale in existing immutable signals. Skill entry evidence is re-evaluated before execution; add/hold/reduce/exit/no_trade cannot use new-entry execution. Existing manual/grant authority and supervisor checks remain.
+Capital = selected HL perpetual accountValue * 10 without floor, KIS NAV * 1; risk units against explicit fixed SL, quantity rounded down. BTC fixed 80 exception preserved. No portfolio stop-risk/count caps introduced or executable funds/notional bounds removed.
+Missing/invalid/stale facts are unavailable with reasons, not zero or entry permission. Native live add-ups/arbitrary SL/percentage TS constraints remain explicit execution boundaries. No second database, scheduler, notification transport or agent runtime.
+Verify calculation boundaries, action/evidence guards and representative skill scenarios. Offline CLI/SQLite smoke plus independent review; no broad live validation.

@@ -86,11 +86,12 @@ automatically select these fallbacks or coordinate both venues. Do not claim
 paired execution until that path is implemented and verified. No new execution
 authority, live order or supervisor start is implied by this policy.
 
-## User-approved risk units (requirements, not implemented workflow)
+## User-approved risk units
 
-The proposed approval flow is signal -> agent proposal -> user-selected risk units
--> bounded entry and protective management. These requirements do not authorize
-live orders, change active plans, or implement conversational approval handling.
+Hermes owns signal review -> proposal -> user-selected risk units. The repository
+provides deterministic calculation and validated decision tools; existing manual
+or bounded-grant execution remains separate. See [strategy tools](strategy-tools.md).
+These tools do not authorize live orders or implement conversational approval.
 
 Confirmed user semantics:
 
@@ -111,11 +112,11 @@ Confirmed user semantics:
 
 Operating assets for advisory risk-unit calculations are now specified:
 
-- Hyperliquid: use the existing thousand-USDC flooring convention with the updated
-  multiplier of 10: `floor(portfolio_value_usdc / 1000) * 1000 * 10`. Use a fresh
-  snapshot of the intended account, never pooled main/subaccount equity. The
-  below-1000 guard remains. One unit is 1% of this derived budget, which can
-  approach 10% of unmultiplied account equity; disclose both risk percentages.
+- Hyperliquid: use `accountValue * 10` without flooring or a below-1000 exclusion.
+  Use a fresh selected perpetual account/dex snapshot, never pooled main/subaccount
+  equity, spot balances or other-dex collateral. One unit is 1% of this derived
+  budget, or 10% of unmultiplied account equity before lot rounding; disclose both
+  risk percentages.
   This is not an instruction to set exchange leverage to 10x or to ignore margin
   and liquidation constraints.
 - KIS: use the actual selected account's net asset value (cash plus marked holdings,
@@ -136,9 +137,11 @@ source time and account scope, and distinguish unavailable evidence from empty
 positions. Never infer active protection from an acknowledgement or local plan.
 This notification requirement does not authorize orders or activate management.
 
-Still unresolved: recommended and maximum unit limits, percentage-trailing
-configuration through the managed path, and the bounded approval/expiry and
-execution-failure contract. The current
+There is no strategy-wide per-asset/portfolio stop-risk cap or add-count limit.
+Existing funds, order-notional and authority limits remain. Do not invent a
+recommended or maximum unit count without supporting account evidence.
+Conversational approval and notification belong to Hermes; managed percentage
+trailing and any new execution contract remain separate implementation work. The current
 managed trailing path still uses frozen ATR quote distance; low-level percentage
 support does not establish end-to-end managed support. Implementation and tests are
 required before the proposed approval workflow can execute trades.
@@ -235,7 +238,7 @@ provider overrides and the still-unverified live exchange contract.
 An optional registered-signal path uses `signal execute --id ID --input PLAN --manual` or `--grant ID` instead of `order submit`, and queues into the same
 supervisor. Live signal execution also needs `--live`. Signal ingestion alone
 never authorizes a trade; the supervisor rechecks signal/grant authority before
-entry. See [strategy signals and grants](#future-strategy-skills) for their bounded
+entry. See [strategy signals and grants](#strategy-skills) for their bounded
 authority and external strategy-evaluation boundary.
 
 ## Manual position handoff
@@ -452,7 +455,7 @@ strategy's statistics. Legacy manual records are unchanged; potential time/symbo
 overlap is flagged instead of silently duplicating them. `reconcile` compares
 observed holdings with the ledger; it never invents transfers or corporate actions.
 
-## Future strategy skills
+## Strategy skills
 
 `strategy register --input FILE` accepts immutable ID/version, description and an
 explicit instrument set. A skill or harness supplies a structured signal through
@@ -467,8 +470,11 @@ revocable account/mode/strategy/version/instrument grant with `expires_ms`,
 bounded automatic path. A reserved slot can be consumed by a crash before enqueue;
 it cannot produce an extra trade. Revocation blocks future entry, not an order
 already transmitted. The live supervisor rechecks authority after account reads.
-Strategy evaluation/timing and notification transports remain external extension
-points until the requested strategy skills and notification choice exist.
+The shared [trend-strategy skill](../.agents/skills/trend-strategy/SKILL.md) supplies
+strategy reasoning with the [deterministic tools](strategy-tools.md). Hermes owns
+evaluation timing, briefing and notification delivery. No repository scheduler or
+notification transport is required. Skills record decisions with `strategy decide`;
+non-entry actions cannot use the current new-entry executor.
 
 ## Rollback and verification
 
