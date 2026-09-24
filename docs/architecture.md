@@ -46,7 +46,7 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.hyperliquid.client` wraps Hyperliquid public info calls with standard HTTP, including wallet asset state reads for the configured address, and uses `hyperliquid-python-sdk` only for signed trading. This avoids custom signing code.
 
-`kis_hl.binance.client` wraps Binance USDⓈ-M futures REST calls with standard HTTP: public exchange info, mark/index price and funding, top of book, and klines, plus HMAC-SHA256 signed read-only account, position, and order reads. It also owns the `listenKey` lifecycle (create, keepalive, close) for the user data stream. It places no orders.
+`kis_hl.binance.client` wraps Binance USDⓈ-M futures REST calls with standard HTTP: public exchange info, mark/index price and funding, top of book, and klines, plus HMAC-SHA256 signed read-only account, position, and order reads. It exposes user-stream key lifecycle methods; the stream runner owns connection and renewal scheduling. It places no orders.
 
 `kis_hl.binance.trading` extends the REST client with guarded order placement for USDⓈ-M futures: MARKET/LIMIT entries through `/fapi/v1/order`, server-side `STOP_MARKET` (closePosition) and `TRAILING_STOP_MARKET` through the Algo Order API (`/fapi/v1/algoOrder`), and cancel for both. Outcomes are `submitted`, `rejected` (4xx), or `unknown` (5xx / transport failure, reconciled once by client id). Every method validates and rounds against exchange filters, returns a dry-run submission by default, and only on `--live` walks the allowlist, credential, one-way-mode, and account-lock guards before the signed request. `POST /fapi/v1/order/test` is exposed as an explicit exchange-side validation.
 
@@ -99,6 +99,9 @@ Interactive, code-grounded views generated from repository revision
 - [High-level system architecture](architecture/system-architecture.html)
 - [Live order request sequence](architecture/live-order-sequence.html)
 - [Market data, eligibility, and audit flow](architecture/market-data-flow.html)
+
+Binance views describe the current PR implementation and its explicitly planned extensions:
+
 - [Binance user data stream lifecycle](architecture/binance-user-stream-sequence.html)
 - [Binance trading, market stream, and order event flow](architecture/binance-trading-data-flow.html) (order placement is shown as planned)
 - [Binance order round trip](architecture/binance-order-roundtrip-sequence.html) (planned: guard, signed submit, fill confirmation over the user stream)
@@ -159,7 +162,7 @@ flowchart LR
 - Binance `ALGO_UPDATE` user-stream events (conditional order lifecycle) are counted but not yet parsed into `order_events`; protective-order reconciliation currently relies on `binance-orders` (`open_algo_orders`).
 - Binance order placement has been validated with unit tests and the exchange test endpoint, not with a live or demo fill; the first live order should be a minimum-size BTCUSDT order watched through `binance-user-stream`.
 - The Binance user data stream parser follows the documented `ORDER_TRADE_UPDATE` schema and unit tests, but has not yet been exercised against a live or demo Binance session. Verify field names on the futures demo environment before relying on stored `order_events` for reconciliation.
-- Binance futures websocket streams are partitioned by route: `/public` serves only the high-frequency `bookTicker`/`depth` streams and `/market` serves `markPrice`, `aggTrade`, `kline`, and the rest (verified live on 2026-09-16). One connection cannot mix the two, so `binance-stream` rejects a mixed request and the operator runs one process per route. The legacy unprefixed `/stream` root still answers but only delivers public-tier streams, which matches Binance's 2026-04-23 migration notice; URL overrides must use the routed roots. A threaded multi-route client is a possible follow-up.
+- For Binance stream routing and protocol constraints, see the [Binance API skill](../.agents/skills/binance-api/SKILL.md). Run separate processes for incompatible stream groups.
 
 ## Trailing management components
 
@@ -264,3 +267,9 @@ design. The first implementation uses validated dataset payloads in a shared
 fact table rather than every proposed physical table. The actual supported
 adapters, precision/coverage limits, rollout, persistence and maintenance commands
 are documented in [unified data operations](unified-data-operations.md).
+
+### Binance integration boundaries
+
+Binance tick capture deliberately uses the legacy `market_ticks` table. It is not an input to the canonical `data`/`market` analysis plane; that cutover requires instrument registration and an ingestion contract. Captured normalized tick payloads retain the original frame under `frame`.
+
+Use separate `--db` paths for each Binance environment and key profile: legacy ticks and order events have no account/environment columns. Streams are observational, with no replay or REST gap reconciliation. Per-tick synchronous SQLite writes can lag high-volume streams; use `--no-store` for observation until a bounded buffered writer is implemented. Storage failures and reconnects can leave gaps. These tables must not serve as authoritative protection or position state.

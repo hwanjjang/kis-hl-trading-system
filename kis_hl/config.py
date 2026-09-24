@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping
+from urllib.parse import urlsplit
 
 KIS_BASE_URLS = {
     "sim": "https://openapivts.koreainvestment.com:29443",
@@ -78,8 +79,8 @@ class BinanceConfig:
     ws_market_url: str
     ws_public_url: str
     ws_user_url: str
-    api_key: str
-    api_secret: str
+    api_key: str = field(repr=False)
+    api_secret: str = field(repr=False)
     key_profile: str
     recv_window_ms: int = 5000
     live_symbols: tuple[str, ...] = ("BTCUSDT",)
@@ -202,13 +203,27 @@ def load_binance_config(env: Mapping[str, str] | None = None) -> BinanceConfig:
 
     # The demo profile targets the demo environment unless BINANCE_TESTNET is explicitly false.
     testnet_default = "true" if profile == "demo" else "false"
-    testnet = source.get("BINANCE_TESTNET", testnet_default).strip().lower() == "true"
     # An explicitly empty BINANCE_LIVE_SYMBOLS disables live orders; the default applies only when unset.
     live_symbols = tuple(
         token.strip().upper()
         for token in source.get("BINANCE_LIVE_SYMBOLS", "BTCUSDT").split(",")
         if token.strip()
     )
+    testnet_value = source.get("BINANCE_TESTNET", testnet_default).strip().lower()
+    if testnet_value not in {"true", "false"}:
+        raise RuntimeError("BINANCE_TESTNET must be 'true' or 'false'")
+    testnet = testnet_value == "true"
+    for name in ("BINANCE_BASE_URL", "BINANCE_WS_MARKET_URL", "BINANCE_WS_PUBLIC_URL", "BINANCE_WS_USER_URL"):
+        if name not in source:
+            continue
+        parsed = urlsplit(source[name].strip())
+        scheme = "https" if name == "BINANCE_BASE_URL" else "wss"
+        if parsed.scheme != scheme or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise RuntimeError(f"{name} must be a {scheme} URL without credentials, query or fragment")
+        main_hosts = {"fapi.binance.com", "fstream.binance.com"}
+        demo_hosts = {"demo-fapi.binance.com", "demo-fstream.binance.com", "testnet.binancefuture.com", "stream.binancefuture.com"}
+        if parsed.hostname in (main_hosts if testnet else demo_hosts):
+            raise RuntimeError(f"{name} conflicts with BINANCE_TESTNET")
     rest_default = BINANCE_TESTNET_URL if testnet else BINANCE_MAINNET_URL
     ws_default = BINANCE_TESTNET_WS_URL if testnet else BINANCE_MAINNET_WS_URL
 

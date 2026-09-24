@@ -253,7 +253,7 @@ python -m kis_hl.cli binance-stream --symbol BTCUSDT --streams book --max-messag
 python -m kis_hl.cli binance-stream --symbol BTCUSDT --streams kline:1h --no-store --max-messages 10
 ```
 
-Read open orders and non-zero positions (signed, read-only), stream order-status events
+Read regular open orders (conditional/algo orders require the order-execution extension) and non-zero positions (signed, read-only), stream order-status events
 through the user data stream into `order_events`, and list what was stored:
 
 ```bash

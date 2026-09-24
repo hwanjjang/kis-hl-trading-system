@@ -34,7 +34,7 @@ bid/ask mid, kline close (+volume as size), agg trade price (+qty as size). `raw
 
 Base `wss://fstream.binance.com/private` (demo `wss://demo-fstream.binance.com/private`),
 URL `/ws/<listenKey>`. Get the key from `POST /fapi/v1/listenKey`; valid 60 min; `PUT`
-renews. `BinanceUserStreamClient` mints a key per connection, renews every 30 min on idle
+renews. `BinanceUserStreamClient` requests a key per connection (Binance may reuse the active account key), renews every 30 min on idle or message
 ticks, and reconnects on `listenKeyExpired`.
 
 ### `ORDER_TRADE_UPDATE`
@@ -79,3 +79,5 @@ Liquidation: `c` = `autoclose-...`; ADL: `c` = `adl_autoclose`.
 - `ALGO_UPDATE`: conditional-order lifecycle (NEW, TRIGGERING, TRIGGERED, FINISHED, REJECTED, EXPIRED).
 
 The CLI counts non-order events under `other_events`; only `ORDER_TRADE_UPDATE` is stored.
+
+Private streams tolerate data silence. Renewal retries are bounded to once per minute, with reconnect before key expiry. The runner does not DELETE shared account keys when disconnecting.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
@@ -13,6 +14,7 @@ from kis_hl.streaming import (
     Clock,
     MaintainedWebSocketClient,
     PriceTick,
+    PermanentWebSocketError,
     Sleeper,
     TransportFactory,
     WebSocketClientTransport,
@@ -62,6 +64,8 @@ PUBLIC_TIER_SUFFIXES = ("@bookTicker", "@depth")
 def stream_route(stream: str) -> str:
     """Return ``"public"`` for high-frequency streams and ``"market"`` for everything else."""
     lowered = stream.lower()
+    if lowered == "!bookticker" or "@rpidepth" in lowered:
+        return "public"
     for suffix in PUBLIC_TIER_SUFFIXES:
         if suffix.lower() in lowered:
             return "public"
@@ -141,9 +145,9 @@ class BinanceMarketStreamClient:
 class BinanceUserStreamClient:
     """Order and account events over the user data stream.
 
-    A fresh ``listenKey`` is requested on every (re)connection, the key is kept alive
+    A ``listenKey`` is requested on every (re)connection, the key is kept alive
     every ``keepalive_interval_ms`` (Binance expires keys after 60 minutes), and a
-    ``listenKeyExpired`` event forces a reconnect, which obtains a new key.
+    ``listenKeyExpired`` event forces a reconnect. Binance may return the existing account key.
     """
 
     def __init__(
@@ -154,7 +158,7 @@ class BinanceUserStreamClient:
         on_message: PayloadHandler,
         transport_factory: TransportFactory | None = None,
         keepalive_interval_ms: int = 30 * 60 * 1000,
-        stale_after_ms: int = 10 * 60 * 1000,
+        stale_after_ms: int | None = None,
         recv_timeout_seconds: float = 1,
         reconnect_min_delay_ms: int = 1_000,
         reconnect_max_delay_ms: int = 30_000,
@@ -174,6 +178,7 @@ class BinanceUserStreamClient:
         self.sleep = sleep
         self.listen_key: str | None = None
         self._last_keepalive_ms: int | None = None
+        self._next_keepalive_attempt_ms = 0
 
     def run(
         self,
@@ -181,6 +186,7 @@ class BinanceUserStreamClient:
         max_messages: int | None = None,
         max_reconnects: int | None = None,
     ) -> WebSocketStatus:
+        self.client._require_credentials(need_secret=False)
         runner = MaintainedWebSocketClient(
             url=self.config.ws_user_url,
             subscriptions=[],
@@ -197,15 +203,37 @@ class BinanceUserStreamClient:
         return runner.run(max_messages=max_messages, max_reconnects=max_reconnects)
 
     def _connect_with_fresh_listen_key(self, _url: str, timeout_seconds: float):
-        self.listen_key = self.client.create_listen_key()
+        try:
+            self.listen_key = self.client.create_listen_key()
+        except Exception as exc:
+            if re.search(r"HTTP (?:400|401|403|418|429)|-201[45]", str(exc)):
+                raise PermanentWebSocketError("Binance user stream authentication or rate limit failed; check key permissions and retry later") from None
+            raise RuntimeError("Binance listenKey creation failed") from None
         self._last_keepalive_ms = self.now_ms()
-        return self.transport_factory(user_stream_url(self.config, self.listen_key), timeout_seconds)
+        self._next_keepalive_attempt_ms = 0
+        try:
+            return self.transport_factory(user_stream_url(self.config, self.listen_key), timeout_seconds)
+        except PermanentWebSocketError:
+            raise
+        except Exception as exc:
+            if getattr(exc, "status_code", None) in {400, 401, 403, 418, 429}:
+                raise PermanentWebSocketError("Binance private websocket denied; check permissions and retry later") from None
+            raise RuntimeError("Binance private websocket connection failed") from None
 
     def _keepalive_if_due(self) -> None:
         now = self.now_ms()
         last = self._last_keepalive_ms if self._last_keepalive_ms is not None else now
-        if now - last >= self.keepalive_interval_ms:
-            self.client.keepalive_listen_key()
+        if now - last >= self.keepalive_interval_ms and now >= self._next_keepalive_attempt_ms:
+            try:
+                self.client.keepalive_listen_key()
+            except Exception as exc:
+                if re.search(r"HTTP (?:401|403|418|429)|-201[45]", str(exc)):
+                    raise PermanentWebSocketError("Binance listenKey renewal denied; check permissions and retry later") from None
+                if "-1125" in str(exc) or now - last >= 55 * 60 * 1000:
+                    raise RuntimeError("Binance listenKey expired or renewal deadline reached") from None
+                self._next_keepalive_attempt_ms = now + 60_000
+                logger.warning("binance_listen_key_renewal_deferred")
+                return
             self._last_keepalive_ms = now
 
     def _handle_raw_message(self, raw: str, _connection: WebSocketConnection) -> None:
@@ -215,8 +243,8 @@ class BinanceUserStreamClient:
         if payload.get("e") == LISTEN_KEY_EXPIRED_EVENT:
             logger.warning("binance_listen_key_expired")
             raise RuntimeError("listenKeyExpired: reconnecting with a new listenKey")
-        self._keepalive_if_due()
         self.on_message(payload)
+        self._keepalive_if_due()
 
 
 # ---- parsers ------------------------------------------------------------------------
@@ -290,6 +318,9 @@ def parse_market_ticks(payload: Any, *, received_at_ms: int) -> list[PriceTick]:
             return []
     except (KeyError, InvalidOperation, ValueError, TypeError):
         return []
+    if not price.is_finite() or price <= 0 or (size is not None and (not size.is_finite() or size < 0)):
+        return []
+    raw["frame"] = payload
     raw["event"] = event
     raw["event_time_ms"] = data.get("E")
     return [

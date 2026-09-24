@@ -47,8 +47,6 @@ class ConfigTests(unittest.TestCase):
                 self.assertEqual(os.environ["K"], "existing")
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class BinanceConfigTests(unittest.TestCase):
@@ -139,3 +137,7 @@ class BinanceTradingConfigTests(unittest.TestCase):
         self.assertEqual(config.ws_user_url, "wss://demo-fstream.binance.com/private")
         mainnet_override = load_binance_config({"BINANCE_KEY_PROFILE": "demo", "BINANCE_TESTNET": "false"})
         self.assertEqual(mainnet_override.base_url, "https://fapi.binance.com")
+
+
+if __name__ == "__main__":
+    unittest.main()

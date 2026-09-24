@@ -106,7 +106,13 @@ class BinanceFuturesClient:
         payload = _parse_json(text)
         if status >= 400:
             code = payload.get("code") if isinstance(payload, dict) else None
-            msg = payload.get("msg") if isinstance(payload, dict) else text
+            msg = str(payload.get("msg", "")) if isinstance(payload, dict) else "Non-JSON response"
+            if "<" in msg:
+                msg = "Non-JSON error response"
+            for secret in (self.config.api_key, self.config.api_secret):
+                if secret:
+                    msg = msg.replace(secret, "[redacted]")
+            msg = msg[:300]
             logger.warning(
                 "binance_request_failed",
                 extra={"method": method, "path": path, "status": status, "code": code},
