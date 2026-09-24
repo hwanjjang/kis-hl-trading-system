@@ -65,7 +65,7 @@ through `DELETE /fapi/v1/algoOrder` instead.
 |---|---|---|
 | 2xx placement | `submitted`, or `rejected` for terminal/no-fill acknowledgements | partial fills remain submitted; inspect exchange status and fills |
 | Definite 4xx rejection (excluding unknown-execution codes/messages below) | `rejected` | fix the request; nothing was placed |
-| 5xx, HTTP 408, codes `-1000`/`-1006`/`-1007` with unknown-execution wording, `Unknown error`, timeout after send | `unknown` → looked up once by client id or exchange id; a live order → `submitted` (`reconciled_after_unknown`), a terminal order with fills → `submitted` (`reconciled_partial_fill`), a terminal order without fills → `rejected` (`reconciled_terminal`), a confirmed cancel → `submitted` (`reconciled_cancel`) | if still `unknown`, query the order or watch the user stream before any retry |
+| 5xx, HTTP 408, code `-1007` regardless of message, `Unknown error` or `status unknown` wording (including `-1000`/`-1006` responses), timeout after send | `unknown` → looked up once by client id or exchange id; a live order → `submitted` (`reconciled_after_unknown`), a terminal order with fills → `submitted` (`reconciled_partial_fill`), a terminal order without fills → `rejected` (`reconciled_terminal`), a confirmed cancel → `submitted` (`reconciled_cancel`) | if still `unknown`, query the order or watch the user stream before any retry |
 
 ## `GET /fapi/v1/positionSide/dual`
 

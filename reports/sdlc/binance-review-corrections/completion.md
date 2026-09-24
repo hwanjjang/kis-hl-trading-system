@@ -6,6 +6,6 @@ PR17 correction: 05c5960; 573 full tests plus final 78 affected tests and real l
 
 Binance CLI orders now send by default as AK explicitly requested; --dry-run previews without signed calls. Python direct calls retain dry-run defaults. No actual exchange order, cancel or signed vendor test was executed. Successful exchange validation/demo fills remain unverified.
 
-Required cross-provider PR review remains BLOCKED: automatic approval review rejected transfer of the source/diff to the configured external Claude service without explicit destination approval. The independent verifier here used a separate OpenAI context, not another provider. No merge-ready or complete-SDLC claim is made. No merge/auto-merge is authorized.
+Cross-provider review completed with xAI Grok 4.7/high/auto under AK's explicit override: zero Must Fix findings, two documentation recommendations corrected and confirmed by the reviewer. Independent reviewer reran 110 Binance and 20 CLI tests successfully. See grok-review.md. The installed state schema hardcodes medium/latest-GA and cannot encode this override; automatic complete-SDLC status is not claimed. No merge/auto-merge is authorized.
 
 Historical test counts remain scoped to the recorded executions; the final code snapshot and red/green/smoke records are in the artifact index.
