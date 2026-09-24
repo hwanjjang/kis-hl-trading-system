@@ -6,7 +6,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-DEFAULT_OPERATING_CAPITAL_MULTIPLE = Decimal("20")
+DEFAULT_OPERATING_CAPITAL_MULTIPLE = Decimal("10")
 DEFAULT_OPERATING_CAPITAL_INCREMENT = Decimal("1000")
 DEFAULT_RISK_FRACTION = Decimal("0.01")
 

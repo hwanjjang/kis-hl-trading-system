@@ -33,8 +33,9 @@
 - Live trade.xyz orders must also require recent successful Hyperliquid metadata verification.
 - Exclude assets that have not completed a public listing or IPO.
 - Exclude stock assets that have been publicly listed for less than 30 weeks.
-- Avoid duplicate country exposure:
-  - Use `KR200` for South Korea exposure and exclude `EWY`.
+- Cross-venue timing and KIS preferred/fallback instrument requirements are owned by `docs/trading-operations.md` ("Cross-venue timing and preferred execution policy"). Keep account-level management independent; shared signals are not shared funds or execution prices.
+- Avoid duplicate country exposure within the Hyperliquid trade.xyz universe (this does not exclude independently managed KIS ETFs):
+  - Use `KORU` for South Korea exposure and exclude `KR200` and `EWY`. KORU references a daily 3x leveraged US-listed ETF; it is not equivalent to the KOSPI 200 index.
   - Use `JP225` for Japan exposure and exclude `EWJ`.
 
 ## Testing

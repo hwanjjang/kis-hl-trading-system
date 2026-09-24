@@ -11,13 +11,19 @@ Use `instrument list`, `instrument verify --instrument ID`, and
 
 | Analysis | Execution IDs |
 | --- | --- |
-| `index:KOSPI` or explicitly `index:KOSPI200` | `kis:069500`, `kis:122630` (KOSPI200 funds) |
+| `index:KOSPI` (shared timing signal, not a price proxy) | `kis:122630` preferred, `kis:069500` fallback; independently `hl:xyz:KORU` |
 | `index:SPX` or `kis:SPY` | `kis:SPY`, `kis:UPRO`, `hl:xyz:SP500` |
-| `index:NDX` or `kis:QQQ` | `kis:QQQ`, `kis:TQQQ`, `hl:xyz:XYZ100` |
+| `index:NDX` or `kis:QQQ` | `kis:TQQQ` preferred, `kis:QQQ` fallback; `hl:xyz:XYZ100` |
 | Matching crypto | `hl:BTC`, `hl:ETH` |
 | Named gold reference | `kis:GLD`, `hl:xyz:GOLD` |
 | Quantum basket | `kis:QPUX` |
 | Named memory reference | `kis:DRAM`, `hl:xyz:DRAM` (distinct contracts) |
+
+South Korea trade.xyz exposure uses `hl:xyz:KORU`; `KR200` and `EWY` remain
+excluded. KORU references a leveraged ETF, not an equivalent KOSPI200 contract,
+and uses U.S. cash-equity hours. The KIS `AMS` / `KORU` mapping supplies quotes
+only; it adds no KIS execution instrument. See [asset policy](trade_xyz_assets.md).
+KORU live order acceptance and native trailing-stop behavior remain unverified.
 
 KIS DRAM's AMEX order route, USD currency and whole-share lot were observed through
 `search-info` on 2026-09-12. That verifies broker metadata, not order acceptance.
@@ -32,6 +38,110 @@ The managed gateway supports verified USDC collateral only.
 page with source, currency, timezone and adjustment metadata. It explicitly does
 not assert complete historical coverage or that today's bar is closed. A future
 strategy must verify its required depth; a proxy is never silently substituted.
+
+## Cross-venue timing and preferred execution policy
+
+User requirements (policy, not an implemented automatic router):
+
+- Manage and trade KIS and Hyperliquid independently. Keep account funds,
+  positions, order ownership, sizing, risk limits and execution results separate.
+- Use `index:KOSPI` to decide entry and exit timing for `kis:069500`,
+  `kis:122630` and `hl:xyz:KORU`. Do not silently substitute KOSPI200.
+  A shared timing signal does not make these instruments equivalent or permit
+  using index points as execution prices, ATR, stops or order quantities.
+- Entry and exit decisions are intended to apply on both venues, with separate
+  venue-specific execution. This is not an atomic cross-exchange transaction.
+- On KIS, prefer `kis:TQQQ` over `kis:QQQ`, and `kis:122630` over `kis:069500`.
+  The specified fallback trigger is failure to satisfy the broker's leveraged-ETF
+  deposit requirement, not an inferred trend or volatility rule. Do not invent a
+  deposit threshold or assume the same requirement across domestic and overseas
+  ETFs; use verified account/product-specific broker eligibility. Unknown
+  eligibility or an ambiguous order outcome is not proof of deposit ineligibility.
+  The fallback still requires its own funds and safety checks. This is a selection
+  priority, not an instruction to buy both ETFs. Exit the instrument actually held;
+  do not replace an exit with a fallback entry.
+- Apply shared strategy entry/exit decisions to all explicitly paired market
+  groups, not just KOSPI. The preferred/fallback ETF choices above are KIS-only;
+  do not change the independently selected Hyperliquid contract.
+- If one venue cannot execute because of its session, funds or a rejected order,
+  execute only the eligible venue. Reassess the skipped venue on a new valid
+  signal; do not automatically carry the old signal into its next trading session.
+- Shared strategy exit signals apply to both venues. Protective stops and
+  trailing exits remain account-local and must not cause a peer-venue exit or
+  wait for that venue. An unresolved submission must be reconciled before any
+  retry or fallback; separate execution does not imply equal or simultaneous fills.
+
+Implementation decisions still requiring confirmation:
+
+- The complete explicit market-pair registry beyond the KOSPI and Nasdaq groups;
+  do not infer new leveraged alternatives merely from ETF availability.
+- Whether the user's additional "KIS-only" qualification describes only the
+  leveraged-ETF eligibility/fallback issue or restricts shared signal origination.
+  No signal-origin restriction is implemented on this ambiguous wording.
+- Broker evidence for each leveraged product's deposit eligibility; the policy
+  does not establish an API field, deposit amount, or live eligibility result.
+
+The current signal/plan path uses explicit execution instrument IDs; it does not
+automatically select these fallbacks or coordinate both venues. Do not claim
+paired execution until that path is implemented and verified. No new execution
+authority, live order or supervisor start is implied by this policy.
+
+## User-approved risk units (requirements, not implemented workflow)
+
+The proposed approval flow is signal -> agent proposal -> user-selected risk units
+-> bounded entry and protective management. These requirements do not authorize
+live orders, change active plans, or implement conversational approval handling.
+
+Confirmed user semantics:
+
+- One risk unit is a planned loss at the fixed stop-loss equal to 1% of the
+  account's defined operating assets, not a purchase notional of 1% of assets.
+  Keep sizing tied to the fixed SL; do not increase quantity merely because a
+  tighter trailing exit might close earlier. Costs and execution uncertainty
+  must be included in the proposal; realized loss is not guaranteed to stay at 1%.
+- "TS starting amount" means position profit required before trailing activation,
+  not an instrument price. The user's selected behavior is immediate activation
+  without a profit or breakeven prerequisite. A trailing exit at a loss is allowed.
+  Do not model this as a zero-profit crossing: it must not wait for fees, spread
+  or an initial adverse move to be recovered before starting.
+- Immediate activation means the earliest supported, verified point in the
+  fill/protection lifecycle, not a claim of atomic entry plus SL plus TS. Preserve
+  fixed SL while TS is being established and after activation under the existing
+  protection policy. Waiting or acknowledged-but-unverified TS is not active coverage.
+
+Operating assets for advisory risk-unit calculations are now specified:
+
+- Hyperliquid: use the existing thousand-USDC flooring convention with the updated
+  multiplier of 10: `floor(portfolio_value_usdc / 1000) * 1000 * 10`. Use a fresh
+  snapshot of the intended account, never pooled main/subaccount equity. The
+  below-1000 guard remains. One unit is 1% of this derived budget, which can
+  approach 10% of unmultiplied account equity; disclose both risk percentages.
+  This is not an instruction to set exchange leverage to 10x or to ignore margin
+  and liquidation constraints.
+- KIS: use the actual selected account's net asset value (cash plus marked holdings,
+  net of liabilities), without a leverage multiplier or thousand-unit flooring.
+  Report account scope, valuation time and currency. Do not double-count domestic
+  and overseas views of the same account; currency conversion requires a fresh,
+  explicit FX basis. Buying power is a separate constraint, not account NAV.
+
+Scheduled advisory briefings must include fixed SL, recommended TS percentage,
+immediate activation with loss exits allowed, per-unit quantity/notional/risk and
+recommended versus maximum permitted units when data and limits support them.
+Missing evidence must appear as an explicit unavailable field, not invented sizing.
+Every scheduled strategy review must also use fresh read-only account state:
+holdings, quantities, average entries, valuation/P&L, cash or margin, pending orders
+and verified protective coverage. Evaluate hold/add/reduce/exit scenarios against
+actual exposure and account-local constraints, not market signals alone. Include
+source time and account scope, and distinguish unavailable evidence from empty
+positions. Never infer active protection from an acknowledgement or local plan.
+This notification requirement does not authorize orders or activate management.
+
+Still unresolved: recommended and maximum unit limits, percentage-trailing
+configuration through the managed path, and the bounded approval/expiry and
+execution-failure contract. The current
+managed trailing path still uses frozen ATR quote distance; low-level percentage
+support does not establish end-to-end managed support. Implementation and tests are
+required before the proposed approval workflow can execute trades.
 
 ## Prepare and submit
 

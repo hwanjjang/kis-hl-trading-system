@@ -145,7 +145,7 @@ class HyperliquidClientTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "trigger_price"):
             client.place_order(
-                symbol="xyz:KR200",
+                symbol="xyz:KORU",
                 side="sell",
                 order_type="stop-market",
                 size=Decimal("1"),
@@ -153,7 +153,7 @@ class HyperliquidClientTests(unittest.TestCase):
             )
         with self.assertRaisesRegex(ValueError, "reduce_only"):
             client.place_order(
-                symbol="xyz:KR200",
+                symbol="xyz:KORU",
                 side="sell",
                 order_type="stop-market",
                 size=Decimal("1"),
@@ -170,7 +170,7 @@ class HyperliquidClientTests(unittest.TestCase):
             )
         )
         submission = client.place_order(
-            symbol="xyz:KR200",
+            symbol="xyz:KORU",
             side="sell",
             order_type="stop-market",
             size=Decimal("1"),
@@ -205,7 +205,7 @@ class HyperliquidClientTests(unittest.TestCase):
         client._require_recent_verification = lambda resolved: None  # type: ignore[method-assign]
 
         submission = client.place_order(
-            symbol="xyz:KR200",
+            symbol="xyz:KORU",
             side="sell",
             order_type="stop-market",
             size=Decimal("0.01"),
@@ -217,7 +217,7 @@ class HyperliquidClientTests(unittest.TestCase):
         self.assertEqual(submission.status, "submitted")
         self.assertEqual(len(fake_exchange.calls), 1)
         call = fake_exchange.calls[0]
-        self.assertEqual(call[0], "xyz:KR200")
+        self.assertEqual(call[0], "xyz:KORU")
         self.assertEqual(call[1], False)
         self.assertEqual(call[2], 0.01)
         self.assertEqual(call[3], 95000.0)
@@ -341,9 +341,10 @@ class HyperliquidClientTests(unittest.TestCase):
         self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("BTCUSDC")))
         self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("BTCUSDC-PERP")))
         self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("xyz:XYZ100")))
-        self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("xyz:KR200")))
+        self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("xyz:KORU")))
         self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("xyz:JP225")))
         self.assertTrue(is_supported_live_asset(resolve_hyperliquid_symbol("xyz:WTIOIL")))
+        self.assertFalse(is_supported_live_asset(resolve_hyperliquid_symbol("xyz:KR200")))
         self.assertFalse(is_supported_live_asset(resolve_hyperliquid_symbol("xyz:EWY")))
         self.assertFalse(is_supported_live_asset(resolve_hyperliquid_symbol("xyz:EWJ")))
 
@@ -377,7 +378,7 @@ class HyperliquidClientTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(RuntimeError, "verification database path"):
             client.place_order(
-                symbol="xyz:KR200",
+                symbol="xyz:KORU",
                 side="buy",
                 order_type="limit",
                 size=Decimal("1"),
@@ -390,12 +391,12 @@ class HyperliquidClientTests(unittest.TestCase):
             db = Path(tmp) / "test.sqlite"
             store_trade_xyz_asset_check(
                 db,
-                trade_symbol="KR200",
-                hyperliquid_coin="xyz:KR200",
+                trade_symbol="KORU",
+                hyperliquid_coin="xyz:KORU",
                 dex="xyz",
                 available=True,
                 last_mid="350",
-                mid_source_key="xyz:KR200",
+                mid_source_key="xyz:KORU",
                 raw={},
             )
             client = HyperliquidTradingClient(
@@ -409,7 +410,7 @@ class HyperliquidClientTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(RuntimeError, "Missing Hyperliquid"):
                 client.place_order(
-                    symbol="xyz:KR200",
+                    symbol="xyz:KORU",
                     side="buy",
                     order_type="limit",
                     size=Decimal("1"),
@@ -503,7 +504,7 @@ class ExchangeSafetyTests(unittest.TestCase):
         c._sdk[1].cancel.assert_called_once_with('BTC', 123)
         with patch.object(c, '_require_recent_verification', side_effect=RuntimeError('stale metadata')):
             with self.assertRaisesRegex(RuntimeError, 'stale metadata'):
-                c.cancel_order(symbol='xyz:KR200', oid=456, dry_run=False)
+                c.cancel_order(symbol='xyz:KORU', oid=456, dry_run=False)
         self.assertEqual(c._sdk[1].cancel.call_count, 1)
 
 

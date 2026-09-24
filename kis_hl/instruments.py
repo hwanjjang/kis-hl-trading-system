@@ -65,6 +65,7 @@ INSTRUMENTS = [
             ("SP500", "S&P500"),
             ("XYZ100", "Nasdaq100"),
             ("GOLD", "gold"),
+            ("KORU", "Direxion Daily MSCI South Korea Bull 3X Shares"),
             ("DRAM", "memory_contract"),
         ]
     ],

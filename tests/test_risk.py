@@ -15,8 +15,18 @@ from kis_hl.risk import (
 
 class RiskTests(unittest.TestCase):
     def test_operating_capital_floors_portfolio_to_thousands_and_applies_multiple(self) -> None:
-        self.assertEqual(calculate_operating_capital(Decimal("2372.90")), Decimal("40000"))
+        self.assertEqual(calculate_operating_capital(Decimal("2372.90")), Decimal("20000"))
         self.assertEqual(calculate_operating_capital(Decimal("999.99")), Decimal("0"))
+        self.assertEqual(calculate_operating_capital(Decimal("1000")), Decimal("10000"))
+
+    def test_default_hl_capital_flows_into_one_unit_risk(self) -> None:
+        size = calculate_position_size(
+            operating_capital_usdc=calculate_operating_capital(Decimal("2372.90")),
+            atr=Decimal("5"), n=Decimal("2"), entry_price=Decimal("100"),
+        )
+        self.assertEqual(size.risk_budget_usdc, Decimal("200"))
+        self.assertEqual(size.amount, Decimal("20"))
+        self.assertEqual(size.entry_notional_usdc, Decimal("2000"))
 
     def test_position_size_uses_one_percent_risk_budget_and_atr_stop_distance(self) -> None:
         size = calculate_position_size(

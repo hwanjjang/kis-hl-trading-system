@@ -214,8 +214,8 @@ Snapshot the live Hyperliquid `xyz` universe, funding history, and top-of-book s
 python -m kis_hl.cli xyz-assets universe-collect
 python -m kis_hl.cli xyz-assets funding-collect --lookback-hours 24 --delay-ms 300
 python -m kis_hl.cli xyz-assets spread-collect --delay-ms 300
-python -m kis_hl.cli xyz-assets funding-collect --symbols SP500 XYZ100 GOLD DRAM KR200 EWY TSM LLY --lookback-hours 168
-python -m kis_hl.cli xyz-assets spread-collect --symbols SP500 XYZ100 GOLD DRAM KR200 EWY TSM LLY
+python -m kis_hl.cli xyz-assets funding-collect --symbols SP500 XYZ100 GOLD DRAM KORU TSM LLY --lookback-hours 168
+python -m kis_hl.cli xyz-assets spread-collect --symbols SP500 XYZ100 GOLD DRAM KORU TSM LLY
 ```
 
 `universe-collect` stores the current Hyperliquid `xyz` market list and reports symbols that are new versus the previous snapshot or the curated seed on the first run. Each universe asset row stores Hyperliquid 24h base volume, 24h notional volume, and open interest when the API provides them. `funding-collect` stores idempotent hourly funding rows in `market_funding_rates`. `spread-collect` stores best bid, best ask, mid price, absolute spread, and spread bps in `market_spread_snapshots`.
@@ -226,10 +226,10 @@ Create or refresh the trade.xyz to KIS quote mapping table, then fetch the mappe
 python -m kis_hl.cli xyz-assets seed-kis
 python -m kis_hl.cli xyz-assets kis-list --status active
 python -m kis_hl.cli xyz-assets kis-fetch --symbol SAMSUNG --store
-python -m kis_hl.cli xyz-assets kis-collect --symbols SAMSUNG KR200 SP500 --delay-ms 300
+python -m kis_hl.cli xyz-assets kis-collect --symbols SAMSUNG KORU SP500 --delay-ms 300
 ```
 
-`kis-fetch` rejects excluded or unsupported mappings. `kis-collect` stores active mappings by default and continues after per-symbol failures unless `--fail-fast` is passed. `KR200` uses the KIS domestic index current-price endpoint. `XYZ100`, `SP500`, and `JP225` use the KIS overseas index intraday chart endpoint. Commodity and FX rows keep their trade.xyz reference symbols in `trade_xyz_kis_mappings`, but remain `unsupported` until exact KIS collection routes are implemented.
+`kis-fetch` rejects excluded or unsupported mappings. `kis-collect` stores active mappings by default and continues after per-symbol failures unless `--fail-fast` is passed. `KORU` uses the existing ETF quote mapper with KIS overseas exchange `AMS` and symbol `KORU`; this does not add a KIS execution instrument. `KR200` retains its domestic index route but is excluded. `XYZ100`, `SP500`, and `JP225` use the KIS overseas index intraday chart endpoint. Commodity and FX rows keep their trade.xyz reference symbols in `trade_xyz_kis_mappings`, but remain `unsupported` until exact KIS collection routes are implemented.
 
 Create or refresh secondary reference-data mappings, then collect Yahoo Finance chart quotes:
 
@@ -332,10 +332,10 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 - Hyperliquid stop-loss trigger orders use `--order-type stop-market`, require `--trigger-price`, and require `--reduce-only`.
 - Submitted reduce-only stop-market orders are recorded in `protective_orders` with trigger price, covered size, request ID, source order submission, and extracted Hyperliquid order ID when present.
 - Funding and spread snapshots are stored for suitability review. They do not yet block live entries automatically.
-- Operating capital is calculated as `floor(portfolio_value_usdc / 1000) * 1000 * 20`. Position sizing uses `ATR(10D) * N` as the stop distance and `1%` of operating capital as per-tranche risk.
+- Operating capital is calculated as `floor(portfolio_value_usdc / 1000) * 1000 * 10`. Position sizing uses `ATR(10D) * N` as the stop distance and `1%` of operating capital as per-tranche risk.
 - Non-IPO assets are excluded from the mapping by default.
 - Stocks listed for less than 30 weeks are excluded from live trading.
-- `KR200` replaces `EWY` for South Korea exposure; `JP225` replaces `EWJ` for Japan exposure.
+- `KORU` (`xyz:KORU`, instrument `hl:xyz:KORU`) is the selected South Korea exposure; `KR200` and `EWY` remain excluded. It references a leveraged ETF, not a KR200/KOSPI200 equivalent, and uses the U.S. cash-equity session. `JP225` remains preferred over `EWJ` for Japan. See `docs/trade_xyz_assets.md`; KORU live acceptance and trailing behavior remain unverified.
 - `WTIOIL` resolves to the Hyperliquid `xyz:CL` market because trade.xyz labels the contract WTIOIL while Hyperliquid exposes the CL key.
 - Normal live entries should follow the underlying market's regular session, not Hyperliquid's broader 24/5 or 24/7 availability. See `docs/trading_hours.md`.
 - Strategy sizing, ATR stops, add-up flow, and websocket execution behavior are documented in `docs/strategy_execution_design.md`.

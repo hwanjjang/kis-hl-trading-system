@@ -25,7 +25,7 @@ The strategy uses an operating notional budget derived from Hyperliquid portfoli
 
 ```text
 portfolio_floor_usdc = floor(portfolio_value_usdc / 1000) * 1000
-operating_capital_usdc = portfolio_floor_usdc * 20
+operating_capital_usdc = portfolio_floor_usdc * 10
 ```
 
 Example:
@@ -33,7 +33,7 @@ Example:
 ```text
 portfolio_value_usdc = 2372.90
 portfolio_floor_usdc = 2000
-operating_capital_usdc = 2000 * 20 = 40000 USDC
+operating_capital_usdc = 2000 * 10 = 20000 USDC
 ```
 
 Rules:
@@ -41,7 +41,7 @@ Rules:
 - If `portfolio_value_usdc < 1000`, the operating capital is `0` and new live entries fail closed.
 - `kis_hl.risk.calculate_operating_capital()` implements this floor-and-multiply rule.
 - Portfolio value must come from a fresh Hyperliquid account state snapshot.
-- The 20x multiplier defines strategy notional budget, not permission to ignore Hyperliquid margin, leverage, or liquidation constraints.
+- The 10x multiplier defines strategy notional budget, not permission to ignore Hyperliquid margin, leverage, or liquidation constraints.
 - Available margin, max leverage, existing exposure, and per-asset caps must be checked before every order.
 
 ## Position Sizing
@@ -60,12 +60,12 @@ The amount is the Hyperliquid base-asset size before lot-size rounding. The fina
 Example:
 
 ```text
-operating_capital_usdc = 40000
-risk_budget_usdc = 400
+operating_capital_usdc = 20000
+risk_budget_usdc = 200
 ATR_10D = 5
 N = 2
 stop_distance = 10
-amount = 400 / 10 = 40 units
+amount = 200 / 10 = 20 base-asset units
 ```
 
 Sizing guards:

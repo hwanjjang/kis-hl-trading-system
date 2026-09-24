@@ -19,8 +19,8 @@ This document records the default session policy for the current tradable asset 
 
 | Session group | Default live-entry window | Current KST conversion during U.S. daylight saving time | Assets |
 | --- | --- | --- | --- |
-| U.S. cash equities | Monday-Friday 09:30-16:00 ET | 22:30-05:00 next calendar day | `SP500`, `XYZ100`, `URNM`, `TSLA`, `NVDA`, `GOOGL`, `INTC`, `MU`, `PLTR`, `ORCL`, `MSTR`, `MSFT`, `META`, `AMZN`, `AMD`, `AAPL`, `COIN`, `HOOD`, `NFLX`, `CRCL`, `SNDK`, `RIVN`, `USAR`, `TSM`, `BABA`, `CRWV`, `DKNG`, `HIMS`, `COST`, `LLY` |
-| KRX cash equities | Monday-Friday 09:00-15:30 KST | 09:00-15:30 KST | `KR200`, `SKHYNIX`, `SAMSUNG`, `HYUNDAI` |
+| U.S. cash equities | Monday-Friday 09:30-16:00 ET | 22:30-05:00 next calendar day | `SP500`, `XYZ100`, `KORU`, `URNM`, `TSLA`, `NVDA`, `GOOGL`, `INTC`, `MU`, `PLTR`, `ORCL`, `MSTR`, `MSFT`, `META`, `AMZN`, `AMD`, `AAPL`, `COIN`, `HOOD`, `NFLX`, `CRCL`, `SNDK`, `RIVN`, `USAR`, `TSM`, `BABA`, `CRWV`, `DKNG`, `HIMS`, `COST`, `LLY` |
+| KRX cash equities | Monday-Friday 09:00-15:30 KST | 09:00-15:30 KST | `SKHYNIX`, `SAMSUNG`, `HYUNDAI` |
 | TSE cash equities | Monday-Friday 09:00-11:30 and 12:30-15:30 JST | 09:00-11:30 and 12:30-15:30 KST | `JP225` |
 | Commodity futures reference | Sunday 18:00 ET-Friday 17:00 ET, with a daily 17:00-18:00 ET maintenance break Monday-Thursday | Monday 07:00-Saturday 06:00 KST, with a daily 06:00-07:00 KST break during U.S. daylight saving time | `BRENTOIL`, `WTIOIL`, `NATGAS`, `COPPER`, `GOLD`, `SILVER`, `PLATINUM`, `PALLADIUM` |
 | FX reference | Sunday 17:00 ET-Friday 17:00 ET | Monday 06:00-Saturday 06:00 KST during U.S. daylight saving time | `EUR`, `JPY` |
@@ -31,7 +31,8 @@ When the U.S. is not observing daylight saving time, U.S. ET based windows shift
 
 - `SP500` and `XYZ100` are index references, not exchange-traded shares. The normal live-entry window should follow the U.S. cash equity session because their cash values are anchored to listed U.S. equities.
 - `JP225` is a Nikkei 225 reference, not an exchange-traded share. The normal live-entry window should follow the Tokyo Stock Exchange cash session.
-- `KR200` should follow the KRX cash equity session.
+- `KORU` references a U.S.-listed leveraged South Korea ETF and follows the U.S. cash equity session, not KRX hours. It is not a KR200/KOSPI200 equivalent.
+- `KR200` retains its KRX session mapping for historical/reference use, but is excluded from live eligibility; session availability does not override that exclusion.
 - `BRENTOIL`, `WTIOIL`, `NATGAS`, and `COPPER` use rolling futures references in the trade.xyz specification.
 - `GOLD`, `SILVER`, `PLATINUM`, and `PALLADIUM` are spot-style trade.xyz references, but the current secondary historical data mapping uses futures proxies. The default guard uses the overlapping CME/COMEX/NYMEX-style weekday futures window until an exact spot-metal session source is implemented.
 - `EUR` and `JPY` are FX spot-style references. They do not have a single exchange session, so the guard should treat weekends as closed and weekdays as open unless a provider outage or special holiday rule is known.
