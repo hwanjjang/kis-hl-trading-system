@@ -251,7 +251,7 @@ python -m kis_hl.cli binance-stream --symbol BTCUSDT --streams book --max-messag
 python -m kis_hl.cli binance-stream --symbol BTCUSDT --streams kline:1h --no-store --max-messages 10
 ```
 
-Read open orders and non-zero positions (signed, read-only), stream order-status events
+Read regular open orders (conditional/algo orders require the order-execution extension) and non-zero positions (signed, read-only), stream order-status events
 through the user data stream into `order_events`, and list what was stored:
 
 ```bash
@@ -410,7 +410,7 @@ Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying
 - Review recent funding and spread data before opening or adding to a trade.xyz position, especially for single-name stocks and newly added markets.
 - Use an approved Hyperliquid API wallet per trading process to avoid nonce collisions.
 - Binance integration is a read-only data plane for now: public market data, signed account/order reads, and websocket order-status events. No `binance-*` command places orders, and there is no `--live` flag for Binance.
-- Binance `listenKey` values are treated like credentials: they are never printed or stored. The user stream requests a fresh key on every reconnect and renews it every 30 minutes.
+- Binance `listenKey` values are treated like credentials: they are never printed or stored. For connection and renewal behavior, see the [Binance stream reference](.agents/skills/binance-api/references/websocket.md).
 - Binance kline intervals do not include `3h`; use `1h` bars or tick-built candles for the 3H strategy.
 
 ## References

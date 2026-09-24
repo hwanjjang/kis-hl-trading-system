@@ -42,8 +42,8 @@ class WebSocketStatus:
     last_error: str | None = None
     last_disconnect_reason: str | None = None
 
-    def is_stale(self, *, now_ms: int, stale_after_ms: int) -> bool:
-        if self.last_message_at_ms is None:
+    def is_stale(self, *, now_ms: int, stale_after_ms: int | None) -> bool:
+        if stale_after_ms is None or self.last_message_at_ms is None:
             return False
         return now_ms - self.last_message_at_ms >= stale_after_ms
 
@@ -59,12 +59,16 @@ class WebSocketTransport(Protocol):
         ...
 
 
+class PermanentWebSocketError(RuntimeError):
+    """An error requiring operator intervention, never an automatic reconnect."""
+
+
 class WebSocketClientTransport:
     def __init__(self, url: str, *, timeout_seconds: float = 10) -> None:
         try:
             import websocket
         except ImportError as exc:
-            raise RuntimeError(
+            raise PermanentWebSocketError(
                 "Install websocket-client before using live websocket streams"
             ) from exc
         self._websocket_module = websocket
@@ -121,7 +125,7 @@ class MaintainedWebSocketClient:
         subscriptions: Iterable[WebSocketSubscription],
         on_message: MessageHandler,
         transport_factory: TransportFactory | None = None,
-        stale_after_ms: int = 15_000,
+        stale_after_ms: int | None = 15_000,
         reconnect_min_delay_ms: int = 1_000,
         reconnect_max_delay_ms: int = 30_000,
         connect_timeout_seconds: float = 10,
@@ -188,12 +192,16 @@ class MaintainedWebSocketClient:
                         ):
                             raise RuntimeError("websocket stream is stale")
                         continue
+                    if raw == "":
+                        raise ConnectionError("websocket peer closed the connection")
                     self.status.last_message_at_ms = self.now_ms()
                     self.on_message(raw, connection)
                     handled_messages += 1
                     if max_messages is not None and handled_messages >= max_messages:
                         self.status.state = "stopped"
                         return self.status
+            except PermanentWebSocketError:
+                raise
             except Exception as exc:
                 self.status.last_error = str(exc)
                 self.status.last_disconnect_reason = str(exc)

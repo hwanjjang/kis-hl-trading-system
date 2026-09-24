@@ -856,11 +856,14 @@ class CliTests(unittest.TestCase):
             self.assertEqual(payload["stored"], 1)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class BinanceCliTests(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(patch.stopall)
+        patch("kis_hl.cli.load_env_file").start()
+        patch.dict("os.environ", {}, clear=True).start()
+
     EXCHANGE_INFO = {
         "serverTime": 1,
         "rateLimits": [{"rateLimitType": "REQUEST_WEIGHT", "limit": 2400}],
@@ -972,8 +975,9 @@ class BinanceCliTests(unittest.TestCase):
 
     def test_binance_stream_rejects_mixed_route_streams(self) -> None:
         stderr = io.StringIO()
-        with contextlib.redirect_stderr(stderr):
-            exit_code, _payload = self._run(["binance-stream", "--streams", "mark,book"])
+        with contextlib.redirect_stderr(stderr), patch("kis_hl.binance.ws._default_transport_factory", side_effect=AssertionError("network forbidden")) as transport:
+            exit_code, _payload = self._run(["binance-stream", "--streams", "mark,book", "--max-reconnects", "0"])
+        transport.assert_not_called()
         self.assertEqual(exit_code, 1)
         self.assertIn("/public", stderr.getvalue())
 
@@ -1008,3 +1012,7 @@ class BinanceCliTests(unittest.TestCase):
             self.assertEqual(listed["count"], 1)
             self.assertEqual(listed["events"][0]["order_id"], "7")
             self.assertEqual(listed["events"][0]["payload"]["e"], "ORDER_TRADE_UPDATE")
+
+
+if __name__ == "__main__":
+    unittest.main()

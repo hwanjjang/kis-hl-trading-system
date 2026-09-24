@@ -46,9 +46,9 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.hyperliquid.client` wraps Hyperliquid public info calls with standard HTTP, including wallet asset state reads for the configured address, and uses `hyperliquid-python-sdk` only for signed trading. This avoids custom signing code.
 
-`kis_hl.binance.client` wraps Binance USDⓈ-M futures REST calls with standard HTTP: public exchange info, mark/index price and funding, top of book, and klines, plus HMAC-SHA256 signed read-only account, position, and order reads. It also owns the `listenKey` lifecycle (create, keepalive, close) for the user data stream. It places no orders.
+`kis_hl.binance.client` wraps Binance USDⓈ-M futures REST calls with standard HTTP: public exchange info, mark/index price and funding, top of book, and klines, plus HMAC-SHA256 signed read-only account, position, and order reads. It exposes user-stream key lifecycle methods; the stream runner owns connection and renewal scheduling. It places no orders.
 
-`kis_hl.binance.ws` provides Binance combined-stream URL building for `markPrice`, `bookTicker`, `kline`, and `aggTrade` (routed to `/public` for `bookTicker`/`depth` and `/market` for the rest), a market stream client over `kis_hl.streaming`, a user data stream client that requests a fresh `listenKey` per connection, renews it every 30 minutes, and reconnects on `listenKeyExpired`, and parsers that turn market frames into `PriceTick`s and `ORDER_TRADE_UPDATE` frames into normalized order events.
+`kis_hl.binance.ws` builds stream URLs, maintains market and private connections, and normalizes market/order frames for storage. Connection routing and key renewal are owned by the [Binance API skill](../.agents/skills/binance-api/SKILL.md#6-websocket). Quiet private streams stay connected; socket failures and expired keys reconnect.
 
 `kis_hl.assets` normalizes user-facing symbols into Hyperliquid L1 names. `BTCUSDC` resolves to `UBTC/USDC` spot, while explicit futures aliases such as `BTCUSDC-PERP`, `BTC-PERP`, and `BTCPERP` resolve to the Hyperliquid `BTC` perp coin. Live spot orders resolve the pair through `spotMeta` to the `@index` order coin. trade.xyz assets resolve to `xyz:ASSET`.
 
@@ -97,6 +97,9 @@ Interactive, code-grounded views generated from repository revision
 - [High-level system architecture](architecture/system-architecture.html)
 - [Live order request sequence](architecture/live-order-sequence.html)
 - [Market data, eligibility, and audit flow](architecture/market-data-flow.html)
+
+Binance views describe the current PR implementation and its explicitly planned extensions:
+
 - [Binance user data stream lifecycle](architecture/binance-user-stream-sequence.html)
 - [Binance trading, market stream, and order event flow](architecture/binance-trading-data-flow.html) (order placement is shown as planned)
 - [Binance order round trip](architecture/binance-order-roundtrip-sequence.html) (planned: guard, signed submit, fill confirmation over the user stream)
@@ -153,7 +156,7 @@ flowchart LR
 - Hyperliquid SDK behavior for spot market orders should be tested with a small live or testnet order before using spot market orders operationally.
 - The trailing worker consumes Hyperliquid allMids through the maintained connection layer. Persistent raw tick tables and unified KIS/Hyperliquid strategy orchestration remain unimplemented.
 - The Binance user data stream parser follows the documented `ORDER_TRADE_UPDATE` schema and unit tests, but has not yet been exercised against a live or demo Binance session. Verify field names on the futures demo environment before relying on stored `order_events` for reconciliation.
-- Binance futures websocket streams are partitioned by route: `/public` serves only the high-frequency `bookTicker`/`depth` streams and `/market` serves `markPrice`, `aggTrade`, `kline`, and the rest (verified live on 2026-09-16). One connection cannot mix the two, so `binance-stream` rejects a mixed request and the operator runs one process per route. The legacy unprefixed `/stream` root still answers but only delivers public-tier streams, which matches Binance's 2026-04-23 migration notice; URL overrides must use the routed roots. A threaded multi-route client is a possible follow-up.
+- For Binance stream routing and protocol constraints, see the [Binance API skill](../.agents/skills/binance-api/SKILL.md). Run separate processes for incompatible stream groups.
 
 ## Trailing management components
 
@@ -258,3 +261,9 @@ design. The first implementation uses validated dataset payloads in a shared
 fact table rather than every proposed physical table. The actual supported
 adapters, precision/coverage limits, rollout, persistence and maintenance commands
 are documented in [unified data operations](unified-data-operations.md).
+
+### Binance integration boundaries
+
+Binance tick capture deliberately uses the legacy `market_ticks` table. It is not an input to the canonical `data`/`market` analysis plane; that cutover requires instrument registration and an ingestion contract. Captured normalized tick payloads retain the original frame under `frame`.
+
+Use separate `--db` paths for each Binance environment and key profile: legacy ticks and order events have no account/environment columns. Streams are observational, with no replay or REST gap reconciliation. Per-tick synchronous SQLite writes can lag high-volume streams; use `--no-store` for observation until a bounded buffered writer is implemented. Storage failures and reconnects can leave gaps. These tables must not serve as authoritative protection or position state.

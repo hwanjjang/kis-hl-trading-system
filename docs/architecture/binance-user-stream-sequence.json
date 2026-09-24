@@ -13,7 +13,7 @@
     "views": [
       {
         "id": "connect",
-        "label": "Connect with a fresh listenKey",
+        "label": "Connect with a listenKey",
         "focus": [
           "cli",
           "user_ws",
@@ -21,7 +21,7 @@
           "binance_rest",
           "binance_ws"
         ],
-        "note": "Every connection attempt requests its own listenKey before opening the socket."
+        "note": "Every connection attempt requests an account listenKey before opening the socket."
       },
       {
         "id": "persist",
@@ -42,7 +42,7 @@
           "binance_rest",
           "binance_ws"
         ],
-        "note": "Idle ticks renew the key; an expiry event forces a reconnect that mints a new key."
+        "note": "Quiet streams stay connected; renewals retry transient errors and expiry reconnects."
       }
     ]
   },

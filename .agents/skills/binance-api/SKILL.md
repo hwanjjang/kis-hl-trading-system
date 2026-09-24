@@ -81,6 +81,8 @@ Full path table and response keys: `references/rest-endpoints.md`.
 `agg_trade_stream`, `stream_route`, `market_stream_url`, `user_stream_url`, `BinanceMarketStreamClient`,
 `BinanceUserStreamClient`, `parse_market_ticks`, `parse_order_event`, `order_event_to_row`.
 
+Private-stream silence is not stale. Transient renewal failures retry after one minute; expiry or a 55-minute renewal deadline reconnects. Authentication/ban/rate-limit failures exit for operator intervention. The runner does not close an account-shared key on disconnect.
+
 Storage: market frames go to `market_ticks` with `source=binance`, `market=usdm_futures`;
 order events go to `order_events` with `venue=binance`.
 
@@ -126,8 +128,8 @@ Codes and messages: `references/limits-and-errors.md`.
   `{"stream": ..., "data": {...}}`. Stream names are lowercase symbols. One connection per
   route tier. This repo uses the URL form only, so a reconnect needs no subscription replay.
 - User data: `POST /fapi/v1/listenKey` → connect `wss://.../private/ws/<listenKey>`.
-  The key is valid 60 minutes; `PUT` extends it. `BinanceUserStreamClient` requests a fresh
-  key on every (re)connect, renews every 30 minutes on idle ticks, and raises on
+  The key is valid 60 minutes; `PUT` extends it. `BinanceUserStreamClient` requests a
+  key on every (re)connect (possibly the existing account key), renews every 30 minutes on idle or message ticks, and raises on
   `listenKeyExpired` so the maintained runner reconnects.
 - Events: `ORDER_TRADE_UPDATE` (order/fill state), `ACCOUNT_UPDATE` (balances and
   positions), `MARGIN_CALL`, `listenKeyExpired`, `ALGO_UPDATE` (conditional orders).

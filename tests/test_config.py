@@ -47,8 +47,6 @@ class ConfigTests(unittest.TestCase):
                 self.assertEqual(os.environ["K"], "existing")
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class BinanceConfigTests(unittest.TestCase):
@@ -117,3 +115,7 @@ class BinanceConfigTests(unittest.TestCase):
         # Compare emptiness only so a failure never prints a real credential.
         self.assertFalse(config.api_key)
         self.assertFalse(config.api_secret)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,80 @@
+{
+  "candidate": "9135e15f4ef411cc286557dad0fa7f91e881eca30f7b4975c238725a2f9acc6d",
+  "sources": [
+    {
+      "kind": "candidate-source",
+      "path": ".agents/skills/binance-api/SKILL.md",
+      "sha256": "afd99d8bbedfbb093e754de665b3ac40eaa5a84d4ba1e70d6e92aa2ee52ea1a5"
+    },
+    {
+      "kind": "candidate-source",
+      "path": ".agents/skills/binance-api/references/limits-and-errors.md",
+      "sha256": "621a6c8d7baa77ab7f3d545af0711a7576afe653defb64475adcd5b38acff9e8"
+    },
+    {
+      "kind": "candidate-source",
+      "path": ".agents/skills/binance-api/references/websocket.md",
+      "sha256": "254238580a507005a6d81cb75da38dff601a39802a678b5d5356c2ac272494ee"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "README.md",
+      "sha256": "92e7305f427175995d758299811f5ba47d9670131a125a4fee93155a895b9758"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture.md",
+      "sha256": "0a6a2556a16a405cc3505b9b8c623d899085f84347c0d5a120d5f7f2922b4515"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/binance-user-stream-sequence.html",
+      "sha256": "a1344f2fa2fc9e72c90a2d774c101ba281079b8ba0a99369d19ca4b4c731aa90"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/architecture/binance-user-stream-sequence.json",
+      "sha256": "152721bfe58eca95bde0a77009112f9420fdb8048dbd9aca8fa519d5811097af"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "docs/unified-data-operations.md",
+      "sha256": "615c0c007c3d82ad97fc2911548935cba442908cbabffa2670d3180469ebfc87"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/binance/client.py",
+      "sha256": "67a554de94a23a6a8413518d64599ec5073347edcfd4aaca2d7c736fc1d1c75b"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/binance/ws.py",
+      "sha256": "6f51c4cf3452a8fb2ea2aaabbd748a966f582b750c51531b073488cd85736e40"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/config.py",
+      "sha256": "43ea8022e37d848977c7bfae380bb450a60c60d992e394f748e6e63fcec17ced"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "kis_hl/streaming.py",
+      "sha256": "552dd6c21a8cfb377d973ab9ad5d748a09c75551c148f05a64879b443cc3206f"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_cli.py",
+      "sha256": "017d26a85db9e9f0865060540d4b7508e8d2bb089ceaac89379b7cc1ff13b05e"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_config.py",
+      "sha256": "11fb3e5f695fe5714b4c328aa3c00c482cc2400c7feb5a7ec4dea491a2757b8c"
+    },
+    {
+      "kind": "candidate-source",
+      "path": "tests/test_binance_review_regressions.py",
+      "sha256": "be07f6f0cec406fdefa671a80e1937820a7c2ab8af9ae005b2aeeb03d6095db6"
+    }
+  ]
+}

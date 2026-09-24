@@ -37,8 +37,9 @@ confirmed failure.
 | -2018 / -2019 | balance / margin insufficient |
 | -2021 | order would immediately trigger |
 | -2022 | reduce-only rejected |
-| -4003 / -4004 / -4005 | quantity below minimum / above maximum / step size violated |
+| -4003 / -4004 / -4005 | negative quantity / quantity below minimum / quantity above maximum |
 | -4013 / -4014 | price below minimum / not multiple of tick size |
+| -4023 | quantity not a multiple of step size |
 | -4028 | leverage not valid |
 | -4131 | counterparty best price does not meet PERCENT_PRICE |
 | -4164 | order notional below MIN_NOTIONAL |
