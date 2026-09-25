@@ -46,7 +46,7 @@ class SignalsTests(unittest.TestCase):
             "s1", "scope", plan(), live=False, manual=True, now_ms=3
         )
         first["state"] = "CLOSED"
-        self.store.save(first)
+        self.store.save(first, 0)
         again = self.signals.execute(
             "s1", "scope", plan(), live=False, manual=True, now_ms=4
         )

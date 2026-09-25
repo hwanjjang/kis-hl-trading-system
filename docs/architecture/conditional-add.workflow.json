@@ -189,7 +189,7 @@
       "id": "closed-retire",
       "from": "closed",
       "to": "retire",
-      "label": "terminal cleanup",
+      "label": "same transaction",
       "role": "branch"
     }
   ],

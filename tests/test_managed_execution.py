@@ -170,7 +170,7 @@ class ManagedExecutionTests(unittest.TestCase):
                 self.assertEqual(self.g.sent, [])
                 current = self.store.get(row["id"])
                 current["state"] = "REJECTED"
-                self.store.save(current)
+                self.store.save(current, 0)
                 self.g.preflight = original
 
     def test_partial_fill_receives_actual_native_stop(self):
@@ -270,7 +270,7 @@ class ManagedExecutionTests(unittest.TestCase):
         self.g.native_sl = False
         p = self.store.get(row["id"])
         p["plan"]["allow_local_sl"] = False
-        self.store.save(p)
+        self.store.save(p, 0)
         self.worker.step(row["id"], 20)
         self.worker.step(row["id"], 6000)
         self.assertNotIn("exit", [a["kind"] for a in self.g.sent])
@@ -328,7 +328,7 @@ class ManagedExecutionTests(unittest.TestCase):
     def test_restart_before_attempt_rechecks_preflight_and_expiry(self):
         row = self.queue()
         row["state"] = "ENTERING"
-        self.store.save(row)
+        self.store.save(row, 0)
         self.worker.step(row["id"], 1000001)
         self.assertEqual(self.g.sent, [])
         self.assertEqual(self.store.get(row["id"])["state"], "INTERVENTION")
@@ -342,7 +342,7 @@ class ManagedExecutionTests(unittest.TestCase):
         self.worker.step(row["id"], 30)
         current = self.store.get(row["id"])
         current["state"] = "INTERVENTION"
-        self.store.save(current)
+        self.store.save(current, 0)
         self.g.size = "0"
         self.worker.step(row["id"], 100)
         self.worker.step(row["id"], 110)
@@ -384,7 +384,7 @@ class ManagedExecutionTests(unittest.TestCase):
         self.g.orders["unrelated"] = {"status": "open"}
         saved = self.store.get(row["id"])
         saved.update(state="INTERVENTION", reason="Exit deadline exhausted")
-        self.store.save(saved)
+        self.store.save(saved, 0)
         self.g.size = "0"  # A verified manual close, not the resting managed exit.
         result = self.worker.step(row["id"], 100000)
         self.assertEqual(result["state"], "CLEANUP")

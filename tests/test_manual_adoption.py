@@ -211,7 +211,7 @@ class ManualAdoptionTests(unittest.TestCase):
         self.assertEqual(self.store.get(row["id"])["state"],"ADOPTING")
         with self.store.connect() as db: db.execute("DROP TRIGGER fail_import")
         self.step(row)
-        original=self.store.get(row["id"]);original["state"]="CLOSED";self.store.save(original)
+        original=self.store.get(row["id"]);original["state"]="CLOSED";self.store.save(original, 0)
         second=self.queue(intent_id="second")
         self.assertEqual(self.step(second)["state"],"INTERVENTION")
         self.assertEqual(self.store.attempts(second["id"]),[])
@@ -270,7 +270,7 @@ class ConcurrentBackupTests(unittest.TestCase):
 
     def test_historical_native_without_backup_field_keeps_prior_policy(self):
         c,row=self.fixture()
-        saved=c.store.get(row["id"]);saved["plan"].pop("local_trailing_backup",None);c.store.save(saved)
+        saved=c.store.get(row["id"]);saved["plan"].pop("local_trailing_backup",None);c.store.save(saved, 0)
         result=c.worker.step(row["id"],5)
         self.assertIsNone(result["exit_requested_ms"])
         self.assertEqual(len(c.g.sent),3)

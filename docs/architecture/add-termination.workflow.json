@@ -13,7 +13,7 @@
     },
     {
       "id": "owner",
-      "label": "Terminal Position Owner"
+      "label": "Position Owner"
     },
     {
       "id": "ledger",
@@ -79,7 +79,7 @@
       "col": 0,
       "type": "database",
       "label": "Owner Finished",
-      "sublabel": "CLOSED / REJECTED / PREVIEWED",
+      "sublabel": "terminal save; same transaction",
       "width": 170
     },
     {
@@ -96,8 +96,17 @@
       "lane": "owner",
       "col": 3,
       "type": "database",
-      "label": "CANCELED",
+      "label": "CANCELED / EXPIRED",
       "sublabel": "no matching attempt only",
+      "width": 170
+    },
+    {
+      "id": "expired",
+      "lane": "ledger",
+      "col": 0,
+      "type": "security",
+      "label": "Approval Expired",
+      "sublabel": "add not evaluated this tick",
       "width": 170
     },
     {
@@ -137,6 +146,13 @@
       "to": "queued"
     },
     {
+      "id": "expired-queued",
+      "from": "expired",
+      "to": "queued",
+      "label": "expired",
+      "role": "branch"
+    },
+    {
       "id": "queued-retire",
       "from": "queued",
       "to": "retire",
@@ -161,10 +177,11 @@
     },
     {
       "dot": "cyan",
-      "title": "Terminal repair stays local",
+      "title": "Retirement stays local and bounded",
       "items": [
-        "Supervisor repairs already-finished owners; status remains read-only",
-        "Retirement updates only unsent QUEUED rows; no signed mutation"
+        "Terminal save and unsent-add retirement commit together",
+        "Expired unsent approvals retire when the add was not evaluated this tick",
+        "No QUEUED row: no extra retirement transaction; status is read-only"
       ]
     }
   ]
