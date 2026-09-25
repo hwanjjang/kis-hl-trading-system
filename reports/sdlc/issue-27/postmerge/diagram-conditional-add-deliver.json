@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/docs/architecture/conditional-add.workflow.json",
+  "output": "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/docs/architecture/conditional-add.html",
+  "specification": {
+    "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed",
+    "bytes": 4527
+  },
+  "artifact": {
+    "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca",
+    "bytes": 810564
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

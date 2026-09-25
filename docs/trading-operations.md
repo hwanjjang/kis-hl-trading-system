@@ -659,6 +659,16 @@ and manage any exposure in HTS or the exchange UI. Keep the intent reserved and
 do not edit SQLite to retry it. An audited broker-evidence binding workflow is
 still required before relying on unattended KIS entries after ambiguous acknowledgments.
 
+Each entry/add attempt owns its durable `cancel_started_ms`. Its cancellation
+deadline and retry cap survive restarts and cannot be consumed by an earlier
+order's cancellation cycle. Legacy attempts recover their budget from cancellations
+of the same native target; an older owner timestamp is used only when it falls
+between that target's creation and a matching historical cancellation. Unmatched
+owner timestamps never start a new add's budget. Unknown targets and exhausted
+budgets still require intervention; an unknown cancellation is not blindly retried.
+Cancellation acknowledgement alone is not terminal evidence. Reconcile actual
+fills and preserve/extend verified fixed SL while waiting for order readback.
+
 Every scheduled collection attempt, including incomplete coverage or an API
 failure, advances the next scheduled attempt by the configured interval. It does
 not advance successful coverage or fabricate journal completion. `journal status`
@@ -820,6 +830,15 @@ An owner can be `PROTECTED` for its last reconciled exposure while an add is
 associated order/fill readback. Displaying uncertainty does not change owner state
 or stop its SL/TS loop. A durable signed attempt is never resent, including after
 restart, and remains subject to the existing reconciliation/recovery limits.
+
+When the owner reaches `CLOSED`, `REJECTED` or `PREVIEWED`, the store retires only
+`QUEUED` tranches with no matching durable attempt. They become `CANCELED` with an
+owner-state reason and `retired_ms`; approval/sizing history stays intact. A normal
+supervisor tick also repairs already-finished legacy owners or a crash between
+terminal save and retirement. Status commands remain read-only. Any durable attempt,
+including `UNKNOWN`, prevents this unsent cleanup; it is not evidence that a signed
+order was canceled or never transmitted. See the [cancellation and retirement
+flow](architecture/add-termination.html) for these separate lifecycle boundaries.
 
 Partial add fills receive incremental fixed-SL coverage at the confirmed fixed
 stop. The owner keeps its ATR and local watermark; the local TS always targets the

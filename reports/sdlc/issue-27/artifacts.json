@@ -367,6 +367,146 @@
       "iteration": 4,
       "decision": "PROCEED",
       "reason": "Both recommendations met; main210tests and independent203+15 PASS; ready for existing PR publication without merge/live authority"
+    },
+    {
+      "at": "2026-09-25T05:26:20.232758+00:00",
+      "action": "iteration-started",
+      "stage": "intent",
+      "iteration": 2
+    },
+    {
+      "at": "2026-09-25T05:26:20.338456+00:00",
+      "action": "iteration-finished",
+      "stage": "intent",
+      "iteration": 2,
+      "decision": "PROCEED",
+      "reason": "Explicit correction and reviewer/diagram authority recorded without new trading or merge scope"
+    },
+    {
+      "at": "2026-09-25T05:26:20.447481+00:00",
+      "action": "iteration-started",
+      "stage": "investigation",
+      "iteration": 2
+    },
+    {
+      "at": "2026-09-25T05:26:20.563977+00:00",
+      "action": "iteration-finished",
+      "stage": "investigation",
+      "iteration": 2,
+      "decision": "PROCEED",
+      "reason": "Both defects reproduced with existing stub/SQLite fixtures; fixes bounded to supervisor lifecycle/storage metadata"
+    },
+    {
+      "at": "2026-09-25T05:26:20.673321+00:00",
+      "action": "iteration-started",
+      "stage": "spec",
+      "iteration": 2
+    },
+    {
+      "at": "2026-09-25T05:26:20.789091+00:00",
+      "action": "iteration-finished",
+      "stage": "spec",
+      "iteration": 2,
+      "decision": "PROCEED",
+      "reason": "Concrete compatibility and safety boundaries defined for the two lifecycle corrections"
+    },
+    {
+      "at": "2026-09-25T05:26:20.906230+00:00",
+      "action": "iteration-started",
+      "stage": "design",
+      "iteration": 2
+    },
+    {
+      "at": "2026-09-25T05:28:46.390215+00:00",
+      "action": "iteration-finished",
+      "stage": "design",
+      "iteration": 2,
+      "decision": "PROCEED",
+      "reason": "Updated overview and new cancellation/retirement flow pass9/9showcase and browser/perceptual checks; final source alignment required at verification"
+    },
+    {
+      "at": "2026-09-25T05:28:46.499364+00:00",
+      "action": "iteration-started",
+      "stage": "plan",
+      "iteration": 2
+    },
+    {
+      "at": "2026-09-25T05:28:46.635537+00:00",
+      "action": "iteration-finished",
+      "stage": "plan",
+      "iteration": 2,
+      "decision": "PROCEED",
+      "reason": "Minimal storage metadata and supervisor hooks planned with bounded regression/smoke/review and no new trading authority"
+    },
+    {
+      "at": "2026-09-25T05:28:46.758913+00:00",
+      "action": "iteration-started",
+      "stage": "test-design",
+      "iteration": 2
+    },
+    {
+      "at": "2026-09-25T05:28:46.914678+00:00",
+      "action": "iteration-finished",
+      "stage": "test-design",
+      "iteration": 2,
+      "decision": "PROCEED",
+      "reason": "Observable regression and separate runtime smoke boundaries defined using existing offline fixtures"
+    },
+    {
+      "at": "2026-09-25T05:28:47.050931+00:00",
+      "action": "iteration-started",
+      "stage": "build",
+      "iteration": 6
+    },
+    {
+      "at": "2026-09-25T05:44:15.870906+00:00",
+      "action": "iteration-finished",
+      "stage": "build",
+      "iteration": 6,
+      "decision": "PROCEED",
+      "reason": "Per-target cancel budgets and terminal unsent retirement implemented; final source and diagrams verified locally"
+    },
+    {
+      "at": "2026-09-25T05:44:16.044255+00:00",
+      "action": "iteration-started",
+      "stage": "self-verification",
+      "iteration": 6
+    },
+    {
+      "at": "2026-09-25T05:44:16.238858+00:00",
+      "action": "iteration-finished",
+      "stage": "self-verification",
+      "iteration": 6,
+      "decision": "PROCEED",
+      "reason": "Final221tests,lifecycle11,distinct expanded smoke and diagram/source alignment PASS"
+    },
+    {
+      "at": "2026-09-25T05:44:16.431970+00:00",
+      "action": "iteration-started",
+      "stage": "independent-verification",
+      "iteration": 5
+    },
+    {
+      "at": "2026-09-25T06:06:21.235362+00:00",
+      "action": "iteration-finished",
+      "stage": "independent-verification",
+      "iteration": 5,
+      "decision": "PROCEED",
+      "reason": "Grok4.7/high/auto independently passed221tests,11focusedtests,10probes and offline CLI smoke; no findings"
+    },
+    {
+      "at": "2026-09-25T06:06:21.632259+00:00",
+      "action": "iteration-started",
+      "stage": "completion",
+      "iteration": 5
+    },
+    {
+      "at": "2026-09-25T06:06:21.859063+00:00",
+      "action": "iteration-finished",
+      "stage": "completion",
+      "iteration": 5,
+      "decision": "PROCEED",
+      "reason": "Verified local candidate complete; actual PR publication and exact-head Grok review follow separately"
     }
   ],
   "stages": {
@@ -417,9 +557,9 @@
     "intent": {
       "applicable": true,
       "status": "complete",
-      "reason": "Current deliverable assessed against issue 27 and local authority; evidence supports the next stage",
+      "reason": "Explicit correction and reviewer/diagram authority recorded without new trading or merge scope",
       "iteration_limit": 10,
-      "iterations_started": 1,
+      "iterations_started": 2,
       "history": [
         {
           "iteration": 1,
@@ -467,15 +607,62 @@
               ]
             }
           }
+        },
+        {
+          "iteration": 2,
+          "started_at": "2026-09-25T05:26:20.232694+00:00",
+          "objective": "Amend existing issue27 scope for two post-merge lifecycle defects and explicit Grok/high/auto reviewer",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/issue-27/triage.md",
+              "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+            }
+          ],
+          "finished_at": "2026-09-25T05:26:20.338428+00:00",
+          "receipt": {
+            "iteration": 2,
+            "decision": "PROCEED",
+            "reason": "Explicit correction and reviewer/diagram authority recorded without new trading or merge scope",
+            "authority_source": "AK requested defect comment, SDLC implementation, diagrams and Grok4.7/high/auto review; follow-up PR scope, no merge/live",
+            "candidate": "4b558e0-postmerge-design",
+            "next_action": "Continue bounded lifecycle correction under the explicit reviewer override",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/issue-27/triage.md",
+                "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "intent",
+                "path": "intent/issue-27.md",
+                "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Explicit correction and reviewer/diagram authority recorded without new trading or merge scope",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4",
+                "AC5"
+              ]
+            }
+          }
         }
       ]
     },
     "investigation": {
       "applicable": true,
       "status": "complete",
-      "reason": "Current deliverable assessed against issue 27 and local authority; evidence supports the next stage",
+      "reason": "Both defects reproduced with existing stub/SQLite fixtures; fixes bounded to supervisor lifecycle/storage metadata",
       "iteration_limit": 10,
-      "iterations_started": 1,
+      "iterations_started": 2,
       "history": [
         {
           "iteration": 1,
@@ -533,15 +720,72 @@
               ]
             }
           }
+        },
+        {
+          "iteration": 2,
+          "started_at": "2026-09-25T05:26:20.447435+00:00",
+          "objective": "Assess reproduced cancellation clock reuse and terminal-owner queued tranche leak",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/issue-27/triage.md",
+              "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/issue-27.md",
+              "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+            }
+          ],
+          "finished_at": "2026-09-25T05:26:20.563937+00:00",
+          "receipt": {
+            "iteration": 2,
+            "decision": "PROCEED",
+            "reason": "Both defects reproduced with existing stub/SQLite fixtures; fixes bounded to supervisor lifecycle/storage metadata",
+            "authority_source": "AK requested defect comment, SDLC implementation, diagrams and Grok4.7/high/auto review; follow-up PR scope, no merge/live",
+            "candidate": "4b558e0-postmerge-design",
+            "next_action": "Continue bounded lifecycle correction under the explicit reviewer override",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/issue-27/triage.md",
+                "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/issue-27.md",
+                "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+                "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Both defects reproduced with existing stub/SQLite fixtures; fixes bounded to supervisor lifecycle/storage metadata",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4",
+                "AC5"
+              ]
+            }
+          }
         }
       ]
     },
     "spec": {
       "applicable": true,
       "status": "complete",
-      "reason": "Current deliverable assessed against issue 27 and local authority; evidence supports the next stage",
+      "reason": "Concrete compatibility and safety boundaries defined for the two lifecycle corrections",
       "iteration_limit": 10,
-      "iterations_started": 1,
+      "iterations_started": 2,
       "history": [
         {
           "iteration": 1,
@@ -609,15 +853,82 @@
               ]
             }
           }
+        },
+        {
+          "iteration": 2,
+          "started_at": "2026-09-25T05:26:20.673286+00:00",
+          "objective": "Specify per-order cancellation clocks, legacy budget recovery and terminal unsent-add cleanup",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/issue-27/triage.md",
+              "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/issue-27.md",
+              "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+              "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+            }
+          ],
+          "finished_at": "2026-09-25T05:26:20.789042+00:00",
+          "receipt": {
+            "iteration": 2,
+            "decision": "PROCEED",
+            "reason": "Concrete compatibility and safety boundaries defined for the two lifecycle corrections",
+            "authority_source": "AK requested defect comment, SDLC implementation, diagrams and Grok4.7/high/auto review; follow-up PR scope, no merge/live",
+            "candidate": "4b558e0-postmerge-design",
+            "next_action": "Continue bounded lifecycle correction under the explicit reviewer override",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/issue-27/triage.md",
+                "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/issue-27.md",
+                "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+                "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "spec",
+                "path": "specs/issue-27.md",
+                "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Concrete compatibility and safety boundaries defined for the two lifecycle corrections",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4",
+                "AC5"
+              ]
+            }
+          }
         }
       ]
     },
     "design": {
       "applicable": true,
       "status": "complete",
-      "reason": "Current deliverable assessed against issue 27 and local authority; evidence supports the next stage",
+      "reason": "Updated overview and new cancellation/retirement flow pass9/9showcase and browser/perceptual checks; final source alignment required at verification",
       "iteration_limit": 10,
-      "iterations_started": 1,
+      "iterations_started": 2,
       "history": [
         {
           "iteration": 1,
@@ -715,15 +1026,117 @@
               ]
             }
           }
+        },
+        {
+          "iteration": 2,
+          "started_at": "2026-09-25T05:26:20.906188+00:00",
+          "objective": "Update overview and create focused cancellation/retirement diagram with Archify artifact/browser/perceptual evidence",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/issue-27/triage.md",
+              "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/issue-27.md",
+              "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+              "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/issue-27.md",
+              "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+            }
+          ],
+          "finished_at": "2026-09-25T05:28:46.390128+00:00",
+          "receipt": {
+            "iteration": 2,
+            "decision": "PROCEED",
+            "reason": "Updated overview and new cancellation/retirement flow pass9/9showcase and browser/perceptual checks; final source alignment required at verification",
+            "authority_source": "AK requested defect comment, SDLC implementation, diagrams and Grok4.7/high/auto review; follow-up PR scope, no merge/live",
+            "candidate": "4b558e0-postmerge-design",
+            "next_action": "Continue bounded lifecycle correction under the explicit reviewer override",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/issue-27/triage.md",
+                "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/issue-27.md",
+                "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+                "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/issue-27.md",
+                "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/add-termination.workflow.json",
+                "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/add-termination.html",
+                "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-handoff.json",
+                "sha256": "68649f3f55f89f474892f344cb35ebf3273995e675ec96c4132e86ca94d6ebea"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-review.md",
+                "sha256": "a989eca8d9bce0db6c4c0d44b83c3bfed904256c338bc37ab4bc65782af01d3a"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Updated overview and new cancellation/retirement flow pass9/9showcase and browser/perceptual checks; final source alignment required at verification",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4",
+                "AC5"
+              ]
+            }
+          }
         }
       ]
     },
     "plan": {
       "applicable": true,
       "status": "complete",
-      "reason": "Current deliverable assessed against issue 27 and local authority; evidence supports the next stage",
+      "reason": "Minimal storage metadata and supervisor hooks planned with bounded regression/smoke/review and no new trading authority",
       "iteration_limit": 10,
-      "iterations_started": 1,
+      "iterations_started": 2,
       "history": [
         {
           "iteration": 1,
@@ -851,15 +1264,152 @@
               ]
             }
           }
+        },
+        {
+          "iteration": 2,
+          "started_at": "2026-09-25T05:28:46.499307+00:00",
+          "objective": "Plan bounded fixes, tests, smoke, diagrams and requested Grok review",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/issue-27/triage.md",
+              "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/issue-27.md",
+              "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+              "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/issue-27.md",
+              "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/add-termination.workflow.json",
+              "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/add-termination.html",
+              "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/issue-27/postmerge/diagram-handoff.json",
+              "sha256": "68649f3f55f89f474892f344cb35ebf3273995e675ec96c4132e86ca94d6ebea"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/issue-27/postmerge/diagram-review.md",
+              "sha256": "a989eca8d9bce0db6c4c0d44b83c3bfed904256c338bc37ab4bc65782af01d3a"
+            }
+          ],
+          "finished_at": "2026-09-25T05:28:46.635493+00:00",
+          "receipt": {
+            "iteration": 2,
+            "decision": "PROCEED",
+            "reason": "Minimal storage metadata and supervisor hooks planned with bounded regression/smoke/review and no new trading authority",
+            "authority_source": "AK requested defect comment, SDLC implementation, diagrams and Grok4.7/high/auto review; follow-up PR scope, no merge/live",
+            "candidate": "4b558e0-postmerge-design",
+            "next_action": "Continue bounded lifecycle correction under the explicit reviewer override",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/issue-27/triage.md",
+                "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/issue-27.md",
+                "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+                "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/issue-27.md",
+                "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/add-termination.workflow.json",
+                "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/add-termination.html",
+                "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-handoff.json",
+                "sha256": "68649f3f55f89f474892f344cb35ebf3273995e675ec96c4132e86ca94d6ebea"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-review.md",
+                "sha256": "a989eca8d9bce0db6c4c0d44b83c3bfed904256c338bc37ab4bc65782af01d3a"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "plan",
+                "path": "plans/issue-27.md",
+                "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Minimal storage metadata and supervisor hooks planned with bounded regression/smoke/review and no new trading authority",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4",
+                "AC5"
+              ]
+            }
+          }
         }
       ]
     },
     "test-design": {
       "applicable": true,
       "status": "complete",
-      "reason": "Current deliverable assessed against issue 27 and local authority; evidence supports the next stage",
+      "reason": "Observable regression and separate runtime smoke boundaries defined using existing offline fixtures",
       "iteration_limit": 10,
-      "iterations_started": 1,
+      "iterations_started": 2,
       "history": [
         {
           "iteration": 1,
@@ -997,15 +1547,162 @@
               ]
             }
           }
+        },
+        {
+          "iteration": 2,
+          "started_at": "2026-09-25T05:28:46.758861+00:00",
+          "objective": "Specify failing lifecycle regressions and distinct CLI/SQLite smoke before implementation",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/issue-27/triage.md",
+              "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/issue-27.md",
+              "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+              "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/issue-27.md",
+              "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/add-termination.workflow.json",
+              "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/add-termination.html",
+              "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/issue-27/postmerge/diagram-handoff.json",
+              "sha256": "68649f3f55f89f474892f344cb35ebf3273995e675ec96c4132e86ca94d6ebea"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/issue-27/postmerge/diagram-review.md",
+              "sha256": "a989eca8d9bce0db6c4c0d44b83c3bfed904256c338bc37ab4bc65782af01d3a"
+            },
+            {
+              "kind": "plan",
+              "path": "plans/issue-27.md",
+              "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+            }
+          ],
+          "finished_at": "2026-09-25T05:28:46.914627+00:00",
+          "receipt": {
+            "iteration": 2,
+            "decision": "PROCEED",
+            "reason": "Observable regression and separate runtime smoke boundaries defined using existing offline fixtures",
+            "authority_source": "AK requested defect comment, SDLC implementation, diagrams and Grok4.7/high/auto review; follow-up PR scope, no merge/live",
+            "candidate": "4b558e0-postmerge-design",
+            "next_action": "Continue bounded lifecycle correction under the explicit reviewer override",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/issue-27/triage.md",
+                "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/issue-27.md",
+                "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+                "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/issue-27.md",
+                "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/add-termination.workflow.json",
+                "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/add-termination.html",
+                "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-handoff.json",
+                "sha256": "68649f3f55f89f474892f344cb35ebf3273995e675ec96c4132e86ca94d6ebea"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-review.md",
+                "sha256": "a989eca8d9bce0db6c4c0d44b83c3bfed904256c338bc37ab4bc65782af01d3a"
+              },
+              {
+                "kind": "plan",
+                "path": "plans/issue-27.md",
+                "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/issue-27/postmerge/test-plan.md",
+                "sha256": "00fe08f537eb8704b2213c107b3c8bf5b80560bb4dc2153b4779b9826e79e4b2"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Observable regression and separate runtime smoke boundaries defined using existing offline fixtures",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4",
+                "AC5"
+              ]
+            }
+          }
         }
       ]
     },
     "build": {
       "applicable": true,
       "status": "complete",
-      "reason": "Both recommendations corrected; final source frozen and retained evidence whitespace normalized",
+      "reason": "Per-target cancel budgets and terminal unsent retirement implemented; final source and diagrams verified locally",
       "iteration_limit": 10,
-      "iterations_started": 5,
+      "iterations_started": 6,
       "history": [
         {
           "iteration": 1,
@@ -2441,15 +3138,354 @@
               ]
             }
           }
+        },
+        {
+          "iteration": 6,
+          "started_at": "2026-09-25T05:28:47.050886+00:00",
+          "objective": "Implement order-specific cancellation clocks and terminal unsent-add retirement under issue27 build iteration6",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/issue-27/triage.md",
+              "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/issue-27.md",
+              "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+              "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/issue-27.md",
+              "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/add-termination.workflow.json",
+              "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/add-termination.html",
+              "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/issue-27/postmerge/diagram-handoff.json",
+              "sha256": "68649f3f55f89f474892f344cb35ebf3273995e675ec96c4132e86ca94d6ebea"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/issue-27/postmerge/diagram-review.md",
+              "sha256": "a989eca8d9bce0db6c4c0d44b83c3bfed904256c338bc37ab4bc65782af01d3a"
+            },
+            {
+              "kind": "plan",
+              "path": "plans/issue-27.md",
+              "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+            },
+            {
+              "kind": "test-plan",
+              "path": "reports/sdlc/issue-27/postmerge/test-plan.md",
+              "sha256": "00fe08f537eb8704b2213c107b3c8bf5b80560bb4dc2153b4779b9826e79e4b2"
+            }
+          ],
+          "finished_at": "2026-09-25T05:44:15.870824+00:00",
+          "receipt": {
+            "iteration": 6,
+            "decision": "PROCEED",
+            "reason": "Per-target cancel budgets and terminal unsent retirement implemented; final source and diagrams verified locally",
+            "authority_source": "AK requested defect comment, SDLC implementation, diagrams and Grok4.7/high/auto review; follow-up PR scope, no merge/live",
+            "candidate": "86c59c56ab890f884849ec863ccb1de7cd4481ac64aa31ce09c7e8d7779f305a",
+            "next_action": "Continue bounded lifecycle correction under the explicit reviewer override",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/issue-27/triage.md",
+                "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/issue-27.md",
+                "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+                "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/issue-27.md",
+                "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/add-termination.workflow.json",
+                "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/add-termination.html",
+                "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-handoff.json",
+                "sha256": "68649f3f55f89f474892f344cb35ebf3273995e675ec96c4132e86ca94d6ebea"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-review.md",
+                "sha256": "a989eca8d9bce0db6c4c0d44b83c3bfed904256c338bc37ab4bc65782af01d3a"
+              },
+              {
+                "kind": "plan",
+                "path": "plans/issue-27.md",
+                "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+              },
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/issue-27/postmerge/test-plan.md",
+                "sha256": "00fe08f537eb8704b2213c107b3c8bf5b80560bb4dc2153b4779b9826e79e4b2"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "build",
+                "path": "reports/sdlc/issue-27/postmerge/build.md",
+                "sha256": "9a0a328ba1971ce9f74c27fc927a2141776b499c6039afad64d2e2033f0ac2f6"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/issue-27/postmerge/changes.diff",
+                "sha256": "fe86de52fe9c3652e0713ec4f956151eb15f202d39f9267510e7d65bee4308e8"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/SKILL.md",
+                "sha256": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/info-endpoint.md",
+                "sha256": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/limits-and-errors.md",
+                "sha256": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/SKILL.md",
+                "sha256": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/references/strategy.md",
+                "sha256": "39502e975d098d7400503a4706dff3ac194901a8038685d1a1b030101fc2b024"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "README.md",
+                "sha256": "08f5c351a7e1316f7ee597c27140e7bacb79444257beb5831576ad5bfecdc034"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture.md",
+                "sha256": "51063de2ddc47933209b2b54d76343a0f91905e1bbf1561c0942227f7a8643aa"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/add-termination.html",
+                "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/add-termination.workflow.json",
+                "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy-tools.md",
+                "sha256": "6ad86947396162a0c9584521ec521349feceaa6d80ce6e9ae2b6be5179fd773d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy_execution_design.md",
+                "sha256": "cdb55819f813042294754f7cbc922331b29cd4cb23694fce5bba57739bbdcaeb"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/trading-operations.md",
+                "sha256": "e5694dc19f059bb07a663de492982418ab4e516c5fddc67628a6811c31de3ea5"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "intent/issue-27.md",
+                "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/account_capital.py",
+                "sha256": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/conditional_add.py",
+                "sha256": "b416d550609ee6126538efbf9c726305e0d3da06d9b365ac7ec9d2f8cdf086cc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/client.py",
+                "sha256": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_execution.py",
+                "sha256": "2d95773800873dbd7f0d8407f1b54762789348ddfb5ed24df929a887775b697f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_gateways.py",
+                "sha256": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/manual_adoption.py",
+                "sha256": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/operations_cli.py",
+                "sha256": "1638cae6bf9a23cd4bbf72b9460f358909b61527f754cd62a01a309035080b9d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_signals.py",
+                "sha256": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_tools.py",
+                "sha256": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "plans/issue-27.md",
+                "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "scripts/smoke_conditional_add.py",
+                "sha256": "5eb13ceae9645576684d69fe4d57327f49c0560507b75b7ce9648cf463a1cd5b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "specs/issue-27.md",
+                "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_add_lifecycle.py",
+                "sha256": "25f1ffbe33f9448649ace5ddf9b655824d69901ea433aecb52061b825017d7dc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_conditional_add.py",
+                "sha256": "872e1d603fca9d1db9744ca134f300f92f82a2c28e22908533662b4568de1e18"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_hyperliquid_client.py",
+                "sha256": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_managed_gateways.py",
+                "sha256": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_manual_adoption.py",
+                "sha256": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_strategy_tools.py",
+                "sha256": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.visual-check.html",
+                "absent": true,
+                "sha256": null
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.visual-check.json",
+                "absent": true,
+                "sha256": null
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Per-target cancel budgets and terminal unsent retirement implemented; final source and diagrams verified locally",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4",
+                "AC5"
+              ]
+            }
+          }
         }
       ]
     },
     "self-verification": {
       "applicable": true,
       "status": "complete",
-      "reason": "Final210tests, focused37, separate CLI smoke and source hashes passed; publication evidence normalized",
+      "reason": "Final221tests,lifecycle11,distinct expanded smoke and diagram/source alignment PASS",
       "iteration_limit": 10,
-      "iterations_started": 5,
+      "iterations_started": 6,
       "history": [
         {
           "iteration": 1,
@@ -4740,15 +5776,576 @@
               ]
             }
           }
+        },
+        {
+          "iteration": 6,
+          "started_at": "2026-09-25T05:44:16.044187+00:00",
+          "objective": "Assess final221tests, lifecycle boundaries, expanded CLI/SQLite smoke and diagram evidence",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/issue-27/triage.md",
+              "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/issue-27.md",
+              "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+              "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/issue-27.md",
+              "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/add-termination.workflow.json",
+              "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/add-termination.html",
+              "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/issue-27/postmerge/diagram-handoff.json",
+              "sha256": "68649f3f55f89f474892f344cb35ebf3273995e675ec96c4132e86ca94d6ebea"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/issue-27/postmerge/diagram-review.md",
+              "sha256": "a989eca8d9bce0db6c4c0d44b83c3bfed904256c338bc37ab4bc65782af01d3a"
+            },
+            {
+              "kind": "plan",
+              "path": "plans/issue-27.md",
+              "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+            },
+            {
+              "kind": "test-plan",
+              "path": "reports/sdlc/issue-27/postmerge/test-plan.md",
+              "sha256": "00fe08f537eb8704b2213c107b3c8bf5b80560bb4dc2153b4779b9826e79e4b2"
+            },
+            {
+              "kind": "build",
+              "path": "reports/sdlc/issue-27/postmerge/build.md",
+              "sha256": "9a0a328ba1971ce9f74c27fc927a2141776b499c6039afad64d2e2033f0ac2f6"
+            },
+            {
+              "kind": "change-record",
+              "path": "reports/sdlc/issue-27/postmerge/changes.diff",
+              "sha256": "fe86de52fe9c3652e0713ec4f956151eb15f202d39f9267510e7d65bee4308e8"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/SKILL.md",
+              "sha256": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/info-endpoint.md",
+              "sha256": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/limits-and-errors.md",
+              "sha256": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/trend-strategy/SKILL.md",
+              "sha256": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/trend-strategy/references/strategy.md",
+              "sha256": "39502e975d098d7400503a4706dff3ac194901a8038685d1a1b030101fc2b024"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "README.md",
+              "sha256": "08f5c351a7e1316f7ee597c27140e7bacb79444257beb5831576ad5bfecdc034"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture.md",
+              "sha256": "51063de2ddc47933209b2b54d76343a0f91905e1bbf1561c0942227f7a8643aa"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/add-termination.html",
+              "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/add-termination.workflow.json",
+              "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/strategy-tools.md",
+              "sha256": "6ad86947396162a0c9584521ec521349feceaa6d80ce6e9ae2b6be5179fd773d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/strategy_execution_design.md",
+              "sha256": "cdb55819f813042294754f7cbc922331b29cd4cb23694fce5bba57739bbdcaeb"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/trading-operations.md",
+              "sha256": "e5694dc19f059bb07a663de492982418ab4e516c5fddc67628a6811c31de3ea5"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "intent/issue-27.md",
+              "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/account_capital.py",
+              "sha256": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/conditional_add.py",
+              "sha256": "b416d550609ee6126538efbf9c726305e0d3da06d9b365ac7ec9d2f8cdf086cc"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/hyperliquid/client.py",
+              "sha256": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_execution.py",
+              "sha256": "2d95773800873dbd7f0d8407f1b54762789348ddfb5ed24df929a887775b697f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_gateways.py",
+              "sha256": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/manual_adoption.py",
+              "sha256": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/operations_cli.py",
+              "sha256": "1638cae6bf9a23cd4bbf72b9460f358909b61527f754cd62a01a309035080b9d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/strategy_signals.py",
+              "sha256": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/strategy_tools.py",
+              "sha256": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "plans/issue-27.md",
+              "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "scripts/smoke_conditional_add.py",
+              "sha256": "5eb13ceae9645576684d69fe4d57327f49c0560507b75b7ce9648cf463a1cd5b"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "specs/issue-27.md",
+              "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_add_lifecycle.py",
+              "sha256": "25f1ffbe33f9448649ace5ddf9b655824d69901ea433aecb52061b825017d7dc"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_conditional_add.py",
+              "sha256": "872e1d603fca9d1db9744ca134f300f92f82a2c28e22908533662b4568de1e18"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_hyperliquid_client.py",
+              "sha256": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_managed_gateways.py",
+              "sha256": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_manual_adoption.py",
+              "sha256": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_strategy_tools.py",
+              "sha256": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.visual-check.html",
+              "absent": true,
+              "sha256": null
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.visual-check.json",
+              "absent": true,
+              "sha256": null
+            }
+          ],
+          "finished_at": "2026-09-25T05:44:16.238790+00:00",
+          "receipt": {
+            "iteration": 6,
+            "decision": "PROCEED",
+            "reason": "Final221tests,lifecycle11,distinct expanded smoke and diagram/source alignment PASS",
+            "authority_source": "AK requested defect comment, SDLC implementation, diagrams and Grok4.7/high/auto review; follow-up PR scope, no merge/live",
+            "candidate": "86c59c56ab890f884849ec863ccb1de7cd4481ac64aa31ce09c7e8d7779f305a",
+            "next_action": "Continue bounded lifecycle correction under the explicit reviewer override",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/issue-27/triage.md",
+                "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/issue-27.md",
+                "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+                "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/issue-27.md",
+                "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/add-termination.workflow.json",
+                "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/add-termination.html",
+                "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-handoff.json",
+                "sha256": "68649f3f55f89f474892f344cb35ebf3273995e675ec96c4132e86ca94d6ebea"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-review.md",
+                "sha256": "a989eca8d9bce0db6c4c0d44b83c3bfed904256c338bc37ab4bc65782af01d3a"
+              },
+              {
+                "kind": "plan",
+                "path": "plans/issue-27.md",
+                "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+              },
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/issue-27/postmerge/test-plan.md",
+                "sha256": "00fe08f537eb8704b2213c107b3c8bf5b80560bb4dc2153b4779b9826e79e4b2"
+              },
+              {
+                "kind": "build",
+                "path": "reports/sdlc/issue-27/postmerge/build.md",
+                "sha256": "9a0a328ba1971ce9f74c27fc927a2141776b499c6039afad64d2e2033f0ac2f6"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/issue-27/postmerge/changes.diff",
+                "sha256": "fe86de52fe9c3652e0713ec4f956151eb15f202d39f9267510e7d65bee4308e8"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/SKILL.md",
+                "sha256": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/info-endpoint.md",
+                "sha256": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/limits-and-errors.md",
+                "sha256": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/SKILL.md",
+                "sha256": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/references/strategy.md",
+                "sha256": "39502e975d098d7400503a4706dff3ac194901a8038685d1a1b030101fc2b024"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "README.md",
+                "sha256": "08f5c351a7e1316f7ee597c27140e7bacb79444257beb5831576ad5bfecdc034"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture.md",
+                "sha256": "51063de2ddc47933209b2b54d76343a0f91905e1bbf1561c0942227f7a8643aa"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/add-termination.html",
+                "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/add-termination.workflow.json",
+                "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy-tools.md",
+                "sha256": "6ad86947396162a0c9584521ec521349feceaa6d80ce6e9ae2b6be5179fd773d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy_execution_design.md",
+                "sha256": "cdb55819f813042294754f7cbc922331b29cd4cb23694fce5bba57739bbdcaeb"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/trading-operations.md",
+                "sha256": "e5694dc19f059bb07a663de492982418ab4e516c5fddc67628a6811c31de3ea5"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "intent/issue-27.md",
+                "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/account_capital.py",
+                "sha256": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/conditional_add.py",
+                "sha256": "b416d550609ee6126538efbf9c726305e0d3da06d9b365ac7ec9d2f8cdf086cc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/client.py",
+                "sha256": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_execution.py",
+                "sha256": "2d95773800873dbd7f0d8407f1b54762789348ddfb5ed24df929a887775b697f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_gateways.py",
+                "sha256": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/manual_adoption.py",
+                "sha256": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/operations_cli.py",
+                "sha256": "1638cae6bf9a23cd4bbf72b9460f358909b61527f754cd62a01a309035080b9d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_signals.py",
+                "sha256": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_tools.py",
+                "sha256": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "plans/issue-27.md",
+                "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "scripts/smoke_conditional_add.py",
+                "sha256": "5eb13ceae9645576684d69fe4d57327f49c0560507b75b7ce9648cf463a1cd5b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "specs/issue-27.md",
+                "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_add_lifecycle.py",
+                "sha256": "25f1ffbe33f9448649ace5ddf9b655824d69901ea433aecb52061b825017d7dc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_conditional_add.py",
+                "sha256": "872e1d603fca9d1db9744ca134f300f92f82a2c28e22908533662b4568de1e18"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_hyperliquid_client.py",
+                "sha256": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_managed_gateways.py",
+                "sha256": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_manual_adoption.py",
+                "sha256": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_strategy_tools.py",
+                "sha256": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.visual-check.html",
+                "absent": true,
+                "sha256": null
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.visual-check.json",
+                "absent": true,
+                "sha256": null
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "self-verification",
+                "path": "reports/sdlc/issue-27/postmerge/verification.md",
+                "sha256": "3097edfb18e3a2bb0813122f48d96f66d269dbf1dcbe18be20669ee2eaa7c5bf"
+              },
+              {
+                "kind": "test-results",
+                "path": "reports/sdlc/issue-27/postmerge/test-results.json",
+                "sha256": "2a110fcca8b947f53526740f58a122825ba19b97045631a7b474bd7e58792212"
+              },
+              {
+                "kind": "diagram-source-alignment",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-source-alignment.md",
+                "sha256": "6ca75e0d4e1526402468398d1b68ae3388a2633b764f6d629ed0a7247b6ba1b1"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/postmerge/red.log",
+                "sha256": "5a704a49679dd3562e10c22d22f31a9c5854549530350125de584e53e10a3ccb"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/postmerge/boundaries.log",
+                "sha256": "090c2f5ff12ab30d211845ca91b630e5755f6ed5beda5d349ba0bf588469ee6f"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/postmerge/scope.log",
+                "sha256": "aceb220eccce375cade328a17723f6438c935ad64e25b796cde7e1163e525bcf"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/postmerge/smoke.log",
+                "sha256": "989901ea498d5e8e9c2cc4505adde508aca379d618aaa42e62c7df3e0d3c59cd"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Final221tests,lifecycle11,distinct expanded smoke and diagram/source alignment PASS",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4",
+                "AC5"
+              ]
+            }
+          }
         }
       ]
     },
     "independent-verification": {
       "applicable": true,
       "status": "complete",
-      "reason": "Separate verifier PASS:203tests,15boundary probes,smoke,diff checks and27source hashes; no new Must Fix",
+      "reason": "Grok4.7/high/auto independently passed221tests,11focusedtests,10probes and offline CLI smoke; no findings",
       "iteration_limit": 10,
-      "iterations_started": 4,
+      "iterations_started": 5,
       "history": [
         {
           "iteration": 1,
@@ -6776,6 +8373,654 @@
               "checks": "Separate203tests,15boundary probes,CLI smoke,source27digests and diff checks; independent PASS report"
             }
           }
+        },
+        {
+          "iteration": 5,
+          "started_at": "2026-09-25T05:44:16.431895+00:00",
+          "objective": "Actual Grok4.7/high/auto verification of frozen candidate and final safety boundaries under explicit user override",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/issue-27/triage.md",
+              "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/issue-27.md",
+              "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+              "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/issue-27.md",
+              "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/add-termination.workflow.json",
+              "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/add-termination.html",
+              "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/issue-27/postmerge/diagram-handoff.json",
+              "sha256": "68649f3f55f89f474892f344cb35ebf3273995e675ec96c4132e86ca94d6ebea"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/issue-27/postmerge/diagram-review.md",
+              "sha256": "a989eca8d9bce0db6c4c0d44b83c3bfed904256c338bc37ab4bc65782af01d3a"
+            },
+            {
+              "kind": "plan",
+              "path": "plans/issue-27.md",
+              "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+            },
+            {
+              "kind": "test-plan",
+              "path": "reports/sdlc/issue-27/postmerge/test-plan.md",
+              "sha256": "00fe08f537eb8704b2213c107b3c8bf5b80560bb4dc2153b4779b9826e79e4b2"
+            },
+            {
+              "kind": "build",
+              "path": "reports/sdlc/issue-27/postmerge/build.md",
+              "sha256": "9a0a328ba1971ce9f74c27fc927a2141776b499c6039afad64d2e2033f0ac2f6"
+            },
+            {
+              "kind": "change-record",
+              "path": "reports/sdlc/issue-27/postmerge/changes.diff",
+              "sha256": "fe86de52fe9c3652e0713ec4f956151eb15f202d39f9267510e7d65bee4308e8"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/SKILL.md",
+              "sha256": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/info-endpoint.md",
+              "sha256": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/limits-and-errors.md",
+              "sha256": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/trend-strategy/SKILL.md",
+              "sha256": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/trend-strategy/references/strategy.md",
+              "sha256": "39502e975d098d7400503a4706dff3ac194901a8038685d1a1b030101fc2b024"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "README.md",
+              "sha256": "08f5c351a7e1316f7ee597c27140e7bacb79444257beb5831576ad5bfecdc034"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture.md",
+              "sha256": "51063de2ddc47933209b2b54d76343a0f91905e1bbf1561c0942227f7a8643aa"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/add-termination.html",
+              "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/add-termination.workflow.json",
+              "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/strategy-tools.md",
+              "sha256": "6ad86947396162a0c9584521ec521349feceaa6d80ce6e9ae2b6be5179fd773d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/strategy_execution_design.md",
+              "sha256": "cdb55819f813042294754f7cbc922331b29cd4cb23694fce5bba57739bbdcaeb"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/trading-operations.md",
+              "sha256": "e5694dc19f059bb07a663de492982418ab4e516c5fddc67628a6811c31de3ea5"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "intent/issue-27.md",
+              "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/account_capital.py",
+              "sha256": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/conditional_add.py",
+              "sha256": "b416d550609ee6126538efbf9c726305e0d3da06d9b365ac7ec9d2f8cdf086cc"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/hyperliquid/client.py",
+              "sha256": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_execution.py",
+              "sha256": "2d95773800873dbd7f0d8407f1b54762789348ddfb5ed24df929a887775b697f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_gateways.py",
+              "sha256": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/manual_adoption.py",
+              "sha256": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/operations_cli.py",
+              "sha256": "1638cae6bf9a23cd4bbf72b9460f358909b61527f754cd62a01a309035080b9d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/strategy_signals.py",
+              "sha256": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/strategy_tools.py",
+              "sha256": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "plans/issue-27.md",
+              "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "scripts/smoke_conditional_add.py",
+              "sha256": "5eb13ceae9645576684d69fe4d57327f49c0560507b75b7ce9648cf463a1cd5b"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "specs/issue-27.md",
+              "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_add_lifecycle.py",
+              "sha256": "25f1ffbe33f9448649ace5ddf9b655824d69901ea433aecb52061b825017d7dc"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_conditional_add.py",
+              "sha256": "872e1d603fca9d1db9744ca134f300f92f82a2c28e22908533662b4568de1e18"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_hyperliquid_client.py",
+              "sha256": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_managed_gateways.py",
+              "sha256": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_manual_adoption.py",
+              "sha256": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_strategy_tools.py",
+              "sha256": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.visual-check.html",
+              "absent": true,
+              "sha256": null
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.visual-check.json",
+              "absent": true,
+              "sha256": null
+            },
+            {
+              "kind": "self-verification",
+              "path": "reports/sdlc/issue-27/postmerge/verification.md",
+              "sha256": "3097edfb18e3a2bb0813122f48d96f66d269dbf1dcbe18be20669ee2eaa7c5bf"
+            },
+            {
+              "kind": "test-results",
+              "path": "reports/sdlc/issue-27/postmerge/test-results.json",
+              "sha256": "2a110fcca8b947f53526740f58a122825ba19b97045631a7b474bd7e58792212"
+            },
+            {
+              "kind": "diagram-source-alignment",
+              "path": "reports/sdlc/issue-27/postmerge/diagram-source-alignment.md",
+              "sha256": "6ca75e0d4e1526402468398d1b68ae3388a2633b764f6d629ed0a7247b6ba1b1"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/postmerge/red.log",
+              "sha256": "5a704a49679dd3562e10c22d22f31a9c5854549530350125de584e53e10a3ccb"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/postmerge/boundaries.log",
+              "sha256": "090c2f5ff12ab30d211845ca91b630e5755f6ed5beda5d349ba0bf588469ee6f"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/postmerge/scope.log",
+              "sha256": "aceb220eccce375cade328a17723f6438c935ad64e25b796cde7e1163e525bcf"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/postmerge/smoke.log",
+              "sha256": "989901ea498d5e8e9c2cc4505adde508aca379d618aaa42e62c7df3e0d3c59cd"
+            }
+          ],
+          "finished_at": "2026-09-25T06:06:21.235314+00:00",
+          "receipt": {
+            "iteration": 5,
+            "decision": "PROCEED",
+            "reason": "Grok4.7/high/auto independently passed221tests,11focusedtests,10probes and offline CLI smoke; no findings",
+            "authority_source": "AK requested defect comment, SDLC implementation, diagrams and Grok4.7/high/auto review; follow-up PR scope, no merge/live",
+            "candidate": "86c59c56ab890f884849ec863ccb1de7cd4481ac64aa31ce09c7e8d7779f305a",
+            "next_action": "Continue bounded lifecycle correction under the explicit reviewer override",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/issue-27/triage.md",
+                "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/issue-27.md",
+                "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+                "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/issue-27.md",
+                "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/add-termination.workflow.json",
+                "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/add-termination.html",
+                "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-handoff.json",
+                "sha256": "68649f3f55f89f474892f344cb35ebf3273995e675ec96c4132e86ca94d6ebea"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-review.md",
+                "sha256": "a989eca8d9bce0db6c4c0d44b83c3bfed904256c338bc37ab4bc65782af01d3a"
+              },
+              {
+                "kind": "plan",
+                "path": "plans/issue-27.md",
+                "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+              },
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/issue-27/postmerge/test-plan.md",
+                "sha256": "00fe08f537eb8704b2213c107b3c8bf5b80560bb4dc2153b4779b9826e79e4b2"
+              },
+              {
+                "kind": "build",
+                "path": "reports/sdlc/issue-27/postmerge/build.md",
+                "sha256": "9a0a328ba1971ce9f74c27fc927a2141776b499c6039afad64d2e2033f0ac2f6"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/issue-27/postmerge/changes.diff",
+                "sha256": "fe86de52fe9c3652e0713ec4f956151eb15f202d39f9267510e7d65bee4308e8"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/SKILL.md",
+                "sha256": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/info-endpoint.md",
+                "sha256": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/limits-and-errors.md",
+                "sha256": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/SKILL.md",
+                "sha256": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/references/strategy.md",
+                "sha256": "39502e975d098d7400503a4706dff3ac194901a8038685d1a1b030101fc2b024"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "README.md",
+                "sha256": "08f5c351a7e1316f7ee597c27140e7bacb79444257beb5831576ad5bfecdc034"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture.md",
+                "sha256": "51063de2ddc47933209b2b54d76343a0f91905e1bbf1561c0942227f7a8643aa"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/add-termination.html",
+                "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/add-termination.workflow.json",
+                "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy-tools.md",
+                "sha256": "6ad86947396162a0c9584521ec521349feceaa6d80ce6e9ae2b6be5179fd773d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy_execution_design.md",
+                "sha256": "cdb55819f813042294754f7cbc922331b29cd4cb23694fce5bba57739bbdcaeb"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/trading-operations.md",
+                "sha256": "e5694dc19f059bb07a663de492982418ab4e516c5fddc67628a6811c31de3ea5"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "intent/issue-27.md",
+                "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/account_capital.py",
+                "sha256": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/conditional_add.py",
+                "sha256": "b416d550609ee6126538efbf9c726305e0d3da06d9b365ac7ec9d2f8cdf086cc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/client.py",
+                "sha256": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_execution.py",
+                "sha256": "2d95773800873dbd7f0d8407f1b54762789348ddfb5ed24df929a887775b697f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_gateways.py",
+                "sha256": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/manual_adoption.py",
+                "sha256": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/operations_cli.py",
+                "sha256": "1638cae6bf9a23cd4bbf72b9460f358909b61527f754cd62a01a309035080b9d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_signals.py",
+                "sha256": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_tools.py",
+                "sha256": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "plans/issue-27.md",
+                "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "scripts/smoke_conditional_add.py",
+                "sha256": "5eb13ceae9645576684d69fe4d57327f49c0560507b75b7ce9648cf463a1cd5b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "specs/issue-27.md",
+                "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_add_lifecycle.py",
+                "sha256": "25f1ffbe33f9448649ace5ddf9b655824d69901ea433aecb52061b825017d7dc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_conditional_add.py",
+                "sha256": "872e1d603fca9d1db9744ca134f300f92f82a2c28e22908533662b4568de1e18"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_hyperliquid_client.py",
+                "sha256": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_managed_gateways.py",
+                "sha256": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_manual_adoption.py",
+                "sha256": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_strategy_tools.py",
+                "sha256": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.visual-check.html",
+                "absent": true,
+                "sha256": null
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.visual-check.json",
+                "absent": true,
+                "sha256": null
+              },
+              {
+                "kind": "self-verification",
+                "path": "reports/sdlc/issue-27/postmerge/verification.md",
+                "sha256": "3097edfb18e3a2bb0813122f48d96f66d269dbf1dcbe18be20669ee2eaa7c5bf"
+              },
+              {
+                "kind": "test-results",
+                "path": "reports/sdlc/issue-27/postmerge/test-results.json",
+                "sha256": "2a110fcca8b947f53526740f58a122825ba19b97045631a7b474bd7e58792212"
+              },
+              {
+                "kind": "diagram-source-alignment",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-source-alignment.md",
+                "sha256": "6ca75e0d4e1526402468398d1b68ae3388a2633b764f6d629ed0a7247b6ba1b1"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/postmerge/red.log",
+                "sha256": "5a704a49679dd3562e10c22d22f31a9c5854549530350125de584e53e10a3ccb"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/postmerge/boundaries.log",
+                "sha256": "090c2f5ff12ab30d211845ca91b630e5755f6ed5beda5d349ba0bf588469ee6f"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/postmerge/scope.log",
+                "sha256": "aceb220eccce375cade328a17723f6438c935ad64e25b796cde7e1163e525bcf"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/postmerge/smoke.log",
+                "sha256": "989901ea498d5e8e9c2cc4505adde508aca379d618aaa42e62c7df3e0d3c59cd"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "independent-verification",
+                "path": "reports/sdlc/issue-27/postmerge/grok-independent.md",
+                "sha256": "d736a36697ddbfaf0f8b77b2f61b57b777449e0dd9af7d47331c074c7bd209a4"
+              },
+              {
+                "kind": "runtime-configuration",
+                "path": "reports/sdlc/issue-27/postmerge/reviewer-runtime.json",
+                "sha256": "51e69ca1b38d537191f22305037a4410c88f3a8d6348ee405fb304cda84f8ab4"
+              },
+              {
+                "kind": "identity-supplement",
+                "path": "reports/sdlc/issue-27/postmerge/identity-notes.md",
+                "sha256": "20ac79a29a0de9faf56b40f74890ad471455102cc4ca55ddcd0d5ce4fa289b8c"
+              },
+              {
+                "kind": "independent-evidence",
+                "path": "reports/sdlc/issue-27/postmerge/grok-independent-add-lifecycle.log",
+                "sha256": "22f21fb6622fb93acf814e8b28c530b00a89eec57a1680b41a8f3779a5bfceac"
+              },
+              {
+                "kind": "independent-evidence",
+                "path": "reports/sdlc/issue-27/postmerge/grok-independent-probes.log",
+                "sha256": "6bfc07c05b23f6e4d7125e1e27adc15e743602941c29395f70804d5e2a8a03d0"
+              },
+              {
+                "kind": "independent-evidence",
+                "path": "reports/sdlc/issue-27/postmerge/grok-independent-probes.py",
+                "sha256": "9e3b07d209346a5023b065f3376b6a6aa3743616424bb4094c71bee856d4ddbb"
+              },
+              {
+                "kind": "independent-evidence",
+                "path": "reports/sdlc/issue-27/postmerge/grok-independent-request.md",
+                "sha256": "60e31b1b3d80b324b9abd7eaf8f592bc6bd89577c8753c27fcc28b8692fcd0a2"
+              },
+              {
+                "kind": "independent-evidence",
+                "path": "reports/sdlc/issue-27/postmerge/grok-independent-smoke.log",
+                "sha256": "0226f5e810c70d02281277035f2230efe320b45c982645821f0f4f8b535ec1b8"
+              },
+              {
+                "kind": "independent-evidence",
+                "path": "reports/sdlc/issue-27/postmerge/grok-independent-tests.log",
+                "sha256": "01cba9ddce49b118247bc1b1f7710c48aa479736e6884088a0590ade35bc3427"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Grok4.7/high/auto independently passed221tests,11focusedtests,10probes and offline CLI smoke; no findings",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4",
+                "AC5"
+              ]
+            },
+            "verifier": {
+              "independent": true,
+              "context_id": "74e1af29-24e7-4329-af59-4a73b134c94a",
+              "builder_context_id": "/root",
+              "checks": "221 changed-scope tests;11 lifecycle tests;10 independent boundary/rollback/read-purity probes;CLI/SQLite smoke;33 file digests and2absences;diagram-source alignment",
+              "configuration_evidence": "reports/sdlc/issue-27/postmerge/reviewer-runtime.json"
+            }
+          }
         }
       ]
     },
@@ -6806,9 +9051,9 @@
     "completion": {
       "applicable": true,
       "status": "complete",
-      "reason": "Both recommendations met; main210tests and independent203+15 PASS; ready for existing PR publication without merge/live authority",
+      "reason": "Verified local candidate complete; actual PR publication and exact-head Grok review follow separately",
       "iteration_limit": 10,
-      "iterations_started": 4,
+      "iterations_started": 5,
       "history": [
         {
           "iteration": 1,
@@ -8848,6 +11093,697 @@
             "assessment": {
               "assessor": "/root",
               "summary": "Both recommendations met; main210tests and independent203+15 PASS; ready for existing PR publication without merge/live authority",
+              "criteria": [
+                "AC1",
+                "AC2",
+                "AC3",
+                "AC4",
+                "AC5"
+              ]
+            }
+          }
+        },
+        {
+          "iteration": 5,
+          "started_at": "2026-09-25T06:06:21.632193+00:00",
+          "objective": "Complete verified local candidate; publish follow-up PR and separate exact-head Grok review under user continuation",
+          "resolution": null,
+          "inputs": [
+            {
+              "kind": "triage",
+              "path": "reports/sdlc/issue-27/triage.md",
+              "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+            },
+            {
+              "kind": "intent",
+              "path": "intent/issue-27.md",
+              "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+            },
+            {
+              "kind": "investigation",
+              "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+              "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+            },
+            {
+              "kind": "spec",
+              "path": "specs/issue-27.md",
+              "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+            },
+            {
+              "kind": "design-source",
+              "path": "docs/architecture/add-termination.workflow.json",
+              "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+            },
+            {
+              "kind": "design-html",
+              "path": "docs/architecture/add-termination.html",
+              "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+            },
+            {
+              "kind": "design-validation",
+              "path": "reports/sdlc/issue-27/postmerge/diagram-handoff.json",
+              "sha256": "68649f3f55f89f474892f344cb35ebf3273995e675ec96c4132e86ca94d6ebea"
+            },
+            {
+              "kind": "visual-review",
+              "path": "reports/sdlc/issue-27/postmerge/diagram-review.md",
+              "sha256": "a989eca8d9bce0db6c4c0d44b83c3bfed904256c338bc37ab4bc65782af01d3a"
+            },
+            {
+              "kind": "plan",
+              "path": "plans/issue-27.md",
+              "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+            },
+            {
+              "kind": "test-plan",
+              "path": "reports/sdlc/issue-27/postmerge/test-plan.md",
+              "sha256": "00fe08f537eb8704b2213c107b3c8bf5b80560bb4dc2153b4779b9826e79e4b2"
+            },
+            {
+              "kind": "build",
+              "path": "reports/sdlc/issue-27/postmerge/build.md",
+              "sha256": "9a0a328ba1971ce9f74c27fc927a2141776b499c6039afad64d2e2033f0ac2f6"
+            },
+            {
+              "kind": "change-record",
+              "path": "reports/sdlc/issue-27/postmerge/changes.diff",
+              "sha256": "fe86de52fe9c3652e0713ec4f956151eb15f202d39f9267510e7d65bee4308e8"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/SKILL.md",
+              "sha256": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/info-endpoint.md",
+              "sha256": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/hyperliquid-api/references/limits-and-errors.md",
+              "sha256": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/trend-strategy/SKILL.md",
+              "sha256": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03"
+            },
+            {
+              "kind": "candidate-source",
+              "path": ".agents/skills/trend-strategy/references/strategy.md",
+              "sha256": "39502e975d098d7400503a4706dff3ac194901a8038685d1a1b030101fc2b024"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "README.md",
+              "sha256": "08f5c351a7e1316f7ee597c27140e7bacb79444257beb5831576ad5bfecdc034"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture.md",
+              "sha256": "51063de2ddc47933209b2b54d76343a0f91905e1bbf1561c0942227f7a8643aa"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/add-termination.html",
+              "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/add-termination.workflow.json",
+              "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.html",
+              "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.workflow.json",
+              "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/strategy-tools.md",
+              "sha256": "6ad86947396162a0c9584521ec521349feceaa6d80ce6e9ae2b6be5179fd773d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/strategy_execution_design.md",
+              "sha256": "cdb55819f813042294754f7cbc922331b29cd4cb23694fce5bba57739bbdcaeb"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/trading-operations.md",
+              "sha256": "e5694dc19f059bb07a663de492982418ab4e516c5fddc67628a6811c31de3ea5"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "intent/issue-27.md",
+              "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/account_capital.py",
+              "sha256": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/conditional_add.py",
+              "sha256": "b416d550609ee6126538efbf9c726305e0d3da06d9b365ac7ec9d2f8cdf086cc"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/hyperliquid/client.py",
+              "sha256": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_execution.py",
+              "sha256": "2d95773800873dbd7f0d8407f1b54762789348ddfb5ed24df929a887775b697f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/managed_gateways.py",
+              "sha256": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/manual_adoption.py",
+              "sha256": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/operations_cli.py",
+              "sha256": "1638cae6bf9a23cd4bbf72b9460f358909b61527f754cd62a01a309035080b9d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/strategy_signals.py",
+              "sha256": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "kis_hl/strategy_tools.py",
+              "sha256": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "plans/issue-27.md",
+              "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "scripts/smoke_conditional_add.py",
+              "sha256": "5eb13ceae9645576684d69fe4d57327f49c0560507b75b7ce9648cf463a1cd5b"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "specs/issue-27.md",
+              "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_add_lifecycle.py",
+              "sha256": "25f1ffbe33f9448649ace5ddf9b655824d69901ea433aecb52061b825017d7dc"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_conditional_add.py",
+              "sha256": "872e1d603fca9d1db9744ca134f300f92f82a2c28e22908533662b4568de1e18"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_hyperliquid_client.py",
+              "sha256": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_managed_gateways.py",
+              "sha256": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_manual_adoption.py",
+              "sha256": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "tests/test_strategy_tools.py",
+              "sha256": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.visual-check.html",
+              "absent": true,
+              "sha256": null
+            },
+            {
+              "kind": "candidate-source",
+              "path": "docs/architecture/conditional-add.visual-check.json",
+              "absent": true,
+              "sha256": null
+            },
+            {
+              "kind": "self-verification",
+              "path": "reports/sdlc/issue-27/postmerge/verification.md",
+              "sha256": "3097edfb18e3a2bb0813122f48d96f66d269dbf1dcbe18be20669ee2eaa7c5bf"
+            },
+            {
+              "kind": "test-results",
+              "path": "reports/sdlc/issue-27/postmerge/test-results.json",
+              "sha256": "2a110fcca8b947f53526740f58a122825ba19b97045631a7b474bd7e58792212"
+            },
+            {
+              "kind": "diagram-source-alignment",
+              "path": "reports/sdlc/issue-27/postmerge/diagram-source-alignment.md",
+              "sha256": "6ca75e0d4e1526402468398d1b68ae3388a2633b764f6d629ed0a7247b6ba1b1"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/postmerge/red.log",
+              "sha256": "5a704a49679dd3562e10c22d22f31a9c5854549530350125de584e53e10a3ccb"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/postmerge/boundaries.log",
+              "sha256": "090c2f5ff12ab30d211845ca91b630e5755f6ed5beda5d349ba0bf588469ee6f"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/postmerge/scope.log",
+              "sha256": "aceb220eccce375cade328a17723f6438c935ad64e25b796cde7e1163e525bcf"
+            },
+            {
+              "kind": "execution-log",
+              "path": "reports/sdlc/issue-27/postmerge/smoke.log",
+              "sha256": "989901ea498d5e8e9c2cc4505adde508aca379d618aaa42e62c7df3e0d3c59cd"
+            },
+            {
+              "kind": "independent-verification",
+              "path": "reports/sdlc/issue-27/postmerge/grok-independent.md",
+              "sha256": "d736a36697ddbfaf0f8b77b2f61b57b777449e0dd9af7d47331c074c7bd209a4"
+            },
+            {
+              "kind": "runtime-configuration",
+              "path": "reports/sdlc/issue-27/postmerge/reviewer-runtime.json",
+              "sha256": "51e69ca1b38d537191f22305037a4410c88f3a8d6348ee405fb304cda84f8ab4"
+            },
+            {
+              "kind": "identity-supplement",
+              "path": "reports/sdlc/issue-27/postmerge/identity-notes.md",
+              "sha256": "20ac79a29a0de9faf56b40f74890ad471455102cc4ca55ddcd0d5ce4fa289b8c"
+            },
+            {
+              "kind": "independent-evidence",
+              "path": "reports/sdlc/issue-27/postmerge/grok-independent-add-lifecycle.log",
+              "sha256": "22f21fb6622fb93acf814e8b28c530b00a89eec57a1680b41a8f3779a5bfceac"
+            },
+            {
+              "kind": "independent-evidence",
+              "path": "reports/sdlc/issue-27/postmerge/grok-independent-probes.log",
+              "sha256": "6bfc07c05b23f6e4d7125e1e27adc15e743602941c29395f70804d5e2a8a03d0"
+            },
+            {
+              "kind": "independent-evidence",
+              "path": "reports/sdlc/issue-27/postmerge/grok-independent-probes.py",
+              "sha256": "9e3b07d209346a5023b065f3376b6a6aa3743616424bb4094c71bee856d4ddbb"
+            },
+            {
+              "kind": "independent-evidence",
+              "path": "reports/sdlc/issue-27/postmerge/grok-independent-request.md",
+              "sha256": "60e31b1b3d80b324b9abd7eaf8f592bc6bd89577c8753c27fcc28b8692fcd0a2"
+            },
+            {
+              "kind": "independent-evidence",
+              "path": "reports/sdlc/issue-27/postmerge/grok-independent-smoke.log",
+              "sha256": "0226f5e810c70d02281277035f2230efe320b45c982645821f0f4f8b535ec1b8"
+            },
+            {
+              "kind": "independent-evidence",
+              "path": "reports/sdlc/issue-27/postmerge/grok-independent-tests.log",
+              "sha256": "01cba9ddce49b118247bc1b1f7710c48aa479736e6884088a0590ade35bc3427"
+            }
+          ],
+          "finished_at": "2026-09-25T06:06:21.859015+00:00",
+          "receipt": {
+            "iteration": 5,
+            "decision": "PROCEED",
+            "reason": "Verified local candidate complete; actual PR publication and exact-head Grok review follow separately",
+            "authority_source": "AK requested defect comment, SDLC implementation, diagrams and Grok4.7/high/auto review; follow-up PR scope, no merge/live",
+            "candidate": "86c59c56ab890f884849ec863ccb1de7cd4481ac64aa31ce09c7e8d7779f305a",
+            "next_action": "Continue bounded lifecycle correction under the explicit reviewer override",
+            "inputs": [
+              {
+                "kind": "triage",
+                "path": "reports/sdlc/issue-27/triage.md",
+                "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+              },
+              {
+                "kind": "intent",
+                "path": "intent/issue-27.md",
+                "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+              },
+              {
+                "kind": "investigation",
+                "path": "reports/sdlc/issue-27/postmerge/investigation.md",
+                "sha256": "00650d62388ae4f44b7f6d5d106f0d082042ad1db0fbeb8ff8b2c24b496f9134"
+              },
+              {
+                "kind": "spec",
+                "path": "specs/issue-27.md",
+                "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+              },
+              {
+                "kind": "design-source",
+                "path": "docs/architecture/add-termination.workflow.json",
+                "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+              },
+              {
+                "kind": "design-html",
+                "path": "docs/architecture/add-termination.html",
+                "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+              },
+              {
+                "kind": "design-validation",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-handoff.json",
+                "sha256": "68649f3f55f89f474892f344cb35ebf3273995e675ec96c4132e86ca94d6ebea"
+              },
+              {
+                "kind": "visual-review",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-review.md",
+                "sha256": "a989eca8d9bce0db6c4c0d44b83c3bfed904256c338bc37ab4bc65782af01d3a"
+              },
+              {
+                "kind": "plan",
+                "path": "plans/issue-27.md",
+                "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+              },
+              {
+                "kind": "test-plan",
+                "path": "reports/sdlc/issue-27/postmerge/test-plan.md",
+                "sha256": "00fe08f537eb8704b2213c107b3c8bf5b80560bb4dc2153b4779b9826e79e4b2"
+              },
+              {
+                "kind": "build",
+                "path": "reports/sdlc/issue-27/postmerge/build.md",
+                "sha256": "9a0a328ba1971ce9f74c27fc927a2141776b499c6039afad64d2e2033f0ac2f6"
+              },
+              {
+                "kind": "change-record",
+                "path": "reports/sdlc/issue-27/postmerge/changes.diff",
+                "sha256": "fe86de52fe9c3652e0713ec4f956151eb15f202d39f9267510e7d65bee4308e8"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/SKILL.md",
+                "sha256": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/info-endpoint.md",
+                "sha256": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/hyperliquid-api/references/limits-and-errors.md",
+                "sha256": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/SKILL.md",
+                "sha256": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03"
+              },
+              {
+                "kind": "candidate-source",
+                "path": ".agents/skills/trend-strategy/references/strategy.md",
+                "sha256": "39502e975d098d7400503a4706dff3ac194901a8038685d1a1b030101fc2b024"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "README.md",
+                "sha256": "08f5c351a7e1316f7ee597c27140e7bacb79444257beb5831576ad5bfecdc034"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture.md",
+                "sha256": "51063de2ddc47933209b2b54d76343a0f91905e1bbf1561c0942227f7a8643aa"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/add-termination.html",
+                "sha256": "400f3c32c637d8793149afe6b6360760a24c3ece2a0ecddf7aeed07b4c4d090c"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/add-termination.workflow.json",
+                "sha256": "3505e8b2d39c440fe6f2a46770785eae7764f4150579b2aa00195eb3bc77f4b1"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.html",
+                "sha256": "ac1bea56855334d238220b78891c85a915f5c5662383084d9cbf4a93344bb2ca"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.workflow.json",
+                "sha256": "64d9e0b83ff32614c2b8e0c16f32a8ed95b80618d986e28697b282bb609e3fed"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy-tools.md",
+                "sha256": "6ad86947396162a0c9584521ec521349feceaa6d80ce6e9ae2b6be5179fd773d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/strategy_execution_design.md",
+                "sha256": "cdb55819f813042294754f7cbc922331b29cd4cb23694fce5bba57739bbdcaeb"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/trading-operations.md",
+                "sha256": "e5694dc19f059bb07a663de492982418ab4e516c5fddc67628a6811c31de3ea5"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "intent/issue-27.md",
+                "sha256": "2aee5614839fc90a258692902374e7779250f359dbd4be0ab6a070c7816bf075"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/account_capital.py",
+                "sha256": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/conditional_add.py",
+                "sha256": "b416d550609ee6126538efbf9c726305e0d3da06d9b365ac7ec9d2f8cdf086cc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/hyperliquid/client.py",
+                "sha256": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_execution.py",
+                "sha256": "2d95773800873dbd7f0d8407f1b54762789348ddfb5ed24df929a887775b697f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/managed_gateways.py",
+                "sha256": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/manual_adoption.py",
+                "sha256": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/operations_cli.py",
+                "sha256": "1638cae6bf9a23cd4bbf72b9460f358909b61527f754cd62a01a309035080b9d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_signals.py",
+                "sha256": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "kis_hl/strategy_tools.py",
+                "sha256": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "plans/issue-27.md",
+                "sha256": "52d1fb5190fbf5a5cba7643a17791474e72baa911fcca3ad48d31da5d1045841"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "scripts/smoke_conditional_add.py",
+                "sha256": "5eb13ceae9645576684d69fe4d57327f49c0560507b75b7ce9648cf463a1cd5b"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "specs/issue-27.md",
+                "sha256": "71ecff5db09f9627e767ee7019eac8d6e036fc2b14a1a5d62d00fb266d666785"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_add_lifecycle.py",
+                "sha256": "25f1ffbe33f9448649ace5ddf9b655824d69901ea433aecb52061b825017d7dc"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_conditional_add.py",
+                "sha256": "872e1d603fca9d1db9744ca134f300f92f82a2c28e22908533662b4568de1e18"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_hyperliquid_client.py",
+                "sha256": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_managed_gateways.py",
+                "sha256": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_manual_adoption.py",
+                "sha256": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "tests/test_strategy_tools.py",
+                "sha256": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.visual-check.html",
+                "absent": true,
+                "sha256": null
+              },
+              {
+                "kind": "candidate-source",
+                "path": "docs/architecture/conditional-add.visual-check.json",
+                "absent": true,
+                "sha256": null
+              },
+              {
+                "kind": "self-verification",
+                "path": "reports/sdlc/issue-27/postmerge/verification.md",
+                "sha256": "3097edfb18e3a2bb0813122f48d96f66d269dbf1dcbe18be20669ee2eaa7c5bf"
+              },
+              {
+                "kind": "test-results",
+                "path": "reports/sdlc/issue-27/postmerge/test-results.json",
+                "sha256": "2a110fcca8b947f53526740f58a122825ba19b97045631a7b474bd7e58792212"
+              },
+              {
+                "kind": "diagram-source-alignment",
+                "path": "reports/sdlc/issue-27/postmerge/diagram-source-alignment.md",
+                "sha256": "6ca75e0d4e1526402468398d1b68ae3388a2633b764f6d629ed0a7247b6ba1b1"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/postmerge/red.log",
+                "sha256": "5a704a49679dd3562e10c22d22f31a9c5854549530350125de584e53e10a3ccb"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/postmerge/boundaries.log",
+                "sha256": "090c2f5ff12ab30d211845ca91b630e5755f6ed5beda5d349ba0bf588469ee6f"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/postmerge/scope.log",
+                "sha256": "aceb220eccce375cade328a17723f6438c935ad64e25b796cde7e1163e525bcf"
+              },
+              {
+                "kind": "execution-log",
+                "path": "reports/sdlc/issue-27/postmerge/smoke.log",
+                "sha256": "989901ea498d5e8e9c2cc4505adde508aca379d618aaa42e62c7df3e0d3c59cd"
+              },
+              {
+                "kind": "independent-verification",
+                "path": "reports/sdlc/issue-27/postmerge/grok-independent.md",
+                "sha256": "d736a36697ddbfaf0f8b77b2f61b57b777449e0dd9af7d47331c074c7bd209a4"
+              },
+              {
+                "kind": "runtime-configuration",
+                "path": "reports/sdlc/issue-27/postmerge/reviewer-runtime.json",
+                "sha256": "51e69ca1b38d537191f22305037a4410c88f3a8d6348ee405fb304cda84f8ab4"
+              },
+              {
+                "kind": "identity-supplement",
+                "path": "reports/sdlc/issue-27/postmerge/identity-notes.md",
+                "sha256": "20ac79a29a0de9faf56b40f74890ad471455102cc4ca55ddcd0d5ce4fa289b8c"
+              },
+              {
+                "kind": "independent-evidence",
+                "path": "reports/sdlc/issue-27/postmerge/grok-independent-add-lifecycle.log",
+                "sha256": "22f21fb6622fb93acf814e8b28c530b00a89eec57a1680b41a8f3779a5bfceac"
+              },
+              {
+                "kind": "independent-evidence",
+                "path": "reports/sdlc/issue-27/postmerge/grok-independent-probes.log",
+                "sha256": "6bfc07c05b23f6e4d7125e1e27adc15e743602941c29395f70804d5e2a8a03d0"
+              },
+              {
+                "kind": "independent-evidence",
+                "path": "reports/sdlc/issue-27/postmerge/grok-independent-probes.py",
+                "sha256": "9e3b07d209346a5023b065f3376b6a6aa3743616424bb4094c71bee856d4ddbb"
+              },
+              {
+                "kind": "independent-evidence",
+                "path": "reports/sdlc/issue-27/postmerge/grok-independent-request.md",
+                "sha256": "60e31b1b3d80b324b9abd7eaf8f592bc6bd89577c8753c27fcc28b8692fcd0a2"
+              },
+              {
+                "kind": "independent-evidence",
+                "path": "reports/sdlc/issue-27/postmerge/grok-independent-smoke.log",
+                "sha256": "0226f5e810c70d02281277035f2230efe320b45c982645821f0f4f8b535ec1b8"
+              },
+              {
+                "kind": "independent-evidence",
+                "path": "reports/sdlc/issue-27/postmerge/grok-independent-tests.log",
+                "sha256": "01cba9ddce49b118247bc1b1f7710c48aa479736e6884088a0590ade35bc3427"
+              }
+            ],
+            "outputs": [
+              {
+                "kind": "completion",
+                "path": "reports/sdlc/issue-27/postmerge/completion.md",
+                "sha256": "ce19d4cff2823c48abb3498eb4164f12622b6f3ac7cafa098f3b3e57f2d559a2"
+              }
+            ],
+            "assessment": {
+              "assessor": "/root",
+              "summary": "Verified local candidate complete; actual PR publication and exact-head Grok review follow separately",
               "criteria": [
                 "AC1",
                 "AC2",

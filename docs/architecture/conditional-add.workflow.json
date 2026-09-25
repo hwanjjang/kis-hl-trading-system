@@ -18,6 +18,10 @@
     {
       "id": "protection",
       "label": "Combined Position Protection"
+    },
+    {
+      "id": "terminal",
+      "label": "Terminal Owner Cleanup"
     }
   ],
   "mainPath": [
@@ -28,7 +32,8 @@
     "attempt",
     "fills",
     "coverage",
-    "exit"
+    "exit",
+    "closed"
   ],
   "nodes": [
     {
@@ -102,6 +107,33 @@
       "label": "Residual Exit",
       "sublabel": "reduce-only; scoped cleanup",
       "width": 152
+    },
+    {
+      "id": "cancel",
+      "lane": "protection",
+      "col": 3,
+      "type": "security",
+      "label": "Bounded Cancel",
+      "sublabel": "deadline per target attempt",
+      "width": 152
+    },
+    {
+      "id": "closed",
+      "lane": "terminal",
+      "col": 5,
+      "type": "database",
+      "label": "Owner CLOSED",
+      "sublabel": "flat and associated cleanup",
+      "width": 152
+    },
+    {
+      "id": "retire",
+      "lane": "terminal",
+      "col": 3,
+      "type": "database",
+      "label": "Retire Unsent Adds",
+      "sublabel": "QUEUED with no attempt",
+      "width": 152
     }
   ],
   "edges": [
@@ -140,6 +172,25 @@
       "from": "coverage",
       "to": "exit",
       "label": "SL / TS / strategy"
+    },
+    {
+      "id": "attempt-expiry",
+      "from": "attempt",
+      "to": "cancel",
+      "label": "expired remainder",
+      "role": "branch"
+    },
+    {
+      "id": "exit-closed",
+      "from": "exit",
+      "to": "closed"
+    },
+    {
+      "id": "closed-retire",
+      "from": "closed",
+      "to": "retire",
+      "label": "terminal cleanup",
+      "role": "branch"
     }
   ],
   "cards": [
@@ -148,15 +199,15 @@
       "title": "Durable ownership",
       "items": [
         "One account/instrument owner; per-tranche sizing and fill evidence",
-        "Unknown submissions are reconciled, never retransmitted"
+        "UNKNOWN stays visible; reconcile actual fills without resending the add"
       ]
     },
     {
       "dot": "amber",
       "title": "Protection preserved",
       "items": [
-        "Retain fixed SL, frozen ATR and existing native/local watermarks",
-        "External percentage TS requires supported migration before mutation"
+        "SL/TS covers actual residuals while cancellation is reconciled",
+        "Unsent retirement never hides a durable signed or UNKNOWN attempt"
       ]
     }
   ]

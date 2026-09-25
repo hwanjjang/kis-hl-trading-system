@@ -101,7 +101,85 @@ def run():
             "add_attempts": 1, "tranche_filled": "0.5", "remaining": "1.5",
             "pending_add_statuses": ["QUEUED", "UNKNOWN", "SUBMITTED", "none after terminal fill"],
             "sl_coverage": status["covered_size"], "native_ts_coverage": status["trailing_covered_size"],
-            "state": status["state"]}, indent=2))
+            "state": status["state"], "lifecycle": lifecycle_smoke()}, indent=2))
+
+
+def lifecycle_smoke():
+    """Use the real CLI for expiry cancellation and terminal-owner repair."""
+    from tests.test_add_lifecycle import AddLifecycleTests
+
+    results = []
+    for scenario in ("cancel-after-historical-entry", "terminal-unsent-retirement"):
+        case = AddLifecycleTests()
+        case.setUp()
+        try:
+            if scenario == "cancel-after-historical-entry": case.historical_entry_cancel()
+            root = Path(case.tmp.name)
+            path = root/"add.json"
+            path.write_text(json.dumps(case.plan))
+            clock, commands = [NOW+5], []
+
+            def cli(*argv):
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    code = main(["--db", str(case.store.path), *argv])
+                assert code == 0, output.getvalue()
+                commands.append("kis-hl --db TEMP/state.sqlite " + " ".join(str(a).replace(str(root), "TEMP") for a in argv))
+                return json.loads(output.getvalue())
+
+            def tick(now):
+                clock[0] = now
+                return cli("supervisor", "run", "--venue", "hyperliquid", "--live", "--once")["positions"][0]
+
+            with patch("kis_hl.cli.load_env_file"), \
+                 patch("kis_hl.operations_cli.time.time", side_effect=lambda: clock[0]/1000), \
+                 patch("kis_hl.operations_cli.scope_client", return_value=(SimpleNamespace(key="scope"), SimpleNamespace(config=None))), \
+                 patch("kis_hl.operations_cli.HyperliquidTradingClient"), \
+                 patch("kis_hl.managed_gateways.ManagedHyperliquidGateway", return_value=case.g), \
+                 patch.object(socket, "socket", side_effect=AssertionError("Offline smoke forbids network")):
+                queued = cli("signal", "execute", "--id", "add-once", "--input", str(path), "--manual", "--live")
+                if scenario == "cancel-after-historical-entry":
+                    tick(NOW+10)
+                    add = next(a for a in case.g.sent if a["kind"] == "add")
+                    case.g.cancel = lambda *args: {"status": "submitted"}
+                    expiry = case.plan["expires_ms"]
+                    tick(expiry)
+                    status = cli("order", "status", "--id", case.row["id"])
+                    target_cancels = [a for a in status["attempts"] if a["kind"] == "cancel" and a.get("target_id") == add["id"]]
+                    assert len(target_cancels) == 1
+                    target = next(a for a in status["attempts"] if a["id"] == add["id"])
+                    assert target["cancel_started_ms"] == expiry
+                    case.g.fill(add, "0.2", terminal=False)
+                    tick(expiry+1)
+                    pending = tick(expiry+2)
+                    assert float(pending["covered_size"]) == 1.2
+                    case.g.orders[add["id"]]["status"] = "canceled"
+                    complete = tick(expiry+3)
+                    assert complete["state"] == "PROTECTED" and not complete["pending_adds"]
+                    assert len(case.cancels(add["id"])) == 1
+                    results.append(dict(scenario=scenario, result="passed", target_cancel_attempts=1,
+                        remaining="1.2", sl_coverage=complete["covered_size"], state=complete["state"], commands=commands))
+                else:
+                    cli("order", "exit", "--id", case.row["id"])
+                    tick(NOW+10)
+                    exit_attempt = next(a for a in case.g.sent if a["kind"] == "exit")
+                    case.g.size = "0"
+                    case.g.orders[exit_attempt["id"]].update(status="filled", size="0")
+                    for now in (NOW+11, NOW+12, NOW+13): complete = tick(now)
+                    assert complete["state"] == "CLOSED" and not complete["pending_adds"]
+                    status = cli("order", "status", "--id", case.row["id"])
+                    assert status["tranches"][0]["status"] == "CANCELED"
+                    case.store.save_tranche(queued)  # Older DB: closed owner, unsent queue.
+                    before = cli("supervisor", "status", "--venue", "hyperliquid")["positions"][0]
+                    assert before["pending_adds"][0]["status"] == "QUEUED"
+                    repaired = tick(NOW+14)
+                    assert repaired["state"] == "CLOSED" and not repaired["pending_adds"]
+                    assert not any(a["kind"] == "add" for a in case.g.sent)
+                    results.append(dict(scenario=scenario, result="passed", add_attempts=0,
+                        legacy_queue_repaired=True, state=repaired["state"], commands=commands))
+        finally:
+            case.doCleanups()
+    return results
 
 
 if __name__ == "__main__":

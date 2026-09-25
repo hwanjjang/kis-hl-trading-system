@@ -1,0 +1,15 @@
+command: /tmp/hl-trailing-venv/bin/python -m unittest tests.test_add_lifecycle tests.test_conditional_add tests.test_strategy_tools tests.test_strategy_signals tests.test_managed_execution tests.test_managed_gateways tests.test_manual_adoption tests.test_native_trailing tests.test_hyperliquid_client tests.test_operations_cli tests.test_risk tests.test_execution_lock tests.test_websocket_streams -q
+cwd: /root/.paseo/worktrees/1epgz72k/lumpy-hippo
+interpreter: /tmp/hl-trailing-venv/bin/python
+exit: 0
+duration_s: 32.829
+note: stdout included stub Hyperliquid client logs from existing offline tests. No live exchange call was made by this verifier.
+--- tail ---
+{"allow_outside_session": true, "allowed": false, "level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_session_decision", "reason": "outside_regular_session", "resolved_coin": "xyz:AAPL", "session_group": "us_cash_equities", "ts": "2026-09-25T05:52:58.850656+00:00"}
+{"client_request_id": "bccf34f60a274ef8a16ea0fad6d83f91", "cloid": null, "level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_order_result", "resolved_coin": "xyz:AAPL", "status": "submitted", "ts": "2026-09-25T05:52:58.850782+00:00"}
+{"client_request_id": "82d204a1534040e495b72847d0793041", "cloid": null, "level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_order_result", "resolved_coin": "xyz:KORU", "status": "submitted", "ts": "2026-09-25T05:52:59.252544+00:00"}
+{"level": "INFO", "logger": "kis_hl.hyperliquid.client", "message": "hyperliquid_order_dry_run", "resolved_coin": "xyz:KORU", "ts": "2026-09-25T05:52:59.388886+00:00"}
+----------------------------------------------------------------------
+Ran 221 tests in 32.829s
+
+OK

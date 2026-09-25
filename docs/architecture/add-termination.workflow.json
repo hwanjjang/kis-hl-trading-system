@@ -1,0 +1,171 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Add Cancellation and Retirement",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "cancel",
+      "label": "Expired Entry / Add Attempt"
+    },
+    {
+      "id": "owner",
+      "label": "Terminal Position Owner"
+    },
+    {
+      "id": "ledger",
+      "label": "Durable Tranche Ledger"
+    }
+  ],
+  "mainPath": [
+    "expire",
+    "target",
+    "budget",
+    "send",
+    "readback"
+  ],
+  "nodes": [
+    {
+      "id": "expire",
+      "lane": "cancel",
+      "col": 0,
+      "type": "security",
+      "label": "Expiry or Exit",
+      "sublabel": "identify active remainder",
+      "width": 170
+    },
+    {
+      "id": "target",
+      "lane": "cancel",
+      "col": 1,
+      "type": "database",
+      "label": "Target Attempt",
+      "sublabel": "order identity and history",
+      "width": 170
+    },
+    {
+      "id": "budget",
+      "lane": "cancel",
+      "col": 2,
+      "type": "database",
+      "label": "Persist Start Time",
+      "sublabel": "same target, same deadline",
+      "width": 170
+    },
+    {
+      "id": "send",
+      "lane": "cancel",
+      "col": 3,
+      "type": "backend",
+      "label": "Bounded Cancel",
+      "sublabel": "retry only known rejection",
+      "width": 170
+    },
+    {
+      "id": "readback",
+      "lane": "cancel",
+      "col": 4,
+      "type": "backend",
+      "label": "Reconcile Outcome",
+      "sublabel": "actual fills and SL/TS",
+      "width": 170
+    },
+    {
+      "id": "finished",
+      "lane": "owner",
+      "col": 0,
+      "type": "database",
+      "label": "Owner Finished",
+      "sublabel": "CLOSED / REJECTED / PREVIEWED",
+      "width": 170
+    },
+    {
+      "id": "queued",
+      "lane": "owner",
+      "col": 1,
+      "type": "security",
+      "label": "QUEUED Tranche",
+      "sublabel": "inspect durable attempts",
+      "width": 170
+    },
+    {
+      "id": "retire",
+      "lane": "owner",
+      "col": 3,
+      "type": "database",
+      "label": "CANCELED",
+      "sublabel": "no matching attempt only",
+      "width": 170
+    },
+    {
+      "id": "retain",
+      "lane": "ledger",
+      "col": 1,
+      "type": "database",
+      "label": "Retain Signed Work",
+      "sublabel": "UNKNOWN / submitted ledger",
+      "width": 170
+    }
+  ],
+  "edges": [
+    {
+      "id": "expire-target",
+      "from": "expire",
+      "to": "target"
+    },
+    {
+      "id": "target-budget",
+      "from": "target",
+      "to": "budget"
+    },
+    {
+      "id": "budget-send",
+      "from": "budget",
+      "to": "send"
+    },
+    {
+      "id": "send-readback",
+      "from": "send",
+      "to": "readback"
+    },
+    {
+      "id": "finished-queued",
+      "from": "finished",
+      "to": "queued"
+    },
+    {
+      "id": "queued-retire",
+      "from": "queued",
+      "to": "retire",
+      "label": "no attempt"
+    },
+    {
+      "id": "queued-retain",
+      "from": "queued",
+      "to": "retain",
+      "label": "attempt exists",
+      "role": "branch"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Cancellation budget survives restart",
+      "items": [
+        "Use the target attempt start, or matching legacy cancel history",
+        "An older owner timestamp cannot expire a new add; no deadline reset"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Terminal repair stays local",
+      "items": [
+        "Supervisor repairs already-finished owners; status remains read-only",
+        "Retirement updates only unsent QUEUED rows; no signed mutation"
+      ]
+    }
+  ]
+}
