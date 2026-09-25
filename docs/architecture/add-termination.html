@@ -5276,8 +5276,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text data-detail="context" x="727" y="255" class="t-muted" font-size="8" text-anchor="middle">no matching attempt only</text>
         </g>
 
-        <g id="node-expired" data-node-id="expired" data-node-label="Approval Expired" tabindex="0" role="button" aria-label="Focus Approval Expired, owner not PROTECTED, Durable Tranche Ledger" aria-pressed="false" data-node-kind="security" data-node-sublabel="owner not PROTECTED" data-node-context="Durable Tranche Ledger">
-          <title>Approval Expired · owner not PROTECTED · Durable Tranche Ledger</title>
+        <g id="node-expired" data-node-id="expired" data-node-label="Approval Expired" tabindex="0" role="button" aria-label="Focus Approval Expired, add not evaluated this tick, Durable Tranche Ledger" aria-pressed="false" data-node-kind="security" data-node-sublabel="add not evaluated this tick" data-node-context="Durable Tranche Ledger">
+          <title>Approval Expired · add not evaluated this tick · Durable Tranche Ledger</title>
           <rect x="48" y="341" width="170" height="52" rx="6" class="c-mask"/>
           <rect x="48" y="341" width="170" height="52" rx="6" class="c-security" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(54 347) scale(0.6875)">
@@ -5285,7 +5285,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="133" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Approval Expired</text>
-          <text data-detail="context" x="133" y="379" class="t-muted" font-size="8" text-anchor="middle">owner not PROTECTED</text>
+          <text data-detail="context" x="133" y="379" class="t-muted" font-size="8" text-anchor="middle">add not evaluated this tick</text>
         </g>
 
         <g id="node-retain" data-node-id="retain" data-node-label="Retain Signed Work" tabindex="0" role="button" aria-label="Focus Retain Signed Work, UNKNOWN / submitted ledger, Durable Tranche Ledger" aria-pressed="false" data-node-kind="database" data-node-sublabel="UNKNOWN / submitted ledger" data-node-context="Durable Tranche Ledger">
@@ -5539,8 +5539,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </div>
         <ul>
           <li>&bull; Terminal save and unsent-add retirement commit together</li>
-          <li>&bull; Expired unsent approvals retire in any non-PROTECTED owner state</li>
-          <li>&bull; Finished owners with no QUEUED row take no write lock; status is read-only</li>
+          <li>&bull; Expired unsent approvals retire when the add was not evaluated this tick</li>
+          <li>&bull; No QUEUED row: no extra retirement transaction; status is read-only</li>
         </ul>
       </div>
     </div>

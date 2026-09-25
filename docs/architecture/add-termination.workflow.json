@@ -106,7 +106,7 @@
       "col": 0,
       "type": "security",
       "label": "Approval Expired",
-      "sublabel": "owner not PROTECTED",
+      "sublabel": "add not evaluated this tick",
       "width": 170
     },
     {
@@ -180,8 +180,8 @@
       "title": "Retirement stays local and bounded",
       "items": [
         "Terminal save and unsent-add retirement commit together",
-        "Expired unsent approvals retire in any non-PROTECTED owner state",
-        "Finished owners with no QUEUED row take no write lock; status is read-only"
+        "Expired unsent approvals retire when the add was not evaluated this tick",
+        "No QUEUED row: no extra retirement transaction; status is read-only"
       ]
     }
   ]

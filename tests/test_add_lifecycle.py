@@ -229,7 +229,7 @@ class AddLifecycleTests(unittest.TestCase):
         self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
 
     def test_terminal_save_and_retirement_commit_or_roll_back_together(self):
-        self.authorize()
+        queued = self.authorize()
         with self.store.connect() as db:
             db.execute("CREATE TRIGGER block_retire BEFORE UPDATE ON managed_tranches "
                        "BEGIN SELECT RAISE(ABORT, 'retirement blocked'); END")
@@ -238,7 +238,16 @@ class AddLifecycleTests(unittest.TestCase):
         with self.assertRaises(sqlite3.Error):
             self.store.save(owner, NOW+6)
         self.assertEqual(self.store.get(self.row["id"])["state"], "PROTECTED")
-        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
+        kept = next(t for t in self.store.tranches(self.row["id"]) if t["id"] == queued["id"])
+        self.assertEqual(kept["status"], "QUEUED")
+
+    def test_save_requires_explicit_time(self):
+        self.authorize()
+        owner = self.store.get(self.row["id"])
+        owner["state"] = "CLOSED"
+        with self.assertRaises(TypeError):
+            self.store.save(owner)
+        self.assertEqual(self.store.get(self.row["id"])["state"], "PROTECTED")
 
     def test_finished_owner_without_queued_add_takes_no_retirement_lock(self):
         self.authorize()
@@ -269,6 +278,19 @@ class AddLifecycleTests(unittest.TestCase):
         self.assertEqual(expired["status"], "EXPIRED")
         self.assertEqual(expired["retired_ms"], expiry)
         self.assertEqual(expired["sizing"], queued["sizing"])
+        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+
+    def test_protected_owner_with_cancel_entry_expires_unevaluated_add(self):
+        queued = self.authorize()
+        owner = self.store.get(self.row["id"])
+        owner["cancel_entry"] = True  # _try_add is skipped while cancellation is pending.
+        self.store.save(owner, NOW+6)
+        expiry = queued["plan"]["expires_ms"]
+        after = self.worker.step(self.row["id"], expiry)
+        self.assertEqual(after["state"], "PROTECTED")
+        expired = next(t for t in self.store.tranches(self.row["id"]) if t["id"] == queued["id"])
+        self.assertEqual(expired["status"], "EXPIRED")
+        self.assertEqual(expired["retired_ms"], expiry)
         self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
 
     def test_expiry_retirement_never_hides_a_durable_attempt(self):

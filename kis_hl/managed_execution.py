@@ -250,7 +250,7 @@ class ExecutionStore:
             db.execute("UPDATE managed_tranches SET snapshot=? WHERE id=?", (encode(tranche), tranche["id"]))
 
     def retire_unsent_adds(self, position_id, now_ms):
-        # Read-only pre-check keeps finished-owner ticks free of write locks.
+        # Read-only pre-check: no retirement transaction or attempt scan unless a tranche is QUEUED.
         if not any(t["status"] == "QUEUED" for t in self.tranches(position_id)):
             return
         with self.connect() as db:
@@ -346,7 +346,7 @@ class ExecutionStore:
                 )
             ]
 
-    def save(self, row, now_ms=0):
+    def save(self, row, now_ms):
         new = {**row, "version": row["version"] + 1}
         with self.connect() as db:
             changed = db.execute(
@@ -513,8 +513,8 @@ class Supervisor:
                         now_ms,
                     )
                 # Concurrent control requests win; reload on the next supervisor iteration.
-            # _try_add rejects expired adds only for PROTECTED owners; retire any
-            # expired unsent approval it did not reach so it stops showing as pending.
+            # _try_add rejects an expired add only when it evaluates it this tick; retire
+            # any expired unsent approval it did not evaluate so it stops showing as pending.
             self.store.retire_unsent_adds(position_id, now_ms)
             return self.store.get(position_id)
 

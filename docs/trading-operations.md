@@ -836,10 +836,13 @@ When the owner reaches `CLOSED`, `REJECTED` or `PREVIEWED`, the store retires on
 as the terminal owner save; if retirement fails, the owner state change rolls back
 too. They become `CANCELED` with an owner-state reason and `retired_ms`;
 approval/sizing history stays intact. A normal supervisor tick also repairs
-already-finished legacy owners, and takes no write lock when no `QUEUED` tranche
-remains. Only a `PROTECTED` owner can submit an add, and it rejects an expired
-approval before preflight. For any other unfinished owner state (for example
-`INTERVENTION`, `EXIT_PENDING` or `DEGRADED`), the supervisor marks an unsent
+already-finished legacy owners, and opens no additional retirement transaction
+(no retirement write lock or attempt scan) when no `QUEUED` tranche remains; the
+supervisor heartbeat still writes every tick. An add is evaluated only when the
+owner is `PROTECTED` with no active entry, unresolved exit, exit request or
+`cancel_entry`; that evaluation rejects an expired approval before preflight. When
+the add was not evaluated in a tick (for example `INTERVENTION`, `EXIT_PENDING`,
+`DEGRADED`, or `PROTECTED` with `cancel_entry`), the supervisor marks an unsent
 `QUEUED` tranche `EXPIRED` once its approval expiry passes, so it no longer
 appears in `pending_adds`. Status commands remain read-only. Any durable attempt,
 including `UNKNOWN`, prevents this unsent cleanup; it is not evidence that a signed

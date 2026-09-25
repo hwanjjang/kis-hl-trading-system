@@ -291,8 +291,9 @@ cancellation budget of each target entry/add attempt from the local retirement o
 an unsent tranche. A previous order's cancellation start cannot age a later add;
 restart retains the same target's deadline. Terminal cleanup changes only QUEUED
 tranches with no durable matching attempt, commits with the terminal owner save,
-and does not hide signed UNKNOWN work. Expired unsent approvals on unfinished,
-non-PROTECTED owners retire as EXPIRED. The supervisor also repairs
-already-finished owners without a write lock when nothing is QUEUED; status reads
-do not mutate rows. These are implementation views, not execution authority or live exchange
+and does not hide signed UNKNOWN work. An expired unsent approval that the owner
+did not evaluate in a tick (any unfinished state, including PROTECTED with a
+pending entry cancellation) retires as EXPIRED. The supervisor also repairs
+already-finished owners and opens no additional retirement transaction when
+nothing is QUEUED; status reads do not mutate rows. These are implementation views, not execution authority or live exchange
 validation. See [operations](trading-operations.md#bounded-conditional-add-ups).
