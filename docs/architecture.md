@@ -261,8 +261,7 @@ transitive dependencies. Jobs and report artifacts have separate operational
 attempt/publication state. Existing managed/trailing/eligibility tables remain
 unchanged. CLI registration lives in `data_cli.py`.
 
-The [data-flow diagram](../reports/sdlc/unified-trading-data/design/dataflow.html)
-and [logical specification](../specs/unified-trading-data.md) describe the broader
+The [logical specification](../specs/unified-trading-data.md) describes the broader
 design. The first implementation uses validated dataset payloads in a shared
 fact table rather than every proposed physical table. The actual supported
 adapters, precision/coverage limits, rollout, persistence and maintenance commands

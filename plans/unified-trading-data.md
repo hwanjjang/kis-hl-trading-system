@@ -1,6 +1,6 @@
 # Implementation plan: unified trading data
 
-Status: original implementation sequence; PR #14 delivers the scope recorded in the [acceptance ledger](../docs/unified-data-acceptance.md). Inputs: [intent](../intent/unified-trading-data.md), [spec](../specs/unified-trading-data.md), [diagram](../reports/sdlc/unified-trading-data/design/dataflow.html). The original design endpoint was local; current correction authority permits PR #14 branch push, with no merge.
+Status: original implementation sequence; PR #14 delivers the scope recorded in the [acceptance ledger](../docs/unified-data-acceptance.md). Inputs: [intent](../intent/unified-trading-data.md), [spec](../specs/unified-trading-data.md), [architecture](../docs/architecture.md#unified-trading-data-storage). The original design endpoint was local; current correction authority permits PR #14 branch push, with no merge.
 
 ## Sequence and file ownership
 
