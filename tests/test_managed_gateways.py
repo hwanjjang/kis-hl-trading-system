@@ -53,6 +53,7 @@ class ManagedGatewayTests(unittest.TestCase):
             ],
             "withdrawable": "1000",
         }
+        info.active_asset_data.return_value = {"maxTradeSzs": ["10", "10"], "availableToTrade": ["1000", "1000"]}
         info.user_fills_by_time.return_value = [
             {
                 "tid": 1,
@@ -128,6 +129,16 @@ class ManagedGatewayTests(unittest.TestCase):
         self.assertFalse(call["reduce_only"])
         self.assertEqual(call["cloid"], "0x123")
         self.assertEqual(call["expires_after_ms"], 20)
+
+    def test_entry_preflight_uses_instrument_buying_power_not_dex_withdrawable(self):
+        g, info, row, _, _ = self.hl()
+        info.clearinghouse_state.return_value["withdrawable"] = "0.0"
+        info.active_asset_data.return_value = {"maxTradeSzs": ["2", "3"], "availableToTrade": ["200", "300"]}
+        with patch("kis_hl.trailing_runner.fetch_trailing_atr", return_value=(Decimal(2), [{"T": 10}])):
+            snap = g.preflight(row["plan"], 20)
+        self.assertEqual(snap["available_notional"], "200")
+        self.assertNotIn("capital_evidence", snap)
+        info.active_asset_data.assert_called_once_with("BTC")
 
     def test_add_preflight_collects_total_balance_separately_from_buying_power(self):
         g, info, row, _, _ = self.hl()

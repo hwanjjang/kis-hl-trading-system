@@ -72,6 +72,16 @@ User requirements (policy, not an implemented automatic router):
   trailing exits remain account-local and must not cause a peer-venue exit or
   wait for that venue. An unresolved submission must be reconciled before any
   retry or fallback; separate execution does not imply equal or simultaneous fills.
+- Close-based strategy decisions (daily/session-close entry, exit and add
+  reviews) treat the last regular-session price observed **before the closing
+  auction** as the close, not the official post-auction print. For KRX this is
+  the price before the closing call auction begins; for US-referenced markets it
+  is the price five minutes before the closing cross (15:55 ET). The review and
+  any authorized order are prepared and submitted in that pre-auction window, so
+  that trade.xyz underlying-session gates still pass. This is a user-confirmed
+  timing convention (2026-09-25); the deterministic strategy tools still evaluate
+  complete bars, so the pre-close price is a caller-supplied proxy whose source
+  time must be recorded in the decision evidence.
 
 Implementation decisions still requiring confirmation:
 
