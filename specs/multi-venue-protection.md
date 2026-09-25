@@ -2,7 +2,7 @@
 
 Status: proposed design, 2026-09-12. Not implemented by this planning task.
 Intent: [multi-venue-protection](../intent/multi-venue-protection.md).
-Evidence: [capability research](../reports/sdlc/multi-venue-protection/research.md).
+Operational verification and remaining venue limitations: [trading operations](../docs/trading-operations.md).
 
 ## 1. Identity and analysis contract (MV1)
 
@@ -21,8 +21,8 @@ A label, chart alias or matching ticker is never an execution identifier.
 | Quantum | QPUX or explicitly specified independent analysis basket | KIS QPUX; no HL substitute assumed |
 | Memory | DRAM ETF or separately specified memory reference | KIS DRAM ETF or separately verified HL DRAM contract |
 
-KOSPI and KOSPI200 are different. QPUX and DRAM issuer identities are documented in
-the research; KIS acceptance and HL underlying mappings remain unverified.
+KOSPI and KOSPI200 are different. Verify QPUX and DRAM issuer identities and
+KIS acceptance or HL underlying mappings against current source evidence before use.
 An ETF and a similarly named perpetual are separate assets, not interchangeable
 holdings. Each execution chooses one venue explicitly; no automatic cross-venue
 hedging, capital transfer or failover trade is part of this design.

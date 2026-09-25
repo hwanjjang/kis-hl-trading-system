@@ -31,7 +31,7 @@ The default operating database and private account-journal snapshots are disconn
 
 This turn designs the work. It does not alter application behavior, ingest data into the active database, enable a collector, trade, publish private records, commit or open a PR. Notifications remain undecided. Exact fill times, gross hourly funding, older market history and strategy attribution must not be fabricated. SQLite workload isolation, market revisions and safe rollback require explicit tests before implementation.
 
-Related: [spec](../specs/unified-trading-data.md), [plan](../plans/unified-trading-data.md), [SDLC record](../reports/sdlc/unified-trading-data/triage.md).
+Related: [spec](../specs/unified-trading-data.md), [plan](../plans/unified-trading-data.md), and [acceptance ledger](../docs/unified-data-acceptance.md).
 
 ## 2026-09-20 correction authority
 

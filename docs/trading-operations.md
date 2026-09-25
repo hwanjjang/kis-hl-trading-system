@@ -877,7 +877,9 @@ do not use the full-exit command to approximate them.
 Offline evidence: `python scripts/smoke_conditional_add.py` exercises actual CLI
 handlers and temporary SQLite with a stub gateway and network forbidden. It covers
 capital capture, preview, authorization, partial/completed add, reconciliation,
-full coverage and reopen replay. See [issue-27 report](../reports/sdlc/issue-27/self-verification.md).
+full coverage and reopen replay. The repeatable cases live in
+[`tests/test_conditional_add.py`](../tests/test_conditional_add.py),
+[`tests/test_add_lifecycle.py`](../tests/test_add_lifecycle.py), and the smoke script.
 Live uncertainties remain: supported account-mode response consistency, directional
 buying-power semantics, concurrent native trail acceptance/retention, activation,
 trigger-time fills, cancel races, latency and restart timing. Passing local checks
