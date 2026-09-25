@@ -250,19 +250,34 @@ class ExecutionStore:
             db.execute("UPDATE managed_tranches SET snapshot=? WHERE id=?", (encode(tranche), tranche["id"]))
 
     def retire_unsent_adds(self, position_id, now_ms):
+        # Read-only pre-check keeps finished-owner ticks free of write locks.
+        if not any(t["status"] == "QUEUED" for t in self.tranches(position_id)):
+            return
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             owner = db.execute("SELECT state FROM managed_positions WHERE id=?", (position_id,)).fetchone()
-            if not owner or owner["state"] not in FINISHED:
-                return
-            attempted = {json.loads(r[0]).get("tranche_id") for r in db.execute(
-                "SELECT snapshot FROM managed_attempts WHERE position_id=?", (position_id,))}
-            for record in db.execute("SELECT snapshot FROM managed_tranches WHERE position_id=?", (position_id,)).fetchall():
-                tranche = json.loads(record[0])
-                if tranche["status"] == "QUEUED" and tranche["id"] not in attempted:
-                    tranche.update(status="CANCELED", retired_ms=now_ms,
-                                   reason=f"Owner {owner['state']}; unsent add retired")
-                    db.execute("UPDATE managed_tranches SET snapshot=? WHERE id=?", (encode(tranche), tranche["id"]))
+            if owner:
+                self._retire_unsent(db, position_id, owner["state"], now_ms)
+
+    @staticmethod
+    def _retire_unsent(db, position_id, owner_state, now_ms):
+        """Close QUEUED tranches with no durable attempt: all once the owner is
+        finished, otherwise only those whose approval has expired."""
+        finished = owner_state in FINISHED
+        attempted = {json.loads(r[0]).get("tranche_id") for r in db.execute(
+            "SELECT snapshot FROM managed_attempts WHERE position_id=?", (position_id,))}
+        for record in db.execute("SELECT snapshot FROM managed_tranches WHERE position_id=?", (position_id,)).fetchall():
+            tranche = json.loads(record[0])
+            if tranche["status"] != "QUEUED" or tranche["id"] in attempted:
+                continue
+            if finished:
+                tranche.update(status="CANCELED", reason=f"Owner {owner_state}; unsent add retired")
+            elif now_ms >= tranche["plan"]["expires_ms"]:
+                tranche.update(status="EXPIRED", reason=f"Approval expired while owner {owner_state}; unsent add retired")
+            else:
+                continue
+            tranche["retired_ms"] = now_ms
+            db.execute("UPDATE managed_tranches SET snapshot=? WHERE id=?", (encode(tranche), tranche["id"]))
 
     def enqueue_add(self, owner, plan, *, now_ms, sizing):
         tranche = dict(id=uuid4().hex, position_id=owner["id"], plan=plan,
@@ -344,9 +359,10 @@ class ExecutionStore:
                 "INSERT INTO managed_events(position_id,time_ms,state,reason) VALUES(?,?,?,?)",
                 (row["id"], now_ms, new["state"], new["reason"]),
             )
+            if new["state"] in FINISHED:
+                # Same transaction: a terminal owner never persists with unsent adds.
+                self._retire_unsent(db, row["id"], new["state"], now_ms)
         row.update(new)
-        if row["state"] in FINISHED:
-            self.retire_unsent_adds(row["id"], now_ms)
 
     def attempts(self, position_id):
         with self.connect() as db:
@@ -466,7 +482,7 @@ class Supervisor:
             ):
                 raise ValueError("Supervisor account/mode mismatch")
             if row["state"] in FINISHED:
-                # Repair legacy terminal owners and a crash between save and retirement.
+                # Repair legacy terminal owners saved before atomic retirement.
                 self.store.retire_unsent_adds(position_id, now_ms)
                 return row
             if position_id not in self.seen:
@@ -497,6 +513,9 @@ class Supervisor:
                         now_ms,
                     )
                 # Concurrent control requests win; reload on the next supervisor iteration.
+            # _try_add rejects expired adds only for PROTECTED owners; retire any
+            # expired unsent approval it did not reach so it stops showing as pending.
+            self.store.retire_unsent_adds(position_id, now_ms)
             return self.store.get(position_id)
 
     def _step(self, row, now):

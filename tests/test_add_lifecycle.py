@@ -1,7 +1,10 @@
 """Order cancellation budgets and terminal unsent-add retirement."""
+from contextlib import contextmanager
 from decimal import Decimal
 from pathlib import Path
+import sqlite3
 import unittest
+from unittest.mock import patch
 
 from kis_hl.managed_execution import ExecutionStore, Supervisor
 from kis_hl.strategy_signals import Signals
@@ -223,6 +226,61 @@ class AddLifecycleTests(unittest.TestCase):
         self.assertEqual(self.store.tranches(self.row["id"])[0], queued)
         self.assertEqual(self.store.attempts(self.row["id"])[-1], attempt)
         self.assertEqual(attempt["status"], "UNKNOWN")
+        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+
+    def test_terminal_save_and_retirement_commit_or_roll_back_together(self):
+        self.authorize()
+        with self.store.connect() as db:
+            db.execute("CREATE TRIGGER block_retire BEFORE UPDATE ON managed_tranches "
+                       "BEGIN SELECT RAISE(ABORT, 'retirement blocked'); END")
+        owner = self.store.get(self.row["id"])
+        owner["state"] = "CLOSED"
+        with self.assertRaises(sqlite3.Error):
+            self.store.save(owner, NOW+6)
+        self.assertEqual(self.store.get(self.row["id"])["state"], "PROTECTED")
+        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
+
+    def test_finished_owner_without_queued_add_takes_no_retirement_lock(self):
+        self.authorize()
+        self.close_owner()
+        statements = []
+        original = ExecutionStore.connect
+
+        @contextmanager
+        def traced(store):
+            with original(store) as db:
+                db.set_trace_callback(statements.append)
+                yield db
+
+        with patch.object(ExecutionStore, "connect", traced):
+            self.worker.step(self.row["id"], NOW+20)
+        self.assertFalse([s for s in statements if "BEGIN IMMEDIATE" in s or "managed_attempts" in s])
+
+    def test_expired_unsent_add_retires_while_owner_is_not_protected(self):
+        queued = self.authorize()
+        owner = self.store.get(self.row["id"])
+        owner["state"] = "INTERVENTION"
+        self.store.save(owner, NOW+6)
+        self.worker.step(self.row["id"], NOW+10)
+        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
+        expiry = queued["plan"]["expires_ms"]
+        self.worker.step(self.row["id"], expiry)
+        expired = self.store.tranches(self.row["id"])[0]
+        self.assertEqual(expired["status"], "EXPIRED")
+        self.assertEqual(expired["retired_ms"], expiry)
+        self.assertEqual(expired["sizing"], queued["sizing"])
+        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+
+    def test_expiry_retirement_never_hides_a_durable_attempt(self):
+        queued = self.authorize()
+        owner = self.store.get(self.row["id"])
+        owner["state"] = "INTERVENTION"
+        self.store.save(owner, NOW+6)
+        self.store.attempt(owner, "add", NOW+7, tranche_id=queued["id"], quantity="0.5", price="100")
+        self.worker.step(self.row["id"], queued["plan"]["expires_ms"])
+        kept = self.store.tranches(self.row["id"])[0]
+        self.assertNotEqual(kept["status"], "EXPIRED")
+        self.assertNotIn("retired_ms", kept)
         self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
 
     def test_all_finished_states_retire_only_unsent_queued_tranches(self):

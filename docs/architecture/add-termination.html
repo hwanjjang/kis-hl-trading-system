@@ -5160,7 +5160,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / Expired Entry / Add Attempt</text>
 
         <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="176" width="1063" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / Terminal Position Owner</text>
+        <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / Position Owner</text>
 
         <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-2" x="40" y="300" width="1063" height="104" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / Durable Tranche Ledger</text>
@@ -5174,11 +5174,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <!-- Edge paths -->
         <path data-edge-from="budget" data-edge-to="send" data-edge-key="0" data-edge-id="budget-send" data-composition-points="614,119;642,119" d="M 614 119 L 642 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path data-edge-from="expire" data-edge-to="target" data-edge-key="1" data-edge-id="expire-target" data-composition-points="218,119;246,119" d="M 218 119 L 246 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="finished" data-edge-to="queued" data-edge-key="2" data-edge-id="finished-queued" data-composition-points="218,243;246,243" d="M 218 243 L 246 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="queued" data-edge-to="retain" data-edge-label="attempt exists" data-edge-key="3" data-edge-id="queued-retain" data-composition-points="331,269;331,290;432,290;432,367;416,367" d="M 331 269 L 331 290 L 432 290 L 432 367 L 416 367" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="queued" data-edge-to="retire" data-edge-label="no attempt" data-edge-key="4" data-edge-id="queued-retire" data-composition-points="331,217;331,201;727,201;727,217" d="M 331 217 L 331 201 L 727 201 L 727 217" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="send" data-edge-to="readback" data-edge-key="5" data-edge-id="send-readback" data-composition-points="812,119;840,119" d="M 812 119 L 840 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="target" data-edge-to="budget" data-edge-key="6" data-edge-id="target-budget" data-composition-points="416,119;444,119" d="M 416 119 L 444 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="expired" data-edge-to="queued" data-edge-label="expired" data-edge-key="2" data-edge-id="expired-queued" data-composition-points="218,367;234,367;234,290;331,290;331,269" d="M 218 367 L 234 367 L 234 290 L 331 290 L 331 269" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="finished" data-edge-to="queued" data-edge-key="3" data-edge-id="finished-queued" data-composition-points="218,243;246,243" d="M 218 243 L 246 243" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="queued" data-edge-to="retain" data-edge-label="attempt exists" data-edge-key="4" data-edge-id="queued-retain" data-composition-points="331,269;331,290;432,290;432,367;416,367" d="M 331 269 L 331 290 L 432 290 L 432 367 L 416 367" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="queued" data-edge-to="retire" data-edge-label="no attempt" data-edge-key="5" data-edge-id="queued-retire" data-composition-points="331,217;331,201;727,201;727,217" d="M 331 217 L 331 201 L 727 201 L 727 217" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="send" data-edge-to="readback" data-edge-key="6" data-edge-id="send-readback" data-composition-points="812,119;840,119" d="M 812 119 L 840 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="target" data-edge-to="budget" data-edge-key="7" data-edge-id="target-budget" data-composition-points="416,119;444,119" d="M 416 119 L 444 119" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
 
         <!-- Nodes -->
         <g id="node-expire" data-node-id="expire" data-node-label="Expiry or Exit" tabindex="0" role="button" aria-label="Focus Expiry or Exit, identify active remainder, Expired Entry / Add Attempt" aria-pressed="false" data-node-kind="security" data-node-sublabel="identify active remainder" data-node-context="Expired Entry / Add Attempt">
@@ -5239,8 +5240,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text data-detail="context" x="925" y="131" class="t-muted" font-size="8" text-anchor="middle">actual fills and SL/TS</text>
         </g>
 
-        <g id="node-finished" data-node-id="finished" data-node-label="Owner Finished" tabindex="0" role="button" aria-label="Focus Owner Finished, CLOSED / REJECTED / PREVIEWED, Terminal Position Owner" aria-pressed="false" data-node-kind="database" data-node-sublabel="CLOSED / REJECTED / PREVIEWED" data-node-context="Terminal Position Owner">
-          <title>Owner Finished · CLOSED / REJECTED / PREVIEWED · Terminal Position Owner</title>
+        <g id="node-finished" data-node-id="finished" data-node-label="Owner Finished" tabindex="0" role="button" aria-label="Focus Owner Finished, terminal save; same transaction, Position Owner" aria-pressed="false" data-node-kind="database" data-node-sublabel="terminal save; same transaction" data-node-context="Position Owner">
+          <title>Owner Finished · terminal save; same transaction · Position Owner</title>
           <rect x="48" y="217" width="170" height="52" rx="6" class="c-mask"/>
           <rect x="48" y="217" width="170" height="52" rx="6" class="c-database" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(54 223) scale(0.6875)">
@@ -5248,11 +5249,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="133" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Owner Finished</text>
-          <text data-detail="context" x="133" y="255" class="t-muted" font-size="8" text-anchor="middle">CLOSED / REJECTED / PREVIEWED</text>
+          <text data-detail="context" x="133" y="255" class="t-muted" font-size="8" text-anchor="middle">terminal save; same transaction</text>
         </g>
 
-        <g id="node-queued" data-node-id="queued" data-node-label="QUEUED Tranche" tabindex="0" role="button" aria-label="Focus QUEUED Tranche, inspect durable attempts, Terminal Position Owner" aria-pressed="false" data-node-kind="security" data-node-sublabel="inspect durable attempts" data-node-context="Terminal Position Owner">
-          <title>QUEUED Tranche · inspect durable attempts · Terminal Position Owner</title>
+        <g id="node-queued" data-node-id="queued" data-node-label="QUEUED Tranche" tabindex="0" role="button" aria-label="Focus QUEUED Tranche, inspect durable attempts, Position Owner" aria-pressed="false" data-node-kind="security" data-node-sublabel="inspect durable attempts" data-node-context="Position Owner">
+          <title>QUEUED Tranche · inspect durable attempts · Position Owner</title>
           <rect x="246" y="217" width="170" height="52" rx="6" class="c-mask"/>
           <rect x="246" y="217" width="170" height="52" rx="6" class="c-security" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(252 223) scale(0.6875)">
@@ -5263,16 +5264,28 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text data-detail="context" x="331" y="255" class="t-muted" font-size="8" text-anchor="middle">inspect durable attempts</text>
         </g>
 
-        <g id="node-retire" data-node-id="retire" data-node-label="CANCELED" tabindex="0" role="button" aria-label="Focus CANCELED, no matching attempt only, Terminal Position Owner" aria-pressed="false" data-node-kind="database" data-node-sublabel="no matching attempt only" data-node-context="Terminal Position Owner">
-          <title>CANCELED · no matching attempt only · Terminal Position Owner</title>
+        <g id="node-retire" data-node-id="retire" data-node-label="CANCELED / EXPIRED" tabindex="0" role="button" aria-label="Focus CANCELED / EXPIRED, no matching attempt only, Position Owner" aria-pressed="false" data-node-kind="database" data-node-sublabel="no matching attempt only" data-node-context="Position Owner">
+          <title>CANCELED / EXPIRED · no matching attempt only · Position Owner</title>
           <rect x="642" y="217" width="170" height="52" rx="6" class="c-mask"/>
           <rect x="642" y="217" width="170" height="52" rx="6" class="c-database" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(648 223) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="727" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">CANCELED</text>
+          <text data-node-label="" data-detail-anchor="" x="727" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">CANCELED / EXPIRED</text>
           <text data-detail="context" x="727" y="255" class="t-muted" font-size="8" text-anchor="middle">no matching attempt only</text>
+        </g>
+
+        <g id="node-expired" data-node-id="expired" data-node-label="Approval Expired" tabindex="0" role="button" aria-label="Focus Approval Expired, owner not PROTECTED, Durable Tranche Ledger" aria-pressed="false" data-node-kind="security" data-node-sublabel="owner not PROTECTED" data-node-context="Durable Tranche Ledger">
+          <title>Approval Expired · owner not PROTECTED · Durable Tranche Ledger</title>
+          <rect x="48" y="341" width="170" height="52" rx="6" class="c-mask"/>
+          <rect x="48" y="341" width="170" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(54 347) scale(0.6875)">
+            <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
+            <path d="m5.8 8 1.5 1.5 3-3"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="133" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Approval Expired</text>
+          <text data-detail="context" x="133" y="379" class="t-muted" font-size="8" text-anchor="middle">owner not PROTECTED</text>
         </g>
 
         <g id="node-retain" data-node-id="retain" data-node-label="Retain Signed Work" tabindex="0" role="button" aria-label="Focus Retain Signed Work, UNKNOWN / submitted ledger, Durable Tranche Ledger" aria-pressed="false" data-node-kind="database" data-node-sublabel="UNKNOWN / submitted ledger" data-node-context="Durable Tranche Ledger">
@@ -5290,12 +5303,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <!-- Edge labels -->
 
 
+        <g data-detail="context" data-edge-from="expired" data-edge-to="queued" data-edge-label="expired" data-edge-key="2" data-edge-id="expired-queued">
+          <rect x="260.7" y="270" width="43.6" height="14" rx="3" class="c-mask"/>
+          <text x="282.5" y="280" class="t-muted" font-size="8" text-anchor="middle">expired</text>
+        </g>
 
-        <g data-detail="context" data-edge-from="queued" data-edge-to="retain" data-edge-label="attempt exists" data-edge-key="3" data-edge-id="queued-retain">
+        <g data-detail="context" data-edge-from="queued" data-edge-to="retain" data-edge-label="attempt exists" data-edge-key="4" data-edge-id="queued-retain">
           <rect x="342.9" y="270" width="77.2" height="14" rx="3" class="c-mask"/>
           <text x="381.5" y="280" class="t-muted" font-size="8" text-anchor="middle">attempt exists</text>
         </g>
-        <g data-detail="context" data-edge-from="queued" data-edge-to="retire" data-edge-label="no attempt" data-edge-key="4" data-edge-id="queued-retire">
+        <g data-detail="context" data-edge-from="queued" data-edge-to="retire" data-edge-label="no attempt" data-edge-key="5" data-edge-id="queued-retire">
           <rect x="500" y="181" width="58" height="14" rx="3" class="c-mask"/>
           <text x="529" y="191" class="t-muted" font-size="8" text-anchor="middle">no attempt</text>
         </g>
@@ -5518,11 +5535,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>Terminal repair stays local</h3>
+          <h3>Retirement stays local and bounded</h3>
         </div>
         <ul>
-          <li>&bull; Supervisor repairs already-finished owners; status remains read-only</li>
-          <li>&bull; Retirement updates only unsent QUEUED rows; no signed mutation</li>
+          <li>&bull; Terminal save and unsent-add retirement commit together</li>
+          <li>&bull; Expired unsent approvals retire in any non-PROTECTED owner state</li>
+          <li>&bull; Finished owners with no QUEUED row take no write lock; status is read-only</li>
         </ul>
       </div>
     </div>

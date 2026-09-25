@@ -832,10 +832,16 @@ or stop its SL/TS loop. A durable signed attempt is never resent, including afte
 restart, and remains subject to the existing reconciliation/recovery limits.
 
 When the owner reaches `CLOSED`, `REJECTED` or `PREVIEWED`, the store retires only
-`QUEUED` tranches with no matching durable attempt. They become `CANCELED` with an
-owner-state reason and `retired_ms`; approval/sizing history stays intact. A normal
-supervisor tick also repairs already-finished legacy owners or a crash between
-terminal save and retirement. Status commands remain read-only. Any durable attempt,
+`QUEUED` tranches with no matching durable attempt, in the same SQLite transaction
+as the terminal owner save; if retirement fails, the owner state change rolls back
+too. They become `CANCELED` with an owner-state reason and `retired_ms`;
+approval/sizing history stays intact. A normal supervisor tick also repairs
+already-finished legacy owners, and takes no write lock when no `QUEUED` tranche
+remains. Only a `PROTECTED` owner can submit an add, and it rejects an expired
+approval before preflight. For any other unfinished owner state (for example
+`INTERVENTION`, `EXIT_PENDING` or `DEGRADED`), the supervisor marks an unsent
+`QUEUED` tranche `EXPIRED` once its approval expiry passes, so it no longer
+appears in `pending_adds`. Status commands remain read-only. Any durable attempt,
 including `UNKNOWN`, prevents this unsent cleanup; it is not evidence that a signed
 order was canceled or never transmitted. See the [cancellation and retirement
 flow](architecture/add-termination.html) for these separate lifecycle boundaries.
