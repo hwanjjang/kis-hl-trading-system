@@ -1,4 +1,0 @@
-# Review reproduction
-Source: PR #21 issuecomment-5779271781, reproduced against f99c8a5 with /tmp/pr21-comment-review/reproduce.py (exit 0).
-Rejected/no oid and open waiting beyond 5000 ms both send exit while covered_size=1 and fixed SL remains open. Price 100000 / distance 4 reaches entry then INTERVENTION because snapshot price_step=10 is incorrectly used for distance. The client with szDecimals=5 accepts distance 4 before stubbed send.
-Cached official app s4 parser accepts best waiting, omitted best, optional activation and percentage retracement. Broader syntax does not establish semantic equivalence with immediate quote-distance requests. Separate parsing from managed contract verification. Exit is a bounded reduce-only IOC limit, not a bare market order. No live readback shape or timing verified.

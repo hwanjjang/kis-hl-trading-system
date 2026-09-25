@@ -1,5 +1,0 @@
-# PR 26 correction
-
-AK authorized proceeding after the comment assessment. Accepted item 1: README now says sizing is advisory and order quantity/funds/notional guards remain explicit. Accepted item 2: supplied setup_input must be an object describing breakout or btc_3h before new entry; the shared check runs both before enqueue and before supervisor entry. Missing legacy setup_input stays compatible. Item 3 is deferred: wrapper validation and persisted raw bars already preserve the needed time evidence; no current decision defect was shown.
-
-Regression first failed for passing pullback/rebreakout/stop-crossed management evidence; malformed null evidence previously raised AttributeError. The guard now rejects these as ValueError. Valid breakout/BTC evidence and existing no-evidence legacy/grant/expiry tests pass. 48 affected tests passed. A separate real CLI subprocess/temporary SQLite smoke rejected management evidence before enqueue and accepted BTC and legacy paper entries. Synthetic account, empty private key, loopback base URL, no exchange calls or live orders. No architecture change or diagram is needed.

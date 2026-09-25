@@ -1,4 +1,0 @@
-# Self verification
-75 relevant tests passed; final runtime code unchanged afterward. Earlier green run: 10 new strategy tests passed. Intended red evidence retained for missing risk/setup/stop APIs and unsafe non-entry execution. Commands/results retained as original captured red logs and explicit observed execution summaries, not fabricated raw stdout.
-Real CLI/SQLite smoke passed: evaluate, register, decide twice, signal list; exactly one immutable decision with evidence, no managed orders. See cli-smoke.json.
-Skill validator passed; canonical links resolve through .agents/.claude/.codex, local Markdown references resolve, git diff --check passes. Independent skill forward review is in the separate verifier report. Actual Hermes host activation and live exchange behavior were not exercised.

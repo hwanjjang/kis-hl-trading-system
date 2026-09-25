@@ -37,10 +37,8 @@ logs/
 /skill-observations/
 /skill-updates/
 
-# SDLC runtime locks and raw command logs; retain reports and evidence receipts.
-/reports/sdlc/**/.state.lock
-/reports/sdlc/**/.sdlc-*
-/reports/sdlc/**/*.log
+# Local SDLC reports, evidence and runtime state.
+/reports/sdlc/
 
 # Archify staging directories and reproducible browser screenshots.
 # Keep delivered HTML, source JSON and browser-check HTML/JSON trackable.

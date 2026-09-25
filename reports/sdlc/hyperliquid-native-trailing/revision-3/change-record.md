@@ -1,3 +1,0 @@
-# Change record
-Runtime: kis_hl/hyperliquid/trailing.py, managed_gateways.py, managed_execution.py. Tests: ten new regression methods in tests/test_native_trailing.py (43 native / 115 focused / 458 total); scripts/smoke_native_trailing.py adds two real lifecycle replays. Docs: trading-operations, architecture, API exchange reference, canonical intent/spec/plan and revision3 evidence. Existing latest accepted known-ID terminal rejection and all other regression cases remain intact.
-Additional rollout gate, fallback/retry, waiting timeout and asset restriction are deferred, not implemented. Mainnet network default and explicit live opt-in flags unchanged. Live exchange acceptance/readback/cancel unverified; issue20 remains open.
