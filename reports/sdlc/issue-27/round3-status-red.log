@@ -1,0 +1,15 @@
+E
+======================================================================
+ERROR: test_supervisor_reports_unknown_add_without_changing_protection (tests.test_conditional_add.ConditionalAddTests.test_supervisor_reports_unknown_add_without_changing_protection)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 519, in test_supervisor_reports_unknown_add_without_changing_protection
+    pending = row["pending_adds"]
+              ~~~^^^^^^^^^^^^^^^^
+KeyError: 'pending_adds'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.304s
+
+FAILED (errors=1)
+Expected Red: old supervisor omits pending_adds; corrected fixture reaches intended assertion.

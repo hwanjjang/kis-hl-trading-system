@@ -515,3 +515,12 @@ when adding a strategy. Existing signal/manual-grant and protected-order command
 retain execution authority; a passing setup or stored decision does not grant it.
 
 Binance raw order commands operate outside managed trade plans and supervision; see [operating boundaries](docs/trading-operations.md#binance-raw-command-boundary).
+
+### Conditional Hyperliquid add-ups
+
+Use `account capital --venue hyperliquid` to capture supported account-total sizing
+evidence. `order preview` and `signal execute` support a complete explicitly approved
+existing-position add plan; `order status` includes tranche sizing/fill records.
+Follow the [bounded add contract](docs/trading-operations.md#bounded-conditional-add-ups).
+Run `python scripts/smoke_conditional_add.py` for the network-free CLI/SQLite smoke.
+No live add is armed by installing this implementation.

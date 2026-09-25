@@ -1,0 +1,33 @@
+{
+  "candidate": "0247846f212180b236cf803371254661bbcd6490ba95d58b45146be66d3d8f47",
+  "base": "cb0baa6ab0eb7c73910387ee2fe6eec2863ebcb5",
+  "files": {
+    ".agents/skills/hyperliquid-api/SKILL.md": "f3dc6832fe68d141c76c1a2ab2f705bc257745e5acabc570ce1a759292843eed",
+    ".agents/skills/hyperliquid-api/references/info-endpoint.md": "aa69a7d49bb706e5ce55e8bf6a54f731f2942e4ea44f58dd20c4a6e9e8c4f1d3",
+    ".agents/skills/hyperliquid-api/references/limits-and-errors.md": "baeef62a9ca7c3cf238377007a88b356df9843dcf4bd88d4404559c9033df223",
+    ".agents/skills/trend-strategy/SKILL.md": "58d9ca1b451127e08d06c7bfb1ff569ea4a42efe4ac02bdcd07bf0bd9b806d03",
+    ".agents/skills/trend-strategy/references/strategy.md": "39502e975d098d7400503a4706dff3ac194901a8038685d1a1b030101fc2b024",
+    "README.md": "08f5c351a7e1316f7ee597c27140e7bacb79444257beb5831576ad5bfecdc034",
+    "docs/architecture.md": "311bfef4d203868630d4d01353a80ebcfd556836c3d4e5654a4cc7b32daa4a62",
+    "docs/architecture/conditional-add.html": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67",
+    "docs/architecture/conditional-add.workflow.json": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e",
+    "docs/strategy-tools.md": "6ad86947396162a0c9584521ec521349feceaa6d80ce6e9ae2b6be5179fd773d",
+    "docs/strategy_execution_design.md": "cdb55819f813042294754f7cbc922331b29cd4cb23694fce5bba57739bbdcaeb",
+    "docs/trading-operations.md": "9eb2fab6dedc9dfb94e74240b4fc8d70d81e91ee3dfaae63d96d53663cdae86a",
+    "kis_hl/account_capital.py": "465c481ba05412d1429519fcae4cf426aa3ef5d728f782a1dbb99d09f5cf33dc",
+    "kis_hl/conditional_add.py": "b416d550609ee6126538efbf9c726305e0d3da06d9b365ac7ec9d2f8cdf086cc",
+    "kis_hl/hyperliquid/client.py": "0ecb3e02374f5c672896050f7f5d15c2a9e2ce9acbd4017bccd4de08969fa9ff",
+    "kis_hl/managed_execution.py": "e45f87a7fdff3b6e8fb32e25c763ceee26d3362f654569ef0998effaac578d66",
+    "kis_hl/managed_gateways.py": "b9622f57889c0635cb1b665611b0d65793c28ce1d8ea6373a1137026ceff6f3d",
+    "kis_hl/manual_adoption.py": "a862115232ccce91aa3d0b34e4092baf2f0d05fd28f74f4d1bbfd17430fef7f3",
+    "kis_hl/operations_cli.py": "1638cae6bf9a23cd4bbf72b9460f358909b61527f754cd62a01a309035080b9d",
+    "kis_hl/strategy_signals.py": "d993a8b8dc90e4011ef560407bf24bc14474a3db112c2d1153a59af2be9b4c5d",
+    "kis_hl/strategy_tools.py": "537a4b8a02d816127df5429a7d1ee5da1a16300693f9001b31e08adf67b1167b",
+    "scripts/smoke_conditional_add.py": "727b06c23d2c892dc1f146f54af4b6d453ecaf7998aef8d9c4c5a6013cc25aa9",
+    "tests/test_conditional_add.py": "872e1d603fca9d1db9744ca134f300f92f82a2c28e22908533662b4568de1e18",
+    "tests/test_hyperliquid_client.py": "1aa76b58a0fda91d519a18c0fc44fe1c2caa1dcf62d938cc9e858e2896cf368a",
+    "tests/test_managed_gateways.py": "4a0c15dca18297412d016db3ed149f336218ee380f4ff286ff7e44a0aae19c21",
+    "tests/test_manual_adoption.py": "abed2c83f3e36ad7dd073c230a2a80ff09e3f63521661380aadc2c6275b94d7f",
+    "tests/test_strategy_tools.py": "e77d8bc358265cb156a17d74dfef38a8f3d791ff12c8a4bf88aa499c1d228593"
+  }
+}

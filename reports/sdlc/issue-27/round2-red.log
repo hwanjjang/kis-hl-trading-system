@@ -1,0 +1,142 @@
+======================================================================
+ERROR: test_approval_expiry_cannot_outlive_any_source_deadline (tests.test_conditional_add.ConditionalAddTests.test_approval_expiry_cannot_outlive_any_source_deadline)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 182, in test_approval_expiry_cannot_outlive_any_source_deadline
+    self.authorize()
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 352, in authorize
+    return self.signals.execute("add-once", "scope", self.plan, manual=True, live=True, now_ms=NOW+5)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/kis_hl/strategy_signals.py", line 276, in execute
+    return self.store.enqueue_add(owner, p, now_ms=now_ms, sizing=sizing)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/kis_hl/managed_execution.py", line 261, in enqueue_add
+    raise ValueError("An add lifecycle is already pending")
+ValueError: An add lifecycle is already pending
+
+======================================================================
+ERROR: test_preview_exposes_short_deadline_without_changing_plan (tests.test_conditional_add.ConditionalAddTests.test_preview_exposes_short_deadline_without_changing_plan)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 200, in test_preview_exposes_short_deadline_without_changing_plan
+    self.assertEqual(result["sizing"]["max_expires_ms"], NOW+10000)
+                     ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+KeyError: 'max_expires_ms'
+
+======================================================================
+FAIL: test_account_wait_does_not_bypass_expiry_or_kill_switch (tests.test_conditional_add.ConditionalAddTests.test_account_wait_does_not_bypass_expiry_or_kill_switch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 234, in test_account_wait_does_not_bypass_expiry_or_kill_switch
+    self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
+AssertionError: 'REJECTED' != 'QUEUED'
+- REJECTED
++ QUEUED
+
+
+======================================================================
+FAIL: test_account_wait_still_rejects_revoked_grant (tests.test_conditional_add.ConditionalAddTests.test_account_wait_still_rejects_revoked_grant)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 246, in test_account_wait_still_rejects_revoked_grant
+    self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
+AssertionError: 'REJECTED' != 'QUEUED'
+- REJECTED
++ QUEUED
+
+
+======================================================================
+FAIL: test_approval_expiry_cannot_outlive_any_source_deadline (tests.test_conditional_add.ConditionalAddTests.test_approval_expiry_cannot_outlive_any_source_deadline) (source='snapshot')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 177, in test_approval_expiry_cannot_outlive_any_source_deadline
+    with self.assertRaisesRegex(ValueError, "expiry.*evidence"):
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_approval_expiry_cannot_outlive_any_source_deadline (tests.test_conditional_add.ConditionalAddTests.test_approval_expiry_cannot_outlive_any_source_deadline) (source='candles')
+----------------------------------------------------------------------
+ValueError: An add lifecycle is already pending
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 177, in test_approval_expiry_cannot_outlive_any_source_deadline
+    with self.assertRaisesRegex(ValueError, "expiry.*evidence"):
+AssertionError: "expiry.*evidence" does not match "An add lifecycle is already pending"
+
+======================================================================
+FAIL: test_approval_expiry_cannot_outlive_any_source_deadline (tests.test_conditional_add.ConditionalAddTests.test_approval_expiry_cannot_outlive_any_source_deadline) (source='position')
+----------------------------------------------------------------------
+ValueError: An add lifecycle is already pending
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 177, in test_approval_expiry_cannot_outlive_any_source_deadline
+    with self.assertRaisesRegex(ValueError, "expiry.*evidence"):
+AssertionError: "expiry.*evidence" does not match "An add lifecycle is already pending"
+
+======================================================================
+FAIL: test_approval_expiry_cannot_outlive_any_source_deadline (tests.test_conditional_add.ConditionalAddTests.test_approval_expiry_cannot_outlive_any_source_deadline) (source='daily')
+----------------------------------------------------------------------
+ValueError: An add lifecycle is already pending
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 177, in test_approval_expiry_cannot_outlive_any_source_deadline
+    with self.assertRaisesRegex(ValueError, "expiry.*evidence"):
+AssertionError: "expiry.*evidence" does not match "An add lifecycle is already pending"
+
+======================================================================
+FAIL: test_approval_expiry_cannot_outlive_any_source_deadline (tests.test_conditional_add.ConditionalAddTests.test_approval_expiry_cannot_outlive_any_source_deadline) (source='weekly')
+----------------------------------------------------------------------
+ValueError: An add lifecycle is already pending
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 177, in test_approval_expiry_cannot_outlive_any_source_deadline
+    with self.assertRaisesRegex(ValueError, "expiry.*evidence"):
+AssertionError: "expiry.*evidence" does not match "An add lifecycle is already pending"
+
+======================================================================
+FAIL: test_approval_expiry_cannot_outlive_any_source_deadline (tests.test_conditional_add.ConditionalAddTests.test_approval_expiry_cannot_outlive_any_source_deadline) (source='capital')
+----------------------------------------------------------------------
+ValueError: An add lifecycle is already pending
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 177, in test_approval_expiry_cannot_outlive_any_source_deadline
+    with self.assertRaisesRegex(ValueError, "expiry.*evidence"):
+AssertionError: "expiry.*evidence" does not match "An add lifecycle is already pending"
+
+======================================================================
+FAIL: test_approval_expiry_cannot_outlive_any_source_deadline (tests.test_conditional_add.ConditionalAddTests.test_approval_expiry_cannot_outlive_any_source_deadline) (source='quote_cap')
+----------------------------------------------------------------------
+ValueError: An add lifecycle is already pending
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 177, in test_approval_expiry_cannot_outlive_any_source_deadline
+    with self.assertRaisesRegex(ValueError, "expiry.*evidence"):
+AssertionError: "expiry.*evidence" does not match "An add lifecycle is already pending"
+
+======================================================================
+FAIL: test_temporary_account_state_waits_and_recovers_once_after_reopen (tests.test_conditional_add.ConditionalAddTests.test_temporary_account_state_waits_and_recovers_once_after_reopen)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 220, in test_temporary_account_state_waits_and_recovers_once_after_reopen
+    self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
+AssertionError: 'REJECTED' != 'QUEUED'
+- REJECTED
++ QUEUED
+
+
+----------------------------------------------------------------------
+Ran 26 tests in 12.597s
+
+FAILED (failures=10, errors=2)

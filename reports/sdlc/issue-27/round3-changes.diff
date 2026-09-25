@@ -1,0 +1,261 @@
+diff --git a/docs/trading-operations.md b/docs/trading-operations.md
+index 59ef6b2..eb31663 100644
+--- a/docs/trading-operations.md
++++ b/docs/trading-operations.md
+@@ -800,13 +800,27 @@ before any send leave the tranche `QUEUED` for the existing supervisor's next ti
+ Authority/expiry are checked before each read and again after successful preflight.
+ Identity, schema and permanent HTTP errors still reject; a signed unknown outcome
+ never qualifies for this read retry and cannot be resent.
+-Another same-account/mode position in `QUEUED`, `ENTERING` or `PROTECTING` leaves
+-the unsent add `QUEUED` with a reconciliation-wait reason. Existing ticks recheck
++Another same-account/mode position in `QUEUED`, `ENTERING`, `PROTECTING`,
++`DEGRADED` or `ADOPTING` leaves the unsent add `QUEUED` with a reconciliation-wait
++reason only when it has no exit request, entry cancellation, read-failure exit or
++native-trailing intervention flag. These flags reject the add even if the other
++position's state still says `PROTECTED`. `DEGRADED` alone is not proof of a harmless
++quote delay: it can also mean an exit waiting for fresh prices. Existing ticks recheck
+ expiry, authority/revocation and the entry kill switch before waiting. Recovery
+ requires full fresh preflight; waiting does not extend any deadline. Other blocking
+ states, including `INTERVENTION`, retain terminal rejection. No signed attempt is
+ created while waiting, and no unrelated account-wide entry is enabled.
+
++`supervisor status` and `supervisor run --once` include `pending_adds` on each
++position: nonterminal tranche IDs, signal IDs, statuses, filled quantities,
++attempt IDs and wait detail when present. The list is empty when no add
++remains pending; terminal tranche history and full evidence remain in `order status`.
++An owner can be `PROTECTED` for its last reconciled exposure while an add is
++`UNKNOWN`; this does not confirm the add's outcome. Inspect the pending record and
++associated order/fill readback. Displaying uncertainty does not change owner state
++or stop its SL/TS loop. A durable signed attempt is never resent, including after
++restart, and remains subject to the existing reconciliation/recovery limits.
++
+ Partial add fills receive incremental fixed-SL coverage at the confirmed fixed
+ stop. The owner keeps its ATR and local watermark; the local TS always targets the
+ entire residual position. After the add is terminal and SL is verified, native
+diff --git a/kis_hl/managed_execution.py b/kis_hl/managed_execution.py
+index f8ba550..d943e86 100644
+--- a/kis_hl/managed_execution.py
++++ b/kis_hl/managed_execution.py
+@@ -1094,13 +1094,18 @@ class Supervisor:
+                 # keep expired or revoked approvals queued indefinitely.
+                 validate_plan(tranche["plan"], now)
+                 Signals(self.store).check_authority({**row, "plan": tranche["plan"]}, now_ms=now)
+-                blocked = [x for x in self.store.list(row["scope"])
+-                           if x["id"] != row["id"] and x["mode"] == row["mode"]
+-                           and x["state"] not in FINISHED | {"PROTECTED"}]
+-                if any(x["state"] not in {"QUEUED", "ENTERING", "PROTECTING"} for x in blocked):
++                others = [x for x in self.store.list(row["scope"])
++                          if x["id"] != row["id"] and x["mode"] == row["mode"]
++                          and x["state"] not in FINISHED]
++                # DEGRADED can also mean a pending exit; state alone is not
++                # sufficient to distinguish a temporary reconciliation wait.
++                if any(x["state"] not in {"PROTECTED", "QUEUED", "ENTERING", "PROTECTING", "DEGRADED", "ADOPTING"}
++                       or x.get("exit_requested_ms") is not None or x.get("cancel_entry")
++                       or x.get("read_failure_exit") or x.get("native_trailing_intervention")
++                       for x in others):
+                     raise ValueError("Other account exposure needs reconciliation")
+-                if blocked:
+-                    tranche["reason"] = "Waiting for other account position entry/protection reconciliation"
++                if any(x["state"] != "PROTECTED" for x in others):
++                    tranche["reason"] = "Waiting for other account position reconciliation"
+                     self.store.save_tranche(tranche)
+                     continue
+                 sizing, now = preflight_add(self.gateway, self.store, row, tranche, now)
+diff --git a/kis_hl/operations_cli.py b/kis_hl/operations_cli.py
+index ca74ff1..b33c117 100644
+--- a/kis_hl/operations_cli.py
++++ b/kis_hl/operations_cli.py
+@@ -15,7 +15,7 @@ from kis_hl.journal_sync import Fill, JournalLedger, Scope, SyncSchedule, encode
+ from kis_hl.journal_history import sync_hyperliquid, sync_kis
+ from kis_hl.kis.client import KisClient
+ from kis_hl.hyperliquid.client import HyperliquidInfoClient, HyperliquidTradingClient
+-from kis_hl.managed_execution import ExecutionStore, Supervisor, validate_plan
++from kis_hl.managed_execution import ExecutionStore, Supervisor, TERMINAL, validate_plan
+
+
+ def kis_client():
+@@ -590,9 +590,18 @@ def cmd_supervisor(args):
+
+     scope, client = scope_client(args.venue)
+     store = ExecutionStore(args.db)
++
++    def positions():
++        # Execution uncertainty is separate from protection of observed exposure.
++        return [{**row, "pending_adds": [
++            {**{key: tranche.get(key) for key in ("id", "status", "filled", "attempt_id", "reason")},
++             "signal_id": tranche["plan"]["signal_id"]}
++            for tranche in store.tranches(row["id"]) if tranche["status"].lower() not in TERMINAL
++        ]} for row in store.list(scope.key)]
++
+     if args.action == "status":
+         return {
+-            "positions": store.list(scope.key),
++            "positions": positions(),
+             "entries_enabled": store.entries_enabled(scope.key),
+         }
+     if args.action in {"pause-entries", "resume-entries"}:
+@@ -617,7 +626,7 @@ def cmd_supervisor(args):
+                 if (row["mode"] == "live") == args.live:
+                     worker.step(row["id"], int(time.time() * 1000))
+             if args.once:
+-                return {"positions": store.list(scope.key)}
++                return {"positions": positions()}
+             time.sleep(args.poll_seconds)
+
+
+diff --git a/scripts/smoke_conditional_add.py b/scripts/smoke_conditional_add.py
+index 9fc8b78..f1d3a77 100644
+--- a/scripts/smoke_conditional_add.py
++++ b/scripts/smoke_conditional_add.py
+@@ -57,13 +57,31 @@ def run():
+             initial = len(gateway.sent)
+             tranche = cli("signal", "execute", "--id", signal["id"], "--input", str(path), "--manual", "--live")
+             assert tranche["status"] == "QUEUED" and len(gateway.sent) == initial
+-            cli("supervisor", "run", "--venue", "hyperliquid", "--live", "--once")
++            queued = cli("supervisor", "status", "--venue", "hyperliquid")["positions"][0]
++            assert queued["pending_adds"][0]["status"] == "QUEUED"
++            submit = gateway.submit
++
++            def lost_ack(owner, attempt):
++                result = submit(owner, attempt)
++                if attempt["kind"] == "add":
++                    raise TimeoutError("Stub accepted add but acknowledgement was lost")
++                return result
++
++            gateway.submit = lost_ack
++            unknown_run = cli("supervisor", "run", "--venue", "hyperliquid", "--live", "--once")["positions"][0]
++            unknown = cli("supervisor", "status", "--venue", "hyperliquid")["positions"][0]
++            assert unknown_run["pending_adds"] == unknown["pending_adds"]
++            assert unknown["state"] == "PROTECTED" and unknown["pending_adds"][0]["status"] == "UNKNOWN"
++            gateway.submit = submit
+             add = [a for a in gateway.sent if a["kind"] == "add"][-1]
+             gateway.fill(add, "0.2", terminal=False)
+             for tick in (10, 11):
+                 clock[0] = NOW+tick
+                 cli("supervisor", "run", "--venue", "hyperliquid", "--live", "--once")
+             assert float(store.get(row["id"])["covered_size"]) == 1.2
++            partial = cli("supervisor", "status", "--venue", "hyperliquid")["positions"][0]
++            assert partial["pending_adds"][0]["status"] == "SUBMITTED"
++            assert float(partial["pending_adds"][0]["filled"]) == 0.2
+             gateway.fill(add, "0.5")
+             for tick in (12, 13, 14):
+                 clock[0] = NOW+tick
+@@ -75,10 +93,13 @@ def run():
+             assert float(status["covered_size"]) == float(status["trailing_covered_size"]) == 1.5
+             assert float(status["tranches"][0]["filled"]) == 0.5
+             assert len([a for a in gateway.sent if a["kind"] == "add"]) == 1
++            complete = cli("supervisor", "status", "--venue", "hyperliquid")["positions"][0]
++            assert complete["pending_adds"] == []
+         print(json.dumps({"result": "passed", "network": "forbidden", "gateway": "stub",
+             "sqlite": "temporary, reopened by every CLI invocation", "commands": commands,
+             "total_balance": "1000", "operating_capital": preview["sizing"]["operating_capital"],
+             "add_attempts": 1, "tranche_filled": "0.5", "remaining": "1.5",
++            "pending_add_statuses": ["QUEUED", "UNKNOWN", "SUBMITTED", "none after terminal fill"],
+             "sl_coverage": status["covered_size"], "native_ts_coverage": status["trailing_covered_size"],
+             "state": status["state"]}, indent=2))
+
+diff --git a/tests/test_conditional_add.py b/tests/test_conditional_add.py
+index 7b16693..7e3f791 100644
+--- a/tests/test_conditional_add.py
++++ b/tests/test_conditional_add.py
+@@ -237,6 +237,63 @@ class ConditionalAddTests(unittest.TestCase):
+         self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
+         self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+
++    def test_transient_peer_recovers_after_reopen_without_consuming_add(self):
++        for state in ("DEGRADED", "ADOPTING"):
++            with self.subTest(state=state):
++                case = ConditionalAddTests()
++                case.setUp()
++                try:
++                    case.authorize()
++                    other = case.other_position(state)
++                    case.worker.step(case.row["id"], NOW+10)
++                    self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "QUEUED")
++                    self.assertFalse(any(a["kind"] == "add" for a in case.g.sent))
++                    other["state"] = "PROTECTED"
++                    case.store.save(other, NOW+11)
++                    reopened = ExecutionStore(case.path)
++                    worker = Supervisor(reopened, case.g, live=True)
++                    for tick in (12, 13): worker.step(case.row["id"], NOW+tick)
++                    self.assertEqual(sum(a["kind"] == "add" for a in case.g.sent), 1)
++                    self.assertNotIn("reason", reopened.tranches(case.row["id"])[0])
++                finally:
++                    case.doCleanups()
++
++    def test_transient_peer_wait_still_obeys_expiry_and_kill_switch(self):
++        for state in ("DEGRADED", "ADOPTING"):
++            for boundary in ("expiry", "kill_switch"):
++                with self.subTest(state=state, boundary=boundary):
++                    case = ConditionalAddTests()
++                    case.setUp()
++                    try:
++                        case.authorize()
++                        case.other_position(state)
++                        case.worker.step(case.row["id"], NOW+10)
++                        self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "QUEUED")
++                        if boundary == "kill_switch": case.store.set_entries("scope", False)
++                        tick = case.plan["expires_ms"] if boundary == "expiry" else NOW+11
++                        case.worker.step(case.row["id"], tick)
++                        self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "REJECTED")
++                        self.assertFalse(any(a["kind"] in {"add", "cancel"} for a in case.g.sent))
++                    finally:
++                        case.doCleanups()
++
++    def test_peer_exit_or_intervention_flags_never_wait_or_allow_add(self):
++        for state in ("DEGRADED", "ADOPTING", "PROTECTED"):
++            for flag in ("exit_requested_ms", "cancel_entry", "read_failure_exit", "native_trailing_intervention"):
++                with self.subTest(state=state, flag=flag):
++                    case = ConditionalAddTests()
++                    case.setUp()
++                    try:
++                        case.authorize()
++                        other = case.other_position(state)
++                        other[flag] = NOW+7 if flag == "exit_requested_ms" else True
++                        case.store.save(other, NOW+7)
++                        case.worker.step(case.row["id"], NOW+10)
++                        self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "REJECTED")
++                        self.assertFalse(any(a["kind"] in {"add", "cancel"} for a in case.g.sent))
++                    finally:
++                        case.doCleanups()
++
+     def test_account_wait_still_rejects_revoked_grant(self):
+         self.signals.grant(dict(id="wait-grant", scope="scope", strategy="fixture", strategy_version="1",
+             instruments=["hl:ETH"], max_notional="100", max_intents=1, live=True, actions=["add"],
+@@ -442,6 +499,36 @@ class ConditionalAddTests(unittest.TestCase):
+         self.assertEqual(len([a for a in self.g.sent if a["kind"] == "add"]), 1)
+         self.assertEqual(reopened.tranches(self.row["id"])[0]["status"], "UNKNOWN")
+
++    def test_supervisor_reports_unknown_add_without_changing_protection(self):
++        from types import SimpleNamespace
++        from kis_hl.cli import main
++        self.test_unknown_add_outcome_is_never_resent_after_restart()
++        other = self.store.enqueue("other-scope", {**plan(), "intent_id": "other-account", "expires_ms": NOW+60000},
++                                   live=True, now_ms=NOW)
++        before = self.store.get(self.row["id"])
++        output = io.StringIO()
++        with patch("kis_hl.cli.load_env_file"), \
++             patch("kis_hl.operations_cli.scope_client", return_value=(SimpleNamespace(key="scope"), None)), \
++             contextlib.redirect_stdout(output):
++            code = main(["--db", str(self.path), "supervisor", "status", "--venue", "hyperliquid"])
++        self.assertEqual(code, 0)
++        rows = json.loads(output.getvalue())["positions"]
++        self.assertNotIn(other["id"], [row["id"] for row in rows])
++        row = next(row for row in rows if row["id"] == self.row["id"])
++        self.assertEqual(row["state"], "PROTECTED")
++        pending = row["pending_adds"]
++        self.assertEqual(len(pending), 1)
++        self.assertEqual(pending[0]["status"], "UNKNOWN")
++        self.assertEqual(pending[0]["signal_id"], "add-once")
++        self.assertEqual(pending[0]["attempt_id"], self.store.tranches(row["id"])[0]["attempt_id"])
++        self.assertEqual(self.store.get(row["id"]), before)
++        # Protection continues to track the observed exposure while the add is unresolved.
++        self.g.price = "110"
++        self.worker.step(row["id"], NOW+14)
++        self.assertEqual(self.store.get(row["id"])["state"], "PROTECTED")
++        self.assertEqual(Decimal(self.store.get(row["id"])["trail"]["bucket_high"]), Decimal("110"))
++        self.assertEqual(sum(a["kind"] == "add" for a in self.g.sent), 1)
++
+     def test_failed_incremental_sl_reaches_bounded_exit_retaining_existing_sl(self):
+         self.authorize()
+         self.worker.step(self.row["id"], NOW+10)

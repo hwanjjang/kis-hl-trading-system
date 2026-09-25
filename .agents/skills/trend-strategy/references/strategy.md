@@ -32,16 +32,18 @@ below the current stop. Each proposed tranche uses its own entry and fixed stop
 for sizing; evaluate its effect on the existing position and management plan.
 There is no strategy-wide per-asset/portfolio stop-risk cap or add-count limit.
 Actual available funds, notional bounds and granted authority still constrain
-execution. The current managed executor does not yet accept live add-ups.
+execution. Only the explicit bounded existing-owner add contract can submit an add;
+a strategy proposal or past conversation without complete expiry/limits stays unarmed.
 
 ## Capital, stop and size
 
-The capital and unit tools consume explicit equity: Hyperliquid selected account
-total balance × 10 without flooring; KIS selected account NAV × 1 in the execution
-currency. Follow the [capital-source requirements](../../../../docs/trading-operations.md#user-approved-risk-units)
-before supplying equity. Do not substitute an individual perp/dex accountValue,
-pool accounts, count collateral twice or confuse NAV with buying power. The tools
-do not reconcile total balance. One unit is a planned fixed-SL loss of 1% of operating capital.
+The capital and unit tools implement the confirmed policy: Hyperliquid selected
+reconciled total account balance × 10 without flooring; KIS selected account NAV × 1 in the
+execution currency. Do not pool accounts, count collateral twice or confuse NAV
+with buying power. One unit is a planned fixed-SL loss of 1% of operating capital.
+Missing/ambiguous account-total evidence blocks sizing instead of falling back to
+a perp/DEX segment. Supported mode/valuation limits are owned by the
+[capital-source requirements](../../../../docs/trading-operations.md#user-approved-risk-units).
 It can represent about 10% of unmultiplied HL account equity; disclose both figures.
 The multiple does not command exchange leverage or waive margin checks.
 
@@ -56,11 +58,10 @@ existing approval nor replaces the fixed SL used to size a new tranche.
 ## Protection and exits
 
 Apply the [exit quantity policy](../../../../docs/trading-operations.md#exit-quantity-policy)
-to the aggregate remaining position after both new entries and adds: default full
-exits, full executable TS exits, and default half-position discretionary top-based
-take profit. State exit reason and quantity separately; a profitable TS is not a
-half-position take profit. Preserve residual protection and do not mistake an
-advisory partial-exit decision for supported managed execution.
+to aggregate remaining exposure: full strategy/SL/TS exits and a default 50%
+discretionary top-based take-profit proposal. The latter remains advisory and its
+managed execution is deferred to #28. State exit reason and quantity separately;
+never route a half-position proposal through a full-exit control.
 
 After actual fills, existing management confirms fixed protection and starts the
 selected supported trailing policy at its earliest verified point, without a
@@ -81,6 +82,11 @@ the operations contract rather than silently migrating existing orders. Close TS
 defaults to manual briefing reference unless explicitly requested otherwise.
 A manual crossing never grants exit authority.
 Entry SL and chart-based exits remain independent of trailing references.
+
+Ordinary strategy/SL exits default to all remaining exposure; executable TS always
+targets the entire residual including adds, whether profitable or losing. A profitable
+TS is not half-position take profit. Discretionary partial exits require an explicit
+reason and a supported path; the 50% top-based take-profit follow-up remains deferred.
 
 Hold when the thesis and observed protection remain valid. Consider reduction or
 exit when context invalidates the setup, funding/spread suitability changes or

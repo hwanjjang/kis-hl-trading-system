@@ -15,7 +15,7 @@ from kis_hl.journal_sync import Fill, JournalLedger, Scope, SyncSchedule, encode
 from kis_hl.journal_history import sync_hyperliquid, sync_kis
 from kis_hl.kis.client import KisClient
 from kis_hl.hyperliquid.client import HyperliquidInfoClient, HyperliquidTradingClient
-from kis_hl.managed_execution import ExecutionStore, Supervisor, validate_plan
+from kis_hl.managed_execution import ExecutionStore, Supervisor, TERMINAL, validate_plan
 
 
 def kis_client():
@@ -81,7 +81,7 @@ def add_commands(sub, journal_sub):
         "account", help="Read account positions/orders/history/buying power"
     )
     account.add_argument(
-        "view", choices=["positions", "orders", "history", "buying-power"]
+        "view", choices=["positions", "orders", "history", "buying-power", "capital"]
     )
     account.add_argument("--venue", choices=["kis", "hyperliquid"], required=True)
     account.add_argument(
@@ -282,6 +282,13 @@ def cmd_chart(args):
 
 def cmd_account(args):
     scope, client = scope_client(args.venue)
+    if args.view == "capital":
+        if args.venue != "hyperliquid":
+            raise ValueError("Account-total capture currently supports Hyperliquid only")
+        from kis_hl.account_capital import capture_capital, reconcile_capital
+        evidence = capture_capital(client, scope=scope.key, now_ms=int(time.time()*1000), max_age_ms=60000)
+        return {"capital_evidence": evidence, "reconciliation": reconcile_capital(
+            evidence, scope=scope.key, now_ms=int(time.time()*1000), max_age_ms=60000)}
     if args.venue == "hyperliquid":
         if args.view == "positions":
             data = client.clearinghouse_state(dex=args.dex)
@@ -522,6 +529,17 @@ def cmd_order(args):
         }
     if args.order_action in {"preview", "submit"}:
         p = validate_plan(json.loads(Path(args.input).read_text()), now)
+        if p.get("action") == "add":
+            if args.order_action == "submit":
+                raise ValueError("Use signal execute for bounded add authority")
+            from kis_hl.conditional_add import validate_add
+            from kis_hl.strategy_signals import Signals
+            owner = store.get(p["position_id"])
+            signal = next((s for s in Signals(store).list() if s["id"] == p.get("signal_id")), None)
+            if signal is None:
+                raise ValueError("Add preview requires a registered signal_id for evidence expiry")
+            return {"dry_run": True, "plan": p, "sizing": validate_add(p, owner, signal, now, preview=True),
+                "authority_required": True}
         if p.get("signal_id") or p.get("grant_id"):
             raise ValueError("Use signal execute for signal/grant authority")
         asset = instrument(p["instrument"])
@@ -531,7 +549,7 @@ def cmd_order(args):
         scope, client = scope_client(asset.venue)
         return store.enqueue(scope.key, p, live=args.live, now_ms=now)
     if args.order_action == "status":
-        return {**store.get(args.id), "attempts": store.attempts(args.id)}
+        return {**store.get(args.id), "attempts": store.attempts(args.id), "tranches": store.tranches(args.id)}
     if args.order_action in {"exit", "cancel"}:
         return store.request_exit(
             args.id, now, cancel_only=args.order_action == "cancel"
@@ -572,9 +590,18 @@ def cmd_supervisor(args):
 
     scope, client = scope_client(args.venue)
     store = ExecutionStore(args.db)
+
+    def positions():
+        # Execution uncertainty is separate from protection of observed exposure.
+        return [{**row, "pending_adds": [
+            {**{key: tranche.get(key) for key in ("id", "status", "filled", "attempt_id", "reason")},
+             "signal_id": tranche["plan"]["signal_id"]}
+            for tranche in store.tranches(row["id"]) if tranche["status"].lower() not in TERMINAL
+        ]} for row in store.list(scope.key)]
+
     if args.action == "status":
         return {
-            "positions": store.list(scope.key),
+            "positions": positions(),
             "entries_enabled": store.entries_enabled(scope.key),
         }
     if args.action in {"pause-entries", "resume-entries"}:
@@ -599,7 +626,7 @@ def cmd_supervisor(args):
                 if (row["mode"] == "live") == args.live:
                     worker.step(row["id"], int(time.time() * 1000))
             if args.once:
-                return {"positions": store.list(scope.key)}
+                return {"positions": positions()}
             time.sleep(args.poll_seconds)
 
 

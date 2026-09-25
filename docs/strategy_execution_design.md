@@ -52,9 +52,9 @@ record, including source/snapshot identity and an input digest. An identical
 replay is idempotent; changed inputs need a new decision ID. Existing signal/plan
 identifiers provide journal attribution without inventing realized trades.
 
-The current signal executor accepts entry actions only. Hold/add/reduce/exit and
-no-trade records remain advisory; they cannot be accidentally replayed as new
-entries. The supervisor rechecks source-evidence freshness and the entry predicate
+The signal executor accepts entry and bounded existing-owner add actions.
+Hold/reduce/exit/no-trade records remain advisory. Add requires its own explicit
+plan and authority; it cannot be replayed as a new entry. The supervisor rechecks source-evidence freshness and the entry predicate
 before entry in addition to its existing execution checks. Legacy `signal ingest`
 remains compatible; skills use the validated `strategy decide` interface.
 
@@ -62,15 +62,18 @@ remains compatible; skills use the validated `strategy decide` interface.
 
 ### Capital model
 
-Hyperliquid operating capital uses the selected account's reconciled total balance
-× 10, without a thousand-USDC floor or a below-1000 exclusion. The total-balance
-clarification supersedes the individual perp/dex accountValue basis; account-mode
-and collateral-overlap requirements are owned by
-[operations](trading-operations.md#user-approved-risk-units). The sizing tool
-consumes explicit equity and does not implement total-balance reconciliation.
-KIS uses selected account NAV × 1, valued in the execution currency with an explicit
-FX basis when needed. Available funds are a separate constraint. The multiplier
-does not set venue leverage or waive margin requirements.
+Hyperliquid operating capital uses the selected account's reconciled total balance × 10,
+without a thousand-USDC floor or a below-1000 exclusion. KIS uses selected account
+NAV × 1, valued in the execution currency with an explicit FX basis when needed.
+Keep main/subaccounts separate and count overlapping spot/perp/DEX collateral
+only once. Missing or ambiguous total reconciliation blocks automatic sizing.
+This supersedes the individual perp/DEX accountValue basis; the source contract
+is owned by [operations](trading-operations.md#user-approved-risk-units).
+The initial implementation supports verified unified USDC-only balances; nonzero
+or malformed escrow, borrowed/supplied components and contradictory portfolio
+mode evidence are rejected. Other modes/valuations require explicit supported
+reconciliation. Available funds are a separate constraint. The multiplier does
+not set venue leverage or waive margin requirements.
 
 ### Position sizing
 
@@ -142,20 +145,19 @@ behavior remain in [protected operations](trading-operations.md).
 The following execution capabilities are separate from completing the strategy
 skill and its deterministic tools:
 
-The confirmed [exit quantity policy](trading-operations.md#exit-quantity-policy)
-distinguishes full strategy/SL/TS exits from discretionary top-based half-position
-take-profit decisions. It applies to aggregate remaining exposure after adds and
-does not itself implement add-up or partial-exit execution.
+The [exit quantity policy](trading-operations.md#exit-quantity-policy) distinguishes
+full strategy/SL/TS exits from discretionary top-based half-position proposals.
+It applies to aggregate exposure after adds. Half-position execution remains
+outside this implementation and is deferred to #28.
 
-- **Live add-ups:** the current supervisor requires flat entry and owns one active
-  position per account/instrument. The skill and tools can evaluate and size an
-  add proposal, but cannot submit it by bypassing those guards. Tranche-aware
-  execution/protection is a separate execution change.
-- **Fixed-stop risk preservation:** explicit `fixed_stop_price` is supported by
-  managed plans independently of ATR-based trailing distances. The plan validates
-  its entry-to-stop distance against the approved loss/notional limits. Preserve
-  the sizing stop rather than silently substituting an ATR-derived stop; this
-  support does not remove the separate live add-up limitation.
+- **Bounded add-ups:** implemented by issue #27 under the existing account/instrument
+  owner, with immutable tranche evidence, one durable signal lifecycle, total-account
+  sizing and full-remaining-position SL/TS. See the
+  [operating contract](trading-operations.md#bounded-conditional-add-ups).
+- **Fixed-stop risk preservation:** explicit `fixed_stop_price` is supported
+  independently of ATR-based trailing distances. Plan validation checks the entry-to-
+  stop distance against approved loss/notional limits. Preserve the sizing stop
+  rather than silently substituting an ATR-derived stop.
 - **Managed percentage TS and partial reductions:** available low-level fields or
   advisory decisions do not establish an end-to-end managed contract. Use only
   supported existing controls and expose unavailable capabilities.

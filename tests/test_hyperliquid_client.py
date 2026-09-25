@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+import urllib.error
 from datetime import datetime
 from decimal import Decimal
 import tempfile
@@ -12,6 +14,7 @@ from kis_hl.config import HyperliquidConfig
 from kis_hl.hyperliquid.client import (
     HyperliquidInfoClient,
     HyperliquidTradingClient,
+    TransientInfoError,
     extract_hyperliquid_order_id,
     is_supported_live_asset,
     resolve_spot_order_coin,
@@ -22,6 +25,45 @@ from kis_hl.storage import store_trade_xyz_asset_check
 
 
 class HyperliquidClientTests(unittest.TestCase):
+    def test_info_transient_errors_are_distinct_from_permanent_http_failures(self):
+        client = HyperliquidInfoClient(HyperliquidConfig(
+            base_url="https://api.hyperliquid.xyz", account_address="fixture-account",
+            private_key="", key_profile="default"))
+        for status in (408, 429, 500, 502, 503, 504, 400, 401, 403, 404):
+            error = urllib.error.HTTPError("https://fixture/info", status, "fixture", {}, io.BytesIO(b'{}'))
+            with self.subTest(status=status), patch("urllib.request.urlopen", side_effect=error):
+                with self.assertRaises(RuntimeError) as raised:
+                    client.post_info({"type": "userAbstraction"})
+                self.assertEqual(isinstance(raised.exception, TransientInfoError),
+                                 status in {408, 429, 500, 502, 503, 504})
+        for error in (TimeoutError(), ConnectionResetError(), urllib.error.URLError("offline")):
+            with self.subTest(error=type(error).__name__), patch("urllib.request.urlopen", side_effect=error):
+                with self.assertRaises(TransientInfoError):
+                    client.post_info({"type": "userAbstraction"})
+
+    def test_user_abstraction_uses_effective_account_and_rejects_unknown_shape(self):
+        client = HyperliquidInfoClient(HyperliquidConfig(
+            base_url="https://api.hyperliquid.xyz", account_address="fixture-account",
+            private_key="", key_profile="default"))
+        with patch.object(client, "post_info", return_value="unifiedAccount") as post:
+            self.assertEqual(client.user_abstraction(), "unifiedAccount")
+            post.assert_called_once_with({"type": "userAbstraction", "user": "fixture-account"})
+        for body in ({}, None, "unknown"):
+            with patch.object(client, "post_info", return_value=body), self.assertRaises(RuntimeError):
+                client.user_abstraction()
+
+    def test_active_asset_data_is_bound_to_effective_account_and_resolved_coin(self):
+        client = HyperliquidInfoClient(HyperliquidConfig(
+            base_url="https://api.hyperliquid.xyz", account_address="fixture-account",
+            private_key="", key_profile="default"))
+        body = dict(user="fixture-account", coin="ETH", maxTradeSzs=["2", "3"], availableToTrade=["200", "300"])
+        with patch.object(client, "post_info", return_value=body) as post:
+            self.assertEqual(client.active_asset_data("ETH-PERP"), body)
+            post.assert_called_once_with({"type": "activeAssetData", "user": "fixture-account", "coin": "ETH"})
+        for changed in ({"user": "other"}, {"coin": "BTC"}):
+            with patch.object(client, "post_info", return_value={**body, **changed}), self.assertRaises(RuntimeError):
+                client.active_asset_data("ETH-PERP")
+
     def test_account_asset_info_uses_public_wallet_state_endpoints(self) -> None:
         class RecordingInfoClient(HyperliquidInfoClient):
             def __init__(self) -> None:

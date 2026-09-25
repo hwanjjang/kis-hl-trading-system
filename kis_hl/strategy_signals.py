@@ -149,9 +149,20 @@ class Signals:
             if not raw or now_ms >= json.loads(raw[0])["expires_ms"]:
                 raise ValueError("Signal expired before entry")
             signal = json.loads(raw[0])
-            if signal.get("action", "enter") != "enter":
+            action = signal.get("action", "enter")
+            if action == "add":
+                from kis_hl.conditional_add import validate_add
+                if p["expires_ms"] > signal["expires_ms"]:
+                    raise ValueError("Add plan expiry exceeds signal authority")
+                owner = self.store.get(p["position_id"])
+                if owner["scope"] != row["scope"] or owner["mode"] != row["mode"]:
+                    raise ValueError("Add owner account/mode mismatch")
+                validate_add(p, owner, signal, now_ms)
+                if not p.get("manual_authorized") and not p.get("grant_id"):
+                    raise ValueError("Explicit bounded add authority required")
+            elif action != "enter" or p.get("action") == "add":
                 raise ValueError("Only an entry decision can use the new-entry executor")
-            if "setup_input" in signal:
+            if action == "enter" and "setup_input" in signal:
                 from kis_hl.strategy_tools import evaluate_setup
 
                 setup = signal["setup_input"]
@@ -169,6 +180,13 @@ class Signals:
         if not raw or raw["revoked"]:
             raise ValueError("Execution grant missing or revoked")
         grant = json.loads(raw["payload"])
+        if p.get("action") == "add" and (
+            "add" not in grant.get("actions", [])
+            or p["signal_id"] not in grant.get("signal_ids", [])
+            or p["position_id"] not in grant.get("position_ids", [])
+            or p["expires_ms"] > grant["expires_ms"]
+        ):
+            raise ValueError("Grant must explicitly identify the add signal and position")
         if (
             grant["scope"] != row["scope"]
             or grant["live"] != (row["mode"] == "live")
@@ -211,11 +229,21 @@ class Signals:
                 "intent_id": "signal:" + signal_id,
                 "signal_id": signal_id,
                 "grant_id": grant_id,
+                **({"manual_authorized": manual} if signal.get("action") == "add" else {}),
             },
             now_ms,
         )
         row = {"scope": scope, "mode": "live" if live else "paper", "plan": p}
         with account_lock("signal-intent", scope):
+            if signal.get("action") == "add":
+                if p.get("action") != "add" or not p.get("position_id"):
+                    raise ValueError("Add requires an explicit existing-position plan, not a new entry")
+                owner = self.store.get(p["position_id"])
+                for existing in self.store.tranches(owner["id"]):
+                    if existing["plan"]["intent_id"] == p["intent_id"]:
+                        if existing["plan"] != p or owner["scope"] != scope or owner["mode"] != row["mode"]:
+                            raise ValueError("Conflicting add execution replay")
+                        return existing
             for existing in self.store.list(scope):
                 if (
                     existing["mode"] == row["mode"]
@@ -242,4 +270,8 @@ class Signals:
                         "UPDATE execution_grants SET reserved_intents=reserved_intents+1 WHERE id=?",
                         (grant_id,),
                     )
+            if signal.get("action") == "add":
+                from kis_hl.conditional_add import validate_add
+                sizing = validate_add(p, owner, signal, now_ms)
+                return self.store.enqueue_add(owner, p, now_ms=now_ms, sizing=sizing)
             return self.store.enqueue(scope, p, live=live, now_ms=now_ms)

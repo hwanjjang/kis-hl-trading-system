@@ -163,8 +163,11 @@ class ManualAdoptionTests(unittest.TestCase):
                       sz="1", orderType="Trailing Stop Market",
                       triggerCondition="retracement 15%, best 105")
         self.orders[99] = {"status": "open", "order": legacy.copy()}
+        self.g.preflight.return_value["open_orders"].append(legacy.copy())
         row = self.queue(fixed_stop_price="96", local_atr_multiple="2", native_atr_multiple="3")
-        self.assertEqual(self.step(row)["state"], "INTERVENTION")
+        result = self.step(row)
+        self.assertEqual(result["state"], "INTERVENTION")
+        self.assertIn("migration-required", result["reason"])
         self.assertEqual(self.store.attempts(row["id"]), [])
         self.assertEqual(self.orders[99]["order"], legacy)
         self.g.trading.cancel_order.assert_not_called()

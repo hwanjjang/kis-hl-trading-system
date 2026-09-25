@@ -1,0 +1,163 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Bounded Conditional Add",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "review",
+      "label": "Hermes and Authority"
+    },
+    {
+      "id": "execution",
+      "label": "Existing Account Supervisor"
+    },
+    {
+      "id": "protection",
+      "label": "Combined Position Protection"
+    }
+  ],
+  "mainPath": [
+    "condition",
+    "authority",
+    "tranche",
+    "preflight",
+    "attempt",
+    "fills",
+    "coverage",
+    "exit"
+  ],
+  "nodes": [
+    {
+      "id": "condition",
+      "lane": "review",
+      "col": 0,
+      "type": "external",
+      "label": "Completed Bar",
+      "sublabel": "identified source evidence",
+      "width": 152
+    },
+    {
+      "id": "authority",
+      "lane": "review",
+      "col": 1,
+      "type": "security",
+      "label": "Bounded Approval",
+      "sublabel": "units, owner, stop, expiry",
+      "width": 152
+    },
+    {
+      "id": "tranche",
+      "lane": "review",
+      "col": 2,
+      "type": "database",
+      "label": "SQLite Tranche",
+      "sublabel": "immutable signal reservation",
+      "width": 152
+    },
+    {
+      "id": "preflight",
+      "lane": "execution",
+      "col": 2,
+      "type": "security",
+      "label": "Fresh Preflight",
+      "sublabel": "total balance, size, funds",
+      "width": 152
+    },
+    {
+      "id": "attempt",
+      "lane": "execution",
+      "col": 3,
+      "type": "database",
+      "label": "One Add Attempt",
+      "sublabel": "persist before transmission",
+      "width": 152
+    },
+    {
+      "id": "fills",
+      "lane": "execution",
+      "col": 4,
+      "type": "backend",
+      "label": "Actual Fills",
+      "sublabel": "partial and terminal readback",
+      "width": 152
+    },
+    {
+      "id": "coverage",
+      "lane": "protection",
+      "col": 4,
+      "type": "backend",
+      "label": "Full Protection",
+      "sublabel": "SL deficit and full-size TS",
+      "width": 152
+    },
+    {
+      "id": "exit",
+      "lane": "protection",
+      "col": 5,
+      "type": "backend",
+      "label": "Residual Exit",
+      "sublabel": "reduce-only; scoped cleanup",
+      "width": 152
+    }
+  ],
+  "edges": [
+    {
+      "id": "condition-authority",
+      "from": "condition",
+      "to": "authority"
+    },
+    {
+      "id": "authority-tranche",
+      "from": "authority",
+      "to": "tranche"
+    },
+    {
+      "id": "tranche-preflight",
+      "from": "tranche",
+      "to": "preflight"
+    },
+    {
+      "id": "preflight-attempt",
+      "from": "preflight",
+      "to": "attempt"
+    },
+    {
+      "id": "attempt-fills",
+      "from": "attempt",
+      "to": "fills"
+    },
+    {
+      "id": "fills-coverage",
+      "from": "fills",
+      "to": "coverage"
+    },
+    {
+      "id": "coverage-exit",
+      "from": "coverage",
+      "to": "exit",
+      "label": "SL / TS / strategy"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Durable ownership",
+      "items": [
+        "One account/instrument owner; per-tranche sizing and fill evidence",
+        "Unknown submissions are reconciled, never retransmitted"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Protection preserved",
+      "items": [
+        "Retain fixed SL, frozen ATR and existing native/local watermarks",
+        "External percentage TS requires supported migration before mutation"
+      ]
+    }
+  ]
+}

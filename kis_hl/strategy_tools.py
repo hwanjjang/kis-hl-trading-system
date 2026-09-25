@@ -187,7 +187,14 @@ def size_position(request, *, now_ms):
         raise ValueError("Account scope required")
     if request.get("currency") != asset.currency:
         raise ValueError("Account equity must have an explicit execution-currency valuation")
-    equity = decimal(request.get("equity"), positive=True)
+    reconciliation = None
+    if venue == "hyperliquid":
+        from kis_hl.account_capital import reconcile_capital
+        reconciliation = reconcile_capital(request.get("capital_evidence"), scope=request["scope"],
+                                            now_ms=now_ms, max_age_ms=request["max_age_ms"])
+        equity = decimal(reconciliation["total_balance"], positive=True)
+    else:
+        equity = decimal(request.get("equity"), positive=True)
     capital = calculate_operating_capital(equity, multiple=Decimal(10 if venue == "hyperliquid" else 1))
     sizing = request.get("sizing", "units")
     if sizing not in {"units", "btc_fixed_80"}:
@@ -211,6 +218,8 @@ def size_position(request, *, now_ms):
                   risk_pct_equity=result["risk"]/equity*100,
                   risk_pct_operating_capital=result["risk"]/capital*100,
                   sizing=sizing, order_authorized=False)
+    if reconciliation is not None:
+        result["capital_reconciliation"] = reconciliation
     return json.loads(encode(result))
 
 

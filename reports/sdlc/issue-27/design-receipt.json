@@ -1,0 +1,68 @@
+{
+  "iteration": 1,
+  "decision": "PROCEED",
+  "reason": "Current deliverable assessed against issue 27 and local authority; evidence supports the next stage",
+  "authority_source": "AK implementation request; user-provided issue 27; local endpoint",
+  "candidate": "4fb559f2a71c040d04ea9f10952e13af054a99cd14a43da6a3fef4a32cbd758d",
+  "next_action": "Continue local handoff",
+  "inputs": [
+    {
+      "kind": "triage",
+      "path": "reports/sdlc/issue-27/triage.md",
+      "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+    },
+    {
+      "kind": "intent",
+      "path": "intent/issue-27.md",
+      "sha256": "e00f96692030d08b586e06ce55c0b5f8334bc6cca21be40ff23957bad98be2ed"
+    },
+    {
+      "kind": "investigation",
+      "path": "reports/sdlc/issue-27/investigation.md",
+      "sha256": "20a436bc2fe42ab236397d0285fb7270902455101c7567e06a4006c5c573a2ee"
+    },
+    {
+      "kind": "spec",
+      "path": "specs/issue-27.md",
+      "sha256": "60a6ba7d7345a591a36bcdddc388e10b4951e47178f57f7e6ea199efe82b2ba9"
+    }
+  ],
+  "outputs": [
+    {
+      "kind": "design-source",
+      "path": "docs/architecture/conditional-add.workflow.json",
+      "sha256": "f48a21a9f8ca263e17580e0fb8bf8d90788ee1dfefd0bebb7f922e03ae132f9e"
+    },
+    {
+      "kind": "design-html",
+      "path": "docs/architecture/conditional-add.html",
+      "sha256": "7aecaa8c8ebe3d93b7d4effce98a34c027acc0519e9800664b4148ca277d3b67"
+    },
+    {
+      "kind": "design-validation",
+      "path": "reports/sdlc/issue-27/diagram-validation.json",
+      "sha256": "c2183d3b3b29f821551af0563815a8f3851cf182f2bb295f19b8791cb27c447b"
+    },
+    {
+      "kind": "browser-evidence",
+      "path": "reports/sdlc/issue-27/diagram-browser.json",
+      "sha256": "c550565ed2bc2ba17abff2d669f7fa260dcac6997876f3e7ad97ebaafeb5c6f7"
+    },
+    {
+      "kind": "visual-review",
+      "path": "reports/sdlc/issue-27/design.md",
+      "sha256": "9c67462b032a51f3bb7657cc7f9f754817bc34b6e1ffb970f0c32c12b59ee42c"
+    }
+  ],
+  "assessment": {
+    "assessor": "/root",
+    "summary": "Reviewed actual design contents and linked outcomes, preserving offline-only limits and no live authority",
+    "criteria": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4",
+      "AC5"
+    ]
+  }
+}

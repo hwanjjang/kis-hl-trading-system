@@ -171,6 +171,8 @@ class ExecutionStore:
                 mode TEXT NOT NULL,entries_enabled INTEGER NOT NULL DEFAULT 1);
             CREATE TABLE IF NOT EXISTS managed_intents(scope TEXT NOT NULL,mode TEXT NOT NULL,
                 intent_id TEXT NOT NULL,position_id TEXT NOT NULL,PRIMARY KEY(scope,mode,intent_id));
+            CREATE TABLE IF NOT EXISTS managed_tranches(id TEXT PRIMARY KEY,position_id TEXT NOT NULL,
+                snapshot TEXT NOT NULL);
             """
             )
 
@@ -188,6 +190,8 @@ class ExecutionStore:
             db.close()
 
     def enqueue(self, scope, plan, *, live=False, now_ms, adoption=None):
+        if plan.get("action") == "add" or plan.get("position_id"):
+            raise ValueError("Use signal execute with bounded add authority")
         p = validate_plan(plan, now_ms)
         row = {
             "id": uuid4().hex,
@@ -235,6 +239,30 @@ class ExecutionStore:
                 (scope, row["mode"], p["intent_id"], row["id"]),
             )
         return row
+
+    def tranches(self, position_id):
+        with self.connect() as db:
+            return [json.loads(r[0]) for r in db.execute(
+                "SELECT snapshot FROM managed_tranches WHERE position_id=? ORDER BY rowid", (position_id,))]
+
+    def save_tranche(self, tranche):
+        with self.connect() as db:
+            db.execute("UPDATE managed_tranches SET snapshot=? WHERE id=?", (encode(tranche), tranche["id"]))
+
+    def enqueue_add(self, owner, plan, *, now_ms, sizing):
+        tranche = dict(id=uuid4().hex, position_id=owner["id"], plan=plan,
+                       status="QUEUED", created_ms=now_ms, filled="0", sizing=sizing)
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            current = db.execute("SELECT version FROM managed_positions WHERE id=?", (owner["id"],)).fetchone()
+            if current is None or current[0] != owner["version"]:
+                raise RuntimeError("Position changed before add authorization")
+            if any(t["status"] in {"QUEUED", "SUBMITTED", "UNKNOWN"} for t in self.tranches(owner["id"])):
+                raise ValueError("An add lifecycle is already pending")
+            db.execute("INSERT INTO managed_intents VALUES(?,?,?,?)",
+                       (owner["scope"], owner["mode"], plan["intent_id"], owner["id"]))
+            db.execute("INSERT INTO managed_tranches VALUES(?,?,?)", (tranche["id"], owner["id"], encode(tranche)))
+        return tranche
 
     def enqueue_adoption(self, scope, plan, *, entry_order_id, stop_order_id, live=False, now_ms):
         from kis_hl.instruments import instrument
@@ -386,13 +414,12 @@ class Supervisor:
         # Persist triggering decisions before any external effect, including cancellations.
         self.store.save(row, now)
         a = self.store.attempt(row, kind, now, **values)
-        if kind == "entry" and not self.store.entries_enabled(row["scope"]):
+        if kind in {"entry", "add"} and not self.store.entries_enabled(row["scope"]):
             self.store.update_attempt(
                 a, status="REJECTED", reason="Entries disabled before transmission"
             )
-            self._state(
-                row, "REJECTED", "Entry kill switch applied before transmission", now
-            )
+            if kind == "entry":
+                self._state(row, "REJECTED", "Entry kill switch applied before transmission", now)
             return a
         try:
             result = (
@@ -468,7 +495,13 @@ class Supervisor:
                 self._state(row, "PREVIEWED", "Paper handoff; no account reads or ownership imported", now)
                 return
             from kis_hl.manual_adoption import verify_adoption
-            updates, imported = verify_adoption(self.gateway, row, now)
+            try:
+                updates, imported = verify_adoption(self.gateway, row, now)
+            except ValueError as exc:
+                if str(exc).startswith("migration-required:"):
+                    self._state(row, "INTERVENTION", str(exc), now)
+                    return
+                raise
             self.store.complete_adoption(row, updates, imported, now)
             return
         if row["state"] == "ENTERING" and not attempts:
@@ -611,10 +644,14 @@ class Supervisor:
             raise ValueError("External ownership or inconsistent exposure")
         size = decimal(snap["size"])
         entry_filled = decimal(snap["entry_filled"])
+        added_fills = sum((decimal(snap.get("fills_by_attempt", {}).get(a["id"], "0"))
+                          for a in attempts if a["kind"] == "add"), Decimal(0))
+        total_authorized = decimal(p["quantity"]) + sum(
+            (decimal(a["quantity"]) for a in attempts if a["kind"] == "add"), Decimal(0))
         if (
             size < 0
             or entry_filled < decimal(row["entry_filled"])
-            or entry_filled > decimal(p["quantity"])
+            or entry_filled > total_authorized
         ):
             raise ValueError("Unexpected position generation")
         fresh = 0 <= now - int(snap["time_ms"]) <= p["max_quote_age_ms"]
@@ -624,6 +661,10 @@ class Supervisor:
                 trail.disconnect()
                 row["trail"] = trail.to_dict()
         row.update(observed_size=str(size), entry_filled=str(entry_filled))
+        protective_filled = decimal(snap.get("protective_filled", "0"))
+        if protective_filled > decimal(row.get("protective_filled", "0")):
+            row["exit_requested_ms"] = row["exit_requested_ms"] or now
+        row["protective_filled"] = str(protective_filled)
         previous_observation = row.get("last_observed_ms", now)
         row["last_observed_ms"] = now
         if (
@@ -644,7 +685,15 @@ class Supervisor:
                 self.store.update_attempt(a, status="SUBMITTED")
         # An acknowledgement of cancel is not terminal evidence for the original order.
         attempts = self.store.attempts(row["id"])
-        entry_attempts = [a for a in attempts if a["kind"] == "entry"]
+        for tranche in self.store.tranches(row["id"]):
+            attempt = next((a for a in attempts if a.get("tranche_id") == tranche["id"]), None)
+            if attempt:
+                filled = decimal(snap.get("fills_by_attempt", {}).get(attempt["id"], "0"))
+                if filled < decimal(tranche["filled"]) or filled > decimal(attempt["quantity"]):
+                    raise ValueError("Inconsistent add tranche fills")
+                tranche.update(filled=str(filled), status=attempt["status"], attempt_id=attempt["id"])
+                self.store.save_tranche(tranche)
+        entry_attempts = [a for a in attempts if a["kind"] in {"entry", "add"}]
         entry_active = [
             a for a in entry_attempts if a["status"].lower() not in TERMINAL
         ]
@@ -692,7 +741,8 @@ class Supervisor:
                 ).to_dict()
             trail = Trail.from_dict(row["trail"])
             # Additional fills may tighten the risk floor but never reset a ratchet.
-            fixed_floor = (decimal(p["fixed_stop_price"]) if "fixed_stop_price" in p
+            fixed_floor = (decimal(row["add_fixed_stop_price"]) if "add_fixed_stop_price" in row
+                           else decimal(p["fixed_stop_price"]) if "fixed_stop_price" in p
                            else max(trail.entry, decimal(snap["entry_price"])) - decimal(p["stop_distance"]))
             trail.threshold = max(
                 trail.threshold, decimal(snap["entry_price"]) - trail.distance
@@ -738,12 +788,18 @@ class Supervisor:
                             )
                             self.store.update_attempt(a, coverage_recorded=order)
                 row["covered_size"] = str(min(size, covered))
+                if covered < size:
+                    row.setdefault("unprotected_since_ms", max(row["first_fill_ms"], now)
+                                   if added_fills > 0 else row["first_fill_ms"])
+                else:
+                    row.pop("unprotected_since_ms", None)
                 pending_stops = any(
                     not orders.get(a.get("order_id") or a["id"]) for a in stops if a["kind"] == "stop"
                 )
                 if covered < size and (
-                    now - row["first_fill_ms"] >= p["protection_grace_ms"]
-                    or len([a for a in attempts if a["kind"] == "stop"])
+                    now - row.get("unprotected_since_ms", row["first_fill_ms"]) >= p["protection_grace_ms"]
+                    or len([a for a in attempts if a["kind"] == "stop"
+                            and a["created_ms"] >= row.get("unprotected_since_ms", row["first_fill_ms"])])
                     >= p["max_exit_attempts"]
                 ):
                     row["exit_requested_ms"] = row["exit_requested_ms"] or now
@@ -776,50 +832,68 @@ class Supervisor:
             else:
                 protected = fresh and p["allow_local_sl"] and bool(snap["session_open"])
                 row["covered_size"] = str(size if protected else 0)
-            if not protected and now - row["first_fill_ms"] >= p["protection_grace_ms"]:
+            row["local_trailing_covered_size"] = str(size if fresh and (
+                not native_trailing or p.get("local_trailing_backup", False)) else 0)
+            if not protected and now - row.get("unprotected_since_ms", row["first_fill_ms"]) >= p["protection_grace_ms"]:
                 row["exit_requested_ms"] = row["exit_requested_ms"] or now
             if native_trailing:
                 trails = [a for a in attempts if a["kind"] == "trailing"]
                 row["trailing_covered_size"] = "0"
-                if trails:
-                    a = trails[0]
+                waiting = False
+                terminated_trail = False
+                row.pop("native_trailing_intervention", None)
+                for a in trails:
                     order = orders.get(a.get("order_id"), {})
-                    waiting = False
                     if not a.get("order_id"):
-                        # Failed enhancement is not loss of the independently verified SL.
                         row["native_trailing_intervention"] = True
                         row["state"], row["reason"] = "INTERVENTION", "Native trailing rejected or outcome unknown; retain fixed SL and reconcile manually"
-                    elif a["status"].lower() in TERMINAL:
-                        # Re-creation would reset the exchange watermark.
-                        row.pop("native_trailing_intervention", None)
-                        row["exit_requested_ms"] = row["exit_requested_ms"] or now
-                    elif order.get("trailing_readback_error"):
+                        continue
+                    if a["status"].lower() in TERMINAL:
+                        if a["status"].lower() == "filled":
+                            row["exit_requested_ms"] = row["exit_requested_ms"] or now
+                        else:
+                            terminated_trail = True
+                        continue
+                    if order.get("trailing_readback_error"):
                         row["native_trailing_intervention"] = True
                         row["state"], row["reason"] = "INTERVENTION", "Native trailing condition unverified; retain fixed SL and await valid readback"
-                    elif (order.get("status") == "open" and order.get("kind") == "trailing"
+                        continue
+                    if (order.get("status") == "open" and order.get("kind") == "trailing"
                           and order.get("side") == "sell" and order.get("reduce_only") is True
                           and order.get("retracement_unit") == "quote"
                           and decimal(order.get("retracement", "0")) == decimal(a["retracement"])):
-                        row.pop("native_trailing_intervention", None)
                         order_size = decimal(order["size"], positive=True)
-                        waiting = order.get("active") is False and order_size >= size
+                        waiting |= order.get("active") is False and order_size >= size
                         if order.get("active") is True:
-                            row["trailing_covered_size"] = str(min(size, order_size))
-                    if (not row.get("native_trailing_intervention") and not waiting
-                            and decimal(row["trailing_covered_size"]) < size
-                            and now - a["created_ms"] >= p["protection_grace_ms"]):
-                        row["exit_requested_ms"] = row["exit_requested_ms"] or now
-                elif protected and fresh and not entry_active and not row["exit_requested_ms"]:
-                    # Older in-flight rows have no preflight distance yet.
+                            row["trailing_covered_size"] = str(max(decimal(row["trailing_covered_size"]), min(size, order_size)))
+                # An older terminated trail need not force an exit when another
+                # owned, active native trail still covers the entire residual.
+                if terminated_trail and decimal(row["trailing_covered_size"]) < size:
+                    row["exit_requested_ms"] = row["exit_requested_ms"] or now
+                if row["exit_requested_ms"]:
+                    row.pop("native_trailing_intervention", None)
+                # Keep every prior native order/watermark. Add one full-size overlay
+                # only after owned add fills terminate; inherited local TS covers
+                # the full position throughout partial fills and overlay activation.
+                needs_overlay = (bool(trails) and added_fills > 0
+                    and all(decimal(a["quantity"]) < size for a in trails)
+                    and p.get("local_trailing_backup", False))
+                if (not trails or needs_overlay) and protected and fresh and not entry_active and not row["exit_requested_ms"] and not row.get("native_trailing_intervention"):
                     distance = normalize_quote_retracement(
                         decimal(row.get("native_trailing_distance",
                             decimal(p["atr"]) * decimal(p.get("native_atr_multiple", p["atr_multiple"])))),
                         decimal(snap["trailing_price_step"]))
                     row["native_trailing_distance"] = wire_decimal(distance)
-                    self._state(row, "PROTECTING", "Fixed SL verified; awaiting native trailing readback", now)
+                    self._state(row, "PROTECTING", "Fixed SL verified; awaiting full-position native trailing readback", now)
                     self._send(row, "trailing", now, quantity=str(size), price="0", retracement=str(distance))
                     return
-                protected = protected and decimal(row["trailing_covered_size"]) >= size
+                if (trails and not row.get("native_trailing_intervention") and not waiting
+                        and not entry_active and not needs_overlay
+                        and decimal(row["trailing_covered_size"]) < size
+                        and now - trails[-1]["created_ms"] >= p["protection_grace_ms"]):
+                    row["exit_requested_ms"] = row["exit_requested_ms"] or now
+                protected = (protected and decimal(row["trailing_covered_size"]) >= size
+                             and not row.get("native_trailing_intervention"))
                 if not protected and not row["exit_requested_ms"] and not row.get("native_trailing_intervention"):
                     row["state"], row["reason"] = "PROTECTING", "Await entry terminality and verified native trailing coverage"
             if protected and fresh and not row["exit_requested_ms"]:
@@ -829,9 +903,12 @@ class Supervisor:
                 )
         if any(a["kind"] in {"stop", "trailing"} and a["status"] == "FILLED" for a in attempts):
             row["exit_requested_ms"] = row["exit_requested_ms"] or now
-        if row["cancel_entry"] or row["exit_requested_ms"] or now >= p["expires_ms"]:
+        expired_entries = [a for a in entry_active if now >= a.get("expires_ms", p["expires_ms"])]
+        if row["cancel_entry"] or row["exit_requested_ms"] or expired_entries:
             row["cancel_started_ms"] = row.get("cancel_started_ms") or now
             for a in entry_active:
+                if not (row["cancel_entry"] or row["exit_requested_ms"]) and a not in expired_entries:
+                    continue
                 target = a.get("order_id")
                 if not target:
                     self._state(
@@ -997,3 +1074,55 @@ class Supervisor:
             )
         else:
             self.store.save(row, now)
+        if (row["state"] == "PROTECTED" and not entry_active and not unresolved_exits
+                and not row["exit_requested_ms"] and not row["cancel_entry"]):
+            self._try_add(row, now)
+
+    def _try_add(self, row, now):
+        from kis_hl.conditional_add import preflight_add
+        from kis_hl.hyperliquid.client import TransientInfoError
+        from kis_hl.strategy_signals import Signals
+        for tranche in self.store.tranches(row["id"]):
+            if tranche["status"] != "QUEUED":
+                continue
+            if any(a.get("tranche_id") == tranche["id"] for a in self.store.attempts(row["id"])):
+                continue  # Durable attempt, including UNKNOWN, is never resent.
+            try:
+                if not self.store.entries_enabled(row["scope"]):
+                    raise ValueError("Entries disabled; add cannot enable account-wide entries")
+                # Check authority before deferring so account activity cannot
+                # keep expired or revoked approvals queued indefinitely.
+                validate_plan(tranche["plan"], now)
+                Signals(self.store).check_authority({**row, "plan": tranche["plan"]}, now_ms=now)
+                others = [x for x in self.store.list(row["scope"])
+                          if x["id"] != row["id"] and x["mode"] == row["mode"]
+                          and x["state"] not in FINISHED]
+                # DEGRADED can also mean a pending exit; state alone is not
+                # sufficient to distinguish a temporary reconciliation wait.
+                if any(x["state"] not in {"PROTECTED", "QUEUED", "ENTERING", "PROTECTING", "DEGRADED", "ADOPTING"}
+                       or x.get("exit_requested_ms") is not None or x.get("cancel_entry")
+                       or x.get("read_failure_exit") or x.get("native_trailing_intervention")
+                       for x in others):
+                    raise ValueError("Other account exposure needs reconciliation")
+                if any(x["state"] != "PROTECTED" for x in others):
+                    tranche["reason"] = "Waiting for other account position reconciliation"
+                    self.store.save_tranche(tranche)
+                    continue
+                sizing, now = preflight_add(self.gateway, self.store, row, tranche, now)
+            except TransientInfoError as exc:
+                tranche["reason"] = str(exc)
+                self.store.save_tranche(tranche)
+                continue  # No durable send attempt: revalidate within expiry next tick.
+            except (ValueError, KeyError, TypeError, RuntimeError, OSError) as exc:
+                tranche.update(status="REJECTED", reason=str(exc))
+                self.store.save_tranche(tranche)
+                continue
+            tranche["submission_sizing"] = sizing
+            tranche.pop("reason", None)
+            self.store.save_tranche(tranche)
+            p = tranche["plan"]
+            row["add_fixed_stop_price"] = p["fixed_stop_price"]
+            a = self._send(row, "add", now, quantity=p["quantity"], price=p["limit_price"],
+                           tranche_id=tranche["id"], expires_ms=p["expires_ms"])
+            tranche.update(status=a["status"], attempt_id=a["id"])
+            self.store.save_tranche(tranche)

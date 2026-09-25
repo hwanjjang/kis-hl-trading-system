@@ -1,0 +1,33 @@
+{
+  "iteration": 1,
+  "decision": "PROCEED",
+  "reason": "Current deliverable assessed against issue 27 and local authority; evidence supports the next stage",
+  "authority_source": "AK implementation request; user-provided issue 27; local endpoint",
+  "candidate": "4fb559f2a71c040d04ea9f10952e13af054a99cd14a43da6a3fef4a32cbd758d",
+  "next_action": "Continue local handoff",
+  "inputs": [
+    {
+      "kind": "triage",
+      "path": "reports/sdlc/issue-27/triage.md",
+      "sha256": "3579d7012c7b9fd04e05dfccf9ff1761715520455d0125459ac22607fa356546"
+    }
+  ],
+  "outputs": [
+    {
+      "kind": "intent",
+      "path": "intent/issue-27.md",
+      "sha256": "e00f96692030d08b586e06ce55c0b5f8334bc6cca21be40ff23957bad98be2ed"
+    }
+  ],
+  "assessment": {
+    "assessor": "/root",
+    "summary": "Reviewed actual intent contents and linked outcomes, preserving offline-only limits and no live authority",
+    "criteria": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4",
+      "AC5"
+    ]
+  }
+}

@@ -1,0 +1,86 @@
+[
+  {
+    "case": "old-trail-canceled",
+    "overlay_status": "open",
+    "overlay_size": "1.5",
+    "remaining": "1.5",
+    "exit_quantities": [
+      "1.5"
+    ],
+    "state": "EXIT_PENDING",
+    "covered": "0"
+  },
+  {
+    "case": "old-trail-rejected",
+    "overlay_status": "open",
+    "overlay_size": "1.5",
+    "remaining": "1.5",
+    "exit_quantities": [
+      "1.5"
+    ],
+    "state": "EXIT_PENDING",
+    "covered": "0"
+  },
+  {
+    "case": "old-trail-expired",
+    "overlay_status": "open",
+    "overlay_size": "1.5",
+    "remaining": "1.5",
+    "exit_quantities": [
+      "1.5"
+    ],
+    "state": "EXIT_PENDING",
+    "covered": "0"
+  },
+  {
+    "case": "old-trail-filled",
+    "overlay_status": "open",
+    "overlay_size": "1.5",
+    "remaining": "0.5",
+    "exit_quantities": [
+      "0.5"
+    ],
+    "state": "EXIT_PENDING",
+    "covered": "0"
+  },
+  {
+    "case": "single-trail-canceled",
+    "exit_quantities": [
+      "1"
+    ],
+    "state": "EXIT_PENDING"
+  },
+  {
+    "case": "OSError",
+    "tranche_status": "REJECTED",
+    "add_submissions": 0,
+    "same_tranche": true
+  },
+  {
+    "case": "RuntimeError",
+    "tranche_status": "REJECTED",
+    "add_submissions": 0,
+    "same_tranche": true
+  },
+  {
+    "case": "evmEscrows",
+    "result": "accepted",
+    "equity": "1000",
+    "operating_capital": "10000",
+    "risk_budget": "100.00"
+  },
+  {
+    "case": "borrowed",
+    "result": "accepted",
+    "equity": "1000",
+    "operating_capital": "10000",
+    "risk_budget": "100.00"
+  },
+  {
+    "case": "supplied",
+    "result": "accepted",
+    "equity": "1000",
+    "operating_capital": "10000",
+    "risk_budget": "100.00"
+  }
+]

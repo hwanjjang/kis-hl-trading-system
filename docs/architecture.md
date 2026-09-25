@@ -273,3 +273,15 @@ are documented in [unified data operations](unified-data-operations.md).
 Binance tick capture deliberately uses the legacy `market_ticks` table. It is not an input to the canonical `data`/`market` analysis plane; that cutover requires instrument registration and an ingestion contract. Captured normalized tick payloads retain the original frame under `frame`.
 
 Use separate `--db` paths for each Binance environment and key profile: legacy ticks and order events have no account/environment columns. Streams are observational, with no replay or REST gap reconciliation. Per-tick synchronous SQLite writes can lag high-volume streams; use `--no-store` for observation until a bounded buffered writer is implemented. Storage failures and reconnects can leave gaps. These tables must not serve as authoritative protection or position state.
+
+## Conditional add ownership
+
+`account_capital.py` reconciles supported account-total evidence; `conditional_add.py`
+validates the bounded source/position/sizing contract. `Signals` reserves the approved
+signal, `ExecutionStore.managed_tranches` keeps immutable plan and evolving fill
+records, and the existing supervisor/gateways own submission and reconciliation.
+Tranches share the existing account/instrument owner, Trail, protective order ledger
+and residual exit path. Hermes retains review/notification responsibility.
+See [flow diagram](architecture/conditional-add.html),
+[JSON source](architecture/conditional-add.workflow.json), and
+[operations](trading-operations.md#bounded-conditional-add-ups).

@@ -99,6 +99,51 @@ class ManagedGatewayTests(unittest.TestCase):
         self.assertEqual(s["orders"]["0x123"]["native_id"], "42")
         self.assertEqual(s["first_fill_time_ms"], 10)
 
+    def test_owned_add_fills_remain_owned_and_partial_protective_fill_is_reported(self):
+        g, info, row, attempts, order = self.hl()
+        attempts[0]["kind"] = "add"
+        stop = dict(order, oid=43, side="A", reduceOnly=True, isTrigger=True,
+                    orderType="Stop Market", sz="0.8", triggerPx="96")
+        attempts.append(dict(id="stop", kind="stop", order_id="43", status="SUBMITTED"))
+        info.order_status.side_effect = lambda *, oid: {"status": "order", "order": {
+            "status": "open" if str(oid) == "43" else "filled",
+            "order": stop if str(oid) == "43" else order}}
+        info.user_fills_by_time.return_value.append(dict(tid=2, coin="BTC", side="A",
+            sz="0.2", px="96", time=11, oid=43))
+        info.clearinghouse_state.return_value["assetPositions"][0]["position"]["szi"] = "0.8"
+        snap = g.snapshot(row, attempts, 20)
+        self.assertTrue(snap["consistent"])
+        self.assertFalse(snap["foreign_add"])
+        self.assertEqual(snap["fills_by_attempt"]["0x123"], "1")
+        self.assertEqual(snap["protective_filled"], "0.2")
+
+    def test_add_transport_is_bounded_buy_with_durable_client_id(self):
+        g, info, row, _, _ = self.hl()
+        row["plan"]["max_quote_age_ms"] = 1000
+        g.trading.place_order.return_value = SimpleNamespace(status="submitted", response={})
+        g.submit(row, dict(id="0x123", kind="add", quantity="0.5", price="100",
+                           created_ms=10, expires_ms=20))
+        call = g.trading.place_order.call_args.kwargs
+        self.assertEqual(call["side"], "buy")
+        self.assertFalse(call["reduce_only"])
+        self.assertEqual(call["cloid"], "0x123")
+        self.assertEqual(call["expires_after_ms"], 20)
+
+    def test_add_preflight_collects_total_balance_separately_from_buying_power(self):
+        g, info, row, _, _ = self.hl()
+        info.user_abstraction.return_value = "unifiedAccount"
+        info.spot_clearinghouse_state.return_value = {"balances": [{"coin": "USDC", "token": 0, "total": "1000"}]}
+        info.active_asset_data.return_value = {"maxTradeSzs": ["2", "3"], "availableToTrade": ["200", "300"]}
+        p = {**row["plan"], "action": "add"}
+        with patch("kis_hl.trailing_runner.fetch_trailing_atr", return_value=(Decimal(2), [{"T": 10}])):
+            snap = g.preflight(p, 20)
+        self.assertEqual(snap["capital_evidence"]["scope"], g.scope)
+        self.assertEqual(snap["capital_evidence"]["spot"]["balances"][0]["total"], "1000")
+        self.assertEqual(snap["available_notional"], "200")
+        info.active_asset_data.assert_called_once_with("BTC")
+        info.user_abstraction.assert_called_once_with()
+
+
     def test_native_order_identity_mismatch_is_rejected(self):
         for change in [{"cloid": "0xOTHER"}, {"side": "A"}, {"reduceOnly": True}]:
             with self.subTest(change=change):

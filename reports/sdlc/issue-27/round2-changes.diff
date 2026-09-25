@@ -1,0 +1,466 @@
+diff --git a/.agents/skills/trend-strategy/references/strategy.md b/.agents/skills/trend-strategy/references/strategy.md
+index 613ff75..45c2995 100644
+--- a/.agents/skills/trend-strategy/references/strategy.md
++++ b/.agents/skills/trend-strategy/references/strategy.md
+@@ -42,7 +42,8 @@ reconciled total account balance × 10 without flooring; KIS selected account NA
+ execution currency. Do not pool accounts, count collateral twice or confuse NAV
+ with buying power. One unit is a planned fixed-SL loss of 1% of operating capital.
+ Missing/ambiguous account-total evidence blocks sizing instead of falling back to
+-a perp/DEX segment. Supported mode/valuation limits are owned by the operations contract.
++a perp/DEX segment. Supported mode/valuation limits are owned by the
++[capital-source requirements](../../../../docs/trading-operations.md#user-approved-risk-units).
+ It can represent about 10% of unmultiplied HL account equity; disclose both figures.
+ The multiple does not command exchange leverage or waive margin checks.
+
+@@ -56,6 +57,12 @@ existing approval nor replaces the fixed SL used to size a new tranche.
+
+ ## Protection and exits
+
++Apply the [exit quantity policy](../../../../docs/trading-operations.md#exit-quantity-policy)
++to aggregate remaining exposure: full strategy/SL/TS exits and a default 50%
++discretionary top-based take-profit proposal. The latter remains advisory and its
++managed execution is deferred to #28. State exit reason and quantity separately;
++never route a half-position proposal through a full-exit control.
++
+ After actual fills, existing management confirms fixed protection and starts the
+ selected supported trailing policy at its earliest verified point, without a
+ profit/breakeven prerequisite. Loss exits are allowed. Keep fixed SL while TS is
+diff --git a/README.md b/README.md
+index f0b9256..4196b1d 100644
+--- a/README.md
++++ b/README.md
+@@ -486,6 +486,16 @@ for command examples, coverage limits and the offline smoke scenario.
+
+ ## Hermes strategy tools
+
++For Weinstein book-method analysis, use the shared
++[weinstein-stage-analysis skill](.agents/skills/weinstein-stage-analysis/SKILL.md).
++In Codex, invoke `$weinstein-stage-analysis`; in Claude Code or Hermes, use
++`/weinstein-stage-analysis`, followed by a chart, dated evidence or a study question.
++It covers investor/trader entries, position management and bearish analysis;
++its references identify source limitations and local calculation choices.
++See [shared installation and host discovery](docs/strategy-authoring.md#weinstein-skill-discovery)
++for scope, links and verification. This book-method skill is independent of the
++operational strategy below.
++
+ Hermes loads the shared [trend-strategy skill](.agents/skills/trend-strategy/SKILL.md)
+ and owns review timing, briefings and notifications. Deterministic CLI tools supply
+ facts and retain decisions; they do not place orders:
+diff --git a/docs/strategy-tools.md b/docs/strategy-tools.md
+index f1be4ff..a32dcd0 100644
+--- a/docs/strategy-tools.md
++++ b/docs/strategy-tools.md
+@@ -113,7 +113,9 @@ instrument's units; stop rounding belongs to the existing execution path.
+ ```
+
+ The example's market rules are fixtures; read actual lot/minimum metadata.
+-HL equity is the selected account's reconciled total balance. `capital_evidence`
++HL equity is the selected account's reconciled total balance; follow the
++[account-mode and collateral-overlap contract](trading-operations.md#user-approved-risk-units).
++The sizing tool validates supplied source evidence; it does not fetch live totals. `capital_evidence`
+ is mandatory; caller `equity` is not a fallback. Supported unified USDC balances
+ count overlapping spot/perp/DEX collateral once. Unknown modes, duplicate collateral,
+ unvalued assets, stale evidence or wrong account/currency block sizing. Reconciliation
+@@ -150,6 +152,11 @@ explicit plan and manual/grant authority. For `enter`, supplied `setup_input` mu
+ `btc_3h`; evidence is rechecked before entry, including for raw `signal ingest`
+ records. Legacy records without `setup_input` remain compatible. Hold/reduce/exit/no-trade records remain advisory: authorized exits use existing
+ explicit full-position controls. A completed-bar add proposal alone cannot trade.
++Add preview requires a registered `signal_id` and reports the earliest evidence/
++signal expiry in `sizing.max_expires_ms`. Approval rejects a longer requested expiry;
++the preview does not alter the plan or grant authority. Grant expiry remains an
++additional bound. Temporary account entry/protection work may delay an unsent add
++within these deadlines; source freshness remains mandatory at submission.
+ BTC spot decisions use `signal_instrument: hl:BTC`, only `hl:BTC` execution, and
+ retain the explicit spot basis in `setup_input`/evidence.
+
+diff --git a/docs/strategy_execution_design.md b/docs/strategy_execution_design.md
+index 5a089d2..69f3f99 100644
+--- a/docs/strategy_execution_design.md
++++ b/docs/strategy_execution_design.md
+@@ -67,6 +67,8 @@ without a thousand-USDC floor or a below-1000 exclusion. KIS uses selected accou
+ NAV × 1, valued in the execution currency with an explicit FX basis when needed.
+ Keep main/subaccounts separate and count overlapping spot/perp/DEX collateral
+ only once. Missing or ambiguous total reconciliation blocks automatic sizing.
++This supersedes the individual perp/DEX accountValue basis; the source contract
++is owned by [operations](trading-operations.md#user-approved-risk-units).
+ The initial implementation supports verified unified USDC-only balances; nonzero
+ or malformed escrow, borrowed/supplied components and contradictory portfolio
+ mode evidence are rejected. Other modes/valuations require explicit supported
+@@ -143,14 +145,19 @@ behavior remain in [protected operations](trading-operations.md).
+ The following execution capabilities are separate from completing the strategy
+ skill and its deterministic tools:
+
++The [exit quantity policy](trading-operations.md#exit-quantity-policy) distinguishes
++full strategy/SL/TS exits from discretionary top-based half-position proposals.
++It applies to aggregate exposure after adds. Half-position execution remains
++outside this implementation and is deferred to #28.
++
+ - **Bounded add-ups:** implemented by issue #27 under the existing account/instrument
+   owner, with immutable tranche evidence, one durable signal lifecycle, total-account
+   sizing and full-remaining-position SL/TS. See the
+   [operating contract](trading-operations.md#bounded-conditional-add-ups).
+-- **Arbitrary fixed-stop plans:** the tool can calculate against an explicit stop;
+-  the managed plan supports explicit fixed stops and independent frozen ATR distances.
+-  An authorized plan must represent the same risk basis. Do not silently substitute
+-  another stop to make a proposal executable.
++- **Fixed-stop risk preservation:** explicit `fixed_stop_price` is supported
++  independently of ATR-based trailing distances. Plan validation checks the entry-to-
++  stop distance against approved loss/notional limits. Preserve the sizing stop
++  rather than silently substituting an ATR-derived stop.
+ - **Managed percentage TS and partial reductions:** available low-level fields or
+   advisory decisions do not establish an end-to-end managed contract. Use only
+   supported existing controls and expose unavailable capabilities.
+diff --git a/docs/trading-operations.md b/docs/trading-operations.md
+index d13ba1e..59ef6b2 100644
+--- a/docs/trading-operations.md
++++ b/docs/trading-operations.md
+@@ -185,6 +185,9 @@ Operating assets for advisory risk-unit calculations are now specified:
+   Nonzero or malformed `evmEscrows`, `borrowed` or `supplied` components and
+   contradictory `portfolioMarginEnabled` evidence also block sizing. Zero-valued
+   optional components do not add capital; no unsupported valuation is inferred.
++  This total-balance clarification supersedes the individual perp/DEX accountValue
++  basis. Margin used and withdrawable balance are not account-total substitutes.
++  Unsupported user-supplied totals remain labeled scenarios, not automatic sizing.
+   Adding a valuation/account mode requires its own supported reconciliation.
+   Buying power is separate: add preflight uses account/instrument `activeAssetData`
+   and conservatively takes the smaller of its directional `maxTradeSzs`; it retains
+@@ -231,6 +234,35 @@ of preset cumulative unit caps is decided, not an unresolved limit to invent.
+ Current managed execution remains long-only; #15's symmetric short calculation
+ and the separate short-trailing follow-up are not claims of working short management.
+
++## Exit quantity policy
++
++This confirmed policy applies to new entries and positions enlarged by add-ups.
++The quantity basis is the current remaining position in the selected account and
++instrument, including all filled tranches, not just the most recent entry.
++
++- Ordinary strategy exits and fixed-SL exits default to closing the entire
++  remaining position. Partial discretionary exits are exceptions that require an
++  explicit rationale and selected quantity.
++- An executable trailing-stop trigger targets the entire remaining position.
++  A profitable TS exit is still a full exit, not a take-profit half exit. Partial
++  exchange fills do not satisfy this objective: reconcile fills and continue
++  handling the residual through the bounded, reduce-only exit workflow.
++- A discretionary take-profit decision based on a judged market top defaults to
++  selling 50% of the remaining position. This is a quantity default, not a numeric
++  price target, a definition of a top, or blanket automatic trading authority.
++  Deduplicate the decision; do not repeatedly halve on the same top signal.
++- After any partial exit, reconcile remaining exposure and preserve correctly
++  sized fixed-SL and TS protection. After full closure, reconcile and clean up
++  associated orders only; do not touch unrelated positions or orders.
++
++Existing full-exit controls and the bounded conditional add contract below remain
++supported. Discretionary partial take-profit execution is deferred to #28; this
++policy does not implement that lifecycle or grant trading authority.
++Do not route an add as a new flat entry, route a 50% TP through a full-exit command,
++or bypass ownership/protection guards with raw orders. Activation requires a
++supported, tested lifecycle and a complete authorized plan. Existing trailing
++orders and watermarks must not be reset merely to apply this document.
++
+ ## Prepare and submit
+
+ Create a JSON plan with the following required fields. Numeric prices, sizes and
+@@ -716,12 +748,13 @@ The add plan carries all ordinary bounded-plan fields plus:
+ | Field | Meaning |
+ | --- | --- |
+ | `action`, `position_id` | `add` and the existing managed owner ID |
++| `signal_id` | Registered immutable add signal used by preview; matches execution `--id` |
+ | `units`, `quantity_step`, `quantity` | Explicit risk units, preview lot step and rounded approved quantity |
+ | `fixed_stop_price` | Confirmed common fixed SL; never a trailing threshold |
+ | `capital_evidence` | Fresh selected-account raw evidence from `account capital` |
+ | `expected_size`, `expected_entry_filled` | Approved current exposure and cumulative owned buy fills |
+ | `condition_snapshot_id`, `condition_bar_end_ms` | Exact source snapshot and completed confirmation bar |
+-| `expires_ms` | Add approval/submission expiry; also bounded by signal/grant expiry |
++| `expires_ms` | Add approval/submission expiry; bounded by all source-evidence and signal/grant deadlines |
+
+ The immutable add signal supplies `setup_input` for `pullback` or `rebreakout`.
+ Its position ID, scope, instrument, opening fill time, size and fixed stop must match
+@@ -732,6 +765,16 @@ management operation. New price/notional limits remain explicit. Native adds
+ require local backup so the preserved full-position local trail covers the partial
+ fill/overlay interval. Native-only owners return `migration-required`.
+
++Preview requires the registered `signal_id` and reports `sizing.expiry_deadlines_ms`,
++`sizing.max_expires_ms` and `sizing.expiry_within_bounds`. The maximum is the earliest
++snapshot, confirmation-bar, position-evidence, daily/weekly-history, original
++capital-evidence (capped by `max_quote_age_ms`) or signal deadline. A selected grant
++may impose an earlier expiry, checked separately at authorization. An overlong
++plan may be previewed with `expiry_within_bounds: false`, but cannot be authorized;
++its requested expiry is never silently shortened. Missing/stale evidence still
++fails preview. Submission rechecks all freshness and authority requirements and
++rereads account funds: a fresh balance cannot replace stale bar confirmation.
++
+ ```bash
+ python -m kis_hl.cli account capital --venue hyperliquid
+ python -m kis_hl.cli --db STATE.sqlite order preview --input bounded-add.json
+@@ -757,6 +800,12 @@ before any send leave the tranche `QUEUED` for the existing supervisor's next ti
+ Authority/expiry are checked before each read and again after successful preflight.
+ Identity, schema and permanent HTTP errors still reject; a signed unknown outcome
+ never qualifies for this read retry and cannot be resent.
++Another same-account/mode position in `QUEUED`, `ENTERING` or `PROTECTING` leaves
++the unsent add `QUEUED` with a reconciliation-wait reason. Existing ticks recheck
++expiry, authority/revocation and the entry kill switch before waiting. Recovery
++requires full fresh preflight; waiting does not extend any deadline. Other blocking
++states, including `INTERVENTION`, retain terminal rejection. No signed attempt is
++created while waiting, and no unrelated account-wide entry is enabled.
+
+ Partial add fills receive incremental fixed-SL coverage at the confirmed fixed
+ stop. The owner keeps its ATR and local watermark; the local TS always targets the
+diff --git a/kis_hl/conditional_add.py b/kis_hl/conditional_add.py
+index ec79035..5835a9c 100644
+--- a/kis_hl/conditional_add.py
++++ b/kis_hl/conditional_add.py
+@@ -12,7 +12,7 @@ def size_add(plan, scope, evidence, now, *, quantity_step="0.00000001"):
+         quantity_step=quantity_step, minimum_quantity=quantity_step, minimum_notional="10"), now_ms=now)
+
+
+-def validate_add(plan, owner, signal, now):
++def validate_add(plan, owner, signal, now, *, preview=False):
+     required = {"units", "quantity_step", "fixed_stop_price", "capital_evidence",
+                 "expected_size", "expected_entry_filled", "condition_snapshot_id", "condition_bar_end_ms"}
+     if not required <= plan.keys() or not isinstance(plan["capital_evidence"], dict):
+@@ -62,6 +62,23 @@ def validate_add(plan, owner, signal, now):
+                       quantity_step=plan["quantity_step"])
+     if result["below_minimum"] or decimal(result["quantity"]) != decimal(plan["quantity"]):
+         raise ValueError("Add quantity differs from authorized units and fixed-stop risk")
++    # These are the same clocks checked by evaluate_setup and size_add. An
++    # immutable approval must not promise a longer window than its source data.
++    capital = plan["capital_evidence"]
++    deadlines = {
++        "snapshot": snapshot["asof_ms"] + snapshot["max_age_ms"],
++        "confirmation": snapshot["candles"][-1]["end_ms"] + snapshot["max_age_ms"],
++        "position": position["asof_ms"] + position["max_age_ms"],
++        "daily": snapshot["daily_bars"][-1]["end_ms"] + snapshot["history_max_age_ms"]["daily"],
++        "weekly": snapshot["weekly_bars"][-1]["end_ms"] + snapshot["history_max_age_ms"]["weekly"],
++        "capital": capital["asof_ms"] + min(capital["max_age_ms"], plan["max_quote_age_ms"]),
++        "signal": signal["expires_ms"],
++    }
++    maximum = min(deadlines.values())
++    result.update(expiry_deadlines_ms=deadlines, max_expires_ms=maximum,
++                  expiry_within_bounds=plan["expires_ms"] <= maximum)
++    if not preview and not result["expiry_within_bounds"]:
++        raise ValueError(f"Add plan expiry exceeds evidence/signal deadline; max_expires_ms={maximum}")
+     return result
+
+
+diff --git a/kis_hl/managed_execution.py b/kis_hl/managed_execution.py
+index e1d252c..f8ba550 100644
+--- a/kis_hl/managed_execution.py
++++ b/kis_hl/managed_execution.py
+@@ -1081,6 +1081,7 @@ class Supervisor:
+     def _try_add(self, row, now):
+         from kis_hl.conditional_add import preflight_add
+         from kis_hl.hyperliquid.client import TransientInfoError
++        from kis_hl.strategy_signals import Signals
+         for tranche in self.store.tranches(row["id"]):
+             if tranche["status"] != "QUEUED":
+                 continue
+@@ -1089,10 +1090,19 @@ class Supervisor:
+             try:
+                 if not self.store.entries_enabled(row["scope"]):
+                     raise ValueError("Entries disabled; add cannot enable account-wide entries")
+-                if any(x["id"] != row["id"] and x["mode"] == row["mode"]
+-                       and x["state"] not in FINISHED | {"PROTECTED"}
+-                       for x in self.store.list(row["scope"])):
++                # Check authority before deferring so account activity cannot
++                # keep expired or revoked approvals queued indefinitely.
++                validate_plan(tranche["plan"], now)
++                Signals(self.store).check_authority({**row, "plan": tranche["plan"]}, now_ms=now)
++                blocked = [x for x in self.store.list(row["scope"])
++                           if x["id"] != row["id"] and x["mode"] == row["mode"]
++                           and x["state"] not in FINISHED | {"PROTECTED"}]
++                if any(x["state"] not in {"QUEUED", "ENTERING", "PROTECTING"} for x in blocked):
+                     raise ValueError("Other account exposure needs reconciliation")
++                if blocked:
++                    tranche["reason"] = "Waiting for other account position entry/protection reconciliation"
++                    self.store.save_tranche(tranche)
++                    continue
+                 sizing, now = preflight_add(self.gateway, self.store, row, tranche, now)
+             except TransientInfoError as exc:
+                 tranche["reason"] = str(exc)
+@@ -1103,6 +1113,7 @@ class Supervisor:
+                 self.store.save_tranche(tranche)
+                 continue
+             tranche["submission_sizing"] = sizing
++            tranche.pop("reason", None)
+             self.store.save_tranche(tranche)
+             p = tranche["plan"]
+             row["add_fixed_stop_price"] = p["fixed_stop_price"]
+diff --git a/kis_hl/operations_cli.py b/kis_hl/operations_cli.py
+index 0144161..ca74ff1 100644
+--- a/kis_hl/operations_cli.py
++++ b/kis_hl/operations_cli.py
+@@ -532,10 +532,13 @@ def cmd_order(args):
+         if p.get("action") == "add":
+             if args.order_action == "submit":
+                 raise ValueError("Use signal execute for bounded add authority")
+-            from kis_hl.conditional_add import size_add
++            from kis_hl.conditional_add import validate_add
++            from kis_hl.strategy_signals import Signals
+             owner = store.get(p["position_id"])
+-            return {"dry_run": True, "plan": p, "sizing": size_add(p, owner["scope"],
+-                p["capital_evidence"], now, quantity_step=p["quantity_step"]),
++            signal = next((s for s in Signals(store).list() if s["id"] == p.get("signal_id")), None)
++            if signal is None:
++                raise ValueError("Add preview requires a registered signal_id for evidence expiry")
++            return {"dry_run": True, "plan": p, "sizing": validate_add(p, owner, signal, now, preview=True),
+                 "authority_required": True}
+         if p.get("signal_id") or p.get("grant_id"):
+             raise ValueError("Use signal execute for signal/grant authority")
+diff --git a/scripts/smoke_conditional_add.py b/scripts/smoke_conditional_add.py
+index 0aee0bf..9fc8b78 100644
+--- a/scripts/smoke_conditional_add.py
++++ b/scripts/smoke_conditional_add.py
+@@ -52,6 +52,8 @@ def run():
+             assert captured["reconciliation"]["total_balance"] == "1000"
+             preview = cli("order", "preview", "--input", str(path))
+             assert preview["dry_run"] and preview["authority_required"]
++            assert preview["sizing"]["max_expires_ms"] == NOW+50000
++            assert preview["sizing"]["expiry_within_bounds"]
+             initial = len(gateway.sent)
+             tranche = cli("signal", "execute", "--id", signal["id"], "--input", str(path), "--manual", "--live")
+             assert tranche["status"] == "QUEUED" and len(gateway.sent) == initial
+diff --git a/tests/test_conditional_add.py b/tests/test_conditional_add.py
+index c705916..7b16693 100644
+--- a/tests/test_conditional_add.py
++++ b/tests/test_conditional_add.py
+@@ -1,9 +1,13 @@
+ """Issue 27 offline account-total and bounded add regression fixtures."""
+ import copy
++import contextlib
++import io
++import json
+ import tempfile
+ import unittest
+ from decimal import Decimal
+ from pathlib import Path
++from unittest.mock import patch
+
+ from kis_hl.managed_execution import ExecutionStore, Supervisor
+ from kis_hl.strategy_signals import Signals
+@@ -97,7 +101,7 @@ def add_signal(signals, row):
+
+
+ def add_plan(row):
+-    return {**row["plan"], "action": "add", "position_id": row["id"], "quantity": "0.5",
++    return {**row["plan"], "action": "add", "signal_id": "add-once", "position_id": row["id"], "quantity": "0.5",
+             "units": "0.02", "quantity_step": "0.01", "expected_size": "1", "expected_entry_filled": "1",
+             "capital_evidence": capital(), "condition_snapshot_id": "fixture-snapshot",
+             "condition_bar_end_ms": NOW, "expires_ms": NOW+40000}
+@@ -152,6 +156,117 @@ class CapitalTests(unittest.TestCase):
+
+
+ class ConditionalAddTests(unittest.TestCase):
++    def test_approval_expiry_cannot_outlive_any_source_deadline(self):
++        for source in ("snapshot", "candles", "position", "daily", "weekly", "capital", "quote_cap"):
++            with self.subTest(source=source):
++                signal, p = copy.deepcopy(self.signal), copy.deepcopy(self.plan)
++                signal["id"] = source
++                snapshot = signal["setup_input"]["snapshot"]
++                if source == "snapshot": snapshot["asof_ms"] -= 30000
++                if source == "candles":
++                    for bar in snapshot["candles"]:
++                        bar["start_ms"] -= 30000
++                        bar["end_ms"] -= 30000
++                    p["condition_bar_end_ms"] -= 30000
++                if source == "position": signal["setup_input"]["position"]["asof_ms"] -= 30000
++                if source in {"daily", "weekly"}: snapshot["history_max_age_ms"][source] = 30000
++                if source == "capital": p["capital_evidence"]["max_age_ms"] = 30000
++                if source == "quote_cap":
++                    p["capital_evidence"].update(asof_ms=NOW-30000, max_age_ms=120000)
++                self.signals.ingest(signal, now_ms=NOW)
++                with self.assertRaisesRegex(ValueError, "expiry.*evidence"):
++                    self.signals.execute(source, "scope", p, manual=True, live=True, now_ms=NOW+5)
++                self.assertFalse(self.store.tranches(self.row["id"]))
++        # Equality is allowed; submit remains strictly before plan expiry.
++        self.plan["expires_ms"] = NOW+50000
++        self.plan["capital_evidence"]["max_age_ms"] = 50000
++        self.authorize()
++        self.worker.step(self.row["id"], NOW+49999)
++        self.assertEqual(len([a for a in self.g.sent if a["kind"] == "add"]), 1)
++
++    def test_preview_exposes_short_deadline_without_changing_plan(self):
++        from kis_hl.cli import main
++        signal = copy.deepcopy(self.signal)
++        signal["id"] = "short-preview"
++        signal["setup_input"]["snapshot"]["max_age_ms"] = 10000
++        self.signals.ingest(signal, now_ms=NOW)
++        p = {**self.plan, "signal_id": signal["id"]}
++        path = Path(self.tmp.name)/"preview.json"
++        path.write_text(json.dumps(p))
++        output = io.StringIO()
++        with patch("kis_hl.cli.load_env_file"), patch("kis_hl.operations_cli.time.time", return_value=(NOW+5)/1000), contextlib.redirect_stdout(output):
++            code = main(["--db", str(self.path), "order", "preview", "--input", str(path)])
++        self.assertEqual(code, 0)
++        result = json.loads(output.getvalue())
++        self.assertEqual(result["sizing"]["max_expires_ms"], NOW+10000)
++        self.assertFalse(result["sizing"]["expiry_within_bounds"])
++        self.assertEqual(result["plan"]["expires_ms"], NOW+40000)
++        self.assertTrue(result["authority_required"])
++        self.assertFalse(self.store.tranches(self.row["id"]))
++
++    def other_position(self, state):
++        other = self.store.enqueue("scope", {**plan(), "intent_id": "other",
++            "expires_ms": NOW+60000}, live=True, now_ms=NOW)
++        other["state"] = state
++        self.store.save(other, NOW+6)
++        return other
++
++    def test_temporary_account_state_waits_and_recovers_once_after_reopen(self):
++        self.authorize()
++        other = self.other_position("QUEUED")
++        for tick, state in enumerate(("QUEUED", "ENTERING", "PROTECTING"), 10):
++            other["state"] = state
++            self.store.save(other, NOW+tick)
++            self.worker.step(self.row["id"], NOW+tick)
++            self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
++            self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
++        other["state"] = "CLOSED"
++        self.store.save(other, NOW+13)
++        self.store = ExecutionStore(self.path)
++        self.worker = Supervisor(self.store, self.g, live=True)
++        for tick in (14, 15): self.worker.step(self.row["id"], NOW+tick)
++        self.assertEqual(len([a for a in self.g.sent if a["kind"] == "add"]), 1)
++        self.assertNotIn("reason", self.store.tranches(self.row["id"])[0])
++
++    def test_account_wait_does_not_bypass_expiry(self):
++        self.authorize()
++        self.other_position("QUEUED")
++        self.worker.step(self.row["id"], NOW+10)
++        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
++        self.worker.step(self.row["id"], self.plan["expires_ms"])
++        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
++        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
++
++    def test_account_wait_still_rejects_revoked_grant(self):
++        self.signals.grant(dict(id="wait-grant", scope="scope", strategy="fixture", strategy_version="1",
++            instruments=["hl:ETH"], max_notional="100", max_intents=1, live=True, actions=["add"],
++            signal_ids=["add-once"], position_ids=[self.row["id"]], expires_ms=NOW+50000), now_ms=NOW)
++        self.signals.execute("add-once", "scope", self.plan, grant_id="wait-grant", live=True, now_ms=NOW+5)
++        self.other_position("ENTERING")
++        self.worker.step(self.row["id"], NOW+10)
++        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
++        self.signals.revoke("wait-grant")
++        self.worker.step(self.row["id"], NOW+11)
++        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
++        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
++
++    def test_kill_switch_rejects_even_during_account_wait(self):
++        self.authorize()
++        self.other_position("PROTECTING")
++        self.worker.step(self.row["id"], NOW+10)
++        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
++        self.store.set_entries("scope", False)
++        self.worker.step(self.row["id"], NOW+11)
++        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
++        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
++
++    def test_account_intervention_still_rejects(self):
++        self.authorize()
++        self.other_position("INTERVENTION")
++        self.worker.step(self.row["id"], NOW+10)
++        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
++        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
++
+     def test_terminated_old_trail_retains_full_overlay_across_reopen(self):
+         for status in ("canceled", "rejected", "expired"):
+             with self.subTest(status=status):

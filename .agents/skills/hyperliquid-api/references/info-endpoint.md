@@ -57,6 +57,7 @@ still forming — the BTC 3H signal only uses closed candles.
 |---|---|---|
 | `clearinghouseState` | `user`, `[dex]` | `assetPositions[]`, `marginSummary`, `crossMarginSummary`, `withdrawable`. `dex: "ALL_DEXES"` aggregates HIP-3 dexes |
 | `spotClearinghouseState` | `user` | `balances[]` with `coin`, `token`, `hold`, `total`, `entryNtl` |
+| `userAbstraction` | `user` | `unifiedAccount`, `portfolioMargin`, `disabled`, `default`, or `dexAbstraction`; wrapped by `user_abstraction`. Unified balance source is spot, not per-DEX accountValue. Unknown/unsupported modes block automated account-total sizing. |
 | `openOrders` | `user`, `[dex]` | resting orders: `coin`, `limitPx`, `oid`, `side`, `sz`, `timestamp` |
 | `frontendOpenOrders` | `user`, `[dex]` | adds `orderType`, `triggerPx`, `isTrigger`, `tpsl`, `cloid` — use this to see stop orders |
 | `historicalOrders` | `user` | up to 2000 recent orders with status |
@@ -65,7 +66,7 @@ still forming — the BTC 3H signal only uses closed candles.
 | `userFillsByTime` | `user`, `startTime`, `[endTime]`, `[aggregateByTime]` | paginate with the last `time` returned |
 | `userFunding` | `user`, `startTime`, `[endTime]`, `[dex]` | `delta` = `{coin, fundingRate, usdc, szi}` |
 | `userNonFundingLedgerUpdates` | `user`, `startTime`, `[endTime]`, `[dex]` | deposits, withdrawals, transfers |
-| `activeAssetData` | `user`, `coin` | `leverage`, `maxTradeSzs`, `availableToTrade`, `markPx` — the cheapest pre-trade sizing check |
+| `activeAssetData` | `user`, `coin` | `leverage`, `maxTradeSzs`, `availableToTrade`, `markPx`; wrapped by `active_asset_data`, checking account/coin identity. Add preflight conservatively bounds quantity by both directional maxTradeSzs; availableToTrade stays separate from capital. |
 | `userFees` | `user` | fee schedule and daily volumes |
 | `userRateLimit` | `user` | address-based request budget used / cap |
 | `userRole` | `user` | Object with `role`: `user` / `agent` / `vault` / `subAccount` / `missing` (weight 60). For `subAccount`, `data.master` identifies the master. Wrapped by `user_role`; subaccount preflight rejects missing/incorrect relationships before signing. |
