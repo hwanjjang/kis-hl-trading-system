@@ -108,8 +108,11 @@ instrument's units; stop rounding belongs to the existing execution path.
 ```
 
 The example's market rules are fixtures; read actual lot/minimum metadata.
-HL equity is the selected account/dex perpetual `accountValue`, without spot or
-other-account pooling. KIS equity is the selected account NAV valued in the
+HL equity is the selected account's reconciled total balance, not an individual
+perp/dex `accountValue`. Follow the account-mode and collateral-overlap checks in
+[operations](trading-operations.md#user-approved-risk-units); never pool different
+accounts or blindly sum overlapping spot/perp views. This tool consumes caller
+evidence; it does not fetch or certify the total. KIS equity is the selected account NAV valued in the
 execution currency, with an explicit FX basis when needed. Buying power is a
 separate preflight constraint. Output includes rounded quantity, notional, planned
 risk, capital, and risk percentages against capital and equity. `below_minimum`

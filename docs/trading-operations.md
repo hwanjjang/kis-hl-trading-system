@@ -172,9 +172,16 @@ Confirmed user semantics:
 
 Operating assets for advisory risk-unit calculations are now specified:
 
-- Hyperliquid: use `accountValue * 10` without flooring or a below-1000 exclusion.
-  Use a fresh selected perpetual account/dex snapshot, never pooled main/subaccount
-  equity, spot balances or other-dex collateral. One unit is 1% of this derived
+- Hyperliquid: use the selected account's reconciled total balance * 10 without
+  flooring or a below-1000 exclusion. This user clarification supersedes the
+  earlier individual perpetual-account/dex `accountValue` denominator. Do not
+  substitute margin used or withdrawable balance for total balance. Establish
+  account mode and collateral ownership: spot and perp/dex views can overlap and
+  must not be blindly summed. Keep main/subaccounts separate. If total-balance
+  reconciliation is unavailable, label user-supplied totals as sizing scenarios
+  and fail closed for automated sizing; never fall back to a smaller segment.
+  The calculator consumes explicit equity; it does not reconcile account totals.
+  One unit is 1% of this derived
   budget, or 10% of unmultiplied account equity before lot rounding; disclose both
   risk percentages.
   This is not an instruction to set exchange leverage to 10x or to ignore margin
@@ -219,6 +226,34 @@ required before the proposed approval workflow can execute trades. The absence
 of preset cumulative unit caps is decided, not an unresolved limit to invent.
 Current managed execution remains long-only; #15's symmetric short calculation
 and the separate short-trailing follow-up are not claims of working short management.
+
+## Exit quantity policy
+
+This confirmed policy applies to new entries and positions enlarged by add-ups.
+The quantity basis is the current remaining position in the selected account and
+instrument, including all filled tranches, not just the most recent entry.
+
+- Ordinary strategy exits and fixed-SL exits default to closing the entire
+  remaining position. Partial discretionary exits are exceptions that require an
+  explicit rationale and selected quantity.
+- An executable trailing-stop trigger targets the entire remaining position.
+  A profitable TS exit is still a full exit, not a take-profit half exit. Partial
+  exchange fills do not satisfy this objective: reconcile fills and continue
+  handling the residual through the bounded, reduce-only exit workflow.
+- A discretionary take-profit decision based on a judged market top defaults to
+  selling 50% of the remaining position. This is a quantity default, not a numeric
+  price target, a definition of a top, or blanket automatic trading authority.
+  Deduplicate the decision; do not repeatedly halve on the same top signal.
+- After any partial exit, reconcile remaining exposure and preserve correctly
+  sized fixed-SL and TS protection. After full closure, reconcile and clean up
+  associated orders only; do not touch unrelated positions or orders.
+
+Existing full-exit controls remain supported. Managed add-ups and discretionary
+partial take-profit execution do not become supported by recording this policy.
+Do not route an add as a new flat entry, route a 50% TP through a full-exit command,
+or bypass ownership/protection guards with raw orders. Activation requires a
+supported, tested lifecycle and a complete authorized plan. Existing trailing
+orders and watermarks must not be reset merely to apply this document.
 
 ## Prepare and submit
 

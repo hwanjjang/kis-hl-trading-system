@@ -36,10 +36,12 @@ execution. The current managed executor does not yet accept live add-ups.
 
 ## Capital, stop and size
 
-The capital and unit tools implement the confirmed policy: Hyperliquid selected
-perpetual account value × 10 without flooring; KIS selected account NAV × 1 in the
-execution currency. Do not pool accounts, count collateral twice or confuse NAV
-with buying power. One unit is a planned fixed-SL loss of 1% of operating capital.
+The capital and unit tools consume explicit equity: Hyperliquid selected account
+total balance × 10 without flooring; KIS selected account NAV × 1 in the execution
+currency. Follow the [capital-source requirements](../../../../docs/trading-operations.md#user-approved-risk-units)
+before supplying equity. Do not substitute an individual perp/dex accountValue,
+pool accounts, count collateral twice or confuse NAV with buying power. The tools
+do not reconcile total balance. One unit is a planned fixed-SL loss of 1% of operating capital.
 It can represent about 10% of unmultiplied HL account equity; disclose both figures.
 The multiple does not command exchange leverage or waive margin checks.
 
@@ -52,6 +54,13 @@ Trailing-risk improvement can inform a new proposal; it neither resizes an
 existing approval nor replaces the fixed SL used to size a new tranche.
 
 ## Protection and exits
+
+Apply the [exit quantity policy](../../../../docs/trading-operations.md#exit-quantity-policy)
+to the aggregate remaining position after both new entries and adds: default full
+exits, full executable TS exits, and default half-position discretionary top-based
+take profit. State exit reason and quantity separately; a profitable TS is not a
+half-position take profit. Preserve residual protection and do not mistake an
+advisory partial-exit decision for supported managed execution.
 
 After actual fills, existing management confirms fixed protection and starts the
 selected supported trailing policy at its earliest verified point, without a

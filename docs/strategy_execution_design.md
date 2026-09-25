@@ -62,12 +62,15 @@ remains compatible; skills use the validated `strategy decide` interface.
 
 ### Capital model
 
-Hyperliquid operating capital uses the selected perpetual account value × 10,
-without a thousand-USDC floor or a below-1000 exclusion. KIS uses selected account
-NAV × 1, valued in the execution currency with an explicit FX basis when needed.
-Do not pool main/subaccounts, spot balances or other-dex collateral into the chosen
-HL account value. Available funds are a separate constraint. The multiplier does
-not set venue leverage or waive margin requirements.
+Hyperliquid operating capital uses the selected account's reconciled total balance
+× 10, without a thousand-USDC floor or a below-1000 exclusion. The total-balance
+clarification supersedes the individual perp/dex accountValue basis; account-mode
+and collateral-overlap requirements are owned by
+[operations](trading-operations.md#user-approved-risk-units). The sizing tool
+consumes explicit equity and does not implement total-balance reconciliation.
+KIS uses selected account NAV × 1, valued in the execution currency with an explicit
+FX basis when needed. Available funds are a separate constraint. The multiplier
+does not set venue leverage or waive margin requirements.
 
 ### Position sizing
 
@@ -139,14 +142,20 @@ behavior remain in [protected operations](trading-operations.md).
 The following execution capabilities are separate from completing the strategy
 skill and its deterministic tools:
 
+The confirmed [exit quantity policy](trading-operations.md#exit-quantity-policy)
+distinguishes full strategy/SL/TS exits from discretionary top-based half-position
+take-profit decisions. It applies to aggregate remaining exposure after adds and
+does not itself implement add-up or partial-exit execution.
+
 - **Live add-ups:** the current supervisor requires flat entry and owns one active
   position per account/instrument. The skill and tools can evaluate and size an
   add proposal, but cannot submit it by bypassing those guards. Tranche-aware
   execution/protection is a separate execution change.
-- **Arbitrary fixed-stop plans:** the tool can calculate against an explicit stop;
-  the current managed plan expresses ATR distance and rechecks execution ATR.
-  An authorized plan must represent the same risk basis. Do not silently substitute
-  another stop to make a proposal executable.
+- **Fixed-stop risk preservation:** explicit `fixed_stop_price` is supported by
+  managed plans independently of ATR-based trailing distances. The plan validates
+  its entry-to-stop distance against the approved loss/notional limits. Preserve
+  the sizing stop rather than silently substituting an ATR-derived stop; this
+  support does not remove the separate live add-up limitation.
 - **Managed percentage TS and partial reductions:** available low-level fields or
   advisory decisions do not establish an end-to-end managed contract. Use only
   supported existing controls and expose unavailable capabilities.
