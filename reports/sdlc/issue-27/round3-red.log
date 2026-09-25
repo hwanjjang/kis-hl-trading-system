@@ -1,0 +1,128 @@
+======================================================================
+ERROR: test_supervisor_reports_unknown_add_without_changing_protection (tests.test_conditional_add.ConditionalAddTests.test_supervisor_reports_unknown_add_without_changing_protection)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 506, in test_supervisor_reports_unknown_add_without_changing_protection
+    other = self.store.enqueue("other-scope", {**plan(), "intent_id": "other-account"},
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/kis_hl/managed_execution.py", line 195, in enqueue
+    p = validate_plan(plan, now_ms)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/kis_hl/managed_execution.py", line 121, in validate_plan
+    raise ValueError("Trade plan has expired")
+ValueError: Trade plan has expired
+
+======================================================================
+FAIL: test_peer_exit_or_intervention_flags_never_wait_or_allow_add (tests.test_conditional_add.ConditionalAddTests.test_peer_exit_or_intervention_flags_never_wait_or_allow_add) (state='PROTECTED', flag='exit_requested_ms')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 292, in test_peer_exit_or_intervention_flags_never_wait_or_allow_add
+    self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "REJECTED")
+AssertionError: 'SUBMITTED' != 'REJECTED'
+- SUBMITTED
++ REJECTED
+
+
+======================================================================
+FAIL: test_peer_exit_or_intervention_flags_never_wait_or_allow_add (tests.test_conditional_add.ConditionalAddTests.test_peer_exit_or_intervention_flags_never_wait_or_allow_add) (state='PROTECTED', flag='cancel_entry')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 292, in test_peer_exit_or_intervention_flags_never_wait_or_allow_add
+    self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "REJECTED")
+AssertionError: 'SUBMITTED' != 'REJECTED'
+- SUBMITTED
++ REJECTED
+
+
+======================================================================
+FAIL: test_peer_exit_or_intervention_flags_never_wait_or_allow_add (tests.test_conditional_add.ConditionalAddTests.test_peer_exit_or_intervention_flags_never_wait_or_allow_add) (state='PROTECTED', flag='read_failure_exit')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 292, in test_peer_exit_or_intervention_flags_never_wait_or_allow_add
+    self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "REJECTED")
+AssertionError: 'SUBMITTED' != 'REJECTED'
+- SUBMITTED
++ REJECTED
+
+
+======================================================================
+FAIL: test_peer_exit_or_intervention_flags_never_wait_or_allow_add (tests.test_conditional_add.ConditionalAddTests.test_peer_exit_or_intervention_flags_never_wait_or_allow_add) (state='PROTECTED', flag='native_trailing_intervention')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 292, in test_peer_exit_or_intervention_flags_never_wait_or_allow_add
+    self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "REJECTED")
+AssertionError: 'SUBMITTED' != 'REJECTED'
+- SUBMITTED
++ REJECTED
+
+
+======================================================================
+FAIL: test_transient_peer_recovers_after_reopen_without_consuming_add (tests.test_conditional_add.ConditionalAddTests.test_transient_peer_recovers_after_reopen_without_consuming_add) (state='DEGRADED')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 249, in test_transient_peer_recovers_after_reopen_without_consuming_add
+    self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "QUEUED")
+AssertionError: 'REJECTED' != 'QUEUED'
+- REJECTED
++ QUEUED
+
+
+======================================================================
+FAIL: test_transient_peer_recovers_after_reopen_without_consuming_add (tests.test_conditional_add.ConditionalAddTests.test_transient_peer_recovers_after_reopen_without_consuming_add) (state='ADOPTING')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 249, in test_transient_peer_recovers_after_reopen_without_consuming_add
+    self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "QUEUED")
+AssertionError: 'REJECTED' != 'QUEUED'
+- REJECTED
++ QUEUED
+
+
+======================================================================
+FAIL: test_transient_peer_wait_still_obeys_expiry_and_kill_switch (tests.test_conditional_add.ConditionalAddTests.test_transient_peer_wait_still_obeys_expiry_and_kill_switch) (state='DEGRADED', boundary='expiry')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 271, in test_transient_peer_wait_still_obeys_expiry_and_kill_switch
+    self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "QUEUED")
+AssertionError: 'REJECTED' != 'QUEUED'
+- REJECTED
++ QUEUED
+
+
+======================================================================
+FAIL: test_transient_peer_wait_still_obeys_expiry_and_kill_switch (tests.test_conditional_add.ConditionalAddTests.test_transient_peer_wait_still_obeys_expiry_and_kill_switch) (state='DEGRADED', boundary='kill_switch')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 271, in test_transient_peer_wait_still_obeys_expiry_and_kill_switch
+    self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "QUEUED")
+AssertionError: 'REJECTED' != 'QUEUED'
+- REJECTED
++ QUEUED
+
+
+======================================================================
+FAIL: test_transient_peer_wait_still_obeys_expiry_and_kill_switch (tests.test_conditional_add.ConditionalAddTests.test_transient_peer_wait_still_obeys_expiry_and_kill_switch) (state='ADOPTING', boundary='expiry')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 271, in test_transient_peer_wait_still_obeys_expiry_and_kill_switch
+    self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "QUEUED")
+AssertionError: 'REJECTED' != 'QUEUED'
+- REJECTED
++ QUEUED
+
+
+======================================================================
+FAIL: test_transient_peer_wait_still_obeys_expiry_and_kill_switch (tests.test_conditional_add.ConditionalAddTests.test_transient_peer_wait_still_obeys_expiry_and_kill_switch) (state='ADOPTING', boundary='kill_switch')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/root/.paseo/worktrees/1epgz72k/lumpy-hippo/tests/test_conditional_add.py", line 271, in test_transient_peer_wait_still_obeys_expiry_and_kill_switch
+    self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "QUEUED")
+AssertionError: 'REJECTED' != 'QUEUED'
+- REJECTED
++ QUEUED
+
+
+----------------------------------------------------------------------
+Ran 31 tests in 38.128s
+
+FAILED (failures=10, errors=1)

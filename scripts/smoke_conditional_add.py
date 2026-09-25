@@ -57,13 +57,31 @@ def run():
             initial = len(gateway.sent)
             tranche = cli("signal", "execute", "--id", signal["id"], "--input", str(path), "--manual", "--live")
             assert tranche["status"] == "QUEUED" and len(gateway.sent) == initial
-            cli("supervisor", "run", "--venue", "hyperliquid", "--live", "--once")
+            queued = cli("supervisor", "status", "--venue", "hyperliquid")["positions"][0]
+            assert queued["pending_adds"][0]["status"] == "QUEUED"
+            submit = gateway.submit
+
+            def lost_ack(owner, attempt):
+                result = submit(owner, attempt)
+                if attempt["kind"] == "add":
+                    raise TimeoutError("Stub accepted add but acknowledgement was lost")
+                return result
+
+            gateway.submit = lost_ack
+            unknown_run = cli("supervisor", "run", "--venue", "hyperliquid", "--live", "--once")["positions"][0]
+            unknown = cli("supervisor", "status", "--venue", "hyperliquid")["positions"][0]
+            assert unknown_run["pending_adds"] == unknown["pending_adds"]
+            assert unknown["state"] == "PROTECTED" and unknown["pending_adds"][0]["status"] == "UNKNOWN"
+            gateway.submit = submit
             add = [a for a in gateway.sent if a["kind"] == "add"][-1]
             gateway.fill(add, "0.2", terminal=False)
             for tick in (10, 11):
                 clock[0] = NOW+tick
                 cli("supervisor", "run", "--venue", "hyperliquid", "--live", "--once")
             assert float(store.get(row["id"])["covered_size"]) == 1.2
+            partial = cli("supervisor", "status", "--venue", "hyperliquid")["positions"][0]
+            assert partial["pending_adds"][0]["status"] == "SUBMITTED"
+            assert float(partial["pending_adds"][0]["filled"]) == 0.2
             gateway.fill(add, "0.5")
             for tick in (12, 13, 14):
                 clock[0] = NOW+tick
@@ -75,10 +93,13 @@ def run():
             assert float(status["covered_size"]) == float(status["trailing_covered_size"]) == 1.5
             assert float(status["tranches"][0]["filled"]) == 0.5
             assert len([a for a in gateway.sent if a["kind"] == "add"]) == 1
+            complete = cli("supervisor", "status", "--venue", "hyperliquid")["positions"][0]
+            assert complete["pending_adds"] == []
         print(json.dumps({"result": "passed", "network": "forbidden", "gateway": "stub",
             "sqlite": "temporary, reopened by every CLI invocation", "commands": commands,
             "total_balance": "1000", "operating_capital": preview["sizing"]["operating_capital"],
             "add_attempts": 1, "tranche_filled": "0.5", "remaining": "1.5",
+            "pending_add_statuses": ["QUEUED", "UNKNOWN", "SUBMITTED", "none after terminal fill"],
             "sl_coverage": status["covered_size"], "native_ts_coverage": status["trailing_covered_size"],
             "state": status["state"]}, indent=2))
 

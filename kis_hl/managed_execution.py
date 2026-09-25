@@ -1094,13 +1094,18 @@ class Supervisor:
                 # keep expired or revoked approvals queued indefinitely.
                 validate_plan(tranche["plan"], now)
                 Signals(self.store).check_authority({**row, "plan": tranche["plan"]}, now_ms=now)
-                blocked = [x for x in self.store.list(row["scope"])
-                           if x["id"] != row["id"] and x["mode"] == row["mode"]
-                           and x["state"] not in FINISHED | {"PROTECTED"}]
-                if any(x["state"] not in {"QUEUED", "ENTERING", "PROTECTING"} for x in blocked):
+                others = [x for x in self.store.list(row["scope"])
+                          if x["id"] != row["id"] and x["mode"] == row["mode"]
+                          and x["state"] not in FINISHED]
+                # DEGRADED can also mean a pending exit; state alone is not
+                # sufficient to distinguish a temporary reconciliation wait.
+                if any(x["state"] not in {"PROTECTED", "QUEUED", "ENTERING", "PROTECTING", "DEGRADED", "ADOPTING"}
+                       or x.get("exit_requested_ms") is not None or x.get("cancel_entry")
+                       or x.get("read_failure_exit") or x.get("native_trailing_intervention")
+                       for x in others):
                     raise ValueError("Other account exposure needs reconciliation")
-                if blocked:
-                    tranche["reason"] = "Waiting for other account position entry/protection reconciliation"
+                if any(x["state"] != "PROTECTED" for x in others):
+                    tranche["reason"] = "Waiting for other account position reconciliation"
                     self.store.save_tranche(tranche)
                     continue
                 sizing, now = preflight_add(self.gateway, self.store, row, tranche, now)

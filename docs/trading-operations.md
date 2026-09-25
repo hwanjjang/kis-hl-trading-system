@@ -800,12 +800,26 @@ before any send leave the tranche `QUEUED` for the existing supervisor's next ti
 Authority/expiry are checked before each read and again after successful preflight.
 Identity, schema and permanent HTTP errors still reject; a signed unknown outcome
 never qualifies for this read retry and cannot be resent.
-Another same-account/mode position in `QUEUED`, `ENTERING` or `PROTECTING` leaves
-the unsent add `QUEUED` with a reconciliation-wait reason. Existing ticks recheck
+Another same-account/mode position in `QUEUED`, `ENTERING`, `PROTECTING`,
+`DEGRADED` or `ADOPTING` leaves the unsent add `QUEUED` with a reconciliation-wait
+reason only when it has no exit request, entry cancellation, read-failure exit or
+native-trailing intervention flag. These flags reject the add even if the other
+position's state still says `PROTECTED`. `DEGRADED` alone is not proof of a harmless
+quote delay: it can also mean an exit waiting for fresh prices. Existing ticks recheck
 expiry, authority/revocation and the entry kill switch before waiting. Recovery
 requires full fresh preflight; waiting does not extend any deadline. Other blocking
 states, including `INTERVENTION`, retain terminal rejection. No signed attempt is
 created while waiting, and no unrelated account-wide entry is enabled.
+
+`supervisor status` and `supervisor run --once` include `pending_adds` on each
+position: nonterminal tranche IDs, signal IDs, statuses, filled quantities,
+attempt IDs and wait detail when present. The list is empty when no add
+remains pending; terminal tranche history and full evidence remain in `order status`.
+An owner can be `PROTECTED` for its last reconciled exposure while an add is
+`UNKNOWN`; this does not confirm the add's outcome. Inspect the pending record and
+associated order/fill readback. Displaying uncertainty does not change owner state
+or stop its SL/TS loop. A durable signed attempt is never resent, including after
+restart, and remains subject to the existing reconciliation/recovery limits.
 
 Partial add fills receive incremental fixed-SL coverage at the confirmed fixed
 stop. The owner keeps its ATR and local watermark; the local TS always targets the

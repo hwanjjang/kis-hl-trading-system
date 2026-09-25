@@ -237,6 +237,63 @@ class ConditionalAddTests(unittest.TestCase):
         self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
         self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
 
+    def test_transient_peer_recovers_after_reopen_without_consuming_add(self):
+        for state in ("DEGRADED", "ADOPTING"):
+            with self.subTest(state=state):
+                case = ConditionalAddTests()
+                case.setUp()
+                try:
+                    case.authorize()
+                    other = case.other_position(state)
+                    case.worker.step(case.row["id"], NOW+10)
+                    self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "QUEUED")
+                    self.assertFalse(any(a["kind"] == "add" for a in case.g.sent))
+                    other["state"] = "PROTECTED"
+                    case.store.save(other, NOW+11)
+                    reopened = ExecutionStore(case.path)
+                    worker = Supervisor(reopened, case.g, live=True)
+                    for tick in (12, 13): worker.step(case.row["id"], NOW+tick)
+                    self.assertEqual(sum(a["kind"] == "add" for a in case.g.sent), 1)
+                    self.assertNotIn("reason", reopened.tranches(case.row["id"])[0])
+                finally:
+                    case.doCleanups()
+
+    def test_transient_peer_wait_still_obeys_expiry_and_kill_switch(self):
+        for state in ("DEGRADED", "ADOPTING"):
+            for boundary in ("expiry", "kill_switch"):
+                with self.subTest(state=state, boundary=boundary):
+                    case = ConditionalAddTests()
+                    case.setUp()
+                    try:
+                        case.authorize()
+                        case.other_position(state)
+                        case.worker.step(case.row["id"], NOW+10)
+                        self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "QUEUED")
+                        if boundary == "kill_switch": case.store.set_entries("scope", False)
+                        tick = case.plan["expires_ms"] if boundary == "expiry" else NOW+11
+                        case.worker.step(case.row["id"], tick)
+                        self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "REJECTED")
+                        self.assertFalse(any(a["kind"] in {"add", "cancel"} for a in case.g.sent))
+                    finally:
+                        case.doCleanups()
+
+    def test_peer_exit_or_intervention_flags_never_wait_or_allow_add(self):
+        for state in ("DEGRADED", "ADOPTING", "PROTECTED"):
+            for flag in ("exit_requested_ms", "cancel_entry", "read_failure_exit", "native_trailing_intervention"):
+                with self.subTest(state=state, flag=flag):
+                    case = ConditionalAddTests()
+                    case.setUp()
+                    try:
+                        case.authorize()
+                        other = case.other_position(state)
+                        other[flag] = NOW+7 if flag == "exit_requested_ms" else True
+                        case.store.save(other, NOW+7)
+                        case.worker.step(case.row["id"], NOW+10)
+                        self.assertEqual(case.store.tranches(case.row["id"])[0]["status"], "REJECTED")
+                        self.assertFalse(any(a["kind"] in {"add", "cancel"} for a in case.g.sent))
+                    finally:
+                        case.doCleanups()
+
     def test_account_wait_still_rejects_revoked_grant(self):
         self.signals.grant(dict(id="wait-grant", scope="scope", strategy="fixture", strategy_version="1",
             instruments=["hl:ETH"], max_notional="100", max_intents=1, live=True, actions=["add"],
@@ -441,6 +498,36 @@ class ConditionalAddTests(unittest.TestCase):
         for tick in (11, 12, 13): Supervisor(reopened, self.g, live=True).step(self.row["id"], NOW+tick)
         self.assertEqual(len([a for a in self.g.sent if a["kind"] == "add"]), 1)
         self.assertEqual(reopened.tranches(self.row["id"])[0]["status"], "UNKNOWN")
+
+    def test_supervisor_reports_unknown_add_without_changing_protection(self):
+        from types import SimpleNamespace
+        from kis_hl.cli import main
+        self.test_unknown_add_outcome_is_never_resent_after_restart()
+        other = self.store.enqueue("other-scope", {**plan(), "intent_id": "other-account", "expires_ms": NOW+60000},
+                                   live=True, now_ms=NOW)
+        before = self.store.get(self.row["id"])
+        output = io.StringIO()
+        with patch("kis_hl.cli.load_env_file"), \
+             patch("kis_hl.operations_cli.scope_client", return_value=(SimpleNamespace(key="scope"), None)), \
+             contextlib.redirect_stdout(output):
+            code = main(["--db", str(self.path), "supervisor", "status", "--venue", "hyperliquid"])
+        self.assertEqual(code, 0)
+        rows = json.loads(output.getvalue())["positions"]
+        self.assertNotIn(other["id"], [row["id"] for row in rows])
+        row = next(row for row in rows if row["id"] == self.row["id"])
+        self.assertEqual(row["state"], "PROTECTED")
+        pending = row["pending_adds"]
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]["status"], "UNKNOWN")
+        self.assertEqual(pending[0]["signal_id"], "add-once")
+        self.assertEqual(pending[0]["attempt_id"], self.store.tranches(row["id"])[0]["attempt_id"])
+        self.assertEqual(self.store.get(row["id"]), before)
+        # Protection continues to track the observed exposure while the add is unresolved.
+        self.g.price = "110"
+        self.worker.step(row["id"], NOW+14)
+        self.assertEqual(self.store.get(row["id"])["state"], "PROTECTED")
+        self.assertEqual(Decimal(self.store.get(row["id"])["trail"]["bucket_high"]), Decimal("110"))
+        self.assertEqual(sum(a["kind"] == "add" for a in self.g.sent), 1)
 
     def test_failed_incremental_sl_reaches_bounded_exit_retaining_existing_sl(self):
         self.authorize()

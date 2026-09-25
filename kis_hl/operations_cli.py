@@ -15,7 +15,7 @@ from kis_hl.journal_sync import Fill, JournalLedger, Scope, SyncSchedule, encode
 from kis_hl.journal_history import sync_hyperliquid, sync_kis
 from kis_hl.kis.client import KisClient
 from kis_hl.hyperliquid.client import HyperliquidInfoClient, HyperliquidTradingClient
-from kis_hl.managed_execution import ExecutionStore, Supervisor, validate_plan
+from kis_hl.managed_execution import ExecutionStore, Supervisor, TERMINAL, validate_plan
 
 
 def kis_client():
@@ -590,9 +590,18 @@ def cmd_supervisor(args):
 
     scope, client = scope_client(args.venue)
     store = ExecutionStore(args.db)
+
+    def positions():
+        # Execution uncertainty is separate from protection of observed exposure.
+        return [{**row, "pending_adds": [
+            {**{key: tranche.get(key) for key in ("id", "status", "filled", "attempt_id", "reason")},
+             "signal_id": tranche["plan"]["signal_id"]}
+            for tranche in store.tranches(row["id"]) if tranche["status"].lower() not in TERMINAL
+        ]} for row in store.list(scope.key)]
+
     if args.action == "status":
         return {
-            "positions": store.list(scope.key),
+            "positions": positions(),
             "entries_enabled": store.entries_enabled(scope.key),
         }
     if args.action in {"pause-entries", "resume-entries"}:
@@ -617,7 +626,7 @@ def cmd_supervisor(args):
                 if (row["mode"] == "live") == args.live:
                     worker.step(row["id"], int(time.time() * 1000))
             if args.once:
-                return {"positions": store.list(scope.key)}
+                return {"positions": positions()}
             time.sleep(args.poll_seconds)
 
 
