@@ -23,7 +23,7 @@
 - For the repository's operational trend strategy and breakout/pullback/rebreakout decisions, use `.agents/skills/trend-strategy/SKILL.md` with its deterministic CLI tools. A skill decision does not authorize an order.
 - At the start of any multi-step work session, read `.agents/skills/task-observer/SKILL.md` and follow its observation workflow; it captures repeating patterns, user corrections, and skill-improvement opportunities. This line is its activation trigger for all agents.
 - Skills live in `.agents/skills/<name>/` as the single copy, with relative symlinks at `.codex/skills/<name>` and `.claude/skills/<name>`. When installing a new skill, create these links, add a usage rule here, and add a row to the ownership table in `CLAUDE.md`. Hermes discovery must point to that same canonical directory; see `docs/strategy-authoring.md`.
-- When drafting, editing, or reviewing issues, read `.agents/skills/issue-writing/SKILL.md` and follow its content and acceptance-criteria rules before delivery.
+- When drafting, editing, or reviewing issues, use the user-scope `issue-writing` skill (`~/.agents/skills/issue-writing/SKILL.md`) and follow its content and acceptance-criteria rules before delivery. It is not repository-specific, so it is maintained outside this repository; do not add a repository copy that would shadow or diverge from it.
 - Update documentation whenever behavior, setup, schema, asset eligibility, trading safety, or operational assumptions change.
 - Keep README focused on usage.
 - Keep deeper design notes in `docs/`.
