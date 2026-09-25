@@ -1,4 +1,0 @@
-PASS: git diff --check; candidate does not contain configured key/secret/account values.
-PASS: .env remains ignored and untracked.
-PASS: workflow grants contents:read and runs unittest plus offline CLI smoke; no deployment step.
-PASS: source/HTML diagram bytes unchanged from validated target design; implementation mapping documents future edges.

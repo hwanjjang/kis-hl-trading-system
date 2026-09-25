@@ -1,9 +1,0 @@
-{
-  "status": "pass",
-  "candidate_hashes_checked": 26,
-  "independent_hashes_matched": 25,
-  "git_diff_check": "passed",
-  "private_data_and_env_tracked": false,
-  "local_document_links_checked": 9,
-  "scope": "Preserved unrelated pre-existing protected-trading changes; no staging or commits"
-}

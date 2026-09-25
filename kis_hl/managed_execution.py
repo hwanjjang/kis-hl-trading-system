@@ -249,6 +249,21 @@ class ExecutionStore:
         with self.connect() as db:
             db.execute("UPDATE managed_tranches SET snapshot=? WHERE id=?", (encode(tranche), tranche["id"]))
 
+    def retire_unsent_adds(self, position_id, now_ms):
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            owner = db.execute("SELECT state FROM managed_positions WHERE id=?", (position_id,)).fetchone()
+            if not owner or owner["state"] not in FINISHED:
+                return
+            attempted = {json.loads(r[0]).get("tranche_id") for r in db.execute(
+                "SELECT snapshot FROM managed_attempts WHERE position_id=?", (position_id,))}
+            for record in db.execute("SELECT snapshot FROM managed_tranches WHERE position_id=?", (position_id,)).fetchall():
+                tranche = json.loads(record[0])
+                if tranche["status"] == "QUEUED" and tranche["id"] not in attempted:
+                    tranche.update(status="CANCELED", retired_ms=now_ms,
+                                   reason=f"Owner {owner['state']}; unsent add retired")
+                    db.execute("UPDATE managed_tranches SET snapshot=? WHERE id=?", (encode(tranche), tranche["id"]))
+
     def enqueue_add(self, owner, plan, *, now_ms, sizing):
         tranche = dict(id=uuid4().hex, position_id=owner["id"], plan=plan,
                        status="QUEUED", created_ms=now_ms, filled="0", sizing=sizing)
@@ -330,6 +345,8 @@ class ExecutionStore:
                 (row["id"], now_ms, new["state"], new["reason"]),
             )
         row.update(new)
+        if row["state"] in FINISHED:
+            self.retire_unsent_adds(row["id"], now_ms)
 
     def attempts(self, position_id):
         with self.connect() as db:
@@ -449,6 +466,8 @@ class Supervisor:
             ):
                 raise ValueError("Supervisor account/mode mismatch")
             if row["state"] in FINISHED:
+                # Repair legacy terminal owners and a crash between save and retirement.
+                self.store.retire_unsent_adds(position_id, now_ms)
                 return row
             if position_id not in self.seen:
                 if row["trail"]:
@@ -905,11 +924,21 @@ class Supervisor:
             row["exit_requested_ms"] = row["exit_requested_ms"] or now
         expired_entries = [a for a in entry_active if now >= a.get("expires_ms", p["expires_ms"])]
         if row["cancel_entry"] or row["exit_requested_ms"] or expired_entries:
-            row["cancel_started_ms"] = row.get("cancel_started_ms") or now
             for a in entry_active:
                 if not (row["cancel_entry"] or row["exit_requested_ms"]) and a not in expired_entries:
                     continue
                 target = a.get("order_id")
+                prior = [x for x in attempts
+                         if target and x["kind"] == "cancel" and x.get("target_id") == target]
+                if a.get("cancel_started_ms") is None:
+                    started = min(x["created_ms"] for x in prior) if prior else now
+                    legacy = row.get("cancel_started_ms")
+                    if prior and legacy is not None and a["created_ms"] <= legacy <= started:
+                        started = legacy
+                    # Budget belongs to this target, including after process death.
+                    # Matching cancel history preserves legacy same-target limits;
+                    # an unmatched owner clock must not poison a later add.
+                    self.store.update_attempt(a, cancel_started_ms=started)
                 if not target:
                     self._state(
                         row,
@@ -918,13 +947,8 @@ class Supervisor:
                         now,
                     )
                     return
-                prior = [
-                    x
-                    for x in attempts
-                    if x["kind"] == "cancel" and x.get("target_id") == target
-                ]
                 if (
-                    now - row["cancel_started_ms"] > p["exit_deadline_ms"]
+                    now - a["cancel_started_ms"] > p["exit_deadline_ms"]
                     or len(prior) >= p["max_exit_attempts"]
                 ):
                     self._state(

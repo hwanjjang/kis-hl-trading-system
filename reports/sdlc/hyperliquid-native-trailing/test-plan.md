@@ -1,9 +1,0 @@
-# Test Plan
-AC1: CLI/instrument capability output and default/native plan validation.
-AC2: dry-run no SDK/network, invalid inputs, percent serialization and ordered wire contract, live eligibility/precision/direction guards, rejected/opaque/native-ID acknowledgements; actual SDK signature recovery in additional smoke.
-AC3: fixed SL on partial entry; native deferred until terminal entry and coverage; acknowledgement versus active readback; restart, unknown timeout/no retry, canceled native no recreation, conservative fractional-ATR precision, flat cleanup, strict native identity/size/condition and foreign-order refusal. Existing execution/gateway regressions retained.
-AC4: focused unit suite followed by full suite; additional CLI+SQLite+real-SDK offline functional smoke. Verifier runs separate scenarios in an isolated TMPDIR.
-
-Commands: python3 -m unittest tests.test_native_trailing tests.test_managed_execution tests.test_managed_gateways tests.test_hyperliquid_client tests.test_operations_cli -q; python3 -m unittest discover -s tests -t . -q; PYTHONPATH=. /tmp/hl-trailing-venv/bin/python scripts/smoke_native_trailing.py.
-Smoke prerequisites: declared requirements installed in /tmp; no credentials or network. Actions: actual subprocess CLI preview, actual SQLite enqueue and paper supervisor; generate ephemeral SDK signing key and independently recover signature; capture transport without transmission. Expect native policy/capability, PREVIEWED with zero attempts, signer recovery, zero network calls. Temporary database/key lifetime ends on exit.
-Expected Red: absent method/helper/provider handling before implementation; precision regression then safe floor; public reads through repository Info client. Initial Red included imported test-class discovery, corrected by removing the unnecessary import.

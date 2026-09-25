@@ -1,8 +1,0 @@
-{
-  "scope": "non-executable amendment only",
-  "local_links_checked": 23,
-  "broken_links": [],
-  "git_diff_check_exit": 0,
-  "runtime_tests": "not-applicable: no code/configuration changed by this amendment",
-  "candidate": "f9f2c5049291f2a41a73bc9e26fe7026ee54b7660b7006df0de73eb49834abad"
-}

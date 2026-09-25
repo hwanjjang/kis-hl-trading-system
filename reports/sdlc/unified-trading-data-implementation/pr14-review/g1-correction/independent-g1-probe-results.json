@@ -1,5 +1,0 @@
-{
-  "exit_code": 1,
-  "stdout": "",
-  "stderr": "Traceback (most recent call last):\n  File \"/tmp/g1-independent-8vu8dhtq/probe.py\", line 25, in <module>\n    s,a=make('matrix-'+str(len(checks)),rows);r=journal(s,[a]);c=r['cycles'][0]\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/g1-independent-8vu8dhtq/probe.py\", line 15, in make\n    s=DataStore(root/(name+'.sqlite'));a=s.account(venue,'sim',name)\n                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/.paseo/worktrees/1epgz72k/cold-buffalo/kis_hl/data_store.py\", line 103, in account\n    scope = Scope(venue, environment, native_id)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<string>\", line 6, in __init__\n  File \"/root/.paseo/worktrees/1epgz72k/cold-buffalo/kis_hl/journal_sync.py\", line 51, in __post_init__\n    raise ValueError(\"Explicit account environment required\")\nValueError: Explicit account environment required\n"
-}

@@ -1,2 +1,0 @@
-Native kis-account and thin GET balance method implemented.
-Red observed missing method/command; green passed. Independent finding exposed secret-only rotation gap: added failing regression, then key+secret cache digest. Endpoint tests moved into test_kis_client.py. No source refactor beyond additive command. README, architecture and KIS skill endpoint contract synchronized. Candidate file digest mapping: candidate.json. No account data retained.

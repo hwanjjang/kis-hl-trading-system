@@ -1,2 +1,0 @@
-# User clarification
-AK selected simultaneous native and local monitoring/exit. This supersedes the provisional explicit-alternate-only assumption before implementation. Native continuous mark protection plus a local nine-minute backup are active together for new native HL plans. No mode switching or retry of ambiguous native submission. Both reduce-only; local persists one exit intent and reconciles residuals; retained exchange protections are cleaned only after flat. Existing persisted rows are not migrated.

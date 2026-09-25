@@ -1,1 +1,0 @@
-Build attempt 3 reached 319 passing tests and real CLI smoke, but independent in-build probing found same-DAY oversell bypass and earlier-cycle invalidation. Two new regressions fail for these intended reasons. Re-enter build with overlap-based invalidation; no commit was made. Independent stage remains stale until corrected build/self-verification complete.

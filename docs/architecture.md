@@ -282,6 +282,15 @@ signal, `ExecutionStore.managed_tranches` keeps immutable plan and evolving fill
 records, and the existing supervisor/gateways own submission and reconciliation.
 Tranches share the existing account/instrument owner, Trail, protective order ledger
 and residual exit path. Hermes retains review/notification responsibility.
-See [flow diagram](architecture/conditional-add.html),
-[JSON source](architecture/conditional-add.workflow.json), and
-[operations](trading-operations.md#bounded-conditional-add-ups).
+The [conditional add flow](architecture/conditional-add.html)
+([JSON source](architecture/conditional-add.workflow.json)) includes expiry-driven
+cancellation and terminal-owner cleanup. The focused
+[cancellation and retirement flow](architecture/add-termination.html)
+([JSON source](architecture/add-termination.workflow.json)) separates the durable
+cancellation budget of each target entry/add attempt from the local retirement of
+an unsent tranche. A previous order's cancellation start cannot age a later add;
+restart retains the same target's deadline. Terminal cleanup changes only QUEUED
+tranches with no durable matching attempt and does not hide signed UNKNOWN work.
+The supervisor also repairs already-finished owners; status reads do not mutate
+rows. These are implementation views, not execution authority or live exchange
+validation. See [operations](trading-operations.md#bounded-conditional-add-ups).

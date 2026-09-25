@@ -1,3 +1,0 @@
-# Full correction build iteration 6
-
-Previous candidate and independent-verification FAIL are preserved one directory above. This candidate additionally compares provider gross PnL during bounded reconciliation; bounds invalidated HL exposure at a source-backed flat anchor without fabricating a close; and captures journal append watermarks before input reads. Pinned IDs/coverage already consumed are excluded from late-arrival checks; historical reports without watermarks also detect absent inputs. Four new intended Red tests failed before these fixes. Original twelve finding corrections and operating contracts remain in scope. Exact candidate files in candidate.json; source diff includes untracked files. No production/schema/permission changes.

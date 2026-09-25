@@ -9,3 +9,18 @@ Reconcile all owned buy attempts and retain per-tranche actual fills. Incrementa
 Admission rejection/expiry changes only tranche state; existing management continues. Add fill protection uses its own grace clock. The account entry switch is never enabled by add authorization. Ordinary exits remain full residual, reduce-only and bounded; cleanup targets only persisted owned order IDs.
 
 Sources: issue 27; official Hyperliquid account abstraction modes and info endpoint (2026-09-24). Unsupported capital modes are explicit fail-closed limitations, not segment fallbacks.
+
+## Post-merge lifecycle corrections
+
+Persist cancel_started_ms on each target entry/add attempt before cancellation
+side effects. Retries/restarts reuse it. For legacy attempts, matching-target cancel
+history establishes the prior budget; a compatible legacy owner timestamp may
+preserve an earlier start only when bounded by target creation and known matching
+cancel. Unmatched owner clocks never constrain a later order. Existing retry caps,
+unknown-target intervention and full-position protection/exit semantics stay intact.
+
+When an owner is CLOSED/REJECTED/PREVIEWED, retire QUEUED tranches only when no
+durable matching attempt exists. Record CANCELED, reason and retired_ms; preserve
+all sizing/history and any signed/UNKNOWN/SUBMITTED attempts. Apply after terminal
+save and on the supervisor's finished-owner path to repair older rows. Status
+remains read-only. Serialize the cleanup check and updates in SQLite.
