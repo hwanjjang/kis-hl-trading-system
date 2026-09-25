@@ -113,7 +113,9 @@ instrument's units; stop rounding belongs to the existing execution path.
 ```
 
 The example's market rules are fixtures; read actual lot/minimum metadata.
-HL equity is the selected account's reconciled total balance. `capital_evidence`
+HL equity is the selected account's reconciled total balance; follow the
+[account-mode and collateral-overlap contract](trading-operations.md#user-approved-risk-units).
+The sizing tool validates supplied source evidence; it does not fetch live totals. `capital_evidence`
 is mandatory; caller `equity` is not a fallback. Supported unified USDC balances
 count overlapping spot/perp/DEX collateral once. Unknown modes, duplicate collateral,
 unvalued assets, stale evidence or wrong account/currency block sizing. Reconciliation
@@ -150,6 +152,11 @@ explicit plan and manual/grant authority. For `enter`, supplied `setup_input` mu
 `btc_3h`; evidence is rechecked before entry, including for raw `signal ingest`
 records. Legacy records without `setup_input` remain compatible. Hold/reduce/exit/no-trade records remain advisory: authorized exits use existing
 explicit full-position controls. A completed-bar add proposal alone cannot trade.
+Add preview requires a registered `signal_id` and reports the earliest evidence/
+signal expiry in `sizing.max_expires_ms`. Approval rejects a longer requested expiry;
+the preview does not alter the plan or grant authority. Grant expiry remains an
+additional bound. Temporary account entry/protection work may delay an unsent add
+within these deadlines; source freshness remains mandatory at submission.
 BTC spot decisions use `signal_instrument: hl:BTC`, only `hl:BTC` execution, and
 retain the explicit spot basis in `setup_input`/evidence.
 

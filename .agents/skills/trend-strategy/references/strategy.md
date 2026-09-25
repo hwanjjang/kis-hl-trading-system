@@ -42,7 +42,8 @@ reconciled total account balance × 10 without flooring; KIS selected account NA
 execution currency. Do not pool accounts, count collateral twice or confuse NAV
 with buying power. One unit is a planned fixed-SL loss of 1% of operating capital.
 Missing/ambiguous account-total evidence blocks sizing instead of falling back to
-a perp/DEX segment. Supported mode/valuation limits are owned by the operations contract.
+a perp/DEX segment. Supported mode/valuation limits are owned by the
+[capital-source requirements](../../../../docs/trading-operations.md#user-approved-risk-units).
 It can represent about 10% of unmultiplied HL account equity; disclose both figures.
 The multiple does not command exchange leverage or waive margin checks.
 
@@ -55,6 +56,12 @@ Trailing-risk improvement can inform a new proposal; it neither resizes an
 existing approval nor replaces the fixed SL used to size a new tranche.
 
 ## Protection and exits
+
+Apply the [exit quantity policy](../../../../docs/trading-operations.md#exit-quantity-policy)
+to aggregate remaining exposure: full strategy/SL/TS exits and a default 50%
+discretionary top-based take-profit proposal. The latter remains advisory and its
+managed execution is deferred to #28. State exit reason and quantity separately;
+never route a half-position proposal through a full-exit control.
 
 After actual fills, existing management confirms fixed protection and starts the
 selected supported trailing policy at its earliest verified point, without a

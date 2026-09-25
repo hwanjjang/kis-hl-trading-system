@@ -52,6 +52,8 @@ def run():
             assert captured["reconciliation"]["total_balance"] == "1000"
             preview = cli("order", "preview", "--input", str(path))
             assert preview["dry_run"] and preview["authority_required"]
+            assert preview["sizing"]["max_expires_ms"] == NOW+50000
+            assert preview["sizing"]["expiry_within_bounds"]
             initial = len(gateway.sent)
             tranche = cli("signal", "execute", "--id", signal["id"], "--input", str(path), "--manual", "--live")
             assert tranche["status"] == "QUEUED" and len(gateway.sent) == initial

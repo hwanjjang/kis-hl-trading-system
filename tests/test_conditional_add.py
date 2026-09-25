@@ -1,9 +1,13 @@
 """Issue 27 offline account-total and bounded add regression fixtures."""
 import copy
+import contextlib
+import io
+import json
 import tempfile
 import unittest
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 
 from kis_hl.managed_execution import ExecutionStore, Supervisor
 from kis_hl.strategy_signals import Signals
@@ -97,7 +101,7 @@ def add_signal(signals, row):
 
 
 def add_plan(row):
-    return {**row["plan"], "action": "add", "position_id": row["id"], "quantity": "0.5",
+    return {**row["plan"], "action": "add", "signal_id": "add-once", "position_id": row["id"], "quantity": "0.5",
             "units": "0.02", "quantity_step": "0.01", "expected_size": "1", "expected_entry_filled": "1",
             "capital_evidence": capital(), "condition_snapshot_id": "fixture-snapshot",
             "condition_bar_end_ms": NOW, "expires_ms": NOW+40000}
@@ -152,6 +156,117 @@ class CapitalTests(unittest.TestCase):
 
 
 class ConditionalAddTests(unittest.TestCase):
+    def test_approval_expiry_cannot_outlive_any_source_deadline(self):
+        for source in ("snapshot", "candles", "position", "daily", "weekly", "capital", "quote_cap"):
+            with self.subTest(source=source):
+                signal, p = copy.deepcopy(self.signal), copy.deepcopy(self.plan)
+                signal["id"] = source
+                snapshot = signal["setup_input"]["snapshot"]
+                if source == "snapshot": snapshot["asof_ms"] -= 30000
+                if source == "candles":
+                    for bar in snapshot["candles"]:
+                        bar["start_ms"] -= 30000
+                        bar["end_ms"] -= 30000
+                    p["condition_bar_end_ms"] -= 30000
+                if source == "position": signal["setup_input"]["position"]["asof_ms"] -= 30000
+                if source in {"daily", "weekly"}: snapshot["history_max_age_ms"][source] = 30000
+                if source == "capital": p["capital_evidence"]["max_age_ms"] = 30000
+                if source == "quote_cap":
+                    p["capital_evidence"].update(asof_ms=NOW-30000, max_age_ms=120000)
+                self.signals.ingest(signal, now_ms=NOW)
+                with self.assertRaisesRegex(ValueError, "expiry.*evidence"):
+                    self.signals.execute(source, "scope", p, manual=True, live=True, now_ms=NOW+5)
+                self.assertFalse(self.store.tranches(self.row["id"]))
+        # Equality is allowed; submit remains strictly before plan expiry.
+        self.plan["expires_ms"] = NOW+50000
+        self.plan["capital_evidence"]["max_age_ms"] = 50000
+        self.authorize()
+        self.worker.step(self.row["id"], NOW+49999)
+        self.assertEqual(len([a for a in self.g.sent if a["kind"] == "add"]), 1)
+
+    def test_preview_exposes_short_deadline_without_changing_plan(self):
+        from kis_hl.cli import main
+        signal = copy.deepcopy(self.signal)
+        signal["id"] = "short-preview"
+        signal["setup_input"]["snapshot"]["max_age_ms"] = 10000
+        self.signals.ingest(signal, now_ms=NOW)
+        p = {**self.plan, "signal_id": signal["id"]}
+        path = Path(self.tmp.name)/"preview.json"
+        path.write_text(json.dumps(p))
+        output = io.StringIO()
+        with patch("kis_hl.cli.load_env_file"), patch("kis_hl.operations_cli.time.time", return_value=(NOW+5)/1000), contextlib.redirect_stdout(output):
+            code = main(["--db", str(self.path), "order", "preview", "--input", str(path)])
+        self.assertEqual(code, 0)
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["sizing"]["max_expires_ms"], NOW+10000)
+        self.assertFalse(result["sizing"]["expiry_within_bounds"])
+        self.assertEqual(result["plan"]["expires_ms"], NOW+40000)
+        self.assertTrue(result["authority_required"])
+        self.assertFalse(self.store.tranches(self.row["id"]))
+
+    def other_position(self, state):
+        other = self.store.enqueue("scope", {**plan(), "intent_id": "other",
+            "expires_ms": NOW+60000}, live=True, now_ms=NOW)
+        other["state"] = state
+        self.store.save(other, NOW+6)
+        return other
+
+    def test_temporary_account_state_waits_and_recovers_once_after_reopen(self):
+        self.authorize()
+        other = self.other_position("QUEUED")
+        for tick, state in enumerate(("QUEUED", "ENTERING", "PROTECTING"), 10):
+            other["state"] = state
+            self.store.save(other, NOW+tick)
+            self.worker.step(self.row["id"], NOW+tick)
+            self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
+            self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+        other["state"] = "CLOSED"
+        self.store.save(other, NOW+13)
+        self.store = ExecutionStore(self.path)
+        self.worker = Supervisor(self.store, self.g, live=True)
+        for tick in (14, 15): self.worker.step(self.row["id"], NOW+tick)
+        self.assertEqual(len([a for a in self.g.sent if a["kind"] == "add"]), 1)
+        self.assertNotIn("reason", self.store.tranches(self.row["id"])[0])
+
+    def test_account_wait_does_not_bypass_expiry(self):
+        self.authorize()
+        self.other_position("QUEUED")
+        self.worker.step(self.row["id"], NOW+10)
+        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
+        self.worker.step(self.row["id"], self.plan["expires_ms"])
+        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
+        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+
+    def test_account_wait_still_rejects_revoked_grant(self):
+        self.signals.grant(dict(id="wait-grant", scope="scope", strategy="fixture", strategy_version="1",
+            instruments=["hl:ETH"], max_notional="100", max_intents=1, live=True, actions=["add"],
+            signal_ids=["add-once"], position_ids=[self.row["id"]], expires_ms=NOW+50000), now_ms=NOW)
+        self.signals.execute("add-once", "scope", self.plan, grant_id="wait-grant", live=True, now_ms=NOW+5)
+        self.other_position("ENTERING")
+        self.worker.step(self.row["id"], NOW+10)
+        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
+        self.signals.revoke("wait-grant")
+        self.worker.step(self.row["id"], NOW+11)
+        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
+        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+
+    def test_kill_switch_rejects_even_during_account_wait(self):
+        self.authorize()
+        self.other_position("PROTECTING")
+        self.worker.step(self.row["id"], NOW+10)
+        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "QUEUED")
+        self.store.set_entries("scope", False)
+        self.worker.step(self.row["id"], NOW+11)
+        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
+        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+
+    def test_account_intervention_still_rejects(self):
+        self.authorize()
+        self.other_position("INTERVENTION")
+        self.worker.step(self.row["id"], NOW+10)
+        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
+        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+
     def test_terminated_old_trail_retains_full_overlay_across_reopen(self):
         for status in ("canceled", "rejected", "expired"):
             with self.subTest(status=status):

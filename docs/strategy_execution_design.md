@@ -67,6 +67,8 @@ without a thousand-USDC floor or a below-1000 exclusion. KIS uses selected accou
 NAV × 1, valued in the execution currency with an explicit FX basis when needed.
 Keep main/subaccounts separate and count overlapping spot/perp/DEX collateral
 only once. Missing or ambiguous total reconciliation blocks automatic sizing.
+This supersedes the individual perp/DEX accountValue basis; the source contract
+is owned by [operations](trading-operations.md#user-approved-risk-units).
 The initial implementation supports verified unified USDC-only balances; nonzero
 or malformed escrow, borrowed/supplied components and contradictory portfolio
 mode evidence are rejected. Other modes/valuations require explicit supported
@@ -143,14 +145,19 @@ behavior remain in [protected operations](trading-operations.md).
 The following execution capabilities are separate from completing the strategy
 skill and its deterministic tools:
 
+The [exit quantity policy](trading-operations.md#exit-quantity-policy) distinguishes
+full strategy/SL/TS exits from discretionary top-based half-position proposals.
+It applies to aggregate exposure after adds. Half-position execution remains
+outside this implementation and is deferred to #28.
+
 - **Bounded add-ups:** implemented by issue #27 under the existing account/instrument
   owner, with immutable tranche evidence, one durable signal lifecycle, total-account
   sizing and full-remaining-position SL/TS. See the
   [operating contract](trading-operations.md#bounded-conditional-add-ups).
-- **Arbitrary fixed-stop plans:** the tool can calculate against an explicit stop;
-  the managed plan supports explicit fixed stops and independent frozen ATR distances.
-  An authorized plan must represent the same risk basis. Do not silently substitute
-  another stop to make a proposal executable.
+- **Fixed-stop risk preservation:** explicit `fixed_stop_price` is supported
+  independently of ATR-based trailing distances. Plan validation checks the entry-to-
+  stop distance against approved loss/notional limits. Preserve the sizing stop
+  rather than silently substituting an ATR-derived stop.
 - **Managed percentage TS and partial reductions:** available low-level fields or
   advisory decisions do not establish an end-to-end managed contract. Use only
   supported existing controls and expose unavailable capabilities.

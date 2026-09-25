@@ -532,10 +532,13 @@ def cmd_order(args):
         if p.get("action") == "add":
             if args.order_action == "submit":
                 raise ValueError("Use signal execute for bounded add authority")
-            from kis_hl.conditional_add import size_add
+            from kis_hl.conditional_add import validate_add
+            from kis_hl.strategy_signals import Signals
             owner = store.get(p["position_id"])
-            return {"dry_run": True, "plan": p, "sizing": size_add(p, owner["scope"],
-                p["capital_evidence"], now, quantity_step=p["quantity_step"]),
+            signal = next((s for s in Signals(store).list() if s["id"] == p.get("signal_id")), None)
+            if signal is None:
+                raise ValueError("Add preview requires a registered signal_id for evidence expiry")
+            return {"dry_run": True, "plan": p, "sizing": validate_add(p, owner, signal, now, preview=True),
                 "authority_required": True}
         if p.get("signal_id") or p.get("grant_id"):
             raise ValueError("Use signal execute for signal/grant authority")

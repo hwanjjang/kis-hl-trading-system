@@ -1081,6 +1081,7 @@ class Supervisor:
     def _try_add(self, row, now):
         from kis_hl.conditional_add import preflight_add
         from kis_hl.hyperliquid.client import TransientInfoError
+        from kis_hl.strategy_signals import Signals
         for tranche in self.store.tranches(row["id"]):
             if tranche["status"] != "QUEUED":
                 continue
@@ -1089,10 +1090,19 @@ class Supervisor:
             try:
                 if not self.store.entries_enabled(row["scope"]):
                     raise ValueError("Entries disabled; add cannot enable account-wide entries")
-                if any(x["id"] != row["id"] and x["mode"] == row["mode"]
-                       and x["state"] not in FINISHED | {"PROTECTED"}
-                       for x in self.store.list(row["scope"])):
+                # Check authority before deferring so account activity cannot
+                # keep expired or revoked approvals queued indefinitely.
+                validate_plan(tranche["plan"], now)
+                Signals(self.store).check_authority({**row, "plan": tranche["plan"]}, now_ms=now)
+                blocked = [x for x in self.store.list(row["scope"])
+                           if x["id"] != row["id"] and x["mode"] == row["mode"]
+                           and x["state"] not in FINISHED | {"PROTECTED"}]
+                if any(x["state"] not in {"QUEUED", "ENTERING", "PROTECTING"} for x in blocked):
                     raise ValueError("Other account exposure needs reconciliation")
+                if blocked:
+                    tranche["reason"] = "Waiting for other account position entry/protection reconciliation"
+                    self.store.save_tranche(tranche)
+                    continue
                 sizing, now = preflight_add(self.gateway, self.store, row, tranche, now)
             except TransientInfoError as exc:
                 tranche["reason"] = str(exc)
@@ -1103,6 +1113,7 @@ class Supervisor:
                 self.store.save_tranche(tranche)
                 continue
             tranche["submission_sizing"] = sizing
+            tranche.pop("reason", None)
             self.store.save_tranche(tranche)
             p = tranche["plan"]
             row["add_fixed_stop_price"] = p["fixed_stop_price"]

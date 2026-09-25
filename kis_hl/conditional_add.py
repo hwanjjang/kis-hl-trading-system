@@ -12,7 +12,7 @@ def size_add(plan, scope, evidence, now, *, quantity_step="0.00000001"):
         quantity_step=quantity_step, minimum_quantity=quantity_step, minimum_notional="10"), now_ms=now)
 
 
-def validate_add(plan, owner, signal, now):
+def validate_add(plan, owner, signal, now, *, preview=False):
     required = {"units", "quantity_step", "fixed_stop_price", "capital_evidence",
                 "expected_size", "expected_entry_filled", "condition_snapshot_id", "condition_bar_end_ms"}
     if not required <= plan.keys() or not isinstance(plan["capital_evidence"], dict):
@@ -62,6 +62,23 @@ def validate_add(plan, owner, signal, now):
                       quantity_step=plan["quantity_step"])
     if result["below_minimum"] or decimal(result["quantity"]) != decimal(plan["quantity"]):
         raise ValueError("Add quantity differs from authorized units and fixed-stop risk")
+    # These are the same clocks checked by evaluate_setup and size_add. An
+    # immutable approval must not promise a longer window than its source data.
+    capital = plan["capital_evidence"]
+    deadlines = {
+        "snapshot": snapshot["asof_ms"] + snapshot["max_age_ms"],
+        "confirmation": snapshot["candles"][-1]["end_ms"] + snapshot["max_age_ms"],
+        "position": position["asof_ms"] + position["max_age_ms"],
+        "daily": snapshot["daily_bars"][-1]["end_ms"] + snapshot["history_max_age_ms"]["daily"],
+        "weekly": snapshot["weekly_bars"][-1]["end_ms"] + snapshot["history_max_age_ms"]["weekly"],
+        "capital": capital["asof_ms"] + min(capital["max_age_ms"], plan["max_quote_age_ms"]),
+        "signal": signal["expires_ms"],
+    }
+    maximum = min(deadlines.values())
+    result.update(expiry_deadlines_ms=deadlines, max_expires_ms=maximum,
+                  expiry_within_bounds=plan["expires_ms"] <= maximum)
+    if not preview and not result["expiry_within_bounds"]:
+        raise ValueError(f"Add plan expiry exceeds evidence/signal deadline; max_expires_ms={maximum}")
     return result
 
 

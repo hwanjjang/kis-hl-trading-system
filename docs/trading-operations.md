@@ -185,6 +185,9 @@ Operating assets for advisory risk-unit calculations are now specified:
   Nonzero or malformed `evmEscrows`, `borrowed` or `supplied` components and
   contradictory `portfolioMarginEnabled` evidence also block sizing. Zero-valued
   optional components do not add capital; no unsupported valuation is inferred.
+  This total-balance clarification supersedes the individual perp/DEX accountValue
+  basis. Margin used and withdrawable balance are not account-total substitutes.
+  Unsupported user-supplied totals remain labeled scenarios, not automatic sizing.
   Adding a valuation/account mode requires its own supported reconciliation.
   Buying power is separate: add preflight uses account/instrument `activeAssetData`
   and conservatively takes the smaller of its directional `maxTradeSzs`; it retains
@@ -230,6 +233,35 @@ required before the proposed approval workflow can execute trades. The absence
 of preset cumulative unit caps is decided, not an unresolved limit to invent.
 Current managed execution remains long-only; #15's symmetric short calculation
 and the separate short-trailing follow-up are not claims of working short management.
+
+## Exit quantity policy
+
+This confirmed policy applies to new entries and positions enlarged by add-ups.
+The quantity basis is the current remaining position in the selected account and
+instrument, including all filled tranches, not just the most recent entry.
+
+- Ordinary strategy exits and fixed-SL exits default to closing the entire
+  remaining position. Partial discretionary exits are exceptions that require an
+  explicit rationale and selected quantity.
+- An executable trailing-stop trigger targets the entire remaining position.
+  A profitable TS exit is still a full exit, not a take-profit half exit. Partial
+  exchange fills do not satisfy this objective: reconcile fills and continue
+  handling the residual through the bounded, reduce-only exit workflow.
+- A discretionary take-profit decision based on a judged market top defaults to
+  selling 50% of the remaining position. This is a quantity default, not a numeric
+  price target, a definition of a top, or blanket automatic trading authority.
+  Deduplicate the decision; do not repeatedly halve on the same top signal.
+- After any partial exit, reconcile remaining exposure and preserve correctly
+  sized fixed-SL and TS protection. After full closure, reconcile and clean up
+  associated orders only; do not touch unrelated positions or orders.
+
+Existing full-exit controls and the bounded conditional add contract below remain
+supported. Discretionary partial take-profit execution is deferred to #28; this
+policy does not implement that lifecycle or grant trading authority.
+Do not route an add as a new flat entry, route a 50% TP through a full-exit command,
+or bypass ownership/protection guards with raw orders. Activation requires a
+supported, tested lifecycle and a complete authorized plan. Existing trailing
+orders and watermarks must not be reset merely to apply this document.
 
 ## Prepare and submit
 
@@ -716,12 +748,13 @@ The add plan carries all ordinary bounded-plan fields plus:
 | Field | Meaning |
 | --- | --- |
 | `action`, `position_id` | `add` and the existing managed owner ID |
+| `signal_id` | Registered immutable add signal used by preview; matches execution `--id` |
 | `units`, `quantity_step`, `quantity` | Explicit risk units, preview lot step and rounded approved quantity |
 | `fixed_stop_price` | Confirmed common fixed SL; never a trailing threshold |
 | `capital_evidence` | Fresh selected-account raw evidence from `account capital` |
 | `expected_size`, `expected_entry_filled` | Approved current exposure and cumulative owned buy fills |
 | `condition_snapshot_id`, `condition_bar_end_ms` | Exact source snapshot and completed confirmation bar |
-| `expires_ms` | Add approval/submission expiry; also bounded by signal/grant expiry |
+| `expires_ms` | Add approval/submission expiry; bounded by all source-evidence and signal/grant deadlines |
 
 The immutable add signal supplies `setup_input` for `pullback` or `rebreakout`.
 Its position ID, scope, instrument, opening fill time, size and fixed stop must match
@@ -731,6 +764,16 @@ budgets must match the owner; changed shared protection needs another supported
 management operation. New price/notional limits remain explicit. Native adds
 require local backup so the preserved full-position local trail covers the partial
 fill/overlay interval. Native-only owners return `migration-required`.
+
+Preview requires the registered `signal_id` and reports `sizing.expiry_deadlines_ms`,
+`sizing.max_expires_ms` and `sizing.expiry_within_bounds`. The maximum is the earliest
+snapshot, confirmation-bar, position-evidence, daily/weekly-history, original
+capital-evidence (capped by `max_quote_age_ms`) or signal deadline. A selected grant
+may impose an earlier expiry, checked separately at authorization. An overlong
+plan may be previewed with `expiry_within_bounds: false`, but cannot be authorized;
+its requested expiry is never silently shortened. Missing/stale evidence still
+fails preview. Submission rechecks all freshness and authority requirements and
+rereads account funds: a fresh balance cannot replace stale bar confirmation.
 
 ```bash
 python -m kis_hl.cli account capital --venue hyperliquid
@@ -757,6 +800,12 @@ before any send leave the tranche `QUEUED` for the existing supervisor's next ti
 Authority/expiry are checked before each read and again after successful preflight.
 Identity, schema and permanent HTTP errors still reject; a signed unknown outcome
 never qualifies for this read retry and cannot be resent.
+Another same-account/mode position in `QUEUED`, `ENTERING` or `PROTECTING` leaves
+the unsent add `QUEUED` with a reconciliation-wait reason. Existing ticks recheck
+expiry, authority/revocation and the entry kill switch before waiting. Recovery
+requires full fresh preflight; waiting does not extend any deadline. Other blocking
+states, including `INTERVENTION`, retain terminal rejection. No signed attempt is
+created while waiting, and no unrelated account-wide entry is enabled.
 
 Partial add fills receive incremental fixed-SL coverage at the confirmed fixed
 stop. The owner keeps its ATR and local watermark; the local TS always targets the
