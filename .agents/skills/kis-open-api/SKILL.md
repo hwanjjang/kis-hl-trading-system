@@ -43,7 +43,10 @@ brokerage, `03` domestic F&O, `08` overseas F&O, `22`/`29` pension).
   → `access_token`, `access_token_token_expired` (`"YYYY-MM-DD HH:MM:SS"`, KST).
   Token lives ~24h. KIS throttles issuance (about once per minute; re-issuing
   within a few hours returns the same token). `KisClient.get_access_token()` caches
-  it on disk (`KIS_TOKEN_DIR`, mode 0600) and refuses to re-issue within 60s.
+  it on disk (`KIS_TOKEN_DIR/<sha256(appkey,appsecret)>/kis-token-<mode>.json`,
+  mode 0600) and refuses to re-issue within 60s. Every entry point must construct
+  `KisClient` with the plain loaded config; never derive a per-command `token_dir`,
+  or the caches diverge and each command issues its own token.
 - `POST /oauth2/Approval` body `{"grant_type":"client_credentials","appkey","secretkey"}`
   (note **`secretkey`**, not `appsecret`) → `approval_key` for WebSocket.
 - `POST /uapi/hashkey` is optional integrity hashing for POST bodies; upstream samples

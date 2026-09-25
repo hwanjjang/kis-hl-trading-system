@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
@@ -455,7 +456,13 @@ class KisClient:
             time.sleep(wait_ms / 1000)
 
     def _token_path(self) -> Path:
-        return self.config.token_dir / f"kis-token-{self.config.mode}.json"
+        # Key the cache by credentials so a rotated app key never reuses a token
+        # issued for the previous key, and so every entry point shares one file
+        # instead of re-issuing per command.
+        fingerprint = hashlib.sha256(
+            json.dumps([self.config.app_key, self.config.app_secret]).encode()
+        ).hexdigest()
+        return self.config.token_dir / fingerprint / f"kis-token-{self.config.mode}.json"
 
     def _read_token_cache(self) -> TokenCache | None:
         try:
@@ -469,8 +476,8 @@ class KisClient:
             return None
 
     def _write_token_cache(self, cache: TokenCache) -> None:
-        self.config.token_dir.mkdir(parents=True, exist_ok=True)
         path = self._token_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
         payload = json.dumps(
             {
                 "access_token": cache.access_token,

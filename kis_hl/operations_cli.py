@@ -3,7 +3,6 @@
 from dataclasses import asdict, replace
 from contextlib import ExitStack
 from datetime import datetime, timezone
-import hashlib
 import json
 import time
 from pathlib import Path
@@ -19,11 +18,8 @@ from kis_hl.managed_execution import ExecutionStore, Supervisor, TERMINAL, valid
 
 
 def kis_client():
-    config = load_kis_config()
-    digest = hashlib.sha256(
-        json.dumps([config.app_key, config.app_secret]).encode()
-    ).hexdigest()
-    return KisClient(replace(config, token_dir=config.token_dir / digest))
+    # KisClient already keys its token cache by credential fingerprint.
+    return KisClient(load_kis_config())
 
 
 def scope_client(venue, account=None):

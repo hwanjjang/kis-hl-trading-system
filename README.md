@@ -204,9 +204,9 @@ This read-only command prints a masked account number, environment and three KRW
 amounts: `dnca_tot_amt` (deposit), `tot_evlu_amt` (total valuation), and
 `scts_evlu_amt` (securities valuation). It does not list holdings or overseas/FX
 details, place orders, or store balances. Failed or malformed responses exit with
-status 1 and a generic error without raw vendor data. Account-check tokens are
-cached in a credential-derived subdirectory of `KIS_TOKEN_DIR` to avoid reusing a
-previous account's token; other commands retain their existing cache behavior.
+status 1 and a generic error without raw vendor data. All KIS commands share one
+access token cached under `KIS_TOKEN_DIR/<credential-fingerprint>/`, so a rotated
+app key never reuses a previous key's token and no command re-issues on its own.
 
 Fetch a KIS overseas quote and persist the raw payload:
 

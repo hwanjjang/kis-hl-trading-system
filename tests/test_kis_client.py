@@ -6,6 +6,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 from kis_hl.config import KisConfig
 from kis_hl.kis.client import KisClient, KisHttpResponse, TokenCache
@@ -51,8 +52,36 @@ class KisClientTests(unittest.TestCase):
             client._write_token_cache(  # noqa: SLF001
                 TokenCache(access_token="token", expires_at_ms=9999999999999, last_issued_at_ms=1)
             )
-            mode = stat.S_IMODE((Path(tmp) / "kis-token-sim.json").stat().st_mode)
+            path = client._token_path()  # noqa: SLF001
+            self.assertTrue(path.is_relative_to(Path(tmp)))
+            self.assertEqual(path.name, "kis-token-sim.json")
+            mode = stat.S_IMODE(path.stat().st_mode)
             self.assertEqual(mode, 0o600)
+
+    def test_token_cache_path_is_stable_but_changes_with_credentials(self) -> None:
+        config = RecordingKisClient().config
+        first = KisClient(config)._token_path()  # noqa: SLF001
+        same = KisClient(config)._token_path()  # noqa: SLF001
+        other = KisClient(replace(config, app_key="other-key"))._token_path()  # noqa: SLF001
+        rotated = KisClient(replace(config, app_secret="rotated"))._token_path()  # noqa: SLF001
+        self.assertEqual(first, same)
+        self.assertNotEqual(first, other)
+        self.assertNotEqual(first, rotated)
+        self.assertTrue(first.is_relative_to(config.token_dir))
+
+    def test_cached_token_is_reused_across_client_instances(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config = replace(RecordingKisClient().config, token_dir=Path(tmp))
+            issued = []
+
+            def issue(self_):
+                issued.append(1)
+                return TokenCache(access_token="t", expires_at_ms=9999999999999, last_issued_at_ms=1)
+
+            with patch.object(KisClient, "_issue_token", issue):
+                self.assertEqual(KisClient(config).get_access_token(), "t")
+                self.assertEqual(KisClient(config).get_access_token(), "t")
+            self.assertEqual(len(issued), 1)
 
     def test_domestic_index_price_uses_kis_index_endpoint(self) -> None:
         client = RecordingKisClient()

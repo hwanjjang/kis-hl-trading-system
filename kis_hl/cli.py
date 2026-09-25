@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 import time
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -556,9 +555,9 @@ def build_parser() -> argparse.ArgumentParser:
 def cmd_kis_account(args: argparse.Namespace) -> dict[str, Any]:
     try:
         config = load_kis_config()
-        # Keep account checks separate from tokens issued for previous keys.
-        fingerprint = hashlib.sha256(json.dumps([config.app_key, config.app_secret]).encode()).hexdigest()
-        client = KisClient(replace(config, token_dir=config.token_dir / fingerprint))
+        # KisClient keys its token cache by credential fingerprint, so a rotated
+        # key never reuses a stale token and all commands share one cache.
+        client = KisClient(config)
         response = client.inquire_domestic_balance()
         body = response.body
         if response.status != 200 or not isinstance(body, dict) or body.get("rt_cd") != "0":
