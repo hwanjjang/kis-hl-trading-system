@@ -4,6 +4,7 @@ import stat
 import tempfile
 import unittest
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -13,6 +14,40 @@ from kis_hl.kis.client import KisClient, KisHttpResponse, TokenCache
 
 
 class KisClientTests(unittest.TestCase):
+    def test_kis_expiry_is_kst_independent_of_server_timezone(self) -> None:
+        from kis_hl.kis.client import _parse_kis_expiry_ms
+
+        expected = int(datetime(2026, 9, 29, 7, 6, 30, tzinfo=timezone.utc).timestamp() * 1000)
+        self.assertEqual(_parse_kis_expiry_ms("2026-09-29 16:06:30"), expected)
+
+    def test_unrelated_403_does_not_reissue_cached_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config = replace(RecordingKisClient().config, token_dir=Path(tmp), rate_limit_retries=2)
+            client = KisClient(config)
+            future = int(datetime(2099, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
+            client._write_token_cache(TokenCache("cached", future, 1))
+            forbidden = KisHttpResponse(403, {"msg_cd": "ACCESS_DENIED"}, {})
+            with patch.object(client, "_request_json", return_value=forbidden) as request:
+                for _ in range(2):
+                    self.assertEqual(client.inquire_domestic_price(symbol="005930"), forbidden)
+            self.assertEqual(request.call_count, 2)
+            self.assertEqual(client.get_access_token(), "cached")
+
+    def test_expired_token_get_retries_once_even_without_rate_retries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config = replace(RecordingKisClient().config, token_dir=Path(tmp), rate_limit_retries=0)
+            client = KisClient(config)
+            future = int(datetime(2099, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
+            client._write_token_cache(TokenCache("stale", future, 1))
+            expired = KisHttpResponse(403, {"msg_cd": "EGW00123"}, {})
+            success = KisHttpResponse(200, {"rt_cd": "0"}, {})
+            with patch.object(client, "_issue_token", return_value=TokenCache("fresh", future, 1)) as issue:
+                with patch.object(client, "_request_json", side_effect=[expired, success]) as request:
+                    self.assertEqual(client.inquire_domestic_price(symbol="005930"), success)
+            issue.assert_called_once()
+            self.assertEqual(request.call_count, 2)
+            self.assertEqual(client.get_access_token(), "fresh")
+
     def test_balance_endpoint_selects_account_and_environment(self):
         for mode, tr_id in [('sim', 'VTTC8434R'), ('live', 'TTTC8434R')]:
             with self.subTest(mode=mode):

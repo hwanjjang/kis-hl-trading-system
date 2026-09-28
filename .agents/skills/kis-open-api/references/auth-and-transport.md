@@ -31,6 +31,10 @@ Response:
 - Issuance is throttled by KIS (treat it as once per minute). Cache the token on disk;
   this repo stores `data/kis-tokens/kis-token-{sim|live}.json` with mode 0600 and
   refuses to re-issue within 60 seconds (`KisClient.get_access_token`).
+- `access_token_token_expired` is a KST wall-clock timestamp without an offset;
+  parse it as UTC+09:00, not the host's local time. Existing caches written with
+  a host-local interpretation may remain stale until a token-expiry response
+  invalidates them; read-only GETs retry that response once.
 - `POST /oauth2/revokeP` with `{"appkey","appsecret","token"}` revokes a token.
 
 ## WebSocket approval key
@@ -116,7 +120,7 @@ paper; the upstream docstring for each endpoint states paper support.
 | Code | Meaning | Action |
 |---|---|---|
 | `EGW00201` | too many requests per second | back off and retry |
-| `EGW00123` | token expired | delete cache, re-issue once |
+| `EGW00123` | token expired | delete cache, re-issue once for GET, independent of rate-limit retries |
 | `EGW00121` | invalid token / header | check `authorization`, key/host pairing |
 | `EGW00133` | token issuance too frequent | wait ≥60s, reuse cached token |
 | `OPSQ…`, `APBK…`, `40…` | endpoint-specific business errors (`msg1` explains) | validate params against the upstream sample |

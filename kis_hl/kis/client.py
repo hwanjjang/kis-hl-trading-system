@@ -8,7 +8,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -337,8 +337,9 @@ class KisClient:
         body: dict[str, Any] | None = None,
         tr_cont: str = "",
     ) -> KisHttpResponse:
-        last_response: KisHttpResponse | None = None
-        for attempt in range(self.config.rate_limit_retries + 1 if method == "GET" else 1):
+        rate_attempt = 0
+        auth_refreshed = False
+        while True:
             self._throttle()
             token = self.get_access_token()
             response = self._request_json(
@@ -350,33 +351,32 @@ class KisClient:
             )
             if method != "GET":
                 return response
-            if response.status in (401, 403):
+            token_expired = response.status == 401 or (
+                isinstance(response.body, dict) and response.body.get("msg_cd") == "EGW00123"
+            )
+            if token_expired and not auth_refreshed:
                 logger.warning(
                     "kis_auth_retry",
                     extra={"status": response.status, "action": "invalidate_token"},
                 )
                 self._delete_token_cache()
-                last_response = response
+                auth_refreshed = True
                 continue
             if _is_rate_limited(response):
-                last_response = response
-                if attempt < self.config.rate_limit_retries:
-                    delay_seconds = (self.config.rate_limit_delay_ms / 1000) * (2**attempt)
+                if rate_attempt < self.config.rate_limit_retries:
+                    delay_seconds = (self.config.rate_limit_delay_ms / 1000) * (2**rate_attempt)
+                    rate_attempt += 1
                     logger.warning(
                         "kis_rate_limit_retry",
                         extra={
                             "status": response.status,
-                            "attempt": attempt + 1,
+                            "attempt": rate_attempt,
                             "delay_ms": int(delay_seconds * 1000),
                         },
                     )
                     time.sleep(delay_seconds)
                     continue
             return response
-        if last_response:
-            logger.error("kis_request_failed_after_retries", extra={"status": last_response.status})
-            return last_response
-        raise RuntimeError("KIS request failed without a response")
 
     def _issue_token(self) -> TokenCache:
         logger.info("issuing_kis_token", extra={"kis_mode": self.config.mode})
@@ -515,6 +515,8 @@ def _build_url(
 def _parse_kis_expiry_ms(value: str) -> int:
     normalized = value.replace(" ", "T")
     parsed = datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone(timedelta(hours=9)))
     return int(parsed.timestamp() * 1000)
 
 

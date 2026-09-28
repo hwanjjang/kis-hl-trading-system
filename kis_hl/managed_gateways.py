@@ -156,22 +156,24 @@ class ManagedHyperliquidGateway:
 
         atr, bars = fetch_trailing_atr(self.info, resolved.coin, now_ms=now)
         capital = {}
-        available_notional = state["withdrawable"]
         if p.get("action") == "add":
             from kis_hl.account_capital import capture_capital
             capital = {"capital_evidence": capture_capital(self.info, scope=self.scope,
                 now_ms=now, max_age_ms=p["max_quote_age_ms"])}
-            buying_power = self.info.active_asset_data(asset.symbol)
-            sizes = buying_power.get("maxTradeSzs")
-            margins = buying_power.get("availableToTrade")
-            if any(not isinstance(values, list) or len(values) != 2 for values in (sizes, margins)):
-                raise ValueError("Account/instrument buying power unavailable")
-            sizes, margins = [decimal(x) for x in sizes], [decimal(x) for x in margins]
-            if min(sizes + margins) < 0:
-                raise ValueError("Invalid account/instrument buying power")
-            # Conservatively bound by both directional limits; never infer 10x buying power.
-            available_notional = str(min(sizes) * price)
-            capital["buying_power"] = buying_power
+        # Buying power is account/instrument-bound: with a unified (portfolio-margin)
+        # account the per-dex ``withdrawable`` can read 0 while the instrument is
+        # still tradable, so entries and adds both use activeAssetData.
+        buying_power = self.info.active_asset_data(asset.symbol)
+        sizes = buying_power.get("maxTradeSzs")
+        margins = buying_power.get("availableToTrade")
+        if any(not isinstance(values, list) or len(values) != 2 for values in (sizes, margins)):
+            raise ValueError("Account/instrument buying power unavailable")
+        sizes, margins = [decimal(x) for x in sizes], [decimal(x) for x in margins]
+        if min(sizes + margins) < 0:
+            raise ValueError("Invalid account/instrument buying power")
+        # Conservatively bound by both directional limits; never infer 10x buying power.
+        available_notional = str(min(sizes) * price)
+        capital["buying_power"] = buying_power
         return {
             **capital,
             "price": str(bid),
