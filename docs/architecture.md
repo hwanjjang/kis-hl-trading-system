@@ -296,6 +296,7 @@ pending entry cancellation) retires as EXPIRED. The supervisor also repairs
 already-finished owners and opens no additional retirement transaction when
 nothing is QUEUED; status reads do not mutate rows. These are implementation views, not execution authority or live exchange
 validation. See [operations](trading-operations.md#bounded-conditional-add-ups).
+
 ## Automatic position activity
 
 `DataStore.fact` calls `position_journal.record_change` for each inserted canonical

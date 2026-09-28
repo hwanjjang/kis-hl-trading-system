@@ -532,6 +532,7 @@ from an actual live-account retention/recoverability check.
 ### Binance tick capture exception
 
 `binance-stream` currently records observational ticks in legacy storage, outside canonical analysis inputs. See [architecture boundaries](architecture.md#binance-integration-boundaries) for isolation, throughput and replay limitations. Canonical Binance ingestion is a separate integration step.
+
 ## Automatic position-change journals
 
 Each new canonical `trade` revision writes a position activity journal automatically,
