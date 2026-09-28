@@ -60,7 +60,7 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.cli` provides operational commands. Binance orders default to sending with `--dry-run` for previews; Hyperliquid orders retain their existing explicit `--live` behavior.
 
-`docs/strategy_execution_design.md` records the strategy skill/tool integration and existing execution limits. Hermes loads `.agents/skills/trend-strategy/` for strategy judgment and owns timing/briefings/notification. `kis_hl.strategy_tools` supplies deterministic indicators, setup predicates, ATR stop proposals, risk-unit sizing and decision evidence through the existing CLI. Decisions reuse `strategy_signals`; protected execution and trailing remain in the existing supervisor rather than a new strategy daemon.
+`docs/strategy_execution_design.md` records the strategy skill/tool integration and existing execution limits. Hermes loads `.agents/skills/trend-strategy/` for strategy judgment and owns timing/briefings/notification. `kis_hl.strategy_tools` supplies deterministic indicators, setup predicates, ATR stop proposals, risk-unit sizing and decision evidence through the existing CLI. `kis_hl.timing_opinion` optionally asks TypeSafe's Jev model for an advisory long/short/wait opinion that is retained with a decision but never grants authority. Decisions reuse `strategy_signals`; protected execution and trailing remain in the existing supervisor rather than a new strategy daemon.
 
 ## Hyperliquid execution identity
 

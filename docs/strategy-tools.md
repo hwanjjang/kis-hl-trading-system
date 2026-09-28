@@ -12,6 +12,7 @@ python3 -m kis_hl.cli strategy evaluate --input setup.json
 python3 -m kis_hl.cli strategy stop --input stop.json
 python3 -m kis_hl.cli strategy size --input size.json
 python3 -m kis_hl.cli --db data/trading.sqlite strategy decide --input decision.json
+python3 -m kis_hl.cli strategy opinion --input review.json [--dry-run]
 ```
 
 Read-only tools accept `--as-of-ms` for offline replay. Decision persistence uses
@@ -160,7 +161,159 @@ within these deadlines; source freshness remains mandatory at submission.
 BTC spot decisions use `signal_instrument: hl:BTC`, only `hl:BTC` execution, and
 retain the explicit spot basis in `setup_input`/evidence.
 
+Optional `timing_opinion` holds a `strategy opinion` result for the same
+`signal_instrument`, `setup_input.snapshot.id` and `setup_input.snapshot.asof_ms`.
+The opinion timestamp must be a positive integer matching the snapshot, including
+for unavailable opinions. Decide rejects a mismatched,
+authority-bearing or internally inconsistent opinion: provider, advisory flag,
+probabilities, choice, confidence, band and effective opinion are rechecked, and
+an unavailable opinion must carry a reason and null opinion fields. Attach the
+tool output unchanged: `probabilities`, `confidence` and `min_confidence` must be
+decimal strings, so JSON numbers (which parse as rounded floats) are rejected. An `enter`/`add` whose
+effective opinion is not `long` (including an unavailable opinion) needs a
+non-empty `opinion_note` explaining why the decision proceeds. Confidence below
+the default 0.5 also requires this note for `enter`/`add`, even when a lower
+caller-selected threshold makes the effective opinion `long`. Calibrating the
+opinion threshold does not lower this decision-recording floor. The opinion never
+replaces the predicate, confluence or management checks.
+
 Do not change `signal ingest` legacy integrations automatically; `strategy decide`
 is the validated skill interface. Repeated identical decisions are idempotent;
 changed inputs require a new decision ID. Existing signal/plan/journal attribution
 provides the audit path without a second workflow database.
+
+## Jev timing opinion
+
+`strategy opinion` asks TypeSafe AI's Jev model (a calibrated "System One"
+decision model, not a text LLM) one Choice question: is `long`, `short` or `wait`
+best supported now? It is an advisory second opinion for the review, never order
+authority, sizing input or an execution gate. The strategy is long-only: `short`
+means avoid new long exposure or review protection, not open a short.
+
+```json
+{
+  "instrument": "hl:BTC", "snapshot_id": "source-snapshot-id",
+  "asof_ms": 1790006400000, "horizon": "daily swing",
+  "facts": {"breakout_predicate": true, "price_vs_30w_ema": "above, EMA rising",
+            "atr_10d_pct_of_price": "3.1"},
+  "notes": ["Funding neutral"], "min_confidence": "0.5"
+}
+```
+
+`facts` holds 1–40 flat named values (text ≤ 300 characters, booleans or finite
+numbers); `notes` holds at most 10 short strings. Optional `min_confidence` must
+be a decimal string in (0, 1]. Supply tool outputs and named
+buckets already computed by deterministic tools: Jev is weak at arithmetic, date
+comparison and large irrelevant context, so do not ask it to calculate. Only
+`instrument`, `horizon`, `facts` and `notes` are sent; `snapshot_id` and `asof_ms`
+bind the result locally.
+
+The request is `POST {TYPESAFE_BASE_URL}/v1/systemone` (default
+`https://api.typesafe.ai`) with `Authorization: Bearer $TYPESAFE_API_KEY`, a
+10-second timeout, no retries and no redirects (a 3xx is unavailable). The base
+URL must use HTTPS; plain HTTP is accepted only for loopback test stubs. A key
+containing whitespace or control characters is rejected without echoing it. The model defaults to the pinned `jev-1.13.0`
+(override with `--model` or `TYPESAFE_MODEL`) so thresholds do not move silently
+with the `jev-latest` alias; the output records the model that answered.
+`--dry-run` prints the exact request and its `input_sha256` without a key or
+network access.
+
+Output always has `tool: timing_opinion`, `provider: typesafe`, `status`, `instrument`, `snapshot_id`,
+`asof_ms`, `requested_model`, `input_sha256`, `min_confidence`, `advisory: true`
+and `order_authorized: false`. An `available` result adds `model`, raw `choice`,
+decimal-string `probabilities` and `confidence`, `band`, `effective_opinion` and
+token `usage` (null when the response omits valid counts).
+Confidence below `min_confidence` (default 0.5) gives band `low` and effective
+opinion `wait`; at least 0.8 is `high`, otherwise `medium`. HTTP errors
+(401/422/429/529), transport failures, non-JSON bodies, a different option set,
+non-finite or out-of-range probabilities, a sum more than 0.01 from 1, a choice
+that is not a highest-probability option (a tie keeps the model's pick among
+the tied options), confidence outside [0, 1], an answering model ID over 64
+characters or a body over 1 MB produce
+`status: unavailable` with a `reason` and null opinion fields; nothing is guessed.
+Response numbers are parsed as exact decimals (never floats) and the probability
+sum is compared exactly before range, sum and confidence-gate checks; JSON
+`NaN`/`Infinity` and values with more than 40 digits or decimal places are
+rejected. A missing key is
+a configuration error. The key never appears in output.
+
+Jev's answer quality for market timing is unverified in this repository; the
+thresholds are conservative starting values. Each call is billed per input token
+and subject to TypeSafe's dynamic rate limits. Offline verification:
+`python3 scripts/smoke_timing_opinion.py` (local stub, temporary database).
+
+### Repeatability and threshold calibration
+
+Identical inputs can produce different opinions. In two connectivity checks
+using the same synthetic input, confidence changed from 0.51 to 0.36, changing
+the effective opinion from `long` to `wait` at the default 0.5 threshold.
+These two observations establish neither a variability estimate nor trading
+accuracy; use real snapshots for the following evaluation before operational
+reliance, and repeat it when the model or input construction changes.
+
+Store evaluation artifacts under `<repository-root>/data/jev-calibration/<batch-id>/`.
+Hermes must resolve and record the absolute repository root before starting;
+use the persistent operational checkout, not a temporary review worktree.
+Use a unique batch ID (UTC timestamp plus a random suffix), never overwrite a
+previous batch, and preserve this directory when moving the operational checkout.
+`data/` is Git-ignored: these are local evidence artifacts, not PR attachments
+or a new strategy-state database.
+
+Each batch uses the following layout:
+
+- `manifest.json`: batch ID, creation time, absolute batch path, model, threshold,
+  planned snapshot/repeat counts, budget, outcome definition and split assignment.
+- `inputs/<snapshot-key>.json`: exact frozen `strategy opinion` input for each
+  snapshot. Use safe local keys and map them to source snapshot IDs in the manifest.
+- `runs/<snapshot-key>/<run-id>.json`: one record per attempt containing run ID,
+  UTC call time, exit code and the unchanged tool result, including `unavailable`.
+  If the CLI fails without JSON output, record the failure instead of omitting
+  the attempt; exclude credentials and unsanitized transport diagnostics.
+- `summary.json`: per-snapshot counts and variability statistics, plus the
+  calculation method and parameters used to reproduce them.
+- `evaluation.md`: held-out outcome evidence, threshold comparison, conclusion
+  and limitations, with relative links to the manifest, inputs, runs and summary.
+
+Link each calibration claim to the absolute `evaluation.md` path and identify
+the batch ID. A recipient without access to that filesystem cannot verify a local
+link; disclose that limitation rather than claiming the evidence was shared.
+No batch runner or aggregation script is provided yet: Hermes must explicitly
+save each attempt and calculate the summary with code. If the artifacts or
+held-out evaluation are incomplete, report calibration as incomplete and retain
+the provisional threshold; a directory alone is not calibration evidence.
+
+1. Freeze a representative set of real market snapshots across instruments,
+   setups and market conditions. Preserve the tool-computed facts, notes,
+   horizon, source timestamps and snapshot IDs. Fix the requested model version,
+   input construction and `min_confidence` for each evaluation batch.
+2. Choose the snapshot count and repeat count before calling the API, within an
+   explicit cost/rate budget. Call each identical input the same number of times;
+   do not refresh facts between repeats or stop when a preferred answer appears.
+   Repetition is an offline evaluation procedure, not a retry loop for live entry.
+3. Retain every raw tool result, including `unavailable`, with a batch/run ID and
+   call timestamp. Record `input_sha256`, requested/returned model, snapshot ID,
+   raw choice, all three probabilities, confidence, band, effective opinion and
+   threshold. Keep API keys out of records; separate different returned models.
+4. Per snapshot, summarize choice/effective-opinion frequencies, probability and
+   confidence ranges and quantiles, threshold-crossing frequency, and unavailable
+   rate. Report the sample counts. Use code for these calculations; do not ask
+   Jev to compute them. Repeated calls measure variability, not independent market
+   outcomes or proof that the majority answer is correct.
+5. Assess candidate `min_confidence` values against outcomes defined in advance
+   for the review horizon, using separate calibration and held-out snapshots.
+   Keep all repeats of one snapshot in the same split and prevent future-data
+   leakage. Compare directional errors, coverage/abstention and stability;
+   record the sample size, model, threshold, rationale and limitations. Do not
+   lower the threshold merely to obtain more `long` opinions. Without sufficient
+   outcome evidence, retain the provisional default and disclose the limitation.
+6. Apply an evidence-supported gate through the decimal-string `min_confidence`
+   input. The 0.8 `high` band boundary is fixed in code, not a configurable gate;
+   changing it requires a separate code/test/documentation change. Revalidate
+   after model/input changes and retain the previous evaluation for comparison.
+
+Before delivering a Hermes review, check that any calibration claim links to
+its recorded batch and held-out evaluation. Disclose observed instability and
+missing evidence; never select a favorable repeat as the recorded opinion.
+Attach the selected tool output unchanged to `strategy decide`, with the
+existing `opinion_note` requirement when applicable. Evaluation snapshots are
+historical evidence, not fresh authorization to trade.
