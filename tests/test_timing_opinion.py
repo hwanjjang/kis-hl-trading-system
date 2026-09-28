@@ -138,6 +138,20 @@ class ParseTests(unittest.TestCase):
                               '{"long":NaN,"short":0,"wait":0}']:
             with self.subTest(probabilities):
                 self.assertEqual(ask(raw("0.9", probabilities))["status"], "unavailable")
+        for probabilities, status in [('{"long":1,"short":0.01000000000000000000000000001,"wait":0}', "unavailable"),
+                                      ('{"long":0.99,"short":0,"wait":0}', "available"),
+                                      ('{"long":1,"short":1e-41,"wait":0}', "unavailable"),
+                                      ('{"long":1,"short":0,"wait":0}', "available")]:
+            with self.subTest(probabilities):
+                self.assertEqual(ask(raw("0.9", probabilities))["status"], status)
+
+    def test_min_confidence_must_be_a_decimal_string(self):
+        for bad in [0.5, 1, True, "abc"]:
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                build_request(review(min_confidence=bad))
+        exact = ask(answer(probabilities={"long": 0.6, "short": 0.1, "wait": 0.3}, confidence=0.5),
+                    min_confidence="0.50000000000000001")
+        self.assertEqual((exact["band"], exact["effective_opinion"]), ("low", "wait"))
 
     def test_http_and_transport_errors_are_unavailable(self):
         for error in [urllib.error.HTTPError("u", code, "err", {}, io.BytesIO(b"{}")) for code in [401, 422, 429, 529]] + [

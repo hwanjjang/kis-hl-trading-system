@@ -165,7 +165,9 @@ Optional `timing_opinion` holds a `strategy opinion` result for the same
 `signal_instrument` and `setup_input.snapshot.id`. Decide rejects a mismatched,
 authority-bearing or internally inconsistent opinion: provider, advisory flag,
 probabilities, choice, confidence, band and effective opinion are rechecked, and
-an unavailable opinion must carry a reason and null opinion fields. An `enter`/`add` whose
+an unavailable opinion must carry a reason and null opinion fields. Attach the
+tool output unchanged: `probabilities`, `confidence` and `min_confidence` must be
+decimal strings, so JSON numbers (which parse as rounded floats) are rejected. An `enter`/`add` whose
 effective opinion is not `long` (including an unavailable opinion) needs a
 non-empty `opinion_note` explaining why the decision proceeds. The opinion never
 replaces the predicate, confluence or management checks.
@@ -194,7 +196,8 @@ means avoid new long exposure or review protection, not open a short.
 ```
 
 `facts` holds 1–40 flat named values (text ≤ 300 characters, booleans or finite
-numbers); `notes` holds at most 10 short strings. Supply tool outputs and named
+numbers); `notes` holds at most 10 short strings. Optional `min_confidence` must
+be a decimal string in (0, 1]. Supply tool outputs and named
 buckets already computed by deterministic tools: Jev is weak at arithmetic, date
 comparison and large irrelevant context, so do not ask it to calculate. Only
 `instrument`, `horizon`, `facts` and `notes` are sent; `snapshot_id` and `asof_ms`
@@ -223,8 +226,10 @@ that is not a highest-probability option (a tie keeps the model's pick among
 the tied options), confidence outside [0, 1], an answering model ID over 64
 characters or a body over 1 MB produce
 `status: unavailable` with a `reason` and null opinion fields; nothing is guessed.
-Response numbers are parsed as exact decimals (never floats) before range, sum
-and confidence-gate checks; JSON `NaN`/`Infinity` are rejected. A missing key is
+Response numbers are parsed as exact decimals (never floats) and the probability
+sum is compared exactly before range, sum and confidence-gate checks; JSON
+`NaN`/`Infinity` and values with more than 40 digits or decimal places are
+rejected. A missing key is
 a configuration error. The key never appears in output.
 
 Jev's answer quality for market timing is unverified in this repository; the

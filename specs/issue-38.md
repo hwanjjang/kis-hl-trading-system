@@ -24,6 +24,10 @@ Advisory only. `short` means "avoid new long exposure / review protection" in th
 
 Verification: unit tests with injected HTTP opener; offline CLI smoke against a local stub server; full unittest suite. Alternatives rejected: typesafe SDK dependency (adds a package for one POST), using the opinion as an execution gate (violates authority boundary), Score/Noul primitives (a three-way stance is a Choice).
 
+## Cross-provider review round 2 corrections (2026-09-28)
+
+Attached `probabilities`/`confidence` and every `min_confidence` must be decimal strings (JSON numbers are rejected because CLI parsing rounds them to floats); the probability sum is compared exactly with `Fraction`; values with more than 40 digits or decimal places are rejected to bound exact arithmetic.
+
 ## Cross-provider review corrections (2026-09-28)
 
 Codex review of PR #39 found float rounding before validation and an unavailable-opinion early return. Response JSON numbers are now parsed as `Decimal` with non-finite constants rejected; decide binding checks provider/advisory before the status branch and requires null opinion fields plus a reason for unavailable opinions.

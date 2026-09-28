@@ -22,3 +22,9 @@ Validation: `python3 -m unittest tests.test_timing_opinion tests.test_strategy_t
 1. Regression tests with raw JSON numbers (0.49999999999999999999 confidence, >1 and negative-underflow probabilities, NaN) and forged unavailable opinions per field.
 2. Parse vendor JSON with `parse_float=Decimal` and reject non-finite constants; move provider/advisory checks before the status branch and require null opinion fields plus a reason for unavailable.
 3. Docs/spec; commit, push, CI, Codex re-review on the new head.
+
+## Correction plan (Codex PR review round 2, 2026-09-28)
+
+1. Regression tests: numeric attached confidence/probability/min_confidence rejected; min_confidence float/int/bool rejected and "0.50000000000000001" gates exactly; sum boundary inside/outside/exact; >40 decimal places rejected.
+2. `_unit` accepts only int/Decimal (vendor) or str (attached); `min_confidence` string-only; exact `Fraction` sum; digit bound.
+3. Docs/spec; commit, push, CI, Codex round 3 on the new head.

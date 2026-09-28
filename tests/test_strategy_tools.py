@@ -1,4 +1,5 @@
 import copy
+import json
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -170,6 +171,10 @@ class StrategyToolsTests(unittest.TestCase):
                 "provider": opinion(provider="made-up"),
                 "no probabilities": opinion(probabilities=None),
                 "not argmax": opinion(probabilities={"long": "0", "short": "1", "wait": "0"}),
+                "numeric confidence": opinion(confidence=json.loads('{"c": 0.49999999999999999999}')["c"]),
+                "numeric probability": opinion(probabilities={"long": 0.8, "short": "0.1", "wait": "0.1"}),
+                "numeric min_confidence": opinion(min_confidence=0.5),
+                "inexact sum": opinion(probabilities={"long": "1", "short": "0.01000000000000000000000000001", "wait": "0"}),
             }.items():
                 with self.subTest(name), self.assertRaisesRegex(ValueError, "[Tt]iming opinion"):
                     ingest_decision(signals, {**base, "id": "bad-" + name, "timing_opinion": bad}, now_ms=NOW)

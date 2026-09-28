@@ -1,6 +1,7 @@
 """Advisory long/short/wait timing opinion from TypeSafe's Jev model; never order authority."""
 
 from decimal import Decimal, InvalidOperation
+from fractions import Fraction
 import hashlib
 import http.client
 import json
@@ -16,7 +17,8 @@ DEFAULT_MIN_CONFIDENCE = Decimal("0.5")
 HIGH_CONFIDENCE = Decimal("0.8")
 TIMEOUT_SECONDS = 10
 MAX_FACTS, MAX_NOTES, MAX_TEXT, MAX_KEY = 40, 10, 300, 64
-SUM_TOLERANCE = Decimal("0.01")
+SUM_TOLERANCE = Fraction(1, 100)
+MAX_DIGITS = 40
 MAX_RESPONSE_BYTES = 1_000_000
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
@@ -50,10 +52,13 @@ def _fact(value, name):
 
 
 def min_confidence(review):
+    raw = review.get("min_confidence", str(DEFAULT_MIN_CONFIDENCE))
+    if not isinstance(raw, str):
+        raise ValueError("min_confidence must be a decimal string")
     try:
-        value = Decimal(str(review.get("min_confidence", DEFAULT_MIN_CONFIDENCE)))
+        value = Decimal(raw)
     except InvalidOperation:
-        raise ValueError("min_confidence must be a decimal") from None
+        raise ValueError("min_confidence must be a decimal string") from None
     if not value.is_finite() or not 0 < value <= 1:
         raise ValueError("min_confidence must be in (0, 1]")
     return value
@@ -115,15 +120,19 @@ def gate(choice, confidence, minimum):
 
 
 def _unit(value, *, text=False):
-    # Vendor JSON numbers arrive as Decimal (never float) so gates see the exact value.
-    if isinstance(value, bool) or not isinstance(value, (int, float, str) if text else (int, Decimal)):
-        raise ValueError("non-numeric value")
+    # Vendor JSON numbers arrive as Decimal; attached opinions carry decimal strings.
+    # Floats are never accepted, so no gate ever sees a rounded value.
+    if isinstance(value, bool) or not isinstance(value, str if text else (int, Decimal)):
+        raise ValueError("value must be an exact decimal")
     try:
-        number = Decimal(str(value))
+        number = Decimal(value)
     except InvalidOperation:
-        raise ValueError("non-numeric value") from None
+        raise ValueError("value must be an exact decimal") from None
     if not number.is_finite() or not 0 <= number <= 1:
         raise ValueError("value outside [0, 1]")
+    sign, digits, exponent = number.as_tuple()
+    if len(digits) > MAX_DIGITS or exponent < -MAX_DIGITS:
+        raise ValueError("value has too many digits")
     return number
 
 
@@ -131,7 +140,7 @@ def _answer(choice, raw, confidence, *, text=False):
     if not isinstance(raw, dict) or set(raw) != set(OPTIONS):
         raise ValueError("option set differs from long/short/wait")
     probabilities = {k: _unit(raw[k], text=text) for k in OPTIONS}
-    if abs(sum(probabilities.values()) - 1) > SUM_TOLERANCE:
+    if abs(sum(Fraction(v) for v in probabilities.values()) - 1) > SUM_TOLERANCE:
         raise ValueError("probabilities do not sum to 1")
     if choice not in OPTIONS or probabilities[choice] != max(probabilities.values()):
         raise ValueError("choice is not a highest-probability option")
