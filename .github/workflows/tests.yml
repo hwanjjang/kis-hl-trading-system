@@ -23,3 +23,5 @@ jobs:
         run: python3 scripts/smoke_account_audit.py
       - name: Offline native trailing and manual handoff smoke
         run: PYTHONPATH=. python3 scripts/smoke_manual_handoff.py
+      - name: Offline Jev timing opinion smoke
+        run: python3 scripts/smoke_timing_opinion.py
