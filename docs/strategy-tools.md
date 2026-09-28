@@ -236,3 +236,48 @@ Jev's answer quality for market timing is unverified in this repository; the
 thresholds are conservative starting values. Each call is billed per input token
 and subject to TypeSafe's dynamic rate limits. Offline verification:
 `python3 scripts/smoke_timing_opinion.py` (local stub, temporary database).
+
+### Repeatability and threshold calibration
+
+Identical inputs can produce different opinions. In two connectivity checks
+using the same synthetic input, confidence changed from 0.51 to 0.36, changing
+the effective opinion from `long` to `wait` at the default 0.5 threshold.
+These two observations establish neither a variability estimate nor trading
+accuracy; use real snapshots for the following evaluation before operational
+reliance, and repeat it when the model or input construction changes.
+
+1. Freeze a representative set of real market snapshots across instruments,
+   setups and market conditions. Preserve the tool-computed facts, notes,
+   horizon, source timestamps and snapshot IDs. Fix the requested model version,
+   input construction and `min_confidence` for each evaluation batch.
+2. Choose the snapshot count and repeat count before calling the API, within an
+   explicit cost/rate budget. Call each identical input the same number of times;
+   do not refresh facts between repeats or stop when a preferred answer appears.
+   Repetition is an offline evaluation procedure, not a retry loop for live entry.
+3. Retain every raw tool result, including `unavailable`, with a batch/run ID and
+   call timestamp. Record `input_sha256`, requested/returned model, snapshot ID,
+   raw choice, all three probabilities, confidence, band, effective opinion and
+   threshold. Keep API keys out of records; separate different returned models.
+4. Per snapshot, summarize choice/effective-opinion frequencies, probability and
+   confidence ranges and quantiles, threshold-crossing frequency, and unavailable
+   rate. Report the sample counts. Use code for these calculations; do not ask
+   Jev to compute them. Repeated calls measure variability, not independent market
+   outcomes or proof that the majority answer is correct.
+5. Assess candidate `min_confidence` values against outcomes defined in advance
+   for the review horizon, using separate calibration and held-out snapshots.
+   Keep all repeats of one snapshot in the same split and prevent future-data
+   leakage. Compare directional errors, coverage/abstention and stability;
+   record the sample size, model, threshold, rationale and limitations. Do not
+   lower the threshold merely to obtain more `long` opinions. Without sufficient
+   outcome evidence, retain the provisional default and disclose the limitation.
+6. Apply an evidence-supported gate through the decimal-string `min_confidence`
+   input. The 0.8 `high` band boundary is fixed in code, not a configurable gate;
+   changing it requires a separate code/test/documentation change. Revalidate
+   after model/input changes and retain the previous evaluation for comparison.
+
+Before delivering a Hermes review, check that any calibration claim links to
+its recorded batch and held-out evaluation. Disclose observed instability and
+missing evidence; never select a favorable repeat as the recorded opinion.
+Attach the selected tool output unchanged to `strategy decide`, with the
+existing `opinion_note` requirement when applicable. Evaluation snapshots are
+historical evidence, not fresh authorization to trade.

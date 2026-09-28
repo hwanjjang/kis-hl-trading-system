@@ -38,6 +38,13 @@ entering or adding against a non-`long` or unavailable opinion, state why in
 `opinion_note`. `short` in this long-only strategy argues for avoiding new longs
 or reviewing protection; it never proposes a short trade.
 
+Before operational reliance on Jev or changing its model or confidence threshold,
+read and follow the [repeatability and calibration procedure](../../../docs/strategy-tools.md#repeatability-and-threshold-calibration).
+Repeat identical real snapshots under a fixed model and record every result;
+do not retry until a preferred answer appears or treat one call as decisive.
+Keep thresholds provisional until evaluated against held-out outcomes, and
+report instability or missing calibration evidence in the review.
+
 Call `strategy stop` with execution-instrument ATR to derive an initial candidate
 SL, or use a justified explicit structural stop. Call `strategy size` with that
 fixed stop and the user's proposed unit count,
