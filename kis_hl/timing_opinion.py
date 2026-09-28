@@ -115,7 +115,8 @@ def gate(choice, confidence, minimum):
 
 
 def _unit(value, *, text=False):
-    if isinstance(value, bool) or not isinstance(value, (int, float, str) if text else (int, float)):
+    # Vendor JSON numbers arrive as Decimal (never float) so gates see the exact value.
+    if isinstance(value, bool) or not isinstance(value, (int, float, str) if text else (int, Decimal)):
         raise ValueError("non-numeric value")
     try:
         number = Decimal(str(value))
@@ -145,8 +146,12 @@ def _usage(value):
     return None
 
 
+def _reject_constant(name):
+    raise ValueError(f"non-finite JSON constant {name}")
+
+
 def _parse(body):
-    data = json.loads(body)
+    data = json.loads(body, parse_float=Decimal, parse_constant=_reject_constant)
     item = data["answers"]["timing"]
     if item.get("type") != "choice":
         raise ValueError("answer is not a choice")
@@ -209,13 +214,17 @@ def check_attached(opinion, *, instrument, snapshot_id):
         raise ValueError("Timing opinion cannot carry order authority")
     if opinion.get("instrument") != instrument or opinion.get("snapshot_id") != snapshot_id:
         raise ValueError("Timing opinion is bound to a different instrument or snapshot")
+    if opinion.get("provider") != "typesafe" or opinion.get("advisory") is not True:
+        raise ValueError("Timing opinion provider or advisory flag is invalid")
     status = opinion.get("status")
     if status == "unavailable":
-        if opinion.get("effective_opinion") is not None:
-            raise ValueError("Timing opinion is unavailable but reports an opinion")
+        reason = opinion.get("reason")
+        if any(opinion.get(k) is not None for k in ("choice", "probabilities", "confidence", "band", "effective_opinion")) \
+                or not (isinstance(reason, str) and reason.strip()):
+            raise ValueError("Timing opinion is unavailable but reports opinion fields or no reason")
         return None
-    if status != "available" or opinion.get("provider") != "typesafe" or opinion.get("advisory") is not True:
-        raise ValueError("Timing opinion status, provider or advisory flag is invalid")
+    if status != "available":
+        raise ValueError("Timing opinion status is invalid")
     try:
         _, confidence = _answer(opinion.get("choice"), opinion.get("probabilities"),
                                 opinion.get("confidence"), text=True)

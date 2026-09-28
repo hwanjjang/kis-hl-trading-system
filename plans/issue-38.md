@@ -16,3 +16,9 @@ Validation: `python3 -m unittest tests.test_timing_opinion tests.test_strategy_t
 1. Regression tests: CR/LF/space keys and non-HTTPS URL rejected without echo; BadStatusLine/IncompleteRead/deep JSON/oversized model unavailable; usage sanitized; 302 not followed (local stub); forged/inconsistent attached opinions rejected; dry-run hash.
 2. timing_opinion.py: key/endpoint validation, no-redirect opener, broader transport catch reporting type only, 1 MB cap, shared answer validation with Decimal for attached opinions.
 3. Docs/spec/CLAUDE.md pairing row. Re-run focused tests, smoke, full suite; renewed independent verification by the same separate context.
+
+## Correction plan (Codex PR review round 1, 2026-09-28)
+
+1. Regression tests with raw JSON numbers (0.49999999999999999999 confidence, >1 and negative-underflow probabilities, NaN) and forged unavailable opinions per field.
+2. Parse vendor JSON with `parse_float=Decimal` and reject non-finite constants; move provider/advisory checks before the status branch and require null opinion fields plus a reason for unavailable.
+3. Docs/spec; commit, push, CI, Codex re-review on the new head.

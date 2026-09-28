@@ -24,6 +24,10 @@ Advisory only. `short` means "avoid new long exposure / review protection" in th
 
 Verification: unit tests with injected HTTP opener; offline CLI smoke against a local stub server; full unittest suite. Alternatives rejected: typesafe SDK dependency (adds a package for one POST), using the opinion as an execution gate (violates authority boundary), Score/Noul primitives (a three-way stance is a Choice).
 
+## Cross-provider review corrections (2026-09-28)
+
+Codex review of PR #39 found float rounding before validation and an unavailable-opinion early return. Response JSON numbers are now parsed as `Decimal` with non-finite constants rejected; decide binding checks provider/advisory before the status branch and requires null opinion fields plus a reason for unavailable opinions.
+
 ## Verification corrections (2026-09-26)
 
 Independent verification round 1 found a key echo via CR/LF keys, followed redirects, escaping protocol exceptions and lenient decide binding. The contract above now includes those corrections; tie handling is unchanged (confidence gating already covers flat distributions).

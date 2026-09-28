@@ -164,7 +164,8 @@ retain the explicit spot basis in `setup_input`/evidence.
 Optional `timing_opinion` holds a `strategy opinion` result for the same
 `signal_instrument` and `setup_input.snapshot.id`. Decide rejects a mismatched,
 authority-bearing or internally inconsistent opinion: provider, advisory flag,
-probabilities, choice, confidence, band and effective opinion are rechecked. An `enter`/`add` whose
+probabilities, choice, confidence, band and effective opinion are rechecked, and
+an unavailable opinion must carry a reason and null opinion fields. An `enter`/`add` whose
 effective opinion is not `long` (including an unavailable opinion) needs a
 non-empty `opinion_note` explaining why the decision proceeds. The opinion never
 replaces the predicate, confluence or management checks.
@@ -222,7 +223,9 @@ that is not a highest-probability option (a tie keeps the model's pick among
 the tied options), confidence outside [0, 1], an answering model ID over 64
 characters or a body over 1 MB produce
 `status: unavailable` with a `reason` and null opinion fields; nothing is guessed.
-A missing key is a configuration error. The key never appears in output.
+Response numbers are parsed as exact decimals (never floats) before range, sum
+and confidence-gate checks; JSON `NaN`/`Infinity` are rejected. A missing key is
+a configuration error. The key never appears in output.
 
 Jev's answer quality for market timing is unverified in this repository; the
 thresholds are conservative starting values. Each call is billed per input token

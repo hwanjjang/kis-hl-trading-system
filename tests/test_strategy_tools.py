@@ -175,6 +175,14 @@ class StrategyToolsTests(unittest.TestCase):
                     ingest_decision(signals, {**base, "id": "bad-" + name, "timing_opinion": bad}, now_ms=NOW)
             unavailable = opinion(status="unavailable", choice=None, probabilities=None, confidence=None,
                                   band=None, effective_opinion=None, model=None, reason="HTTP 529")
+            for name, forged in {
+                "provider": {"provider": "forged"}, "advisory": {"advisory": False},
+                "choice": {"choice": "long"}, "probabilities": {"probabilities": {"long": "1"}},
+                "confidence": {"confidence": "0.9"}, "band": {"band": "high"}, "reason": {"reason": ""},
+            }.items():
+                with self.subTest("unavailable " + name), self.assertRaisesRegex(ValueError, "[Tt]iming opinion"):
+                    ingest_decision(signals, {**base, "id": "u-" + name, "opinion_note": "note",
+                                              "timing_opinion": {**unavailable, **forged}}, now_ms=NOW)
             for i, disagreeing in enumerate([opinion("wait"), opinion("short"), unavailable]):
                 record = {**base, "id": f"n{i}", "timing_opinion": disagreeing}
                 with self.assertRaisesRegex(ValueError, "opinion_note"):

@@ -125,6 +125,20 @@ class ParseTests(unittest.TestCase):
                 self.assertTrue(result["reason"])
                 self.assertIs(result["order_authorized"], False)
 
+    def test_raw_json_decimals_are_validated_without_float_rounding(self):
+        def raw(confidence, probabilities):
+            return ('{"model":"jev-1.13.0","answers":{"timing":{"type":"choice","choice":"long",'
+                    '"probabilities":' + probabilities + ',"confidence":' + confidence + '}}}').encode()
+        spread = '{"long":0.6,"short":0.1,"wait":0.3}'
+        below = ask(raw("0.49999999999999999999", spread))
+        self.assertEqual((below["status"], below["band"], below["effective_opinion"]), ("available", "low", "wait"))
+        self.assertEqual(below["confidence"], "0.49999999999999999999")
+        for probabilities in ['{"long":1.00000000000000001,"short":0,"wait":0}',
+                              '{"long":1,"short":-1e-9999,"wait":0}',
+                              '{"long":NaN,"short":0,"wait":0}']:
+            with self.subTest(probabilities):
+                self.assertEqual(ask(raw("0.9", probabilities))["status"], "unavailable")
+
     def test_http_and_transport_errors_are_unavailable(self):
         for error in [urllib.error.HTTPError("u", code, "err", {}, io.BytesIO(b"{}")) for code in [401, 422, 429, 529]] + [
                 socket.timeout("timed out"), urllib.error.URLError("refused")]:
