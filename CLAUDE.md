@@ -22,7 +22,7 @@ link to it instead.
 | Strategy skill/code ownership and authoring policy | `docs/strategy-authoring.md` | Hermes workflow versus deterministic tools |
 | Trend setup selection, risk-unit semantics and management rationale | `.agents/skills/trend-strategy/` | Canonical rules shared by Hermes, Codex and Claude Code |
 | Weinstein book-method analysis, source provenance and investor/trader distinctions | `.agents/skills/weinstein-stage-analysis/` | One shared skill; host discovery and installation belong to `docs/strategy-authoring.md` |
-| Strategy tool input/output contract | `docs/strategy-tools.md` | Paired with `kis_hl/strategy_tools.py` and `kis_hl/risk.py` |
+| Strategy tool input/output contract | `docs/strategy-tools.md` | Paired with `kis_hl/strategy_tools.py`, `kis_hl/risk.py` and `kis_hl/timing_opinion.py` |
 | Strategy integration and execution status | `docs/strategy_execution_design.md` | Existing execution boundary and explicit limitations |
 | Underlying market sessions and live-entry session policy | `docs/trading_hours.md` | Paired with `kis_hl/trading_hours.py` |
 | trade.xyz asset universe, eligibility, exclusions | `docs/trade_xyz_assets.md` + `kis_hl/trade_xyz_assets.py` | Doc explains policy, code is the seed of record |
@@ -32,6 +32,7 @@ link to it instead.
 | Completed-trade journal record contract, review-statistics formulas, and edge cases | `.agents/skills/trade-journal/` | Symlinked as `.claude/skills/trade-journal/` |
 | Session observation, skill-improvement workflow, observation log | `.agents/skills/task-observer/` | Symlinked as `.claude/skills/task-observer/`; activation rule lives in `AGENTS.md` |
 | Coding behavior guidelines (assumptions, surgical changes, success criteria) | `.agents/skills/karpathy-guidelines/` | Symlinked as `.claude/skills/karpathy-guidelines/`; activation rule lives in `AGENTS.md` |
+| Issue content, clarity, and objective acceptance criteria | `.agents/skills/issue-writing/` | Shared issue-writing workflow; activation rule lives in `AGENTS.md` |
 | Non-secret env variable template | `.env.example` | `.env` stays untracked |
 | Runtime eligibility and verification state | SQLite tables | Code and tests are the contract, not prose |
 

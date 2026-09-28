@@ -204,9 +204,9 @@ This read-only command prints a masked account number, environment and three KRW
 amounts: `dnca_tot_amt` (deposit), `tot_evlu_amt` (total valuation), and
 `scts_evlu_amt` (securities valuation). It does not list holdings or overseas/FX
 details, place orders, or store balances. Failed or malformed responses exit with
-status 1 and a generic error without raw vendor data. Account-check tokens are
-cached in a credential-derived subdirectory of `KIS_TOKEN_DIR` to avoid reusing a
-previous account's token; other commands retain their existing cache behavior.
+status 1 and a generic error without raw vendor data. All KIS commands share one
+access token cached under `KIS_TOKEN_DIR/<credential-fingerprint>/`, so a rotated
+app key never reuses a previous key's token and no command re-issues on its own.
 
 Fetch a KIS overseas quote and persist the raw payload:
 
@@ -507,7 +507,18 @@ python3 -m kis_hl.cli strategy stop --input stop.json
 python3 -m kis_hl.cli strategy size --input size.json
 python3 -m kis_hl.cli strategy register --input strategy-version.json
 python3 -m kis_hl.cli strategy decide --input decision.json
+python3 -m kis_hl.cli strategy opinion --input review.json --dry-run
+python3 -m kis_hl.cli strategy opinion --input review.json
 ```
+
+`strategy opinion` asks TypeSafe AI's Jev model for an advisory `long`/`short`/`wait`
+timing opinion with probabilities and confidence. It needs `TYPESAFE_API_KEY`
+(paid API; `--dry-run` shows the request without a key or network). Attach the
+result to `strategy decide` as `timing_opinion`; it is reference evidence only and
+never authorizes or sizes an order. Recording an entry/add against a non-`long`
+or unavailable opinion, or with confidence below 0.5 regardless of its configured
+threshold, requires an `opinion_note`. See
+[the opinion contract](docs/strategy-tools.md#jev-timing-opinion).
 
 See [input/output contracts](docs/strategy-tools.md) for schemas, required source
 metadata and offline replay. Use [the authoring policy](docs/strategy-authoring.md)

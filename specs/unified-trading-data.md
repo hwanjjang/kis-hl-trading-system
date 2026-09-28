@@ -1,6 +1,6 @@
 # Unified trading data specification
 
-Status: broader design contract, partially implemented in PR #14. See [implemented/outstanding acceptance](../docs/unified-data-acceptance.md). Task: `unified-trading-data`. Authority: [intent](../intent/unified-trading-data.md). Evidence: [investigation](../reports/sdlc/unified-trading-data/investigation.md). Implementation sequence: [plan](../plans/unified-trading-data.md).
+Status: broader design contract, partially implemented in PR #14. See [implemented/outstanding acceptance](../docs/unified-data-acceptance.md). Task: `unified-trading-data`. Authority: [intent](../intent/unified-trading-data.md). Implementation sequence: [plan](../plans/unified-trading-data.md).
 
 ## 1. Storage decision and ownership — AC1
 

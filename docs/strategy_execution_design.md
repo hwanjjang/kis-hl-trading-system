@@ -13,6 +13,7 @@ invocation, conversation, briefings and notification delivery.
 | --- | --- |
 | `trend-strategy` skill | Long breakout, pullback/rebreakout review, confluence, risk-unit proposals, management reasoning and the BTC exception |
 | `kis_hl.strategy_tools` | Closed/fresh input validation, ATR/30W EMA evidence, numeric setup predicates, ATR stop proposal, explicit-stop sizing and validated decision ingestion |
+| `kis_hl.timing_opinion` | Advisory Jev long/short/wait request building, strict answer validation, confidence gating and decision binding; no order authority |
 | `kis_hl.risk` | Decimal capital, ATR, EMA, asset-class N and risk-unit calculations |
 | `kis_hl.strategy_signals` | Immutable strategy versions/decisions, expiry, bounded grants and explicit entry authority; rechecks skill evidence before entry |
 | `kis_hl.managed_execution` / gateways | Existing protected entry, fill reconciliation, account ownership, native/local protection, restart recovery and exit cleanup |

@@ -60,7 +60,7 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.cli` provides operational commands. Binance orders default to sending with `--dry-run` for previews; Hyperliquid orders retain their existing explicit `--live` behavior.
 
-`docs/strategy_execution_design.md` records the strategy skill/tool integration and existing execution limits. Hermes loads `.agents/skills/trend-strategy/` for strategy judgment and owns timing/briefings/notification. `kis_hl.strategy_tools` supplies deterministic indicators, setup predicates, ATR stop proposals, risk-unit sizing and decision evidence through the existing CLI. Decisions reuse `strategy_signals`; protected execution and trailing remain in the existing supervisor rather than a new strategy daemon.
+`docs/strategy_execution_design.md` records the strategy skill/tool integration and existing execution limits. Hermes loads `.agents/skills/trend-strategy/` for strategy judgment and owns timing/briefings/notification. `kis_hl.strategy_tools` supplies deterministic indicators, setup predicates, ATR stop proposals, risk-unit sizing and decision evidence through the existing CLI. `kis_hl.timing_opinion` optionally asks TypeSafe's Jev model for an advisory long/short/wait opinion that is retained with a decision but never grants authority. Decisions reuse `strategy_signals`; protected execution and trailing remain in the existing supervisor rather than a new strategy daemon.
 
 ## Hyperliquid execution identity
 
@@ -261,8 +261,7 @@ transitive dependencies. Jobs and report artifacts have separate operational
 attempt/publication state. Existing managed/trailing/eligibility tables remain
 unchanged. CLI registration lives in `data_cli.py`.
 
-The [data-flow diagram](../reports/sdlc/unified-trading-data/design/dataflow.html)
-and [logical specification](../specs/unified-trading-data.md) describe the broader
+The [logical specification](../specs/unified-trading-data.md) describes the broader
 design. The first implementation uses validated dataset payloads in a shared
 fact table rather than every proposed physical table. The actual supported
 adapters, precision/coverage limits, rollout, persistence and maintenance commands

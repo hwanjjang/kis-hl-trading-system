@@ -25,6 +25,6 @@ complete. Operational usage and limitations belong to unified-data-operations.md
 Outstanding design items are visible remaining scope, not evidence of completed
 acceptance or an assumed user-approved deferral. These fixes close the accepted
 review defects; they do not certify real account retention, entitlement, listing
-coverage or live supervisor performance. Synthetic tests, separate real CLI smoke,
-and independent verification evidence accompany the correction record in
-`reports/sdlc/unified-trading-data-implementation/pr14-review/full-correction/`.
+coverage or live supervisor performance. Detailed SDLC evidence is local-only
+under `reports/sdlc/` and is not available from a fresh checkout. Re-run the
+relevant tests before relying on a rollout.

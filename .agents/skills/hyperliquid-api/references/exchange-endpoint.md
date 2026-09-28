@@ -66,7 +66,8 @@ a timeout exit solely for waiting. Fixed native SL stays active; flat cleanup
 includes both stop kinds. Do not recreate a previously accepted terminal trail
 automatically because that resets its watermark; preserve residual-exit handling.
 
-Evidence digest and investigation: `reports/sdlc/hyperliquid-native-trailing/`.
+For the operational verification boundary, see
+[`docs/trading-operations.md`](../../../../docs/trading-operations.md#protection-and-controls).
 An authorized KORU subaccount rollout verified trailing submission, active
 order-ID readback and cancellation. The observed readback explicitly includes
 `Activation immediate`; accept that clause while rejecting duplicate/conflicting

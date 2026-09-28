@@ -6,7 +6,6 @@ This is proposed functionality, not a claim that multi-venue trading is implemen
 - [Intent and requested instruments](../../intent/multi-venue-protection.md)
 - [Capability, protection and journal specification](../../specs/multi-venue-protection.md)
 - [Implementation slices and acceptance scenarios](../../plans/multi-venue-protection.md)
-- [Official-source research and exact KIS verification gaps](../../reports/sdlc/multi-venue-protection/research.md)
 - [Archify main component/data path](../architecture/multi-venue-trading.html)
 - [Archify main trade path and coverage failure](../architecture/protected-trade.html)
 - [Archify signals, harnesses and account-wide history](../architecture/signals-and-journal.html)
@@ -24,5 +23,5 @@ Future strategy skills feed notifications, then manual requests or explicitly
 configured automatic execution through shared harness-neutral gates.
 
 Archify official tools were obtained in a temporary work directory; no persistent
-skill or host hook installation was performed. Source JSON and delivery/browser
-receipts remain beside the repository documentation.
+skill or host hook installation was performed. Tracked workflow diagrams live in
+`docs/architecture/`; local SDLC receipts under `reports/sdlc/` are not shipped.

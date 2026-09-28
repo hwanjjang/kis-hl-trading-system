@@ -3,7 +3,6 @@
 from dataclasses import asdict, replace
 from contextlib import ExitStack
 from datetime import datetime, timezone
-import hashlib
 import json
 import time
 from pathlib import Path
@@ -19,11 +18,8 @@ from kis_hl.managed_execution import ExecutionStore, Supervisor, TERMINAL, valid
 
 
 def kis_client():
-    config = load_kis_config()
-    digest = hashlib.sha256(
-        json.dumps([config.app_key, config.app_secret]).encode()
-    ).hexdigest()
-    return KisClient(replace(config, token_dir=config.token_dir / digest))
+    # KisClient already keys its token cache by credential fingerprint.
+    return KisClient(load_kis_config())
 
 
 def scope_client(venue, account=None):
@@ -183,6 +179,11 @@ def add_commands(sub, journal_sub):
         if action != "decide":
             c.add_argument("--as-of-ms", type=int, help="Explicit offline replay clock; no order authority")
         c.set_defaults(handler=cmd_strategy_tool)
+    c = ss.add_parser("opinion", help="Advisory Jev long/short/wait timing opinion; no order authority")
+    c.add_argument("--input", required=True)
+    c.add_argument("--model", help="TypeSafe model ID; default TYPESAFE_MODEL or the pinned version")
+    c.add_argument("--dry-run", action="store_true", help="Print the request without a key or network call")
+    c.set_defaults(handler=cmd_strategy_opinion)
     for action in ["list", "register", "grant", "revoke", "grants"]:
         c = ss.add_parser(action)
         c.set_defaults(handler=cmd_strategy)
@@ -666,6 +667,22 @@ def cmd_strategy_tool(args):
     if args.strategy_action == "stop":
         return initial_stop(raw)
     return ingest_decision(Signals(ExecutionStore(args.db)), raw, now_ms=now)
+
+
+def cmd_strategy_opinion(args):
+    import os
+    from kis_hl.timing_opinion import (
+        DEFAULT_BASE_URL, DEFAULT_MODEL, build_request, encode_request, endpoint, request_opinion)
+
+    raw = json.loads(Path(args.input).read_text())
+    model = args.model or os.environ.get("TYPESAFE_MODEL") or DEFAULT_MODEL
+    base_url = os.environ.get("TYPESAFE_BASE_URL") or DEFAULT_BASE_URL
+    if args.dry_run:
+        payload = build_request(raw, model=model)
+        return {"dry_run": True, "url": endpoint(base_url), "payload": payload,
+                "input_sha256": encode_request(payload)[1], "order_authorized": False}
+    return request_opinion(raw, api_key=os.environ.get("TYPESAFE_API_KEY", ""),
+                           base_url=base_url, model=model)
 
 
 def cmd_signal(args):

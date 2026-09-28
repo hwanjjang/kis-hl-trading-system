@@ -4,7 +4,6 @@ import contextlib
 import io
 import json
 import unittest
-from dataclasses import replace
 from unittest.mock import patch
 
 from kis_hl.cli import main
@@ -59,18 +58,12 @@ class KisAccountTests(unittest.TestCase):
         self.assertNotIn('secret', err)
         self.assertNotIn('12345678', err)
 
-    def test_cache_is_stable_but_changes_with_credentials(self):
+    def test_client_receives_unmodified_config(self):
+        # Credential-scoped token caching lives in KisClient, so every command
+        # must pass the loaded config through untouched to share one cache.
         config = RecordingKisClient().config
-        error = RuntimeError('network unavailable')
-        _, _, _, first = self.invoke(error=error, config=config)
-        _, _, _, same = self.invoke(error=error, config=config)
-        _, _, _, other = self.invoke(error=error, config=replace(config, app_key='other-key'))
-        _, _, _, rotated = self.invoke(error=error, config=replace(config, app_secret='rotated-secret'))
-        self.assertNotEqual(first.token_dir, rotated.token_dir)
-        self.assertEqual(first.token_dir, same.token_dir)
-        self.assertNotEqual(first.token_dir, other.token_dir)
-        self.assertNotEqual(first.token_dir, config.token_dir)
-        self.assertTrue(first.token_dir.is_relative_to(config.token_dir))
+        _, _, _, passed = self.invoke(error=RuntimeError('network unavailable'), config=config)
+        self.assertEqual(passed.token_dir, config.token_dir)
 
 
 if __name__ == '__main__':
