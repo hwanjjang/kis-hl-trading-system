@@ -215,7 +215,7 @@ def request_opinion(review, *, api_key, base_url=DEFAULT_BASE_URL, model=DEFAULT
             "usage": usage}
 
 
-def check_attached(opinion, *, instrument, snapshot_id):
+def check_attached(opinion, *, instrument, snapshot_id, asof_ms):
     """Validate an opinion attached to a strategy decision; it stays advisory."""
     if not isinstance(opinion, dict) or opinion.get("tool") != "timing_opinion":
         raise ValueError("Timing opinion must be a strategy opinion result")
@@ -223,6 +223,9 @@ def check_attached(opinion, *, instrument, snapshot_id):
         raise ValueError("Timing opinion cannot carry order authority")
     if opinion.get("instrument") != instrument or opinion.get("snapshot_id") != snapshot_id:
         raise ValueError("Timing opinion is bound to a different instrument or snapshot")
+    stamp = opinion.get("asof_ms")
+    if type(stamp) is not int or stamp <= 0 or stamp != asof_ms:
+        raise ValueError("Timing opinion timestamp does not match the snapshot")
     if opinion.get("provider") != "typesafe" or opinion.get("advisory") is not True:
         raise ValueError("Timing opinion provider or advisory flag is invalid")
     status = opinion.get("status")

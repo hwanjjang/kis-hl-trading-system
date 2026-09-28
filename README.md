@@ -515,7 +515,9 @@ python3 -m kis_hl.cli strategy opinion --input review.json
 timing opinion with probabilities and confidence. It needs `TYPESAFE_API_KEY`
 (paid API; `--dry-run` shows the request without a key or network). Attach the
 result to `strategy decide` as `timing_opinion`; it is reference evidence only and
-never authorizes, sizes or blocks an order. See
+never authorizes or sizes an order. Recording an entry/add against a non-`long`
+or unavailable opinion, or with confidence below 0.5 regardless of its configured
+threshold, requires an `opinion_note`. See
 [the opinion contract](docs/strategy-tools.md#jev-timing-opinion).
 
 See [input/output contracts](docs/strategy-tools.md) for schemas, required source

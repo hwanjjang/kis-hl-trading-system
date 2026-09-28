@@ -162,14 +162,19 @@ BTC spot decisions use `signal_instrument: hl:BTC`, only `hl:BTC` execution, and
 retain the explicit spot basis in `setup_input`/evidence.
 
 Optional `timing_opinion` holds a `strategy opinion` result for the same
-`signal_instrument` and `setup_input.snapshot.id`. Decide rejects a mismatched,
+`signal_instrument`, `setup_input.snapshot.id` and `setup_input.snapshot.asof_ms`.
+The opinion timestamp must be a positive integer matching the snapshot, including
+for unavailable opinions. Decide rejects a mismatched,
 authority-bearing or internally inconsistent opinion: provider, advisory flag,
 probabilities, choice, confidence, band and effective opinion are rechecked, and
 an unavailable opinion must carry a reason and null opinion fields. Attach the
 tool output unchanged: `probabilities`, `confidence` and `min_confidence` must be
 decimal strings, so JSON numbers (which parse as rounded floats) are rejected. An `enter`/`add` whose
 effective opinion is not `long` (including an unavailable opinion) needs a
-non-empty `opinion_note` explaining why the decision proceeds. The opinion never
+non-empty `opinion_note` explaining why the decision proceeds. Confidence below
+the default 0.5 also requires this note for `enter`/`add`, even when a lower
+caller-selected threshold makes the effective opinion `long`. Calibrating the
+opinion threshold does not lower this decision-recording floor. The opinion never
 replaces the predicate, confluence or management checks.
 
 Do not change `signal ingest` legacy integrations automatically; `strategy decide`

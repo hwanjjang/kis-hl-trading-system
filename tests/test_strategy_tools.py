@@ -161,6 +161,9 @@ class StrategyToolsTests(unittest.TestCase):
             for name, bad in {
                 "instrument": opinion(instrument="hl:ETH"),
                 "snapshot": opinion(snapshot_id="other"),
+                "timestamp": opinion(asof_ms=NOW-1),
+                "missing timestamp": opinion(asof_ms=None),
+                "numeric timestamp": opinion(asof_ms=float(NOW)),
                 "authority": opinion(order_authorized=True),
                 "tool": opinion(tool="other"),
                 "gate": opinion(confidence="0.2"),
@@ -181,6 +184,7 @@ class StrategyToolsTests(unittest.TestCase):
             unavailable = opinion(status="unavailable", choice=None, probabilities=None, confidence=None,
                                   band=None, effective_opinion=None, model=None, reason="HTTP 529")
             for name, forged in {
+                "timestamp": {"asof_ms": NOW-1},
                 "provider": {"provider": "forged"}, "advisory": {"advisory": False},
                 "choice": {"choice": "long"}, "probabilities": {"probabilities": {"long": "1"}},
                 "confidence": {"confidence": "0.9"}, "band": {"band": "high"}, "reason": {"reason": ""},
@@ -188,12 +192,17 @@ class StrategyToolsTests(unittest.TestCase):
                 with self.subTest("unavailable " + name), self.assertRaisesRegex(ValueError, "[Tt]iming opinion"):
                     ingest_decision(signals, {**base, "id": "u-" + name, "opinion_note": "note",
                                               "timing_opinion": {**unavailable, **forged}}, now_ms=NOW)
-            for i, disagreeing in enumerate([opinion("wait"), opinion("short"), unavailable]):
+            for i, disagreeing in enumerate([opinion("wait"), opinion("short"), unavailable,
+                    opinion(confidence="0.1", min_confidence="0.01", band="medium"),
+                    opinion(confidence="0.49999999999999999999", min_confidence="0.01", band="medium")]):
                 record = {**base, "id": f"n{i}", "timing_opinion": disagreeing}
                 with self.assertRaisesRegex(ValueError, "opinion_note"):
                     ingest_decision(signals, record, now_ms=NOW)
                 accepted = ingest_decision(signals, {**record, "opinion_note": "Weekly breakout outweighs caution"}, now_ms=NOW)
                 self.assertEqual(accepted["opinion_note"], "Weekly breakout outweighs caution")
+            boundary = {**base, "id": "boundary", "timing_opinion":
+                        opinion(confidence="0.5", min_confidence="0.01", band="medium")}
+            self.assertEqual(ingest_decision(signals, boundary, now_ms=NOW)["action"], "enter")
             hold = {**base, "id": "h1", "action": "hold", "timing_opinion": opinion("short")}
             self.assertEqual(ingest_decision(signals, hold, now_ms=NOW)["action"], "hold")
 
