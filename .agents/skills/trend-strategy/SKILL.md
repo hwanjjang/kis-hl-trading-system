@@ -30,6 +30,14 @@ not pad the rationale to pass a validator. If the setup or necessary evidence is
 missing, return a reasoned `no_trade` (or `hold` only when the known position and
 protection support it). Do not turn an unavailable result into false/zero.
 
+Optionally call `strategy opinion` for an advisory Jev `long`/`short`/`wait`
+timing opinion. Send only compact facts already produced by the tools plus short
+context notes, bound to the same snapshot ID. Weigh its effective opinion and
+confidence as one reference, not a vote that overrides rules or evidence. When
+entering or adding against a non-`long` or unavailable opinion, state why in
+`opinion_note`. `short` in this long-only strategy argues for avoiding new longs
+or reviewing protection; it never proposes a short trade.
+
 Call `strategy stop` with execution-instrument ATR to derive an initial candidate
 SL, or use a justified explicit structural stop. Call `strategy size` with that
 fixed stop and the user's proposed unit count,

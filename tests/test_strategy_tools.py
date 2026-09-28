@@ -138,6 +138,52 @@ class StrategyToolsTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "predicate"):
                 ingest_decision(signals, record, now_ms=NOW)
 
+    def test_timing_opinion_is_bound_advisory_evidence(self):
+        def opinion(choice="long", confidence="0.81", **overrides):
+            return {"tool": "timing_opinion", "provider": "typesafe", "status": "available",
+                    "instrument": "hl:BTC", "snapshot_id": "fixture-snapshot", "asof_ms": NOW,
+                    "requested_model": "jev-1.13.0", "model": "jev-1.13.0", "input_sha256": "0" * 64,
+                    "choice": choice, "probabilities": {k: "0.8" if k == choice else "0.1" for k in ["long", "short", "wait"]},
+                    "confidence": confidence, "min_confidence": "0.5", "band": "high",
+                    "effective_opinion": choice, "advisory": True, "order_authorized": False, **overrides}
+
+        with tempfile.TemporaryDirectory() as directory:
+            signals = Signals(ExecutionStore(Path(directory)/"test.sqlite"))
+            signals.register(dict(id="trend", version="1", description="Fixture", instruments=["hl:BTC"]))
+            base = dict(strategy="trend", strategy_version="1", signal_instrument="hl:BTC",
+                        execution_instruments=["hl:BTC"], observed_ms=NOW, expires_ms=NOW+1000,
+                        rationale="Breakout supported by weekly trend", action="enter", setup_input=setup(),
+                        confluence=["Weekly uptrend", "Prior high resistance"], management="Fixed SL and existing trailing")
+            stored = ingest_decision(signals, {**base, "id": "o1", "timing_opinion": opinion()}, now_ms=NOW)
+            self.assertEqual(stored["timing_opinion"]["effective_opinion"], "long")
+            self.assertEqual(signals.store.list(), [])
+            for name, bad in {
+                "instrument": opinion(instrument="hl:ETH"),
+                "snapshot": opinion(snapshot_id="other"),
+                "authority": opinion(order_authorized=True),
+                "tool": opinion(tool="other"),
+                "gate": opinion(confidence="0.2"),
+                "float rounding": opinion(confidence="0.49999999999999999999"),
+                "bool confidence": opinion(confidence=True),
+                "band": opinion(band="low"),
+                "advisory": opinion(advisory=False),
+                "provider": opinion(provider="made-up"),
+                "no probabilities": opinion(probabilities=None),
+                "not argmax": opinion(probabilities={"long": "0", "short": "1", "wait": "0"}),
+            }.items():
+                with self.subTest(name), self.assertRaisesRegex(ValueError, "[Tt]iming opinion"):
+                    ingest_decision(signals, {**base, "id": "bad-" + name, "timing_opinion": bad}, now_ms=NOW)
+            unavailable = opinion(status="unavailable", choice=None, probabilities=None, confidence=None,
+                                  band=None, effective_opinion=None, model=None, reason="HTTP 529")
+            for i, disagreeing in enumerate([opinion("wait"), opinion("short"), unavailable]):
+                record = {**base, "id": f"n{i}", "timing_opinion": disagreeing}
+                with self.assertRaisesRegex(ValueError, "opinion_note"):
+                    ingest_decision(signals, record, now_ms=NOW)
+                accepted = ingest_decision(signals, {**record, "opinion_note": "Weekly breakout outweighs caution"}, now_ms=NOW)
+                self.assertEqual(accepted["opinion_note"], "Weekly breakout outweighs caution")
+            hold = {**base, "id": "h1", "action": "hold", "timing_opinion": opinion("short")}
+            self.assertEqual(ingest_decision(signals, hold, now_ms=NOW)["action"], "hold")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -507,7 +507,16 @@ python3 -m kis_hl.cli strategy stop --input stop.json
 python3 -m kis_hl.cli strategy size --input size.json
 python3 -m kis_hl.cli strategy register --input strategy-version.json
 python3 -m kis_hl.cli strategy decide --input decision.json
+python3 -m kis_hl.cli strategy opinion --input review.json --dry-run
+python3 -m kis_hl.cli strategy opinion --input review.json
 ```
+
+`strategy opinion` asks TypeSafe AI's Jev model for an advisory `long`/`short`/`wait`
+timing opinion with probabilities and confidence. It needs `TYPESAFE_API_KEY`
+(paid API; `--dry-run` shows the request without a key or network). Attach the
+result to `strategy decide` as `timing_opinion`; it is reference evidence only and
+never authorizes, sizes or blocks an order. See
+[the opinion contract](docs/strategy-tools.md#jev-timing-opinion).
 
 See [input/output contracts](docs/strategy-tools.md) for schemas, required source
 metadata and offline replay. Use [the authoring policy](docs/strategy-authoring.md)

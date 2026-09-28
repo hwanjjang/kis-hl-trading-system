@@ -12,6 +12,7 @@ python3 -m kis_hl.cli strategy evaluate --input setup.json
 python3 -m kis_hl.cli strategy stop --input stop.json
 python3 -m kis_hl.cli strategy size --input size.json
 python3 -m kis_hl.cli --db data/trading.sqlite strategy decide --input decision.json
+python3 -m kis_hl.cli strategy opinion --input review.json [--dry-run]
 ```
 
 Read-only tools accept `--as-of-ms` for offline replay. Decision persistence uses
@@ -160,7 +161,70 @@ within these deadlines; source freshness remains mandatory at submission.
 BTC spot decisions use `signal_instrument: hl:BTC`, only `hl:BTC` execution, and
 retain the explicit spot basis in `setup_input`/evidence.
 
+Optional `timing_opinion` holds a `strategy opinion` result for the same
+`signal_instrument` and `setup_input.snapshot.id`. Decide rejects a mismatched,
+authority-bearing or internally inconsistent opinion: provider, advisory flag,
+probabilities, choice, confidence, band and effective opinion are rechecked. An `enter`/`add` whose
+effective opinion is not `long` (including an unavailable opinion) needs a
+non-empty `opinion_note` explaining why the decision proceeds. The opinion never
+replaces the predicate, confluence or management checks.
+
 Do not change `signal ingest` legacy integrations automatically; `strategy decide`
 is the validated skill interface. Repeated identical decisions are idempotent;
 changed inputs require a new decision ID. Existing signal/plan/journal attribution
 provides the audit path without a second workflow database.
+
+## Jev timing opinion
+
+`strategy opinion` asks TypeSafe AI's Jev model (a calibrated "System One"
+decision model, not a text LLM) one Choice question: is `long`, `short` or `wait`
+best supported now? It is an advisory second opinion for the review, never order
+authority, sizing input or an execution gate. The strategy is long-only: `short`
+means avoid new long exposure or review protection, not open a short.
+
+```json
+{
+  "instrument": "hl:BTC", "snapshot_id": "source-snapshot-id",
+  "asof_ms": 1790006400000, "horizon": "daily swing",
+  "facts": {"breakout_predicate": true, "price_vs_30w_ema": "above, EMA rising",
+            "atr_10d_pct_of_price": "3.1"},
+  "notes": ["Funding neutral"], "min_confidence": "0.5"
+}
+```
+
+`facts` holds 1–40 flat named values (text ≤ 300 characters, booleans or finite
+numbers); `notes` holds at most 10 short strings. Supply tool outputs and named
+buckets already computed by deterministic tools: Jev is weak at arithmetic, date
+comparison and large irrelevant context, so do not ask it to calculate. Only
+`instrument`, `horizon`, `facts` and `notes` are sent; `snapshot_id` and `asof_ms`
+bind the result locally.
+
+The request is `POST {TYPESAFE_BASE_URL}/v1/systemone` (default
+`https://api.typesafe.ai`) with `Authorization: Bearer $TYPESAFE_API_KEY`, a
+10-second timeout, no retries and no redirects (a 3xx is unavailable). The base
+URL must use HTTPS; plain HTTP is accepted only for loopback test stubs. A key
+containing whitespace or control characters is rejected without echoing it. The model defaults to the pinned `jev-1.13.0`
+(override with `--model` or `TYPESAFE_MODEL`) so thresholds do not move silently
+with the `jev-latest` alias; the output records the model that answered.
+`--dry-run` prints the exact request and its `input_sha256` without a key or
+network access.
+
+Output always has `tool: timing_opinion`, `provider: typesafe`, `status`, `instrument`, `snapshot_id`,
+`asof_ms`, `requested_model`, `input_sha256`, `min_confidence`, `advisory: true`
+and `order_authorized: false`. An `available` result adds `model`, raw `choice`,
+decimal-string `probabilities` and `confidence`, `band`, `effective_opinion` and
+token `usage` (null when the response omits valid counts).
+Confidence below `min_confidence` (default 0.5) gives band `low` and effective
+opinion `wait`; at least 0.8 is `high`, otherwise `medium`. HTTP errors
+(401/422/429/529), transport failures, non-JSON bodies, a different option set,
+non-finite or out-of-range probabilities, a sum more than 0.01 from 1, a choice
+that is not a highest-probability option (a tie keeps the model's pick among
+the tied options), confidence outside [0, 1], an answering model ID over 64
+characters or a body over 1 MB produce
+`status: unavailable` with a `reason` and null opinion fields; nothing is guessed.
+A missing key is a configuration error. The key never appears in output.
+
+Jev's answer quality for market timing is unverified in this repository; the
+thresholds are conservative starting values. Each call is billed per input token
+and subject to TypeSafe's dynamic rate limits. Offline verification:
+`python3 scripts/smoke_timing_opinion.py` (local stub, temporary database).

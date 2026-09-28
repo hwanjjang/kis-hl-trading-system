@@ -13,6 +13,7 @@ from kis_hl.risk import (
     n_multiplier_for_asset_class,
 )
 from kis_hl.signals import evaluate_btcusdc_futures_3h_breakout
+from kis_hl.timing_opinion import check_attached
 
 DAY_MS = 86_400_000
 
@@ -287,4 +288,10 @@ def ingest_decision(signals, record, *, now_ms):
             raise ValueError("Management rationale required")
     if action not in {"hold", "no_trade"} and evidence["status"] != "available":
         raise ValueError("Actionable decision requires available evidence")
+    if "timing_opinion" in record:
+        opinion = check_attached(record["timing_opinion"], instrument=signal_instrument,
+                                 snapshot_id=record["setup_input"]["snapshot"].get("id"))
+        note = record.get("opinion_note")
+        if action in {"enter", "add"} and opinion != "long" and not (isinstance(note, str) and note.strip()):
+            raise ValueError("Entry/add against a non-long timing opinion requires opinion_note")
     return signals.ingest({**record, "evidence": evidence}, now_ms=now_ms)
