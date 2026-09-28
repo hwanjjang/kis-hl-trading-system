@@ -43,7 +43,8 @@ brokerage, `03` domestic F&O, `08` overseas F&O, `22`/`29` pension).
   → `access_token`, `access_token_token_expired` (`"YYYY-MM-DD HH:MM:SS"`, KST).
   Token lives ~24h. KIS throttles issuance (about once per minute; re-issuing
   within a few hours returns the same token). `KisClient.get_access_token()` caches
-  it on disk (`KIS_TOKEN_DIR`, mode 0600) and refuses to re-issue within 60s.
+  it on disk (`KIS_TOKEN_DIR`, mode 0600), interprets the expiry in KST, and
+  refuses to re-issue within 60s.
 - `POST /oauth2/Approval` body `{"grant_type":"client_credentials","appkey","secretkey"}`
   (note **`secretkey`**, not `appsecret`) → `approval_key` for WebSocket.
 - `POST /uapi/hashkey` is optional integrity hashing for POST bodies; upstream samples
@@ -128,8 +129,9 @@ resolver exists (see `docs/architecture.md` "Open Risks").
   documented ceilings are 20 req/s live and 2 req/s paper. This repo throttles with
   `KIS_MIN_REQUEST_INTERVAL_MS` (default 300) and retries `EGW00201`
   ("초당 거래건수 초과") with backoff (`KIS_RATE_LIMIT_RETRIES`, `KIS_RATE_LIMIT_DELAY_MS`).
-- 401/403 or token-expiry codes (`EGW00123`) → the client deletes the cached token and
-  retries once. Do not loop token issuance; KIS limits it.
+- 401 or token-expiry code (`EGW00123`) on a GET → the client deletes the cached
+  token and retries once independently of rate-limit retries. Other 403 responses
+  do not invalidate the token. Do not loop token issuance; KIS limits it.
 - Paper accounts do not support every endpoint (e.g. many analysis/ranking APIs,
   some order types). If a paper call returns an "unsupported" message, verify against
   the portal before assuming a bug.
