@@ -251,6 +251,37 @@ These two observations establish neither a variability estimate nor trading
 accuracy; use real snapshots for the following evaluation before operational
 reliance, and repeat it when the model or input construction changes.
 
+Store evaluation artifacts under `<repository-root>/data/jev-calibration/<batch-id>/`.
+Hermes must resolve and record the absolute repository root before starting;
+use the persistent operational checkout, not a temporary review worktree.
+Use a unique batch ID (UTC timestamp plus a random suffix), never overwrite a
+previous batch, and preserve this directory when moving the operational checkout.
+`data/` is Git-ignored: these are local evidence artifacts, not PR attachments
+or a new strategy-state database.
+
+Each batch uses the following layout:
+
+- `manifest.json`: batch ID, creation time, absolute batch path, model, threshold,
+  planned snapshot/repeat counts, budget, outcome definition and split assignment.
+- `inputs/<snapshot-key>.json`: exact frozen `strategy opinion` input for each
+  snapshot. Use safe local keys and map them to source snapshot IDs in the manifest.
+- `runs/<snapshot-key>/<run-id>.json`: one record per attempt containing run ID,
+  UTC call time, exit code and the unchanged tool result, including `unavailable`.
+  If the CLI fails without JSON output, record the failure instead of omitting
+  the attempt; exclude credentials and unsanitized transport diagnostics.
+- `summary.json`: per-snapshot counts and variability statistics, plus the
+  calculation method and parameters used to reproduce them.
+- `evaluation.md`: held-out outcome evidence, threshold comparison, conclusion
+  and limitations, with relative links to the manifest, inputs, runs and summary.
+
+Link each calibration claim to the absolute `evaluation.md` path and identify
+the batch ID. A recipient without access to that filesystem cannot verify a local
+link; disclose that limitation rather than claiming the evidence was shared.
+No batch runner or aggregation script is provided yet: Hermes must explicitly
+save each attempt and calculate the summary with code. If the artifacts or
+held-out evaluation are incomplete, report calibration as incomplete and retain
+the provisional threshold; a directory alone is not calibration evidence.
+
 1. Freeze a representative set of real market snapshots across instruments,
    setups and market conditions. Preserve the tool-computed facts, notes,
    horizon, source timestamps and snapshot IDs. Fix the requested model version,
