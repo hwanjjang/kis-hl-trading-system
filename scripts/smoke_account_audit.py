@@ -137,7 +137,8 @@ def main():
         cli('data','audit-apply','--report',str(stale),'--sha256',s['sha256'],error='stale')
         with sqlite3.connect(db) as conn:
             assert conn.execute('SELECT count(*) FROM fact_revisions').fetchone()[0]==6
-            assert conn.execute('SELECT count(*) FROM analysis_runs').fetchone()[0]==6
+            assert conn.execute("SELECT count(*) FROM analysis_runs WHERE kind='journal'").fetchone()[0]==6
+            assert conn.execute("SELECT count(*) FROM analysis_runs WHERE kind='position_change'").fetchone()[0]==5
         missing=json.loads(kis.read_text());missing['sources'][0]['data']={'days':[],'orders':[],'costs_by_day_symbol':{}}
         missing['evidence']=[];bad=root/'missing.json';bad.write_text(json.dumps(missing))
         blocked=root/'blocked.json';b=cli('data','audit-compare','--bundle',str(bad),'--output',str(blocked))

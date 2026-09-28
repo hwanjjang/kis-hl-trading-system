@@ -148,6 +148,9 @@ class DataStore:
                     (dataset, scope, key, old['revision']+1 if old else 1, payload.get('instrument',''), start, end, known, body, digest, old['id'] if old else None))
                 fact_id = cursor.lastrowid
             db.execute('INSERT OR IGNORE INTO fact_sources VALUES(?,?,?)', (fact_id, observation, str(locator)))
+            if dataset == 'trade' and (old is None or old['digest'] != digest):
+                from kis_hl.position_journal import record_change
+                record_change(db, fact_id)
             return fact_id
 
     def facts(self, dataset=None, *, scope=None, as_of_ms=None):
