@@ -167,3 +167,16 @@ and cost corroboration or a recognized `01` sell / `02` buy side. Every executed
 order must be represented exactly once by date, symbol, side and order ID in the
 normalized facts. Unknown-side zero-executed orders do not create trades. Capture
 and audit reuse this validation; re-derived apply rejects before journal writes.
+
+
+## Position activity versus completed records
+
+Canonical trade revisions automatically produce immutable source-linked position
+activity in `analysis_runs(kind=position_change)`, atomically with each new fact.
+This is separate from the flat-to-flat completed-record boundary and does not change
+any of the nine statistics. `data journal` exposes the effective population under
+`position_changes`; open entries, adds and reductions are activity, not additional
+completed trades. Corrections replace source quantities rather than adding fills.
+Unknown inventory and source time precision remain explicit. See the
+[automatic recording contract](../../../../docs/unified-data-operations.md#automatic-position-change-journals)
+for source granularity, revision history, existing facts and collection limits.

@@ -42,6 +42,11 @@ class ReplayExchange:
             "coin": "BTC", "szi": self.size, "entryPx": "100000", "positionValue": "100000"}}]
         return {"assetPositions": positions, "withdrawable": "1000000"}
 
+    def active_asset_data(self, symbol):
+        assert symbol == "BTC"
+        self.reads.add("buying_power")
+        return {"maxTradeSzs": ["10", "10"], "availableToTrade": ["1000000", "1000000"]}
+
     def l2_book(self, symbol):
         assert symbol == "BTC"
         return {"time": self.now, "levels": [[{"px": "100000"}], [{"px": "100000.1"}]]}
@@ -157,7 +162,7 @@ def replay_managed_lifecycle(root, *, reject_trailing, condition_failure=None):
     observed = step(7002, restart=True)
     assert exchange.sent == ["entry", "stop", "trailing", "exit"], observed
     assert observed["exit_requested_ms"] is not None
-    assert exchange.reads == {"metadata", "closed_daily_bars", "order_status", "fills"}
+    assert exchange.reads == {"metadata", "closed_daily_bars", "order_status", "fills", "buying_power"}
     assert [a["kind"] for a in store.attempts(row["id"])] == exchange.sent
     return True
 

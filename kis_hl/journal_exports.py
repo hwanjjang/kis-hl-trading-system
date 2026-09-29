@@ -208,7 +208,9 @@ def journal(store, accounts, *, as_of_ms=None):
                 unresolved_segments=sum(c.get('invalidated_end_ms') is not None for c in cs),
                 coverage_status='verified' if cs and not problems and all(not c['reasons'] for c in cs) else 'partial_or_unverified',
                 statistics_by_strategy={s:statistics([c for c in cs if c['strategy']==s]) for s in {c['strategy'] for c in cs}}))
+    from kis_hl.position_journal import report_changes
     result=serial(dict(accounts=accounts,as_of_ms=asof,summary_by_account_currency=summaries,cycles=cycles,quality_findings=issues,
+                       position_changes=report_changes(store,trades),
                        currency_conversion=None,capital_return=None,metric_version='canonical-v1',
                        inventory_policy_version=INVENTORY_POLICY_VERSION,coverage_evidence=coverage))
     run=store.pin('journal',{'accounts':accounts,'metric_version':'canonical-v1',

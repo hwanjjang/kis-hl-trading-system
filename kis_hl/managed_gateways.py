@@ -440,6 +440,16 @@ class ManagedKisGateway:
             key, now=datetime.fromtimestamp(now / 1000, timezone.utc)
         ).allowed
 
+    def _same_execution_session(self, asset, previous, now):
+        """Whether an observation gap stayed inside one regular cash session."""
+        zone = ZoneInfo("Asia/Seoul" if asset.market == "domestic" else "America/New_York")
+        return (
+            datetime.fromtimestamp(previous / 1000, zone).date()
+            == datetime.fromtimestamp(now / 1000, zone).date()
+            and self._session(asset, previous)
+            and self._session(asset, now)
+        )
+
     def _history(self, asset, created, now):
         zone = ZoneInfo(
             "Asia/Seoul" if asset.market == "domestic" else "America/New_York"
@@ -737,9 +747,16 @@ class ManagedKisGateway:
         )
         sellable = pos["ord_psbl_qty"] if pos else "0"
         session_open = self._session(asset, now)
+        session_unavailable_reason = None
+        same_session = self._same_execution_session(asset, row.get("last_observed_ms", now), now)
         try:
             price, ask, stamp = self._quote(asset)
         except KisSessionClosed:
+            session_unavailable_reason = (
+                "No current-session execution date; execution availability unverified "
+                "(holiday, suspended instrument, or delayed data); local protection unavailable"
+                if session_open else "Execution session closed; local protection unavailable"
+            )
             price, ask, stamp, session_open = Decimal(0), Decimal(0), 0, False
         except (ValueError, KeyError, IndexError, RuntimeError, OSError):
             price, ask, stamp = Decimal(0), Decimal(0), 0
@@ -751,6 +768,8 @@ class ManagedKisGateway:
             "time_ms": stamp,
             "sellable": sellable,
             "session_open": session_open,
+            "same_execution_session": same_session,
+            "session_unavailable_reason": session_unavailable_reason,
             "foreign_add": foreign,
             "consistent": net == size,
             "orders": orders,

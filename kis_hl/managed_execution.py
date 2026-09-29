@@ -717,10 +717,19 @@ class Supervisor:
             row["exit_requested_ms"] = row["exit_requested_ms"] or now
         row["protective_filled"] = str(protective_filled)
         previous_observation = row.get("last_observed_ms", now)
+        same_session = (
+            snap.get("same_execution_session", True)
+            and row.get("last_session_open", True)
+        )
         row["last_observed_ms"] = now
+        row["last_session_open"] = bool(snap["session_open"])
+        if not self.gateway.native_sl and not same_session:
+            row.pop("unprotected_since_ms", None)
         if (
             size > 0
             and not self.gateway.native_sl
+            and same_session
+            and snap["session_open"]
             and now - previous_observation >= p["protection_grace_ms"]
         ):
             row["exit_requested_ms"] = row["exit_requested_ms"] or now
@@ -1133,7 +1142,10 @@ class Supervisor:
             self._state(
                 row,
                 "DEGRADED",
-                "Stale market data; reconcile fills and retain native protection",
+                snap.get("session_unavailable_reason") or (
+                    "Stale market data; reconcile fills and retain native protection"
+                    if self.gateway.native_sl else "Stale market data; local protection unavailable"
+                ),
                 now,
             )
         else:

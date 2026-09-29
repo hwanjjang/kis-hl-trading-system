@@ -148,6 +148,9 @@ class DataStore:
                     (dataset, scope, key, old['revision']+1 if old else 1, payload.get('instrument',''), start, end, known, body, digest, old['id'] if old else None))
                 fact_id = cursor.lastrowid
             db.execute('INSERT OR IGNORE INTO fact_sources VALUES(?,?,?)', (fact_id, observation, str(locator)))
+            if dataset == 'trade' and (old is None or old['digest'] != digest):
+                from kis_hl.position_journal import record_change
+                record_change(db, fact_id)
             return fact_id
 
     def facts(self, dataset=None, *, scope=None, as_of_ms=None):
@@ -194,7 +197,10 @@ class DataStore:
                 derived = {key for key, inputs in dependencies.items() if stale.intersection(inputs)}
                 if derived <= stale: break
                 stale.update(derived)
-            stale_runs = {r['run_id'] for r in db.execute('SELECT run_id,fact_id FROM analysis_inputs') if r['fact_id'] in stale}
+            # Superseded activity is immutable history, not an outdated analysis.
+            stale_runs = {r['run_id'] for r in db.execute(
+                "SELECT i.run_id,i.fact_id FROM analysis_inputs i JOIN analysis_runs r "
+                "ON r.id=i.run_id WHERE r.kind!='position_change'") if r['fact_id'] in stale}
             for run in db.execute('SELECT * FROM analysis_runs'):
                 parameters=json.loads(run['parameters'])
                 if run['kind']!='journal':

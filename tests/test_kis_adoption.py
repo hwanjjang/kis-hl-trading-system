@@ -1,10 +1,11 @@
 """KIS domestic holding handoff into local SL/trailing supervision (offline fixtures)."""
 import tempfile
 import unittest
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from kis_hl.managed_execution import ExecutionStore, Supervisor
 from kis_hl.managed_gateways import KisSessionClosed, ManagedKisGateway
@@ -116,6 +117,104 @@ class KisAdoptionTests(unittest.TestCase):
         self.g.session = True
         self.assertEqual(self.step(NOW + 400_000)["state"], "PROTECTED")
         self.assertEqual(self.g.sent, [])
+
+    def test_closed_session_observation_gap_survives_restart(self):
+        self.row = self.adopt()
+        self.step(NOW + 1_000)
+        self.g.session = False
+        self.step(NOW + 2_000)
+        result = self.step(NOW + 192_000)
+        self.assertIsNone(result["exit_requested_ms"])
+        # New supervisor instance must use persisted availability evidence.
+        self.worker = Supervisor(ExecutionStore(self.store.path), self.g, live=True)
+        self.g.session = True
+        result = self.step(NOW + 400_000)
+        self.assertEqual(result["state"], "PROTECTED")
+        self.assertIsNone(result["exit_requested_ms"])
+        self.assertEqual(self.g.sent, [])
+
+    def test_overnight_open_to_open_gap_does_not_exit(self):
+        for days in (1, 3):
+            with self.subTest(days=days):
+                self.setUp()
+                self.row = self.adopt()
+                self.step(NOW + 1_000)
+                self.step(NOW + 2_000)
+                result = self.step(NOW + days * 86_400_000)
+                self.assertEqual(result["state"], "PROTECTED")
+                self.assertIsNone(result["exit_requested_ms"])
+                self.assertEqual(self.g.sent, [])
+
+    def test_same_session_gap_still_exits(self):
+        self.row = self.adopt()
+        self.step(NOW + 1_000)
+        self.step(NOW + 2_000)
+        self.step(NOW + 122_000)
+        self.assertEqual(len(self.g.sent), 1)
+        self.assertEqual(self.g.sent[0]["quantity"], "3")
+
+    def test_stale_quotes_in_session_still_exhaust_grace(self):
+        self.row = self.adopt()
+        self.step(NOW + 1_000)
+        self.step(NOW + 2_000)
+        with patch.object(self.g, "_quote", return_value=(*self.g.quote, NOW - 60_000)):
+            for offset in range(3_000, 124_000, 10_000):
+                result = self.step(NOW + offset)
+        self.assertIsNotNone(result["exit_requested_ms"])
+        self.step(NOW + 124_000)
+        self.assertEqual(len(self.g.sent), 1)
+        self.assertEqual(self.g.sent[0]["kind"], "exit")
+
+    def test_prior_session_stale_budget_does_not_leak_into_next_session(self):
+        self.row = self.adopt()
+        self.step(NOW + 1_000)
+        self.step(NOW + 2_000)
+        with patch.object(self.g, "_quote", return_value=(*self.g.quote, NOW - 60_000)):
+            self.step(NOW + 3_000)
+            result = self.step(NOW + 86_400_000)
+        self.assertIsNone(result["exit_requested_ms"])
+        self.assertEqual(result["unprotected_since_ms"], NOW + 86_400_000)
+
+    def test_reopen_below_stop_still_exits(self):
+        self.row = self.adopt()
+        self.step(NOW + 1_000)
+        self.step(NOW + 2_000)
+        self.g.quote = (Decimal("102650"), Decimal("102660"))
+        self.step(NOW + 86_400_000)
+        self.assertEqual(len(self.g.sent), 1)
+        self.assertEqual(self.g.sent[0]["quantity"], "3")
+
+    def test_missing_current_date_quote_has_explicit_diagnostic_and_recovers(self):
+        self.row = self.adopt()
+        self.step(NOW + 1_000)
+        self.g.client.order_book.return_value = SimpleNamespace(status=200, body={
+            "rt_cd": "0", "output1": {"aspr_acpt_hour": "100000", "bidp1": "109985", "askp1": "109990"}})
+        self.g.client.domestic_intraday_chart.return_value = SimpleNamespace(status=200, body={
+            "rt_cd": "0", "output2": [{"stck_bsop_date": "20000101"}]})
+        # Exercise production date parsing, not the fixture's _quote override.
+        with patch.object(self.g, "_quote", side_effect=lambda asset: ManagedKisGateway._quote(self.g, asset)):
+            result = self.step(NOW + 2_000)
+        self.assertEqual(result["state"], "DEGRADED")
+        self.assertEqual(result["covered_size"], "0")
+        self.assertIn("current-session", result["reason"])
+        self.assertIn("unverified", result["reason"])
+        self.assertIsNone(result["exit_requested_ms"])
+        self.assertEqual(self.step(NOW + 400_000)["state"], "PROTECTED")
+        self.assertEqual(self.g.sent, [])
+
+    def test_real_calendar_session_continuity(self):
+        def ms(value):
+            return int(datetime.fromisoformat(value).timestamp() * 1000)
+        asset = self.g._asset("kis:069500")
+        gateway = ManagedKisGateway(self.g.client)
+        for start, end, expected in (
+            ("2026-09-28T10:00:00+09:00", "2026-09-28T10:03:00+09:00", True),
+            ("2026-09-28T15:20:00+09:00", "2026-09-29T09:01:00+09:00", False),
+            ("2026-09-25T15:20:00+09:00", "2026-09-28T09:01:00+09:00", False),
+            ("2026-09-28T08:00:00+09:00", "2026-09-28T09:01:00+09:00", False),
+        ):
+            with self.subTest(start=start, end=end):
+                self.assertEqual(gateway._same_execution_session(asset, ms(start), ms(end)), expected)
 
     def test_rejects_mismatched_or_ambiguous_holdings(self):
         cases = {

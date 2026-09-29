@@ -413,7 +413,7 @@ Hyperliquid (including trade.xyz RWA) entries may be placed at any HL trading ti
 - BTCUSDC futures should be passed as `BTCUSDC-PERP`, `BTC-PERP`, or `BTCPERP`; these resolve to Hyperliquid's `BTC` perp coin.
 - The BTCUSDC futures 3H breakout rule is implemented as signal evaluation only. It does not place a live order by itself.
 - `btc-3h-monitor` is the first spot-websocket-to-perp execution path. It still relies on process-local duplicate-entry prevention and does not yet reconcile existing BTC positions before a live order.
-- Completed trades should be recorded through `journal add` until fill reconciliation can write journal entries automatically.
+- Canonical ingestion automatically records position activity; use `data journal` for activity and completed-cycle statistics. Legacy manual records use `journal add`.
 - trade.xyz assets should be passed as `xyz:ASSET` or with `--dex xyz`.
 - Live trade.xyz orders are limited to assets marked tradable in the local mapping table.
 - Live trade.xyz orders also require a recent successful `xyz-assets verify` check in SQLite.
@@ -460,6 +460,11 @@ Trailing IOC attempts carry a signed `expiresAfter` equal to the source price re
 
 The unified store preserves raw evidence, corrected fact revisions, separate
 KIS/tradefi journals and reproducible analysis in `data/kis_hl.sqlite`.
+Every newly ingested trade revision automatically writes a source-linked position
+change journal. `data journal` includes entry/add/reduction/close/reversal activity
+where inventory is evidenced, alongside the existing completed-trade statistics.
+Recording happens on collection/import; an active collector is still required
+for scheduled updates. See the [recording contract](docs/unified-data-operations.md#automatic-position-change-journals).
 
 ```bash
 python3 -m kis_hl.cli data migrate --apply

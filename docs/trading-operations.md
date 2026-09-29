@@ -461,6 +461,23 @@ adoptions before rolling back to code without this state support.
 
 ### KIS domestic holding handoff
 
+Local protection observation gaps count only within the same regular execution
+session. Overnight/weekend downtime and a restart after a closed-session
+observation do not independently request an exit. This applies to all managed KIS
+local-SL positions, including existing positions. A new session starts a fresh
+unprotected-data grace period; an already requested exit is never cleared.
+Same-session observation gaps still request an exit after `protection_grace_ms`,
+and a fresh opening quote below the fixed stop still triggers the normal exit.
+
+A missing current-session execution date does **not** prove an exchange holiday:
+it may also indicate a suspended instrument or delayed data. The supervisor
+reports a distinct `DEGRADED` reason with execution availability unverified and
+zero local coverage, and continues reconciliation until current data returns.
+Operators must investigate a persistent diagnostic during expected session hours;
+there is no verified holiday calendar or executable protection while quotes are
+unavailable. Ordinary stale/error quotes during an open session retain the
+bounded grace/exit policy.
+
 A KIS domestic long bought outside the system (for example in the MTS/HTS) can be
 handed to the KIS supervisor for **local** fixed-SL and nine-minute trailing
 protection. KIS has no verified Open API protective order, so nothing is imported
