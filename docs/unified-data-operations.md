@@ -545,7 +545,8 @@ commands and managed order snapshots do not feed the canonical store automatical
 and statistics. Each effective source revision includes its account, instrument,
 currency, event interval/precision, source grain, signed quantity, before/after
 inventory when provided, economics, attribution, source fact ID and `journal_id`.
-That ID can be exported through the existing `data export --report-id` command.
+That journal ID can be exported through the existing `data export --report-id` command.
+Activity preserves both a native `order_id` and KIS grouped `order_ids` when supplied.
 The activity record is an immutable structured audit log linked to raw evidence by
 `analysis_inputs -> fact_revisions -> fact_sources -> source_observations`.
 
@@ -561,7 +562,9 @@ an immutable `record_type=revision` entry with `supersedes_fact_id`. Its quantit
 replaces the previous source quantity; it is **not an additional fill or quantity
 delta**. Fee-only corrections are revisions too. Reports include only the effective
 revision at their as-of time. Superseded automatic records and previous reports remain
-exportable. Pre-feature facts appear as `recording=historical_projection` with a null
+exportable. Superseded activity is intentional history and is excluded from
+`data status` `stale_runs`; dependent performance reports and analyses still become
+stale when their inputs are superseded. Pre-feature facts appear as `recording=historical_projection` with a null
 `journal_id`; reading a report never backfills or rewrites old history.
 
 Recording occurs when source evidence is ingested, not when the exchange executes.

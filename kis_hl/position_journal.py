@@ -47,7 +47,8 @@ def change_entry(fact):
                 price=payload.get('price'), notional=payload.get('notional'),
                 total_cost=payload.get('total_cost'), costs=payload.get('costs', {}),
                 strategy=payload.get('strategy', 'unassigned'),
-                origin=payload.get('origin', 'unknown'), order_id=payload.get('order_id'))
+                origin=payload.get('origin', 'unknown'), order_id=payload.get('order_id'),
+                order_ids=payload.get('order_ids'))
 
 
 def record_change(db, fact_id):

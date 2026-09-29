@@ -180,3 +180,32 @@ class PositionJournalTests(unittest.TestCase):
         self.assertEqual(len(report['cycles']), 1)
         stats = report['summary_by_account_currency'][0]['statistics_by_strategy']['unassigned']
         self.assertEqual(stats['trade_count'], 1)
+
+
+    def test_superseded_activity_is_history_but_reports_and_analyses_are_stale(self):
+        row = self.fill(1, '0')
+        fact_id = self.ingest(row)[0]
+        old_report = journal(self.store, [self.account])['report_id']
+        analysis = self.store.pin('analysis', {}, [fact_id], {})
+        self.assertEqual(self.store.status()['stale_runs'], [])
+        self.ingest({**row, 'sz': '2'}, allow_correction=True)
+        self.assertEqual(self.store.status()['stale_runs'], sorted([old_report, analysis]))
+        self.assertEqual(len(self.entries()), 2)
+        fresh = journal(self.store, [self.account])['report_id']
+        self.assertNotIn(fresh, self.store.status()['stale_runs'])
+
+    def test_kis_reconciled_order_ids_survive_record_and_report(self):
+        account = self.store.account('kis', 'sim', 'orders')
+        row = dict(source_id='grouped', instrument='kis:005930', currency='KRW',
+                   event_start_ms=100, event_end_ms=86400100, time_precision='DAY',
+                   grain='DAY_SYMBOL_SIDE_RECONCILED', side='buy', quantity='2',
+                   price='10', notional='20', total_cost='0', order_ids=['001', '002'])
+        ingest_rows(self.store, account, 'statement', [row])
+        entry = self.entries()[0]['result']
+        self.assertEqual(entry['order_ids'], ['001', '002'])
+        self.assertIsNone(entry['order_id'])
+        self.assertEqual(journal(self.store, [account])['position_changes'][0]['order_ids'], ['001', '002'])
+        self.ingest(self.fill(1, '0'))
+        native = self.entries()[-1]['result']
+        self.assertEqual(native['order_id'], '1')
+        self.assertIsNone(native['order_ids'])
