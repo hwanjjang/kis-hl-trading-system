@@ -15,7 +15,10 @@ from kis_hl.hyperliquid.client import (
     extract_hyperliquid_order_id,
     is_supported_live_asset,
 )
-from kis_hl.trading_hours import trading_session_decision_for_resolved_asset
+from kis_hl.trading_hours import (
+    SESSION_KRX_CASH, SESSION_US_CASH, regular_cash_session_elapsed_ms,
+    trading_session_decision_for_resolved_asset,
+)
 
 KRX_BAR_FINAL = dt_time(15, 40)
 
@@ -748,7 +751,8 @@ class ManagedKisGateway:
         sellable = pos["ord_psbl_qty"] if pos else "0"
         session_open = self._session(asset, now)
         session_unavailable_reason = None
-        same_session = self._same_execution_session(asset, row.get("last_observed_ms", now), now)
+        previous = row.get("last_observed_ms", now)
+        same_session = self._same_execution_session(asset, previous, now)
         try:
             price, ask, stamp = self._quote(asset)
         except KisSessionClosed:
@@ -760,6 +764,11 @@ class ManagedKisGateway:
             price, ask, stamp, session_open = Decimal(0), Decimal(0), 0, False
         except (ValueError, KeyError, IndexError, RuntimeError, OSError):
             price, ask, stamp = Decimal(0), Decimal(0), 0
+        observed_now = int(time.time() * 1000)
+        session_gap_ms = regular_cash_session_elapsed_ms(
+            previous, observed_now,
+            session_group=SESSION_KRX_CASH if asset.market == "domestic" else SESSION_US_CASH,
+        )
         return {
             "size": str(size),
             "entry_price": entry_price,
@@ -769,13 +778,14 @@ class ManagedKisGateway:
             "sellable": sellable,
             "session_open": session_open,
             "same_execution_session": same_session,
+            "regular_session_gap_ms": session_gap_ms,
             "session_unavailable_reason": session_unavailable_reason,
             "foreign_add": foreign,
             "consistent": net == size,
             "orders": orders,
             "quantity_step": "1",
             "price_step": row["plan"].get("verified_price_step", "0"),
-            "observed_now_ms": int(time.time() * 1000),
+            "observed_now_ms": observed_now,
         }
 
     def submit(self, row, a):

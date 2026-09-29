@@ -17,6 +17,29 @@ from kis_hl.trading_hours import (
 
 
 class TradingHoursTests(unittest.TestCase):
+    def test_regular_cash_session_elapsed_time_excludes_closures(self):
+        from kis_hl.trading_hours import regular_cash_session_elapsed_ms
+
+        def ms(value):
+            return int(datetime.fromisoformat(value).timestamp() * 1000)
+
+        cases = (
+            (SESSION_KRX_CASH, "2026-09-28T15:00:00+09:00", "2026-09-29T14:00:00+09:00", 330 * 60_000),
+            (SESSION_KRX_CASH, "2026-09-25T15:00:00+09:00", "2026-09-28T14:00:00+09:00", 330 * 60_000),
+            (SESSION_KRX_CASH, "2026-09-25T15:30:00+09:00", "2026-09-28T09:00:00+09:00", 0),
+            (SESSION_KRX_CASH, "2026-09-25T16:00:00+09:00", "2026-09-28T16:00:00+09:00", 390 * 60_000),
+            (SESSION_KRX_CASH, "2026-09-28T15:29:00+09:00", "2026-09-29T09:01:00+09:00", 120_000),
+            (SESSION_KRX_CASH, "2026-09-28T15:30:00+09:00", "2026-09-29T09:00:00+09:00", 0),
+            (SESSION_US_CASH, "2026-10-30T16:00:00-04:00", "2026-11-02T09:30:00-05:00", 0),
+            (SESSION_US_CASH, "2026-10-30T15:59:00-04:00", "2026-11-02T09:31:00-05:00", 120_000),
+            (SESSION_US_CASH, "2026-03-06T15:59:00-05:00", "2026-03-09T09:31:00-04:00", 120_000),
+        )
+        for group, start, end, expected in cases:
+            with self.subTest(group=group, start=start, end=end):
+                self.assertEqual(regular_cash_session_elapsed_ms(ms(start), ms(end), session_group=group), expected)
+        self.assertEqual(regular_cash_session_elapsed_ms(100, 100, session_group=SESSION_KRX_CASH), 0)
+        self.assertEqual(regular_cash_session_elapsed_ms(200, 100, session_group=SESSION_KRX_CASH), 0)
+
     def test_native_eth_perpetual_is_available_on_weekends(self):
         decision = trading_session_decision_for_symbol(
             "ETH", now=datetime(2026, 9, 12, 20, tzinfo=ZoneInfo("UTC"))

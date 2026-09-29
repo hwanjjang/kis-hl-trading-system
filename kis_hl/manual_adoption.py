@@ -135,7 +135,7 @@ def verify_kis_adoption(gateway, row, now):
     filled = gateway._quantity(entry, asset.market)
     if entry.get("cncl_yn") == "Y" or filled != decimal(entry["ord_qty"]):
         raise ValueError("Identified buy is not fully filled")
-    open_rows = gateway.client.account_pages("domestic_orders", exchange="NASD")["output"]
+    open_rows = gateway.client.account_pages("domestic_orders")["output"]
     if any(r["pdno"] == asset.symbol for r in open_rows):
         raise ValueError("Open orders for the instrument block handoff")
     rows = gateway._rows(asset)

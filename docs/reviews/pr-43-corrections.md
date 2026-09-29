@@ -7,9 +7,10 @@ workflow's default medium effort).
 
 ## Required changes
 
-- Count a local-protection observation gap only when both observations belong to
-  the same regular execution session and the previous/current venue availability
-  is open. Persist the last availability observation for restart recovery.
+- Count unobserved regular-session time across the entire gap, including open
+  portions before a close and after reopening. Exclude nights/weekends, not
+  arbitrary date boundaries. Previously unavailable quotes do not excuse later
+  unobserved scheduled open time.
 - Reset an unrequested stale-coverage grace period at a new session, preserving
   any already requested exit. Keep same-session gap exits and opening stop checks.
 - Distinguish missing current-session date evidence from generic stale data in
@@ -34,12 +35,13 @@ its existing replay fixture fix is necessary for the native handoff smoke.
 ## Verification contract
 
 Regression cases cover closed-to-closed downtime, persisted closed-to-open
-restart, overnight/weekend open-to-open restart, stale-budget separation,
+restart, long cross-date open-time outages, pure overnight/weekend downtime,
+split-session grace boundaries, stale-budget separation,
 same-session observation gaps, stale quote grace, real missing-date quote parsing
 and diagnostics/recovery, opening fixed-stop breach and calendar boundaries.
 
-`python -m unittest tests.test_kis_adoption tests.test_managed_execution tests.test_managed_gateways -q`
-passes 59 tests after the correction. The added
+`python -m unittest tests.test_kis_adoption tests.test_trading_hours tests.test_managed_execution tests.test_managed_gateways -q`
+passes 74 tests after the follow-up correction. The added
 `PYTHONPATH=. python scripts/smoke_kis_handoff.py` exercises CLI parsing, SQLite,
 recreated supervisors and bounded exit with an offline exchange boundary.
 Full-suite, existing smoke and independent review results are recorded on the PR
@@ -47,3 +49,12 @@ against its exact final commit. No live venue behavior is claimed.
 
 For the compact canonical task artifacts and detailed local execution evidence,
 see `reports/sdlc/pr-43/` in the task workspace; it is intentionally ignored by Git.
+
+## Review 5353614755 follow-up
+
+The original same-session-only exemption was too broad and is superseded by
+regular-session elapsed-time accounting. Tests now use actual KRX clock windows;
+long cross-date and full-session outages retain exit requests. The two stale
+session descriptions and the unused domestic-adoption NASD argument are corrected.
+The PR summary explicitly lists the existing small-account allocation and KOSPI
+cross-venue timing policy additions; their content is not changed here.

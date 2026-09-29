@@ -11,7 +11,11 @@ from kis_hl.managed_execution import ExecutionStore, Supervisor
 from kis_hl.managed_gateways import KisSessionClosed, ManagedKisGateway
 from kis_hl.manual_adoption import verify_kis_adoption
 
-NOW = 1_790_700_000_000
+def ms(value):
+    return int(datetime.fromisoformat(value).timestamp() * 1000)
+
+
+NOW = ms("2026-09-28T10:00:00+09:00")
 BUY = {"pdno": "069500", "odno": "0017865300", "sll_buy_dvsn_cd": "02", "ord_qty": "3",
        "tot_ccld_qty": "3", "cncl_yn": ""}
 
@@ -55,16 +59,17 @@ class FixtureKisGateway(ManagedKisGateway):
         return "2901", {"instrument": asset.id, "basis": "fixture"}
 
     def _session(self, asset, now):
-        return self.session
+        return self.session and super()._session(asset, now)
 
     def _quote(self, asset):
-        if not self.session:
+        if not self._session(asset, self._clock):
             raise KisSessionClosed("closed")
         return self.quote[0], self.quote[1], int(self._clock)
 
     def snapshot(self, row, attempts, now):
         # Owned entry order status comes from history; keep the fixture clock consistent.
-        return {**super().snapshot(row, attempts, now), "observed_now_ms": int(self._clock)}
+        with patch("kis_hl.managed_gateways.time.time", return_value=self._clock / 1000):
+            return super().snapshot(row, attempts, now)
 
     def submit(self, row, a):
         self.sent.append(dict(a))
@@ -79,10 +84,10 @@ class KisAdoptionTests(unittest.TestCase):
         self.g = FixtureKisGateway()
         self.worker = Supervisor(self.store, self.g, live=True)
 
-    def adopt(self, p=None):
-        return self.store.enqueue_adoption(self.g.scope, p or plan(), entry_order_id="0017865300",
-                                           stop_order_id=None, live=True, now_ms=NOW,
-                                           entry_since_ms=NOW - 3_600_000)
+    def adopt(self, p=None, at=NOW):
+        return self.store.enqueue_adoption(self.g.scope, p or plan(expires_ms=at + 600_000), entry_order_id="0017865300",
+                                           stop_order_id=None, live=True, now_ms=at,
+                                           entry_since_ms=at - 3_600_000)
 
     def step(self, at):
         self.g._clock = at
@@ -106,44 +111,69 @@ class KisAdoptionTests(unittest.TestCase):
         self.assertEqual(self.g.sent[-1]["quantity"], "3")
 
     def test_closed_session_is_not_forced_to_exit_at_next_open(self):
-        self.row = self.adopt()
-        self.step(NOW + 1_000)
-        self.g.session = False
-        # Poll every 5 s (supervisor cadence) for far longer than the protection grace.
-        for offset in range(10_000, 400_000, 5_000):
-            result = self.step(NOW + offset)
+        close = ms("2026-09-28T15:30:00+09:00")
+        self.row = self.adopt(at=close - 2_000)
+        self.step(close - 1_000)
+        for offset in range(0, 400_000, 5_000):
+            result = self.step(close + offset)
         self.assertEqual(result["covered_size"], "0")
         self.assertIsNone(result["exit_requested_ms"])
-        self.g.session = True
-        self.assertEqual(self.step(NOW + 400_000)["state"], "PROTECTED")
+        self.assertEqual(self.step(ms("2026-09-29T09:00:00+09:00"))["state"], "PROTECTED")
         self.assertEqual(self.g.sent, [])
 
     def test_closed_session_observation_gap_survives_restart(self):
-        self.row = self.adopt()
-        self.step(NOW + 1_000)
-        self.g.session = False
-        self.step(NOW + 2_000)
-        result = self.step(NOW + 192_000)
-        self.assertIsNone(result["exit_requested_ms"])
-        # New supervisor instance must use persisted availability evidence.
-        self.worker = Supervisor(ExecutionStore(self.store.path), self.g, live=True)
-        self.g.session = True
-        result = self.step(NOW + 400_000)
-        self.assertEqual(result["state"], "PROTECTED")
-        self.assertIsNone(result["exit_requested_ms"])
-        self.assertEqual(self.g.sent, [])
-
-    def test_overnight_open_to_open_gap_does_not_exit(self):
-        for days in (1, 3):
-            with self.subTest(days=days):
+        for close_day, reopen_day in (("2026-09-28", "2026-09-29"), ("2026-09-25", "2026-09-28")):
+            with self.subTest(close_day=close_day):
                 self.setUp()
-                self.row = self.adopt()
-                self.step(NOW + 1_000)
-                self.step(NOW + 2_000)
-                result = self.step(NOW + days * 86_400_000)
+                close = ms(close_day + "T15:30:00+09:00")
+                self.row = self.adopt(at=close - 2_000)
+                self.step(close - 1_000)
+                self.step(close)
+                self.assertIsNone(self.step(close + 190_000)["exit_requested_ms"])
+                self.worker = Supervisor(ExecutionStore(self.store.path), self.g, live=True)
+                result = self.step(ms(reopen_day + "T09:00:01+09:00"))
                 self.assertEqual(result["state"], "PROTECTED")
                 self.assertIsNone(result["exit_requested_ms"])
                 self.assertEqual(self.g.sent, [])
+
+    def test_cross_date_open_session_outage_still_exits(self):
+        for start, end in (
+            ("2026-09-28T15:00:00+09:00", "2026-09-29T14:00:00+09:00"),
+            ("2026-09-25T15:00:00+09:00", "2026-09-28T14:00:00+09:00"),
+        ):
+            with self.subTest(start=start):
+                self.setUp()
+                previous = ms(start)
+                self.row = self.adopt(at=previous - 2_000)
+                self.step(previous - 1_000)
+                self.step(previous)
+                self.worker = Supervisor(ExecutionStore(self.store.path), self.g, live=True)
+                result = self.step(ms(end))
+                self.assertIsNotNone(result["exit_requested_ms"])
+                self.assertEqual(len(self.g.sent), 1)
+                self.assertEqual(self.g.sent[0]["quantity"], "3")
+
+    def test_open_time_on_both_sides_of_close_counts_toward_grace(self):
+        for seconds, should_exit in ((59, False), (60, True)):
+            with self.subTest(seconds=seconds):
+                self.setUp()
+                previous = ms("2026-09-28T15:29:00+09:00")
+                self.row = self.adopt(at=previous - 2_000)
+                self.step(previous - 1_000)
+                self.step(previous)
+                result = self.step(ms("2026-09-29T09:00:00+09:00") + seconds * 1_000)
+                self.assertEqual(result["exit_requested_ms"] is not None, should_exit)
+                self.assertEqual(len(self.g.sent), int(should_exit))
+
+    def test_closed_endpoints_do_not_hide_an_unobserved_open_day(self):
+        close = ms("2026-09-25T15:30:00+09:00")
+        self.row = self.adopt(at=close - 2_000)
+        self.step(close - 1_000)
+        self.step(close)
+        result = self.step(ms("2026-09-28T16:00:00+09:00"))
+        self.assertIsNotNone(result["exit_requested_ms"])
+        self.assertNotEqual(result["state"], "PROTECTED")
+        self.assertEqual(self.g.sent, [])
 
     def test_same_session_gap_still_exits(self):
         self.row = self.adopt()
@@ -165,22 +195,44 @@ class KisAdoptionTests(unittest.TestCase):
         self.assertEqual(len(self.g.sent), 1)
         self.assertEqual(self.g.sent[0]["kind"], "exit")
 
-    def test_prior_session_stale_budget_does_not_leak_into_next_session(self):
+    def test_snapshot_read_latency_counts_toward_unobserved_open_time(self):
         self.row = self.adopt()
         self.step(NOW + 1_000)
         self.step(NOW + 2_000)
-        with patch.object(self.g, "_quote", return_value=(*self.g.quote, NOW - 60_000)):
-            self.step(NOW + 3_000)
-            result = self.step(NOW + 86_400_000)
+        self.g._clock = NOW + 182_000
+        result = self.worker.step(self.row["id"], NOW + 3_000)
+        self.assertIsNotNone(result["exit_requested_ms"])
+        self.assertEqual(len(self.g.sent), 1)
+
+    def test_closed_time_does_not_exhaust_stale_budget(self):
+        close = ms("2026-09-28T15:30:00+09:00")
+        self.row = self.adopt(at=close - 30_000)
+        self.step(close - 29_000)
+        self.step(close - 28_000)
+        with patch.object(self.g, "_quote", return_value=(*self.g.quote, close - 60_000)):
+            self.step(close - 10_000)
+            result = self.step(ms("2026-09-29T09:00:01+09:00"))
         self.assertIsNone(result["exit_requested_ms"])
-        self.assertEqual(result["unprotected_since_ms"], NOW + 86_400_000)
+        self.assertEqual(result["unprotected_since_ms"], ms("2026-09-29T09:00:01+09:00"))
+
+    def test_cross_session_outage_latches_even_when_recovery_quote_is_stale(self):
+        self.row = self.adopt()
+        self.step(NOW + 1_000)
+        self.step(NOW + 2_000)
+        with patch.object(self.g, "_quote", return_value=(*self.g.quote, NOW)):
+            result = self.step(NOW + 86_400_000)
+        self.assertIsNotNone(result["exit_requested_ms"])
+        self.assertEqual(self.g.sent, [])
+        self.step(NOW + 86_401_000)
+        self.assertEqual(len(self.g.sent), 1)
 
     def test_reopen_below_stop_still_exits(self):
-        self.row = self.adopt()
-        self.step(NOW + 1_000)
-        self.step(NOW + 2_000)
+        close = ms("2026-09-28T15:30:00+09:00")
+        self.row = self.adopt(at=close - 3_000)
+        self.step(close - 2_000)
+        self.step(close - 1_000)
         self.g.quote = (Decimal("102650"), Decimal("102660"))
-        self.step(NOW + 86_400_000)
+        self.step(ms("2026-09-29T09:00:00+09:00"))
         self.assertEqual(len(self.g.sent), 1)
         self.assertEqual(self.g.sent[0]["quantity"], "3")
 
@@ -199,8 +251,18 @@ class KisAdoptionTests(unittest.TestCase):
         self.assertIn("current-session", result["reason"])
         self.assertIn("unverified", result["reason"])
         self.assertIsNone(result["exit_requested_ms"])
-        self.assertEqual(self.step(NOW + 400_000)["state"], "PROTECTED")
+        self.assertEqual(self.step(NOW + 3_000)["state"], "PROTECTED")
         self.assertEqual(self.g.sent, [])
+
+    def test_prior_unavailable_quote_does_not_excuse_unobserved_open_time(self):
+        self.row = self.adopt()
+        self.step(NOW + 1_000)
+        self.step(NOW + 2_000)
+        with patch.object(self.g, "_quote", side_effect=KisSessionClosed("unverified")):
+            self.step(NOW + 3_000)
+        result = self.step(NOW + 183_000)
+        self.assertIsNotNone(result["exit_requested_ms"])
+        self.assertEqual(len(self.g.sent), 1)
 
     def test_real_calendar_session_continuity(self):
         def ms(value):

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from kis_hl.assets import ResolvedAsset, resolve_hyperliquid_symbol
@@ -20,6 +20,12 @@ NY_TZ = ZoneInfo("America/New_York")
 KRX_TZ = ZoneInfo("Asia/Seoul")
 TSE_TZ = ZoneInfo("Asia/Tokyo")
 UTC_TZ = timezone.utc
+
+# Shared by instantaneous eligibility and unobserved regular-session accounting.
+CASH_SESSION_WINDOWS = {
+    SESSION_KRX_CASH: (KRX_TZ, time(9, 0), time(15, 30)),
+    SESSION_US_CASH: (NY_TZ, time(9, 30), time(16, 0)),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,13 +100,7 @@ def trading_session_decision_for_trade_xyz_asset(
     if session_group == SESSION_US_CASH:
         return _us_cash_decision(current)
     if session_group == SESSION_KRX_CASH:
-        return _single_window_decision(
-            current,
-            timezone=KRX_TZ,
-            session_group=SESSION_KRX_CASH,
-            open_time=time(9, 0),
-            close_time=time(15, 30),
-        )
+        return _cash_decision(current, SESSION_KRX_CASH)
     if session_group == SESSION_TSE_CASH:
         return _tse_decision(current)
     if session_group == SESSION_COMMODITY_REFERENCE:
@@ -130,13 +130,38 @@ def session_group_for_trade_xyz_asset(asset: TradeXyzAsset) -> str:
 
 
 def _us_cash_decision(current: datetime) -> TradingSessionDecision:
+    return _cash_decision(current, SESSION_US_CASH)
+
+
+def _cash_decision(current: datetime, session_group: str) -> TradingSessionDecision:
+    zone, opens, closes = CASH_SESSION_WINDOWS[session_group]
     return _single_window_decision(
-        current,
-        timezone=NY_TZ,
-        session_group=SESSION_US_CASH,
-        open_time=time(9, 30),
-        close_time=time(16, 0),
+        current, timezone=zone, session_group=session_group,
+        open_time=opens, close_time=closes,
     )
+
+
+def regular_cash_session_elapsed_ms(
+    start_ms: int, end_ms: int, *, session_group: str
+) -> int:
+    """Count weekday cash-session time in a gap, excluding nights/weekends.
+
+    Uses the same windows as session eligibility. Holidays and early closes are
+    not verified, so scheduled open time is conservatively counted during outages.
+    """
+    zone, opens, closes = CASH_SESSION_WINDOWS[session_group]
+    if end_ms <= start_ms:
+        return 0
+    day = datetime.fromtimestamp(start_ms / 1000, zone).date()
+    last_day = datetime.fromtimestamp(end_ms / 1000, zone).date()
+    elapsed = 0
+    while day <= last_day:
+        if day.weekday() < 5:
+            opened = int(datetime.combine(day, opens, tzinfo=zone).timestamp() * 1000)
+            closed = int(datetime.combine(day, closes, tzinfo=zone).timestamp() * 1000)
+            elapsed += max(0, min(end_ms, closed) - max(start_ms, opened))
+        day += timedelta(days=1)
+    return elapsed
 
 
 def _single_window_decision(

@@ -90,8 +90,9 @@ User requirements (policy, not an implemented automatic router):
   auction** as the close, not the official post-auction print. For KRX this is
   the price before the closing call auction begins; for US-referenced markets it
   is the price five minutes before the closing cross (15:55 ET). The review and
-  any authorized order are prepared and submitted in that pre-auction window, so
-  that trade.xyz underlying-session gates still pass. This is a user-confirmed
+  any authorized order are prepared and submitted in that pre-auction window.
+  Hyperliquid underlying-session evidence is advisory; KIS execution still
+  requires its exchange session. This is a user-confirmed
   timing convention (2026-09-25); the deterministic strategy tools still evaluate
   complete bars, so the pre-close price is a caller-supplied proxy whose source
   time must be recorded in the decision evidence.
@@ -461,13 +462,22 @@ adoptions before rolling back to code without this state support.
 
 ### KIS domestic holding handoff
 
-Local protection observation gaps count only within the same regular execution
-session. Overnight/weekend downtime and a restart after a closed-session
-observation do not independently request an exit. This applies to all managed KIS
-local-SL positions, including existing positions. A new session starts a fresh
-unprotected-data grace period; an already requested exit is never cleared.
-Same-session observation gaps still request an exit after `protection_grace_ms`,
-and a fresh opening quote below the fixed stop still triggers the normal exit.
+Local protection observation gaps count the regular cash-session time between
+observations, even across dates. Nights and weekends do not count. A long outage
+that misses open trading time still requests a bounded exit once that time reaches
+`protection_grace_ms`; the pre-close and post-open portions are added together.
+Closed endpoints do not excuse an intervening unobserved trading day. Snapshot
+read latency is included. Pure overnight/weekend downtime below the open-time
+budget does not independently request an exit.
+
+This applies to all managed KIS local-SL positions. A new session starts a fresh
+stale-quote grace period, but never clears an outage-triggered or already requested
+exit. A fresh opening quote below the fixed stop still triggers the normal exit.
+If an exit cannot execute before its existing deadline, manual intervention is
+required. Session accounting shares the KRX/US eligibility windows, including US
+DST. There is no verified holiday/early-close calendar: scheduled weekday open
+time is conservatively counted during an observation outage, even if the last
+quote reported execution availability unverified.
 
 A missing current-session execution date does **not** prove an exchange holiday:
 it may also indicate a suspended instrument or delayed data. The supervisor

@@ -728,9 +728,10 @@ class Supervisor:
         if (
             size > 0
             and not self.gateway.native_sl
-            and same_session
-            and snap["session_open"]
-            and now - previous_observation >= p["protection_grace_ms"]
+            and int(snap.get(
+                "regular_session_gap_ms",
+                now - previous_observation if snap["session_open"] else 0,
+            )) >= p["protection_grace_ms"]
         ):
             row["exit_requested_ms"] = row["exit_requested_ms"] or now
         orders = snap["orders"]

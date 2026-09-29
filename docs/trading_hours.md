@@ -72,3 +72,12 @@ Remaining requirements before autonomous trading:
 Native `ETH`, `ETH-PERP`, and `ETHUSDC-PERP` resolve to the Hyperliquid ETH
 perpetual and use the same explicit 24/7 crypto-perpetual session as BTC. This
 session mapping does not authorize any additional native or HIP-3 asset.
+
+## Unobserved KIS protection time
+
+`regular_cash_session_elapsed_ms` counts the overlap of an observation gap with
+weekday KRX or US regular cash sessions, using the same windows as session
+eligibility. Nights/weekends are excluded; open portions across different dates
+are added, with US DST applied. A date boundary alone does not excuse an outage.
+Holiday and early-close calendars remain unverified, so scheduled weekday open
+time is counted conservatively when observations are missing.
