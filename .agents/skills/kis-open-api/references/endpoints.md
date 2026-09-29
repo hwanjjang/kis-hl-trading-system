@@ -81,7 +81,7 @@ a contract month.
 
 | Category | Example | Path | tr_id |
 |---|---|---|---|
-| domestic_futureoption | `inquire_price` | `/uapi/domestic-futureoption/v1/quotations/inquire-price` | `FHMIF10000000` |
+| domestic_futureoption | `inquire_price` | `/uapi/domestic-futureoption/v1/quotations/inquire-price` | `FHMIF10000000`; implemented as `KisClient.inquire_domestic_futures_price` / CLI `kis-kospi200-futures`. `FID_COND_MRKT_DIV_CODE=F`, KOSPI200 quarterly short code `A01` + last year digit + month (live-verified `A01612` = Dec 2026). `output1` futures, `output2` KOSPI, `output3` KOSPI200; `mrkt_basis` = future minus KOSPI200 |
 | domestic_futureoption | `inquire_balance` | `.../trading/inquire-balance` | `CTFO6118R` / paper `VTFO6118R` |
 | domestic_bond | `inquire_price` | `/uapi/domestic-bond/v1/quotations/inquire-price` | `FHKBJ773400C0` |
 | etfetn | `inquire_price` | `/uapi/etfetn/v1/quotations/inquire-price` | `FHPST02400000` |

@@ -65,6 +65,18 @@ class KisClient:
             },
         )
 
+    def inquire_domestic_futures_price(self, *, symbol: str, market_code: str = "F") -> KisHttpResponse:
+        """Read-only domestic futures quote; output3 carries the KOSPI200 spot index."""
+        return self._request_with_auth(
+            "GET",
+            "/uapi/domestic-futureoption/v1/quotations/inquire-price",
+            tr_id="FHMIF10000000",
+            query={
+                "FID_COND_MRKT_DIV_CODE": market_code,
+                "FID_INPUT_ISCD": symbol,
+            },
+        )
+
     def inquire_overseas_price(self, *, exchange_code: str, symbol: str) -> KisHttpResponse:
         return self._request_with_auth(
             "GET",

@@ -5,7 +5,8 @@ import json
 import sys
 import time
 from dataclasses import asdict
-from datetime import date
+from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 from typing import Any
 
@@ -168,6 +169,13 @@ def build_parser() -> argparse.ArgumentParser:
     kis_price.add_argument("--market-code", default="J")
     kis_price.add_argument("--store", action="store_true")
     kis_price.set_defaults(handler=cmd_kis_price)
+
+    kis_futures = sub.add_parser(
+        "kis-kospi200-futures",
+        help="Read-only KOSPI200 front-month futures quote with basis versus the spot index",
+    )
+    kis_futures.add_argument("--symbol", help="KIS futures short code; defaults to the front quarterly contract")
+    kis_futures.set_defaults(handler=cmd_kis_kospi200_futures)
 
     kis_daily = sub.add_parser("kis-daily", help="Fetch KIS overseas daily chart prices")
     kis_daily.add_argument("--symbol", required=True)
@@ -609,6 +617,40 @@ def cmd_kis_price(args: argparse.Namespace) -> dict[str, Any]:
             payload=response.body,
         )
     return result
+
+
+def cmd_kis_kospi200_futures(args: argparse.Namespace) -> dict[str, Any]:
+    from kis_hl.kis.futures import kospi200_front_future_code
+
+    symbol = args.symbol or kospi200_front_future_code(datetime.now(ZoneInfo("Asia/Seoul")).date())
+    response = KisClient(load_kis_config()).inquire_domestic_futures_price(symbol=symbol)
+    _raise_on_kis_failure(response.status, response.body)
+    body = response.body if isinstance(response.body, dict) else {}
+    future = body.get("output1") or {}
+    if not future.get("futs_prpr"):
+        raise ValueError(f"KIS returned no futures quote for {symbol}")
+    spot = body.get("output3") or {}
+    return {
+        "symbol": symbol,
+        "name": future.get("hts_kor_isnm"),
+        "last_trading_date": future.get("futs_last_tr_date"),
+        "remaining_days": future.get("hts_rmnn_dynu"),
+        "price": future.get("futs_prpr"),
+        "previous_close": future.get("futs_prdy_clpr"),
+        "change_pct": future.get("futs_prdy_ctrt"),
+        "open": future.get("futs_oprc"),
+        "high": future.get("futs_hgpr"),
+        "low": future.get("futs_lwpr"),
+        "volume": future.get("acml_vol"),
+        "open_interest": future.get("hts_otst_stpl_qty"),
+        "open_interest_change": future.get("otst_stpl_qty_icdc"),
+        "theoretical_price": future.get("hts_thpr"),
+        "market_basis": future.get("mrkt_basis"),
+        "theoretical_basis": future.get("basis"),
+        "kospi200": spot.get("bstp_nmix_prpr"),
+        "kospi200_change_pct": spot.get("bstp_nmix_prdy_ctrt"),
+        "retrieved_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def cmd_kis_daily(args: argparse.Namespace) -> dict[str, Any]:
