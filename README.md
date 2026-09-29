@@ -12,7 +12,7 @@ Existing collection and trading tools include:
 - SQLite trade.xyz asset, KIS market-data, and secondary reference-data mapping tables.
 - SQLite trade.xyz universe, funding-rate, and top-of-book spread snapshots for suitability review.
 - Strategy risk helpers for operating capital, ATR(10D), 30-week EMA, and position sizing.
-- A live-order session guard that blocks non-reduce-only trade.xyz orders outside the mapped underlying market session unless explicitly overridden.
+- Advisory underlying-market session reporting for Hyperliquid entries; KIS execution enforces exchange sessions.
 - CLI defaults that never place a live order unless `--live` is passed.
 - Explicitly enrolled long-position trailing management, durable reconciliation, and offline tick replay.
 

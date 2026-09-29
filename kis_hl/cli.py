@@ -392,7 +392,7 @@ def build_parser() -> argparse.ArgumentParser:
     trade.add_argument(
         "--allow-outside-session",
         action="store_true",
-        help="Allow live non-reduce-only orders outside the mapped underlying market session",
+        help="Compatibility flag; Hyperliquid session decisions are advisory and do not block entries",
     )
     trade.add_argument("--live", action="store_true", help="Send the order to Hyperliquid")
     trade.add_argument("--no-store", action="store_true")
