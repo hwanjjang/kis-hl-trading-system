@@ -186,7 +186,7 @@ non-aggregated fills by time, explicit cloid forwarding, cancel-by-oid, and boun
 perpetual exit rounding. It loads both base and xyz SDK metadata. Generic order
 rejections are distinguished from submission; this does not imply filled quantity.
 The worker's attempts retain raw exchange responses independently of manual
-`order_submissions` / `protective_orders` rows. Auto-journal creation remains absent.
+`order_submissions` / `protective_orders` rows. Managed order responses do not themselves create journals; canonical source ingestion records position activity as described below.
 
 ## Protected trading implementation
 
@@ -296,3 +296,26 @@ pending entry cancellation) retires as EXPIRED. The supervisor also repairs
 already-finished owners and opens no additional retirement transaction when
 nothing is QUEUED; status reads do not mutate rows. These are implementation views, not execution authority or live exchange
 validation. See [operations](trading-operations.md#bounded-conditional-add-ups).
+
+## Automatic position activity
+
+`DataStore.fact` calls `position_journal.record_change` for each inserted canonical
+trade revision, within the same SQLite transaction as the fact and source link.
+`analysis_runs(kind=position_change)` stores its immutable structured audit record;
+`analysis_inputs` pins the exact source revision. Duplicate observations add source
+links without creating another activity record. A journal failure rolls back the
+fact, so retry cannot silently leave an execution without its journal. An enclosing
+audit transaction also rolls back these records. No new schema or worker is needed.
+
+The common fact boundary covers account polling, statement imports and approved
+adjustments. Order acceptance, unrealized PnL snapshots and funding are not executed
+position changes. Source revisions describe replacement evidence, not incremental
+fills. This avoids double counting maturing KIS daily quantities and fee corrections.
+
+`journal_exports.journal` includes the effective activity population as
+`position_changes`, with a link to each automatic record; old facts have an explicit
+historical projection. Existing flat-to-flat cycle derivation remains the sole input
+to completed-trade statistics. Historical reports remain immutable. Before/after
+inventory is classified only from an explicit source anchor; absence remains null.
+See [the operational contract](unified-data-operations.md#automatic-position-change-journals)
+for precision, timing and scope limits.

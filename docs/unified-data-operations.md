@@ -532,3 +532,45 @@ from an actual live-account retention/recoverability check.
 ### Binance tick capture exception
 
 `binance-stream` currently records observational ticks in legacy storage, outside canonical analysis inputs. See [architecture boundaries](architecture.md#binance-integration-boundaries) for isolation, throughput and replay limitations. Canonical Binance ingestion is a separate integration step.
+
+## Automatic position-change journals
+
+Each new canonical `trade` revision writes a position activity journal automatically,
+in the same local transaction. This applies to `data sync`, account collection jobs,
+statement imports and `data audit-apply`, even without `--journals`. That audit option
+still controls full account/combined performance report generation. Legacy `journal`
+commands and managed order snapshots do not feed the canonical store automatically.
+
+`data journal --accounts ACCOUNT_ID` now includes `position_changes` alongside cycles
+and statistics. Each effective source revision includes its account, instrument,
+currency, event interval/precision, source grain, signed quantity, before/after
+inventory when provided, economics, attribution, source fact ID and `journal_id`.
+That journal ID can be exported through the existing `data export --report-id` command.
+Activity preserves both a native `order_id` and KIS grouped `order_ids` when supplied.
+The activity record is an immutable structured audit log linked to raw evidence by
+`analysis_inputs -> fact_revisions -> fact_sources -> source_observations`.
+
+An explicit source `position_before` permits entry, increase, reduction, close or
+reversal classification. Missing inventory yields `unclassified` and null inventory;
+a KIS negative inventory yields `inventory_gap`, not an inferred short position.
+A reversal is one source execution in activity and may span two performance cycles.
+Open activity and partial exits do not create additional completed-trade statistics.
+
+Repeated identical observations never create duplicate activity, including after a
+restart. An approved correction or validated cumulative-source maturation creates
+an immutable `record_type=revision` entry with `supersedes_fact_id`. Its quantity
+replaces the previous source quantity; it is **not an additional fill or quantity
+delta**. Fee-only corrections are revisions too. Reports include only the effective
+revision at their as-of time. Superseded automatic records and previous reports remain
+exportable. Superseded activity is intentional history and is excluded from
+`data status` `stale_runs`; dependent performance reports and analyses still become
+stale when their inputs are superseded. Pre-feature facts appear as `recording=historical_projection` with a null
+`journal_id`; reading a report never backfills or rewrites old history.
+
+Recording occurs when source evidence is ingested, not when the exchange executes.
+Polling intervals, worker uptime and provider retention still bound latency and
+completeness. DAY/cumulative KIS records remain DAY/cumulative; individual intervening
+fills and exact timestamps cannot be reconstructed. Transfers, corporate actions and
+snapshot-only discrepancies are not fabricated as trades. Missing costs, coverage
+and opening inventory retain existing pending/statistics safeguards. Existing data
+requires no migration. This change does not start collection or submit live orders.
