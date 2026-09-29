@@ -1,6 +1,6 @@
 # Trading Hours Policy
 
-Hyperliquid can quote and accept orders outside the underlying market's normal session. This project should only open or increase live trade.xyz positions during the relevant underlying market session unless an explicit strategy override is added for a special case.
+Hyperliquid is a 24-hour venue and can quote and accept orders outside the underlying market's normal session. For Hyperliquid entries (native perps and trade.xyz RWA assets alike) the underlying-market session below is **advisory only**: it is recorded with each decision and should inform the review (thin off-session liquidity, unanchored pricing, weekend gaps), but it never blocks an order. KIS securities trading is different: KIS orders remain bound by the actual exchange session, auctions and tick rules. Entry timing for an HL RWA instrument follows its strategy signal (for example `hl:xyz:KORU` is judged by `index:KOSPI`), not the underlying listing's hours.
 
 BTCUSDC futures use the Hyperliquid native BTC perp market and are treated as crypto perps, not trade.xyz RWA assets.
 
@@ -11,8 +11,8 @@ This document records the default session policy for the current tradable asset 
 - Prefer regular cash-market hours for stocks, ETFs, and cash equity indexes.
 - Prefer the underlying futures electronic session for commodity references.
 - Treat FX as a 24/5 global market because there is no single centralized exchange.
-- Do not use pre-market, after-hours, overnight internal pricing, or weekend pricing for normal live entries.
-- Do not open or increase positions on official exchange holidays or early-close windows after the shortened close.
+- For KIS: do not use pre-market, after-hours or holiday sessions for normal live entries.
+- For Hyperliquid: off-session, overnight and weekend entries are permitted; disclose the advisory session status and liquidity/pricing risk in the review.
 - Allow position reduction outside these windows only when risk controls require it.
 
 ## Session Groups
@@ -31,7 +31,7 @@ When the U.S. is not observing daylight saving time, U.S. ET based windows shift
 
 - `SP500` and `XYZ100` are index references, not exchange-traded shares. The normal live-entry window should follow the U.S. cash equity session because their cash values are anchored to listed U.S. equities.
 - `JP225` is a Nikkei 225 reference, not an exchange-traded share. The normal live-entry window should follow the Tokyo Stock Exchange cash session.
-- `KORU` references a U.S.-listed leveraged South Korea ETF and follows the U.S. cash equity session, not KRX hours. It is not a KR200/KOSPI200 equivalent.
+- `KORU` references a U.S.-listed leveraged South Korea ETF; its advisory session is the U.S. cash session, while entry timing follows the KOSPI signal and may occur at any HL trading time. It is not a KR200/KOSPI200 equivalent.
 - `KR200` retains its KRX session mapping for historical/reference use, but is excluded from live eligibility; session availability does not override that exclusion.
 - `BRENTOIL`, `WTIOIL`, `NATGAS`, and `COPPER` use rolling futures references in the trade.xyz specification.
 - `GOLD`, `SILVER`, `PLATINUM`, and `PALLADIUM` are spot-style trade.xyz references, but the current secondary historical data mapping uses futures proxies. The default guard uses the overlapping CME/COMEX/NYMEX-style weekday futures window until an exact spot-metal session source is implemented.
@@ -44,8 +44,8 @@ Current implementation status:
 
 - `kis_hl.trading_hours` implements timezone-aware session decisions for the groups above.
 - Native BTC crypto spot and BTC perp sessions are treated as 24/7.
-- `HyperliquidTradingClient.place_order()` rejects live non-reduce-only trade.xyz orders outside the mapped session unless `allow_outside_session=True`.
-- The CLI exposes the explicit override as `--allow-outside-session`.
+- `HyperliquidTradingClient.place_order()` records the session decision on live entries (`session`, `session_advisory_only`) but does not reject outside the mapped session. `--allow-outside-session` / `allow_outside_session` remain accepted for compatibility and have no blocking effect.
+- The managed Hyperliquid gateway treats the session as open for execution and exposes the advisory decision as `session_advisory` in its preflight snapshot. The managed KIS gateway still enforces exchange sessions.
 - Reduce-only exits, including stop-loss trigger orders, bypass the live-entry session guard.
 
 Remaining requirements before autonomous trading:

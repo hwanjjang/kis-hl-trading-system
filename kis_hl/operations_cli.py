@@ -141,10 +141,14 @@ def add_commands(sub, journal_sub):
         if action == "submit":
             c.add_argument("--live", action="store_true")
         c.set_defaults(handler=cmd_order)
-    adopt = order_sub.add_parser("adopt", help="Queue explicit management of an existing protected HL long")
+    adopt = order_sub.add_parser(
+        "adopt", help="Queue explicit management of an existing HL long (with native SL) or KIS domestic long")
     adopt.add_argument("--input", required=True)
-    adopt.add_argument("--entry-order-id", type=int, required=True)
-    adopt.add_argument("--stop-order-id", type=int, required=True)
+    adopt.add_argument("--entry-order-id", required=True,
+                       help="HL native order id, or the KIS buy order number (odno, zero padding kept)")
+    adopt.add_argument("--stop-order-id", type=int, help="HL only: existing native Stop Market id")
+    adopt.add_argument("--entry-since-ms", type=int,
+                       help="KIS only: UTC ms at or before the buy fill; later buys block admission")
     adopt.add_argument("--live", action="store_true")
     adopt.set_defaults(handler=cmd_order)
     for action in ["status", "cancel", "exit", "recover"]:
@@ -504,7 +508,13 @@ def cmd_order(args):
         asset = instrument(p["instrument"])
         instrument(p["signal_instrument"])
         scope, _ = scope_client(asset.venue)
-        return store.enqueue_adoption(scope.key, p, entry_order_id=args.entry_order_id,
+        if asset.venue == "kis":
+            return store.enqueue_adoption(scope.key, p, entry_order_id=args.entry_order_id,
+                                          stop_order_id=args.stop_order_id, live=args.live, now_ms=now,
+                                          entry_since_ms=args.entry_since_ms)
+        if not args.entry_order_id.isdigit() or args.stop_order_id is None:
+            raise ValueError("HL adoption requires numeric --entry-order-id and --stop-order-id")
+        return store.enqueue_adoption(scope.key, p, entry_order_id=int(args.entry_order_id),
                                       stop_order_id=args.stop_order_id, live=args.live, now_ms=now)
     if args.order_action == "prepare":
         from kis_hl.managed_gateways import ManagedKisGateway

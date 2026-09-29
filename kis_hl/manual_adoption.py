@@ -103,3 +103,63 @@ def verify_adoption(gateway, row, now):
         updates["native_trailing_distance"] = wire_decimal(normalize_quote_retracement(native_distance,tick))
     attempts[1]["trigger_price"] = stop["trigger_price"]
     return updates, attempts
+
+
+def verify_kis_adoption(gateway, row, now):
+    """Admit an existing KIS long bought by one identified, fully filled buy order.
+
+    KIS has no verified native protective order, so admission only proves the
+    position and hands it to the local fixed-SL and nine-minute trailing loop.
+    """
+    p, request = row["plan"], row["adoption"]
+    asset = gateway._asset(p["instrument"])
+    if asset.market != "domestic":
+        raise ValueError("KIS handoff supports domestic listings only")
+    if not p.get("allow_local_sl") or p.get("trailing_provider", "local") != "local":
+        raise ValueError("KIS handoff requires local SL and local trailing")
+    if "fixed_stop_price" not in p:
+        raise ValueError("KIS handoff requires an explicit fixed_stop_price")
+    entry_id = str(request["entry_order_id"])
+    since = int(request["entry_since_ms"])
+    if not 0 < since <= now:
+        raise ValueError("Invalid handoff history start")
+    history = [r for r in gateway._history(asset, since, now) if r["pdno"] == asset.symbol]
+    # The admitted generation must be exactly the identified buy: no other buy may
+    # contribute after it, and any earlier sells must have left the account flat.
+    buys = [r for r in history if r.get("sll_buy_dvsn_cd", r.get("sll_buy_dvsn")) == "02"
+            and gateway._quantity(r, asset.market) > 0]
+    entry = [r for r in buys if str(r["odno"]) == entry_id]
+    if len(entry) != 1 or len(buys) != 1:
+        raise ValueError("Handoff requires exactly one identified filled buy in the history window")
+    entry = entry[0]
+    filled = gateway._quantity(entry, asset.market)
+    if entry.get("cncl_yn") == "Y" or filled != decimal(entry["ord_qty"]):
+        raise ValueError("Identified buy is not fully filled")
+    open_rows = gateway.client.account_pages("domestic_orders", exchange="NASD")["output"]
+    if any(r["pdno"] == asset.symbol for r in open_rows):
+        raise ValueError("Open orders for the instrument block handoff")
+    rows = gateway._rows(asset)
+    pos = next((r for r in rows if r["pdno"] == asset.symbol), None)
+    size = decimal(pos["hldg_qty"]) if pos else Decimal(0)
+    average = decimal(pos["pchs_avg_pric"]) if pos and size else Decimal(0)
+    if (pos is None or size != filled or size != decimal(p["quantity"])
+            or average != decimal(p["limit_price"]) or decimal(pos["ord_psbl_qty"]) != size):
+        raise ValueError("Adoption plan does not match the current holding")
+    atr, atr_source = gateway._atr(asset, now)
+    if abs(decimal(atr) - decimal(p["atr"])) > decimal(p["atr"]) * Decimal("0.000001"):
+        raise ValueError("Adoption ATR differs from current execution history")
+    trail = Trail.create(entry=average, atr=decimal(p["atr"]),
+                         multiple=decimal(p.get("local_atr_multiple", p["atr_multiple"])), opened_ms=now)
+    # Owned history baseline: the entry counts from zero; nothing else may appear later.
+    baseline = {str(r["odno"]): str(gateway._quantity(r, asset.market))
+                for r in history if str(r["odno"]) != entry_id}
+    updates = {"state": "PROTECTING", "reason": "KIS holding admitted; awaiting local protection supervision",
+               "adopted_ms": now, "baseline": baseline, "baseline_start_ms": since,
+               "first_fill_ms": since, "entry_filled": str(size), "observed_size": str(size),
+               "covered_size": "0", "trailing_covered_size": "0", "trail": trail.to_dict(),
+               "atr_source": atr_source,
+               "providers": {"stop_loss": "local", "trailing": "local", "local_trailing_backup": False}}
+    attempts = [{"id": "0x" + uuid4().hex, "position_id": row["id"], "kind": "entry",
+                 "order_id": entry_id, "status": "FILLED", "created_ms": now,
+                 "quantity": str(size), "price": str(average), "imported": True}]
+    return updates, attempts

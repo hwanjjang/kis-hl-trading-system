@@ -369,11 +369,9 @@ class HyperliquidTradingClient:
                     "allow_outside_session": allow_outside_session,
                 },
             )
-            if not session_decision.allowed and not allow_outside_session:
-                raise RuntimeError(
-                    "Underlying market session is closed for "
-                    f"{resolved.coin}: {session_decision.reason}"
-                )
+            # Underlying-market sessions are advisory for Hyperliquid, a 24h venue:
+            # the decision is recorded for review but never blocks the order.
+            request["session_advisory_only"] = True
         _info, exchange = self._load_sdk()
         request["routing_verified"] = bool(self.config.subaccount_address)
         order_coin = self._resolve_live_order_coin(resolved)

@@ -1,6 +1,7 @@
 """Venue-specific snapshots for the account supervisor; no inferred stop order names."""
 
-from datetime import datetime, timezone, timedelta
+from dataclasses import asdict
+from datetime import datetime, timezone, timedelta, time as dt_time
 from decimal import Decimal
 import hashlib
 import time
@@ -15,6 +16,12 @@ from kis_hl.hyperliquid.client import (
     is_supported_live_asset,
 )
 from kis_hl.trading_hours import trading_session_decision_for_resolved_asset
+
+KRX_BAR_FINAL = dt_time(15, 40)
+
+
+class KisSessionClosed(ValueError):
+    """The KIS execution session is not trading (closed, holiday or pre-first-trade)."""
 
 
 def correlated(asset, symbol, venue):
@@ -107,9 +114,14 @@ class ManagedHyperliquidGateway:
         return bid, ask, int(book["time"])
 
     def _session(self, resolved, now):
-        return trading_session_decision_for_resolved_asset(
+        # Hyperliquid is a 24h venue; the underlying-market session is advisory
+        # for HL (including trade.xyz RWA) entries and never blocks execution.
+        return True
+
+    def _session_advisory(self, resolved, now):
+        return asdict(trading_session_decision_for_resolved_asset(
             resolved, now=datetime.fromtimestamp(now / 1000, timezone.utc)
-        ).allowed
+        ))
 
     def preflight(self, p, now, *, existing_position=False):
         asset, resolved, lot, tick = self._market(p["instrument"])
@@ -188,6 +200,7 @@ class ManagedHyperliquidGateway:
             ],
             "eligible": self._eligible(resolved),
             "session_open": self._session(resolved, now),
+            "session_advisory": self._session_advisory(resolved, now),
             "portfolio_notional": str(portfolio),
             "correlated_notional": str(group),
             "atr": str(atr),
@@ -233,7 +246,8 @@ class ManagedHyperliquidGateway:
             kind = (
                 "stop"
                 if (
-                    order.get("isTrigger") is True
+                    # A triggered/filled HL stop is read back with isTrigger=false.
+                    (order.get("isTrigger") is True or status in {"filled", "triggered"})
                     and order.get("orderType") == "Stop Market"
                     and order.get("reduceOnly") is True
                     and order.get("side") == "A"
@@ -414,6 +428,10 @@ class ManagedKisGateway:
             raise ValueError("KIS execution route is unverified")
         return asset
 
+    def execution_session_open(self, instrument_id, now):
+        """Clock-only KIS session check used when account reads are unavailable."""
+        return self._session(self._asset(instrument_id), now)
+
     def _session(self, asset, now):
         from kis_hl.trading_hours import trading_session_decision_for_symbol
 
@@ -465,7 +483,8 @@ class ManagedKisGateway:
                 raise RuntimeError("KIS quote date verification failed")
             dates = {x["stck_bsop_date"] for x in bars.body["output2"]}
             if local.strftime("%Y%m%d") not in dates:
-                raise ValueError("No current-session execution date")
+                # Holiday or pre-first-trade: the venue cannot execute local protection.
+                raise KisSessionClosed("No current-session execution date")
             rawdate = local.strftime("%Y%m%d")
             raw = q["aspr_acpt_hour"]
             price = q["bidp1"]
@@ -494,8 +513,11 @@ class ManagedKisGateway:
         zone = ZoneInfo(
             "Asia/Seoul" if asset.market == "domestic" else "America/New_York"
         )
-        today = datetime.fromtimestamp(now / 1000, zone).date()
-        end = today - timedelta(days=1)
+        local = datetime.fromtimestamp(now / 1000, zone)
+        today = local.date()
+        # After the KRX regular close (15:30 KST) the day's regular-session bar is final.
+        closed_today = asset.market == "domestic" and local.time() >= KRX_BAR_FINAL
+        end = today if closed_today else today - timedelta(days=1)
         if asset.market == "domestic":
             result = self.client.domestic_chart(
                 symbol=asset.symbol,
@@ -515,7 +537,7 @@ class ManagedKisGateway:
         bars = []
         for raw in result.body["output2"]:
             day = datetime.strptime(raw[names[0]], "%Y%m%d").date()
-            if day >= today:
+            if day > end:
                 continue
             high, low, close = [decimal(raw[n], positive=True) for n in names[1:]]
             if not low <= close <= high:
@@ -714,8 +736,11 @@ class ManagedKisGateway:
             else "0"
         )
         sellable = pos["ord_psbl_qty"] if pos else "0"
+        session_open = self._session(asset, now)
         try:
             price, ask, stamp = self._quote(asset)
+        except KisSessionClosed:
+            price, ask, stamp, session_open = Decimal(0), Decimal(0), 0, False
         except (ValueError, KeyError, IndexError, RuntimeError, OSError):
             price, ask, stamp = Decimal(0), Decimal(0), 0
         return {
@@ -725,7 +750,7 @@ class ManagedKisGateway:
             "price": str(price),
             "time_ms": stamp,
             "sellable": sellable,
-            "session_open": self._session(asset, now),
+            "session_open": session_open,
             "foreign_add": foreign,
             "consistent": net == size,
             "orders": orders,
