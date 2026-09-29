@@ -36,7 +36,7 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `kis_hl.trade_journal` creates completed-position journal records and calculates the required review statistics from net return percentages rather than currency PnL. The formula, breakeven, ratio, and holding-day contract is owned by `.agents/skills/trade-journal/`.
 
-`kis_hl.trading_hours` maps tradable assets to the underlying market session group and returns timezone-aware session decisions. Live non-reduce-only trade.xyz orders fail closed outside that session unless `--allow-outside-session` is passed. Reduce-only exits are allowed outside the entry session.
+`kis_hl.trading_hours` maps tradable assets to the underlying market session group and returns timezone-aware session decisions. For Hyperliquid (a 24h venue) the decision is advisory and recorded but does not block entries; KIS execution still enforces exchange sessions. Other fail-closed live guards (eligibility, recent metadata verification, ownership, protection) are unchanged.
 
 `kis_hl.streaming` provides a reconnecting websocket runner with subscription replay, bounded reconnect backoff, heartbeat support, and stale-stream detection.
 

@@ -75,8 +75,9 @@ for what Claude itself may execute:
 - Never run a command with `--live`, and never run anything that can place, cancel,
   or modify a real order. Prepare the dry-run command and let the user run the live
   one after review.
-- Treat `--allow-outside-session`, widening the tradable asset set, and relaxing a
-  verification freshness window as user decisions, not agent defaults.
+- Treat widening the tradable asset set and relaxing a verification freshness
+  window as user decisions, not agent defaults. Hyperliquid session flags are
+  compatibility-only; session policy is owned by `docs/trading_hours.md`.
 - Live paths must fail closed. When adding a guard, add the rejecting test first and
   make sure the default (no flag) is the safe path.
 - Read-only commands are fine to run when they help verify a change, for example

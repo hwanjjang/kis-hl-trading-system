@@ -272,7 +272,16 @@ class HyperliquidClientTests(unittest.TestCase):
         )
         self.assertEqual(call[5], True)
 
-    def test_live_non_reduce_only_order_rejects_closed_underlying_session(self) -> None:
+    def test_closed_underlying_session_is_advisory_for_hyperliquid_entries(self) -> None:
+        class FakeExchange:
+            def __init__(self) -> None:
+                self.calls: list[tuple[object, ...]] = []
+
+            def order(self, *args: object) -> dict[str, object]:
+                self.calls.append(args)
+                return {"status": "ok", "response": {"data": {"statuses": [{"resting": {"oid": 1}}]}}}
+
+        fake_exchange = FakeExchange()
         client = HyperliquidTradingClient(
             HyperliquidConfig(
                 base_url="https://api.hyperliquid.xyz",
@@ -290,16 +299,22 @@ class HyperliquidClientTests(unittest.TestCase):
             ),
         )
         client._require_recent_verification = lambda resolved: None  # type: ignore[method-assign]
+        client._sdk = (object(), fake_exchange)  # noqa: SLF001
+        client._resolve_live_order_coin = lambda resolved: resolved.coin  # type: ignore[method-assign]
 
-        with self.assertRaisesRegex(RuntimeError, "Underlying market session is closed"):
-            client.place_order(
-                symbol="xyz:AAPL",
-                side="buy",
-                order_type="limit",
-                size=Decimal("1"),
-                price=Decimal("180"),
-                dry_run=False,
-            )
+        submission = client.place_order(
+            symbol="xyz:AAPL",
+            side="buy",
+            order_type="limit",
+            size=Decimal("1"),
+            price=Decimal("180"),
+            dry_run=False,
+        )
+
+        self.assertEqual(submission.status, "submitted")
+        self.assertEqual(len(fake_exchange.calls), 1)
+        self.assertFalse(submission.request["session"]["allowed"])
+        self.assertTrue(submission.request["session_advisory_only"])
 
     def test_live_order_can_explicitly_override_closed_underlying_session(self) -> None:
         class FakeExchange:

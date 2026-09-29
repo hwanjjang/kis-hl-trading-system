@@ -175,6 +175,18 @@ class ManagedGatewayTests(unittest.TestCase):
         info.user_fills_by_time.return_value[0]["oid"] = 99
         self.assertTrue(g.snapshot(row, attempts, 20)["foreign_add"])
 
+    def test_filled_stop_readback_without_trigger_flag_is_still_owned_stop(self):
+        # Hyperliquid reports a triggered/filled Stop Market with isTrigger=false.
+        g, info, row, attempts, order = self.hl()
+        attempts[0]["kind"] = "stop"
+        order.update(side="A", reduceOnly=True, isTrigger=False,
+                     orderType="Stop Market", sz="0.0", triggerPx="0.0")
+        snap = g.snapshot(row, attempts, 20)
+        self.assertEqual(snap["orders"]["0x123"]["kind"], "stop")
+        order["orderType"] = "Take Profit Market"
+        with self.assertRaises(ValueError):
+            g.snapshot(row, attempts, 20)
+
     def test_stop_contract_is_bound_to_sell_reduce_only_stop_market(self):
         g, info, row, attempts, order = self.hl()
         attempts[0]["kind"] = "stop"
@@ -262,6 +274,19 @@ class ManagedGatewayTests(unittest.TestCase):
             self.assertTrue(s["consistent"])
             self.assertEqual(s["entry_filled"], "2")
             self.assertEqual(s["orders"]["123"]["size"], "1")
+
+    def test_hl_entry_session_is_advisory_outside_underlying_hours(self):
+        from datetime import datetime, timezone
+        from kis_hl.assets import resolve_hyperliquid_symbol
+
+        info = Mock()
+        info.config = SimpleNamespace(base_url="https://api.hyperliquid.xyz", account_address="fixture")
+        g = ManagedHyperliquidGateway(info, Mock())
+        resolved = resolve_hyperliquid_symbol("xyz:KORU")
+        # 2026-09-29 06:30 UTC = 15:30 KST: U.S. cash session closed.
+        now = int(datetime(2026, 9, 29, 6, 30, tzinfo=timezone.utc).timestamp() * 1000)
+        self.assertTrue(g._session(resolved, now))
+        self.assertFalse(g._session_advisory(resolved, now)["allowed"])
 
     def test_kis_disappeared_open_row_does_not_prove_cancellation(self):
         g, c = self.kis()

@@ -12,7 +12,7 @@ Existing collection and trading tools include:
 - SQLite trade.xyz asset, KIS market-data, and secondary reference-data mapping tables.
 - SQLite trade.xyz universe, funding-rate, and top-of-book spread snapshots for suitability review.
 - Strategy risk helpers for operating capital, ATR(10D), 30-week EMA, and position sizing.
-- A live-order session guard that blocks non-reduce-only trade.xyz orders outside the mapped underlying market session unless explicitly overridden.
+- Advisory underlying-market session reporting for Hyperliquid entries; KIS execution enforces exchange sessions.
 - CLI defaults that never place a live order unless `--live` is passed.
 - Explicitly enrolled long-position trailing management, durable reconciliation, and offline tick replay.
 
@@ -212,6 +212,7 @@ Fetch a KIS overseas quote and persist the raw payload:
 
 ```bash
 python -m kis_hl.cli kis-price --market overseas --exchange-code NAS --symbol AAPL --store
+python -m kis_hl.cli kis-kospi200-futures   # read-only front-month KOSPI200 futures and basis
 ```
 
 Fetch Hyperliquid mids for default HyperCore plus spot markets:
@@ -403,7 +404,7 @@ Place a live order only after validating the resolved symbol, size, price, accou
 python -m kis_hl.cli trade --live --symbol xyz:XYZ100 --side buy --order-type limit --size 1 --price 1000
 ```
 
-Live non-reduce-only trade.xyz orders are rejected outside the mapped underlying market session by default. Use `--allow-outside-session` only for an explicitly reviewed special case. Reduce-only exits and stop-loss orders bypass the entry-session guard.
+Hyperliquid (including trade.xyz RWA) entries may be placed at any HL trading time; the underlying market session is advisory and is recorded with the order. KIS orders remain bound by exchange sessions. `--allow-outside-session` is kept for compatibility and no longer changes behavior.
 
 ## Safety Notes
 

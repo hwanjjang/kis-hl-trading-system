@@ -1,6 +1,7 @@
 """Venue-specific snapshots for the account supervisor; no inferred stop order names."""
 
-from datetime import datetime, timezone, timedelta
+from dataclasses import asdict
+from datetime import datetime, timezone, timedelta, time as dt_time
 from decimal import Decimal
 import hashlib
 import time
@@ -14,7 +15,16 @@ from kis_hl.hyperliquid.client import (
     extract_hyperliquid_order_id,
     is_supported_live_asset,
 )
-from kis_hl.trading_hours import trading_session_decision_for_resolved_asset
+from kis_hl.trading_hours import (
+    SESSION_KRX_CASH, SESSION_US_CASH, regular_cash_session_elapsed_ms,
+    trading_session_decision_for_resolved_asset,
+)
+
+KRX_BAR_FINAL = dt_time(15, 40)
+
+
+class KisSessionClosed(ValueError):
+    """The KIS execution session is not trading (closed, holiday or pre-first-trade)."""
 
 
 def correlated(asset, symbol, venue):
@@ -107,9 +117,14 @@ class ManagedHyperliquidGateway:
         return bid, ask, int(book["time"])
 
     def _session(self, resolved, now):
-        return trading_session_decision_for_resolved_asset(
+        # Hyperliquid is a 24h venue; the underlying-market session is advisory
+        # for HL (including trade.xyz RWA) entries and never blocks execution.
+        return True
+
+    def _session_advisory(self, resolved, now):
+        return asdict(trading_session_decision_for_resolved_asset(
             resolved, now=datetime.fromtimestamp(now / 1000, timezone.utc)
-        ).allowed
+        ))
 
     def preflight(self, p, now, *, existing_position=False):
         asset, resolved, lot, tick = self._market(p["instrument"])
@@ -188,6 +203,7 @@ class ManagedHyperliquidGateway:
             ],
             "eligible": self._eligible(resolved),
             "session_open": self._session(resolved, now),
+            "session_advisory": self._session_advisory(resolved, now),
             "portfolio_notional": str(portfolio),
             "correlated_notional": str(group),
             "atr": str(atr),
@@ -233,7 +249,8 @@ class ManagedHyperliquidGateway:
             kind = (
                 "stop"
                 if (
-                    order.get("isTrigger") is True
+                    # A triggered/filled HL stop is read back with isTrigger=false.
+                    (order.get("isTrigger") is True or status in {"filled", "triggered"})
                     and order.get("orderType") == "Stop Market"
                     and order.get("reduceOnly") is True
                     and order.get("side") == "A"
@@ -414,6 +431,10 @@ class ManagedKisGateway:
             raise ValueError("KIS execution route is unverified")
         return asset
 
+    def execution_session_open(self, instrument_id, now):
+        """Clock-only KIS session check used when account reads are unavailable."""
+        return self._session(self._asset(instrument_id), now)
+
     def _session(self, asset, now):
         from kis_hl.trading_hours import trading_session_decision_for_symbol
 
@@ -421,6 +442,16 @@ class ManagedKisGateway:
         return trading_session_decision_for_symbol(
             key, now=datetime.fromtimestamp(now / 1000, timezone.utc)
         ).allowed
+
+    def _same_execution_session(self, asset, previous, now):
+        """Whether an observation gap stayed inside one regular cash session."""
+        zone = ZoneInfo("Asia/Seoul" if asset.market == "domestic" else "America/New_York")
+        return (
+            datetime.fromtimestamp(previous / 1000, zone).date()
+            == datetime.fromtimestamp(now / 1000, zone).date()
+            and self._session(asset, previous)
+            and self._session(asset, now)
+        )
 
     def _history(self, asset, created, now):
         zone = ZoneInfo(
@@ -465,7 +496,8 @@ class ManagedKisGateway:
                 raise RuntimeError("KIS quote date verification failed")
             dates = {x["stck_bsop_date"] for x in bars.body["output2"]}
             if local.strftime("%Y%m%d") not in dates:
-                raise ValueError("No current-session execution date")
+                # Holiday or pre-first-trade: the venue cannot execute local protection.
+                raise KisSessionClosed("No current-session execution date")
             rawdate = local.strftime("%Y%m%d")
             raw = q["aspr_acpt_hour"]
             price = q["bidp1"]
@@ -494,8 +526,11 @@ class ManagedKisGateway:
         zone = ZoneInfo(
             "Asia/Seoul" if asset.market == "domestic" else "America/New_York"
         )
-        today = datetime.fromtimestamp(now / 1000, zone).date()
-        end = today - timedelta(days=1)
+        local = datetime.fromtimestamp(now / 1000, zone)
+        today = local.date()
+        # After the KRX regular close (15:30 KST) the day's regular-session bar is final.
+        closed_today = asset.market == "domestic" and local.time() >= KRX_BAR_FINAL
+        end = today if closed_today else today - timedelta(days=1)
         if asset.market == "domestic":
             result = self.client.domestic_chart(
                 symbol=asset.symbol,
@@ -515,7 +550,7 @@ class ManagedKisGateway:
         bars = []
         for raw in result.body["output2"]:
             day = datetime.strptime(raw[names[0]], "%Y%m%d").date()
-            if day >= today:
+            if day > end:
                 continue
             high, low, close = [decimal(raw[n], positive=True) for n in names[1:]]
             if not low <= close <= high:
@@ -714,10 +749,26 @@ class ManagedKisGateway:
             else "0"
         )
         sellable = pos["ord_psbl_qty"] if pos else "0"
+        session_open = self._session(asset, now)
+        session_unavailable_reason = None
+        previous = row.get("last_observed_ms", now)
+        same_session = self._same_execution_session(asset, previous, now)
         try:
             price, ask, stamp = self._quote(asset)
+        except KisSessionClosed:
+            session_unavailable_reason = (
+                "No current-session execution date; execution availability unverified "
+                "(holiday, suspended instrument, or delayed data); local protection unavailable"
+                if session_open else "Execution session closed; local protection unavailable"
+            )
+            price, ask, stamp, session_open = Decimal(0), Decimal(0), 0, False
         except (ValueError, KeyError, IndexError, RuntimeError, OSError):
             price, ask, stamp = Decimal(0), Decimal(0), 0
+        observed_now = int(time.time() * 1000)
+        session_gap_ms = regular_cash_session_elapsed_ms(
+            previous, observed_now,
+            session_group=SESSION_KRX_CASH if asset.market == "domestic" else SESSION_US_CASH,
+        )
         return {
             "size": str(size),
             "entry_price": entry_price,
@@ -725,13 +776,16 @@ class ManagedKisGateway:
             "price": str(price),
             "time_ms": stamp,
             "sellable": sellable,
-            "session_open": self._session(asset, now),
+            "session_open": session_open,
+            "same_execution_session": same_session,
+            "regular_session_gap_ms": session_gap_ms,
+            "session_unavailable_reason": session_unavailable_reason,
             "foreign_add": foreign,
             "consistent": net == size,
             "orders": orders,
             "quantity_step": "1",
             "price_step": row["plan"].get("verified_price_step", "0"),
-            "observed_now_ms": int(time.time() * 1000),
+            "observed_now_ms": observed_now,
         }
 
     def submit(self, row, a):

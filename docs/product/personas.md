@@ -21,7 +21,7 @@ These personas describe responsibilities and decision contexts visible in curren
 
 - Uses dry-run first, then repeats a reviewed command with `--live`.
 - Uses `hl-account`, mapping lists, verification, funding, and spread outputs as a manual checklist.
-- Uses `--allow-outside-session` only for a separately reviewed exception.
+- Treats `--allow-outside-session` as compatibility-only; Hyperliquid session decisions are advisory and do not authorize an order.
 
 **Failure concerns:** Wrong symbol namespace, stale verification, missing stop coverage, unrounded order values, unexpected exchange rejection, or confusing a reference quote with an executable price.
 

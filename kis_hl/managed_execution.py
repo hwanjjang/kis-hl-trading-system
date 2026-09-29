@@ -294,11 +294,23 @@ class ExecutionStore:
             db.execute("INSERT INTO managed_tranches VALUES(?,?,?)", (tranche["id"], owner["id"], encode(tranche)))
         return tranche
 
-    def enqueue_adoption(self, scope, plan, *, entry_order_id, stop_order_id, live=False, now_ms):
+    def enqueue_adoption(self, scope, plan, *, entry_order_id, stop_order_id, live=False, now_ms,
+                         entry_since_ms=None):
         from kis_hl.instruments import instrument
         asset = instrument(plan["instrument"])
+        if asset.venue == "kis":
+            # KIS order numbers are zero-padded strings; there is no native stop to import.
+            if (asset.market != "domestic" or not isinstance(entry_order_id, str)
+                    or not entry_order_id.isdigit() or stop_order_id is not None
+                    or type(entry_since_ms) is not int or not 0 < entry_since_ms <= now_ms
+                    or plan.get("signal_id") or plan.get("grant_id")):
+                raise ValueError("KIS adoption requires a domestic listing, the buy order number, "
+                                 "its fill time and direct management authority")
+            return self.enqueue(scope, plan, live=live, now_ms=now_ms,
+                                adoption={"venue": "kis", "entry_order_id": entry_order_id,
+                                          "entry_since_ms": entry_since_ms})
         if asset.venue != "hyperliquid" or asset.market != "perp":
-            raise ValueError("Adoption supports Hyperliquid perpetuals only")
+            raise ValueError("Adoption supports Hyperliquid perpetuals and KIS domestic listings only")
         if (any(type(x) is not int or x <= 0 for x in (entry_order_id, stop_order_id))
                 or entry_order_id == stop_order_id or plan.get("signal_id") or plan.get("grant_id")):
             raise ValueError("Adoption requires distinct native IDs and direct management authority")
@@ -532,9 +544,10 @@ class Supervisor:
             if not self.live:
                 self._state(row, "PREVIEWED", "Paper handoff; no account reads or ownership imported", now)
                 return
-            from kis_hl.manual_adoption import verify_adoption
+            from kis_hl.manual_adoption import verify_adoption, verify_kis_adoption
+            verifier = verify_kis_adoption if row["adoption"].get("venue") == "kis" else verify_adoption
             try:
-                updates, imported = verify_adoption(self.gateway, row, now)
+                updates, imported = verifier(self.gateway, row, now)
             except ValueError as exc:
                 if str(exc).startswith("migration-required:"):
                     self._state(row, "INTERVENTION", str(exc), now)
@@ -704,11 +717,21 @@ class Supervisor:
             row["exit_requested_ms"] = row["exit_requested_ms"] or now
         row["protective_filled"] = str(protective_filled)
         previous_observation = row.get("last_observed_ms", now)
+        same_session = (
+            snap.get("same_execution_session", True)
+            and row.get("last_session_open", True)
+        )
         row["last_observed_ms"] = now
+        row["last_session_open"] = bool(snap["session_open"])
+        if not self.gateway.native_sl and not same_session:
+            row.pop("unprotected_since_ms", None)
         if (
             size > 0
             and not self.gateway.native_sl
-            and now - previous_observation >= p["protection_grace_ms"]
+            and int(snap.get(
+                "regular_session_gap_ms",
+                now - previous_observation if snap["session_open"] else 0,
+            )) >= p["protection_grace_ms"]
         ):
             row["exit_requested_ms"] = row["exit_requested_ms"] or now
         orders = snap["orders"]
@@ -870,9 +893,17 @@ class Supervisor:
             else:
                 protected = fresh and p["allow_local_sl"] and bool(snap["session_open"])
                 row["covered_size"] = str(size if protected else 0)
+                if protected or not snap["session_open"]:
+                    # A closed venue session cannot be protected locally by any
+                    # means; it is disclosed gap risk, not a reason to force an exit
+                    # at the next open. Only in-session loss of coverage counts.
+                    row.pop("unprotected_since_ms", None)
+                else:
+                    row.setdefault("unprotected_since_ms", now)
             row["local_trailing_covered_size"] = str(size if fresh and (
                 not native_trailing or p.get("local_trailing_backup", False)) else 0)
-            if not protected and now - row.get("unprotected_since_ms", row["first_fill_ms"]) >= p["protection_grace_ms"]:
+            since = row.get("unprotected_since_ms")
+            if not protected and since is not None and now - since >= p["protection_grace_ms"]:
                 row["exit_requested_ms"] = row["exit_requested_ms"] or now
             if native_trailing:
                 trails = [a for a in attempts if a["kind"] == "trailing"]
@@ -1112,7 +1143,10 @@ class Supervisor:
             self._state(
                 row,
                 "DEGRADED",
-                "Stale market data; reconcile fills and retain native protection",
+                snap.get("session_unavailable_reason") or (
+                    "Stale market data; reconcile fills and retain native protection"
+                    if self.gateway.native_sl else "Stale market data; local protection unavailable"
+                ),
                 now,
             )
         else:
