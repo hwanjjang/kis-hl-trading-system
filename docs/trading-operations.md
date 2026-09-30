@@ -750,6 +750,22 @@ remain manual. No order is sent using a failed snapshot; the original protection
 and exit clocks are not reset. Events retain the failed operation, exception class
 and retry count without copying potentially sensitive transport error payloads.
 
+For KIS, a clock-based closed execution session is an exception: failed account
+reads report `DEGRADED` and increment the diagnostic failure count without creating
+a new read-failure exit. This exception does not clear an existing exit request or
+an `INTERVENTION`, including an already latched read-failure exit. No order is sent
+from a failed snapshot.
+
+The consecutive failure count and any existing `read_failure_since_ms` are retained
+across the closure and restarts. At reopening the ordinary read-failure policy
+applies: even the first failed opening read can reach the retained count or outage
+timer threshold and latch an exit. A successful consistent snapshot resets the
+read-failure count/timer; fresh valid local coverage can recover when no other exit
+trigger applies. These read-failure budgets are separate from the
+[regular-session observation-gap accounting](#kis-domestic-holding-handoff), which
+excludes nights/weekends and still enforces missed scheduled trading time. Opening
+fixed-stop breaches and existing exit deadlines remain effective.
+
 For Hyperliquid, `max_quote_age_ms` also bounds each action's `expiresAfter` from
 its durable attempt creation, including stops and exits. Use a realistic network
 budget: an expired local send can remain UNKNOWN, and the system never guesses

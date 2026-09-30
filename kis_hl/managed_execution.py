@@ -677,7 +677,7 @@ class Supervisor:
                     row,
                     "DEGRADED",
                     f"Account snapshot unavailable outside the execution session ({type(exc).__name__}); "
-                    f"consecutive failures={row['read_failures']}; no exit latched",
+                    f"consecutive failures={row['read_failures']}; no new read-failure exit latched",
                     now,
                 )
                 return
