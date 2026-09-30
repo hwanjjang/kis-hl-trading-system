@@ -666,6 +666,21 @@ class Supervisor:
         try:
             snap = self.gateway.snapshot(row, attempts, now)
         except (RuntimeError, OSError) as exc:
+            session_check = getattr(self.gateway, "execution_session_open", None)
+            if (session_check is not None and not row.get("read_failure_exit")
+                    and row["state"] != "INTERVENTION"
+                    and not session_check(p["instrument"], now)):
+                # Broker maintenance outside the execution session: no local exit
+                # could execute anyway, so do not latch one for the next open.
+                row["read_failures"] = row.get("read_failures", 0) + 1
+                self._state(
+                    row,
+                    "DEGRADED",
+                    f"Account snapshot unavailable outside the execution session ({type(exc).__name__}); "
+                    f"consecutive failures={row['read_failures']}; no exit latched",
+                    now,
+                )
+                return
             row["read_failures"] = row.get("read_failures", 0) + 1
             row.setdefault("read_failure_since_ms", now)
             existing_intervention = row["state"] == "INTERVENTION" and not row.get(

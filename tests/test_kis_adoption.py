@@ -121,6 +121,32 @@ class KisAdoptionTests(unittest.TestCase):
         self.assertEqual(self.step(ms("2026-09-29T09:00:00+09:00"))["state"], "PROTECTED")
         self.assertEqual(self.g.sent, [])
 
+    def test_overnight_broker_read_failures_do_not_latch_an_exit(self):
+        close = ms("2026-09-29T15:30:00+09:00")
+        self.row = self.adopt(at=close - 2_000)
+        self.step(close - 1_000)
+        snapshot = self.g.snapshot
+        self.g.snapshot = lambda *a: (_ for _ in ()).throw(RuntimeError("KIS account inquiry failed"))
+        for offset in range(0, 600_000, 5_000):
+            result = self.step(ms("2026-09-30T01:42:00+09:00") + offset)
+        self.assertEqual(result["state"], "DEGRADED")
+        self.assertIsNone(result["exit_requested_ms"])
+        self.g.snapshot = snapshot
+        result = self.step(ms("2026-09-30T09:00:01+09:00"))
+        self.assertEqual(result["state"], "PROTECTED")
+        self.assertIsNone(result["exit_requested_ms"])
+        self.assertEqual(self.g.sent, [])
+
+    def test_in_session_broker_read_failures_still_latch_an_exit(self):
+        self.row = self.adopt()
+        self.step(NOW + 1_000)
+        self.step(NOW + 2_000)
+        self.g.snapshot = lambda *a: (_ for _ in ()).throw(RuntimeError("KIS account inquiry failed"))
+        for offset in (5_000, 10_000, 15_000):
+            result = self.step(NOW + offset)
+        self.assertEqual(result["state"], "INTERVENTION")
+        self.assertIsNotNone(result["exit_requested_ms"])
+
     def test_closed_session_observation_gap_survives_restart(self):
         for close_day, reopen_day in (("2026-09-28", "2026-09-29"), ("2026-09-25", "2026-09-28")):
             with self.subTest(close_day=close_day):
