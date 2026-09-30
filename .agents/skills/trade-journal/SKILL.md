@@ -66,6 +66,15 @@ behavior-focused tests in the same change when semantics change.
    python3 -m unittest discover -s tests -t . -q
    ```
 
+## Decision notes
+
+Record AK, agent and Jev opinions as append-only decision notes linked to the
+automatic position-change journal (`data note` / `data notes`); see
+`docs/unified-data-operations.md#decision-notes-ak-agent-and-jev-opinions`.
+Notes never enter realized statistics. After each real execution, sync the account,
+then add linked notes; read prior notes for the instrument before the next decision.
+Keep AK's own words under `author: ak`, and keep Jev output unchanged.
+
 ## Safety boundary
 
 Journal commands are read/write operations against local SQLite state only. This skill
