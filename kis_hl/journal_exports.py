@@ -212,7 +212,7 @@ def journal(store, accounts, *, as_of_ms=None):
     from kis_hl.decision_notes import attach_notes, list_notes
     changes=report_changes(store,trades)
     # Advisory decision notes (AK/agent/Jev) known at the as-of time sit next to activity.
-    notes=[n for n in list_notes(store,accounts=set(accounts),limit=0) if n['recorded_ms']<=asof]
+    notes=list_notes(store,accounts=set(accounts),limit=0,as_of_ms=asof)
     unlinked=attach_notes(changes,notes)
     result=serial(dict(accounts=accounts,as_of_ms=asof,summary_by_account_currency=summaries,cycles=cycles,quality_findings=issues,
                        position_changes=changes,decision_notes=unlinked,

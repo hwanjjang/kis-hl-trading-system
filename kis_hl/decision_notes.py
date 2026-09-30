@@ -6,6 +6,7 @@ actual executions. They are advisory records: they never authorize, size or
 change orders, and they never edit trade facts or statistics.
 """
 from decimal import Decimal
+import json
 
 from kis_hl.data_store import encode, now_ms
 
@@ -86,17 +87,32 @@ def add_note(store, note):
     entry = validate_note(note)
     with store.connect() as db:
         db.execute('BEGIN IMMEDIATE')
+        if db.execute('SELECT 1 FROM accounts WHERE id=?', (entry['account'],)).fetchone() is None:
+            raise ValueError('account must reference a canonical account')
+        journal = None
         if entry['journal_id'] is not None:
-            row = db.execute("SELECT kind FROM analysis_runs WHERE id=?", (entry['journal_id'],)).fetchone()
+            row = db.execute("SELECT kind,result FROM analysis_runs WHERE id=?", (entry['journal_id'],)).fetchone()
             if row is None or row['kind'] != 'position_change':
                 raise ValueError('journal_id must reference an automatic position-change journal')
-        if entry['fact_id'] is not None and db.execute(
-                "SELECT 1 FROM fact_revisions WHERE id=? AND dataset='trade'", (entry['fact_id'],)).fetchone() is None:
-            raise ValueError('fact_id must reference a trade fact')
+            journal = json.loads(row['result'])
+            if (journal['account'], journal['instrument']) != (entry['account'], entry['instrument']):
+                raise ValueError('journal_id account and instrument must match the note')
+        if entry['fact_id'] is not None:
+            row = db.execute("SELECT scope,instrument FROM fact_revisions WHERE id=? AND dataset='trade'",
+                             (entry['fact_id'],)).fetchone()
+            if row is None:
+                raise ValueError('fact_id must reference a trade fact')
+            if (row['scope'], row['instrument']) != (entry['account'], entry['instrument']):
+                raise ValueError('fact_id account and instrument must match the note')
+            if journal is not None and journal['fact_id'] != entry['fact_id']:
+                raise ValueError('journal_id and fact_id must reference the same trade revision')
         if entry['supersedes_note_id'] is not None:
-            row = db.execute("SELECT kind FROM analysis_runs WHERE id=?", (entry['supersedes_note_id'],)).fetchone()
+            row = db.execute("SELECT kind,result FROM analysis_runs WHERE id=?", (entry['supersedes_note_id'],)).fetchone()
             if row is None or row['kind'] != 'decision_note':
                 raise ValueError('supersedes_note_id must reference a decision note')
+            original = json.loads(row['result'])
+            if (original['account'], original['instrument']) != (entry['account'], entry['instrument']):
+                raise ValueError('supersedes_note_id account and instrument must match the note')
         run = db.execute(
             'INSERT INTO analysis_runs(kind,created_ms,as_of_ms,parameters,result) VALUES(?,?,?,?,?)',
             ('decision_note', entry['recorded_ms'], entry['observed_ms'],
@@ -107,11 +123,12 @@ def add_note(store, note):
     return {'note_id': run, **entry}
 
 
-def list_notes(store, *, accounts=None, instrument=None, since_ms=None, limit=200):
-    import json
+def list_notes(store, *, accounts=None, instrument=None, since_ms=None, limit=200, as_of_ms=None):
     with store.connect() as db:
         rows = db.execute("SELECT id,result FROM analysis_runs WHERE kind='decision_note' ORDER BY as_of_ms,id").fetchall()
     notes = [{'note_id': r['id'], **json.loads(r['result'])} for r in rows]
+    if as_of_ms is not None:
+        notes = [n for n in notes if n['recorded_ms'] <= as_of_ms]
     superseded = {n['supersedes_note_id'] for n in notes if n.get('supersedes_note_id')}
     out = []
     for n in notes:
