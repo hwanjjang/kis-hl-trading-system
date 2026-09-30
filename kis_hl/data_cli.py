@@ -18,6 +18,11 @@ def register(sub):
         if action=='restore':p.add_argument('--source',required=True)
     p=ds.add_parser('reconcile');p.add_argument('--statement',required=True);p.add_argument('--sha256',required=True);p.add_argument('--apply',action='store_true');p.set_defaults(handler=cmd_data)
     p=ds.add_parser('journal');p.add_argument('--accounts',nargs='+',required=True);p.add_argument('--as-of-ms',type=int);p.set_defaults(handler=cmd_data)
+    p=ds.add_parser('note',help='Append an advisory decision note (AK/agent/Jev) to the journal')
+    p.add_argument('--input',required=True,help='Note JSON; see docs/unified-data-operations.md');p.set_defaults(handler=cmd_data)
+    p=ds.add_parser('notes',help='List decision notes for review before the next decision')
+    p.add_argument('--accounts',nargs='+');p.add_argument('--instrument');p.add_argument('--since-ms',type=int)
+    p.add_argument('--limit',type=int,default=50);p.set_defaults(handler=cmd_data)
     p=ds.add_parser('export');p.add_argument('--report-id',type=int,required=True);p.add_argument('--output',required=True);p.set_defaults(handler=cmd_data)
     p=ds.add_parser('configure');p.add_argument('--job-id',required=True);p.add_argument('--config',required=True);p.add_argument('--interval-seconds',type=int,default=10800);p.set_defaults(handler=cmd_data)
     p=ds.add_parser('sync');p.add_argument('--venue',choices=['kis','hyperliquid'],required=True);p.add_argument('--account');p.add_argument('--start-ms',type=int,required=True);p.add_argument('--end-ms',type=int);p.set_defaults(handler=cmd_data)
@@ -77,6 +82,13 @@ def cmd_data(args):
     if args.data_action=='import':return import_manifest(store,args.manifest,apply=True)
     if args.data_action=='backup':return backup(store,args.target)
     if args.data_action=='journal':return journal(store,args.accounts,as_of_ms=args.as_of_ms)
+    if args.data_action=='note':
+        from kis_hl.decision_notes import add_note
+        return add_note(store,json.loads(Path(args.input).read_text()))
+    if args.data_action=='notes':
+        from kis_hl.decision_notes import list_notes
+        return {'notes':list_notes(store,accounts=set(args.accounts) if args.accounts else None,
+                                   instrument=args.instrument,since_ms=args.since_ms,limit=args.limit)}
     if args.data_action=='export':return export_report(store,args.report_id,args.output)
     if args.data_action=='configure':return configure(store,args.job_id,json.loads(Path(args.config).read_text()),args.interval_seconds)
     if args.data_action=='sync':
