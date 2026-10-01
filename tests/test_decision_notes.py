@@ -1,5 +1,6 @@
 """Advisory decision notes sit beside actual position activity and never alter it."""
 from copy import deepcopy
+import io
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -10,6 +11,7 @@ from kis_hl.data_ingestion import ingest_rows
 from kis_hl.data_store import DataStore
 from kis_hl.decision_notes import add_note, list_notes
 from kis_hl.journal_exports import journal
+from kis_hl.timing_opinion import request_opinion
 
 JEV = {"tool": "timing_opinion", "provider": "typesafe", "status": "available",
        "instrument": "hl:BTC", "snapshot_id": "note-snapshot", "asof_ms": 150,
@@ -195,6 +197,26 @@ class DecisionNoteTests(unittest.TestCase):
         self.assertIn(report, stale)
         self.assertIn(analysis, stale)
         self.assertEqual(list_notes(self.store, limit=0), frozen)
+
+
+    def test_actual_available_and_unavailable_jev_outputs_are_preserved(self):
+        review = dict(instrument='hl:BTC', snapshot_id='fixture-snapshot', asof_ms=100,
+                      horizon='daily', facts={'trend': 'rising'})
+        response = {'model': 'jev-1.13.0', 'answers': {'timing': {
+            'type': 'choice', 'choice': 'long',
+            'probabilities': {'long': 0.8, 'short': 0.1, 'wait': 0.1}, 'confidence': 0.81}}}
+        for body, status in ((json.dumps(response).encode(), 'available'),
+                             (b'invalid response', 'unavailable')):
+            with self.subTest(status=status):
+                opinion = request_opinion(review, api_key='fixture',
+                                          opener=lambda request, timeout: io.BytesIO(body))
+                self.assertEqual(opinion['status'], status)
+                added = self.note(author='jev', text=None, jev=opinion)
+                stored = next(n for n in list_notes(self.store, limit=0)
+                              if n['note_id'] == added['note_id'])
+                self.assertEqual(stored['jev'], opinion)
+                self.assertEqual(journal(self.store, [self.account])['position_changes'][0]['notes'][-1]['jev'],
+                                 opinion)
 
 
 if __name__ == '__main__':
