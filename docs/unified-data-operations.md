@@ -574,3 +574,57 @@ fills and exact timestamps cannot be reconstructed. Transfers, corporate actions
 snapshot-only discrepancies are not fabricated as trades. Missing costs, coverage
 and opening inventory retain existing pending/statistics safeguards. Existing data
 requires no migration. This change does not start collection or submit live orders.
+
+## Decision notes (AK, agent and Jev opinions)
+
+Decision notes record *why* a trade or a no-trade decision was taken, next to the
+automatic position activity, so the next decision can review earlier reasoning
+against what actually happened. They are append-only advisory records in the same
+operational store (`analysis_runs.kind = decision_note`); they never authorize,
+size or change orders and never edit trade facts or statistics.
+
+```bash
+python -m kis_hl.cli --db data/kis_hl.sqlite data note --input note.json
+python -m kis_hl.cli --db data/kis_hl.sqlite data notes --instrument hl:xyz:KORU --limit 20
+python -m kis_hl.cli --db data/kis_hl.sqlite data journal --accounts ACCOUNT_ID
+```
+
+| Field | Meaning |
+| --- | --- |
+| `account`, `instrument` | Canonical account ID (from `data status`) and instrument ID |
+| `author` | `ak` (the user), `agent` (Hermes/Codex/Claude), `jev` or `other` |
+| `phase` | `pre_trade`, `entry`, `add`, `hold`, `reduce`, `exit`, `post_trade` or `review` |
+| `stance` | Optional `long`, `add`, `hold`, `reduce`, `exit`, `wait`, `avoid`, `short`, `neutral` |
+| `text` | The reasoning in the author's own terms (required except for `jev`) |
+| `observed_ms` | When the opinion was formed (UTC ms, not in the future) |
+| `journal_id` / `fact_id` | Optional link to the automatic position-change journal or trade fact |
+| `decision_id` | Optional `strategy decide` ID |
+| `context` | Optional small JSON: prices, levels, stop/TS, units, source times |
+| `jev` | Required for `author: jev`: the unchanged `strategy opinion` output |
+| `supersedes_note_id` | Correction of an earlier note; the original stays exportable |
+
+`data journal` places effective notes under each linked `position_changes` entry
+(`notes`) and lists unlinked notes in `decision_notes`. Only notes recorded at or
+before the report as-of time are included when calculating supersession; a later
+correction cannot hide the original from an earlier report. Linked journals,
+trade facts and superseded notes must match the note's account and instrument.
+When both `journal_id` and `fact_id` are supplied, they must identify the same
+trade revision. Invalid links are rejected before any note is written.
+Decision notes retain historical opinions and are excluded from `data status`
+`stale_runs` when a linked trade is corrected, regardless of link type; dependent
+performance reports and analyses still become stale. Record AK's own words as `ak`, never
+paraphrased agent reasoning. A Jev note keeps probabilities and confidence as the
+tool returned them; an unavailable opinion is recorded as unavailable, not omitted.
+Before insertion, Jev results use the same attached-opinion validation as
+`strategy decide`: the instrument must match the note, the snapshot ID must be
+non-empty, and `asof_ms` must be a positive integer no later than the note's
+`observed_ms`. Available results require decimal-string probabilities, confidence
+and threshold with a consistent confidence gate; unavailable results require a
+reason, null opinion fields and a valid decimal-string threshold. Invalid results
+are rejected before any note or input link is written. The Jev payload is preserved
+unchanged; see [the timing-opinion contract](strategy-tools.md#jev-timing-opinion).
+
+Workflow after an execution: run the account `data sync` (user or agent initiated),
+read the new `journal_id` from `data journal`, then add linked notes for AK's
+stated reason, the agent's assessment at the time, and the Jev opinion if one was
+requested. Before the next decision on the same instrument, read `data notes`.

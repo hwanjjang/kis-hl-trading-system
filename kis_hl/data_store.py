@@ -197,10 +197,10 @@ class DataStore:
                 derived = {key for key, inputs in dependencies.items() if stale.intersection(inputs)}
                 if derived <= stale: break
                 stale.update(derived)
-            # Superseded activity is immutable history, not an outdated analysis.
+            # Activity and decision notes retain history, not recalculable analyses.
             stale_runs = {r['run_id'] for r in db.execute(
                 "SELECT i.run_id,i.fact_id FROM analysis_inputs i JOIN analysis_runs r "
-                "ON r.id=i.run_id WHERE r.kind!='position_change'") if r['fact_id'] in stale}
+                "ON r.id=i.run_id WHERE r.kind NOT IN ('position_change','decision_note')") if r['fact_id'] in stale}
             for run in db.execute('SELECT * FROM analysis_runs'):
                 parameters=json.loads(run['parameters'])
                 if run['kind']!='journal':
