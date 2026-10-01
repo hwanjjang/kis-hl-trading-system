@@ -5,10 +5,10 @@ another source) so the next decision can review earlier reasoning next to the
 actual executions. They are advisory records: they never authorize, size or
 change orders, and they never edit trade facts or statistics.
 """
-from decimal import Decimal
 import json
 
 from kis_hl.data_store import encode, now_ms
+from kis_hl.timing_opinion import check_attached, min_confidence
 
 POLICY_VERSION = 'decision-note-v1'
 AUTHORS = {'ak', 'agent', 'jev', 'other'}
@@ -52,6 +52,7 @@ def validate_note(note, *, recorded_ms=None):
     context = note.get('context', {})
     if not isinstance(context, dict) or len(encode(context)) > 8000:
         raise ValueError('context must be a JSON object of at most 8000 encoded characters')
+    instrument = _text(note.get('instrument'), 'instrument', limit=100)
     jev = note.get('jev')
     if jev is not None:
         # Keep the unchanged `strategy opinion` output; it must stay advisory.
@@ -60,18 +61,20 @@ def validate_note(note, *, recorded_ms=None):
             raise ValueError('jev must be an unchanged advisory strategy opinion output')
         if author != 'jev':
             raise ValueError('Only a jev-authored note may carry a Jev opinion')
-        for key in ('confidence', 'min_confidence'):
-            if jev.get(key) is not None and not isinstance(jev[key], str):
-                raise ValueError('Jev decimals must stay decimal strings')
-        if jev.get('confidence') is not None:
-            Decimal(jev['confidence'])
+        _text(jev.get('snapshot_id'), 'Jev snapshot_id', limit=300)
+        asof = jev.get('asof_ms')
+        if type(asof) is not int or not 0 < asof <= observed:
+            raise ValueError('Jev asof_ms must be a positive timestamp no later than observed_ms')
+        check_attached(jev, instrument=instrument, snapshot_id=jev['snapshot_id'], asof_ms=asof)
+        # Unavailable results also retain a valid decimal-string threshold.
+        min_confidence(jev)
     elif author == 'jev':
         raise ValueError('A jev-authored note requires the unchanged Jev opinion output')
     text = _text(note.get('text'), 'text') if author != 'jev' or note.get('text') else None
     return {
         'policy_version': POLICY_VERSION,
         'account': _text(note.get('account'), 'account', limit=200),
-        'instrument': _text(note.get('instrument'), 'instrument', limit=100),
+        'instrument': instrument,
         'author': author, 'phase': phase, 'stance': stance, 'text': text,
         'observed_ms': observed, 'recorded_ms': recorded,
         'journal_id': note.get('journal_id'), 'fact_id': note.get('fact_id'),

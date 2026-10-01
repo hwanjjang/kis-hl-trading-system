@@ -1,4 +1,5 @@
 """Advisory decision notes sit beside actual position activity and never alter it."""
+from copy import deepcopy
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -11,8 +12,13 @@ from kis_hl.decision_notes import add_note, list_notes
 from kis_hl.journal_exports import journal
 
 JEV = {"tool": "timing_opinion", "provider": "typesafe", "status": "available",
+       "instrument": "hl:BTC", "snapshot_id": "note-snapshot", "asof_ms": 150,
+       "requested_model": "jev-1.13.0", "model": "jev-1.13.0",
+       "input_sha256": "a" * 64, "usage": None,
        "advisory": True, "order_authorized": False, "choice": "wait",
-       "confidence": "0.41", "min_confidence": "0.5", "effective_opinion": "wait"}
+       "probabilities": {"long": "0.20", "short": "0.25", "wait": "0.55"},
+       "confidence": "0.41", "min_confidence": "0.5", "band": "low",
+       "effective_opinion": "wait"}
 
 
 class DecisionNoteTests(unittest.TestCase):
@@ -67,6 +73,62 @@ class DecisionNoteTests(unittest.TestCase):
         for change in bad:
             with self.subTest(change=change), self.assertRaises(ValueError):
                 self.note(**change)
+        self.assertEqual(list_notes(self.store, limit=0), [])
+
+    def test_invalid_jev_results_are_rejected_before_any_writes(self):
+        bad = [
+            dict(instrument='hl:ETH'),
+            dict(probabilities={'long': 0.20, 'short': 0.25, 'wait': 0.55}),
+            dict(confidence=0.41), dict(confidence='NaN'), dict(confidence='Infinity'),
+            dict(min_confidence='NaN'), dict(min_confidence=0.5),
+            dict(probabilities={'long': 'NaN', 'short': '0.25', 'wait': '0.55'}),
+            dict(probabilities={'long': '0.20', 'short': '0.25', 'wait': '0.25'}),
+            dict(choice='long'), dict(confidence='1.1'), dict(band='high'),
+            dict(effective_opinion='long'), dict(status='unknown'),
+            dict(provider='other'), dict(advisory=False), dict(order_authorized=True),
+            dict(status='unavailable', reason='transport error'),
+            dict(snapshot_id=None), dict(snapshot_id=''), dict(snapshot_id=' '),
+            dict(snapshot_id=1), dict(asof_ms=None), dict(asof_ms=True),
+            dict(asof_ms=0), dict(asof_ms='150'), dict(asof_ms=151),
+        ]
+        with self.store.connect() as db:
+            before = [db.execute(f'SELECT count(*) FROM {t}').fetchone()[0]
+                      for t in ('analysis_runs', 'analysis_inputs')]
+        for changes in bad:
+            with self.subTest(changes=changes):
+                with self.assertRaises(ValueError):
+                    self.note(author='jev', text=None, jev={**deepcopy(JEV), **changes},
+                              fact_id=self.fact)
+                with self.store.connect() as db:
+                    self.assertEqual([db.execute(f'SELECT count(*) FROM {t}').fetchone()[0]
+                                      for t in ('analysis_runs', 'analysis_inputs')], before)
+        self.assertEqual(list_notes(self.store, limit=0), [])
+
+    def test_valid_available_and_unavailable_jev_results_round_trip_unchanged(self):
+        unavailable = {**deepcopy(JEV), 'status': 'unavailable', 'model': None,
+                       'reason': 'HTTP 529', 'choice': None, 'probabilities': None,
+                       'confidence': None, 'band': None, 'effective_opinion': None}
+        for opinion in (deepcopy(JEV), unavailable, {**deepcopy(JEV), 'snapshot_id': ' snapshot '}):
+            with self.subTest(status=opinion['status']):
+                original = deepcopy(opinion)
+                note = self.note(author='jev', text=None, jev=opinion, observed_ms=200)
+                self.assertEqual(note['jev'], original)
+                self.assertEqual(opinion, original)
+                self.assertEqual(list_notes(self.store, limit=0)[-1]['jev'], original)
+                attached = journal(self.store, [self.account])['position_changes'][0]['notes'][-1]
+                self.assertEqual(attached['jev'], original)
+                self.assertIs(attached['order_authorized'], False)
+
+    def test_invalid_unavailable_jev_results_are_rejected_without_writes(self):
+        unavailable = {**deepcopy(JEV), 'status': 'unavailable', 'model': None,
+                       'reason': 'HTTP 529', 'choice': None, 'probabilities': None,
+                       'confidence': None, 'band': None, 'effective_opinion': None}
+        for changes in (dict(reason=None), dict(reason=' '), dict(choice='wait'),
+                        dict(confidence='0.41'), dict(band='low'),
+                        dict(effective_opinion='wait'), dict(min_confidence=0.5),
+                        dict(min_confidence='NaN'), dict(instrument='hl:ETH')):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                self.note(author='jev', text=None, jev={**unavailable, **changes})
         self.assertEqual(list_notes(self.store, limit=0), [])
 
     def test_historical_reports_ignore_future_corrections(self):

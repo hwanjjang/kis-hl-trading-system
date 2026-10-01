@@ -615,6 +615,14 @@ Decision notes retain historical opinions and are excluded from `data status`
 performance reports and analyses still become stale. Record AK's own words as `ak`, never
 paraphrased agent reasoning. A Jev note keeps probabilities and confidence as the
 tool returned them; an unavailable opinion is recorded as unavailable, not omitted.
+Before insertion, Jev results use the same attached-opinion validation as
+`strategy decide`: the instrument must match the note, the snapshot ID must be
+non-empty, and `asof_ms` must be a positive integer no later than the note's
+`observed_ms`. Available results require decimal-string probabilities, confidence
+and threshold with a consistent confidence gate; unavailable results require a
+reason, null opinion fields and a valid decimal-string threshold. Invalid results
+are rejected before any note or input link is written. The Jev payload is preserved
+unchanged; see [the timing-opinion contract](strategy-tools.md#jev-timing-opinion).
 
 Workflow after an execution: run the account `data sync` (user or agent initiated),
 read the new `journal_id` from `data journal`, then add linked notes for AK's
