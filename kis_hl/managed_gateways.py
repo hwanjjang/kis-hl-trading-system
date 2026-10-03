@@ -489,6 +489,7 @@ class ManagedHyperliquidGateway:
             "session_open": True,
             "foreign_add": foreign,
             "orders": orders,
+            "open_order_ids": [str(o["oid"]) for o in opens if o["coin"] == resolved.coin],
             "consistent": net == size and order_fills_match,
             "reconciliation_context": dict(context),
             "price_step": str(max(tick, Decimal(10) ** (bid.adjusted() - 4))),

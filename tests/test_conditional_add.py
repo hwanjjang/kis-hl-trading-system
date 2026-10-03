@@ -49,6 +49,7 @@ class AddGateway(Gateway):
 
     def snapshot(self, row, attempts, now):
         return {**super().snapshot(row, attempts, now), "price": self.price,
+                "open_order_ids": [k for k, v in self.orders.items() if v["status"] == "open"],
                 "fills_by_attempt": dict(self.fill_sizes), "trailing_price_step": "0.01",
                 "protective_filled": self.protective_filled}
 

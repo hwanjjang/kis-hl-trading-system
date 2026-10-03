@@ -301,7 +301,11 @@ Use separate `--db` paths for each Binance environment and key profile: legacy t
 `intraday_add.py` implements the explicit direct-authority exception for already
 adopted native percentage owners: it checks newly completed adjacent UTC 9m high
 breakouts, fresh account-total sizing and an inward-rounded close * 1.003 hard
-exchange limit. This is not a weekly strategy signal. The existing supervisor and
+exchange limit. This is not a weekly strategy signal.
+`conditional_add.preflight_add` rereads exact owned protection after the account
+preflight: reconciled exposure, current open IDs, full fixed-SL coverage and summed
+active percentage coverage must pass before an add attempt is allocated. The final
+read clock also bounds authority and evidence freshness. The existing supervisor and
 attempt ledger own transport, fixed-SL and per-increment percentage trailing
 coverage; no second worker or table is added. Exact-ID percentage handoff/migration
 uses `manual_adoption.py` and atomic `ExecutionStore.complete_adoption`, preserving

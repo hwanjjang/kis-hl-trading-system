@@ -45,6 +45,86 @@ class IntradayPercentageAddTests(unittest.TestCase):
             intent_id="explicit-add", units="0.02", expires_ms=NOW+40000,
             authorized_ms=self.end-1, now_ms=NOW, manual=True, **kw)
 
+    def assert_protection_change_blocks_add(self, kind, changes, *, during_preflight=False):
+        protection = next(a for a in self.g.sent if a["kind"] == kind)
+        self.queue()
+        if during_preflight:
+            preflight = self.g.preflight
+            def changed(plan, now, **kwargs):
+                result = preflight(plan, now, **kwargs)
+                self.g.orders[protection["id"]].update(changes)
+                return result
+            self.g.preflight = changed
+        else:
+            bars = self.g.completed_nine_minute_bars
+            def changed(instrument, now):
+                self.g.orders[protection["id"]].update(changes)
+                return bars(instrument, now)
+            self.g.completed_nine_minute_bars = changed
+        self.worker.step(self.row["id"], NOW+1)
+        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+        self.assertFalse(any(a["kind"] == "add" for a in self.store.attempts(self.row["id"])))
+        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
+
+    def test_stop_canceled_during_bar_read_blocks_add(self):
+        self.assert_protection_change_blocks_add("stop", {"status": "canceled"})
+
+    def test_trail_canceled_during_bar_read_blocks_add(self):
+        self.assert_protection_change_blocks_add("trailing", {"status": "canceled"})
+
+    def test_stop_canceled_after_preflight_open_orders_blocks_add(self):
+        self.assert_protection_change_blocks_add("stop", {"status": "canceled"}, during_preflight=True)
+
+    def test_trail_inactive_after_preflight_blocks_add(self):
+        self.assert_protection_change_blocks_add("trailing", {"active": False}, during_preflight=True)
+
+    def test_undersized_stop_after_bar_read_blocks_add(self):
+        self.assert_protection_change_blocks_add("stop", {"size": "0.5"})
+
+    def test_undersized_trail_after_bar_read_blocks_add(self):
+        self.assert_protection_change_blocks_add("trailing", {"size": "0.5"})
+
+    def test_changed_percentage_after_bar_read_blocks_add(self):
+        self.assert_protection_change_blocks_add("trailing", {"retracement": "9"})
+
+    def assert_fresh_snapshot_blocks_add(self, changes):
+        self.queue()
+        snapshot = self.g.snapshot
+        calls = 0
+        def changed(row, attempts, now):
+            nonlocal calls
+            calls += 1
+            snap = snapshot(row, attempts, now)
+            return snap | changes if calls > 1 else snap
+        self.g.snapshot = changed
+        self.worker.step(self.row["id"], NOW+1)
+        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+        self.assertFalse(any(a["kind"] == "add" for a in self.store.attempts(self.row["id"])))
+        self.assertEqual(self.store.tranches(self.row["id"])[0]["status"], "REJECTED")
+
+    def test_status_open_without_fresh_open_order_membership_blocks_add(self):
+        self.assert_fresh_snapshot_blocks_add({"open_order_ids": []})
+
+    def test_position_change_during_final_protection_read_blocks_add(self):
+        self.assert_fresh_snapshot_blocks_add({"size": "1.1", "entry_filled": "1.1"})
+
+    def test_inconsistent_final_protection_read_blocks_add(self):
+        self.assert_fresh_snapshot_blocks_add({"consistent": False})
+
+    def test_expiry_during_final_protection_read_blocks_add(self):
+        self.assert_fresh_snapshot_blocks_add({"observed_now_ms": NOW+40000})
+
+    def test_verified_position_level_stop_can_cover_existing_exposure(self):
+        self.queue()
+        bars = self.g.completed_nine_minute_bars
+        stop = next(a for a in self.g.sent if a["kind"] == "stop")
+        def position_stop(instrument, now):
+            self.g.orders[stop["id"]].update(size="0", coverage_size="1", position_tpsl=True)
+            return bars(instrument, now)
+        self.g.completed_nine_minute_bars = position_stop
+        self.worker.step(self.row["id"], NOW+1)
+        self.assertEqual(len([a for a in self.g.sent if a["kind"] == "add"]), 1)
+
     def test_waits_for_new_completed_breakout_then_hard_capped_send(self):
         self.g.bars[-1]["close"] = "99"
         tranche = self.queue()

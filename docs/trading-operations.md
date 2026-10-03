@@ -676,6 +676,17 @@ budgets, exposure identity, entry kill switch, peer interventions and ownership
 checks all remain mandatory. One durable attempt consumes the once-only intent;
 UNKNOWN entries/trails are never resent on restart.
 
+After the bar and account preflight reads, the supervisor takes a fresh exact-ID
+protection snapshot before recording an add attempt. The existing exposure must
+still reconcile, every counted protective ID must remain in the latest open-order
+list, fixed SLs must cover the full position at the unchanged floor, and verified
+active percentage tranches must together cover it with the frozen retracement.
+Missing, canceled, inactive, undersized or invalid protection rejects the unsent
+add without allocating an attempt or signing an order. Authority, bar/quote freshness
+and capital sizing are checked again at the final snapshot's observed time.
+Exchange reads and submission are not atomic; this closes the earlier preflight
+read window but does not guarantee against a subsequent exchange-side change.
+
 Each actual filled increment first receives verified fixed-SL coverage at the
 unchanged position-level floor, then a **new percentage trailing order for only that
 increment**, with its own exchange watermark. Existing SL/TS IDs, quantity and native
