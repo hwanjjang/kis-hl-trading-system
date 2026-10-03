@@ -34,6 +34,53 @@ class RunnerTests(unittest.TestCase):
             'trail':Trail.create(entry=D('100'),atr=D('2'),multiple=D('2'),opened_ms=0).to_dict()})
         self.g=FakeGateway(); self.runner=TrailingRunner(self.store,self.row['id'],self.g)
 
+    def short_runner(self):
+        row = self.store.get(self.row['id'])
+        row.update(side='short', trail=Trail.create(entry=D('100'), atr=D('2'),
+                   multiple=D('2'), opened_ms=0, side='short').to_dict())
+        self.store.save(row, 'short fixture')
+        return TrailingRunner(self.store, row['id'], self.g)
+
+    def test_short_exit_limit_is_buy_and_unknown_restart_never_resends(self):
+        runner = self.short_runner()
+        self.g.timeout = True
+        runner.on_tick(100, D('105'))
+        self.assertEqual(D(self.g.sent[0]['limit_price']), D('106.05'))
+        restarted = TrailingRunner(self.store, self.row['id'], self.g)
+        restarted.on_tick(200, D('106'))
+        self.assertEqual(len(self.g.sent), 1)
+
+    def test_short_buy_limit_rounds_inward_and_quantity_rounds_down(self):
+        runner = self.short_runner()
+        self.g.data['size'] = '0.4567'
+        runner.on_tick(100, D('105.6789'))
+        self.assertEqual(self.g.sent[0]['limit_price'], '106.73')
+        self.assertEqual(self.g.sent[0]['size'], '0.456')
+        self.assertLessEqual(D(self.g.sent[0]['limit_price']), D('105.6789') * D('1.01'))
+
+    def test_short_partial_fill_then_flat_cleanup_retains_intent(self):
+        runner = self.short_runner()
+        runner.on_tick(100, D('105'))
+        first = self.g.sent[0]
+        self.g.data.update(size='0.4', order_states={first['cloid']:'filled'})
+        restarted = TrailingRunner(self.store, self.row['id'], self.g)
+        restarted.on_tick(10100, D('103'))
+        self.assertEqual(len(self.g.sent), 2)
+        self.assertEqual(self.g.sent[1]['size'], '0.400')
+        self.g.data.update(size='0', order_states={first['cloid']:'filled', self.g.sent[1]['cloid']:'filled'})
+        restarted.on_tick(20100, D('102'))
+        self.assertEqual(self.g.canceled, [7])
+        self.g.data['stop_open'] = False
+        restarted.on_tick(30100, D('102'))
+        self.assertEqual(restarted.row['state'], 'CLOSED')
+
+    def test_row_and_trail_side_mismatch_rejects_before_gateway_use(self):
+        row = self.store.get(self.row['id'])
+        row['side'] = 'short'
+        self.store.save(row, 'mismatch')
+        with self.assertRaises(ValueError):
+            TrailingRunner(self.store, row['id'], self.g)
+
     def test_timeout_and_restart_never_resends_unknown(self):
         self.g.timeout=True
         self.runner.on_tick(100,D('95'))

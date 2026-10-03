@@ -16,6 +16,30 @@ class TrailingCliTests(unittest.TestCase):
         a=p.parse_args(['trailing','run','--position-id','abc'])
         self.assertFalse(a.live)
 
+    def test_short_enrollment_option_preserves_paper_default(self):
+        a = build_parser().parse_args(['trailing','enroll','--symbol','BTC-PERP',
+            '--side','short','--entry-order-id','5','--stop-order-id','7',
+            '--multiple','2','--max-gap-ms','15000','--slippage','0.01'])
+        self.assertEqual(a.side, 'short')
+        self.assertFalse(a.live)
+
+    def test_offline_short_replay_persists_low_and_exit_without_network(self):
+        with tempfile.TemporaryDirectory() as td:
+            f, db = Path(td)/'short.jsonl', Path(td)/'paper.sqlite'
+            f.write_text('\n'.join(json.dumps(x) for x in [
+                {'type':'position','symbol':'BTC-PERP','side':'short','size':'1',
+                 'entry':'100','atr':'2','multiple':'2','opened_ms':0,'max_gap_ms':540000},
+                {'time_ms':1,'price':'100'},{'time_ms':540000,'price':'92'},
+                {'time_ms':1080000,'price':'96'}]))
+            out = io.StringIO()
+            with patch('kis_hl.cli.load_hyperliquid_config', side_effect=AssertionError('network')), redirect_stdout(out):
+                self.assertEqual(main(['--db',str(db),'trailing','replay','--input',str(f)]), 0)
+            row = json.loads(out.getvalue())
+            self.assertEqual(row['state'], 'PAPER_EXIT')
+            self.assertEqual((row['side'], row['trail']['low'], row['trail']['threshold']), ('short','92','96'))
+            from kis_hl.trailing_storage import TrailStore
+            self.assertIsNotNone(TrailStore(db).intent(row['id']))
+
     def test_offline_replay_records_crossing_and_never_loads_exchange(self):
         with tempfile.TemporaryDirectory() as td:
             f=Path(td)/'ticks.jsonl'; db=Path(td)/'paper.sqlite'

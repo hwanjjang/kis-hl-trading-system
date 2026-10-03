@@ -49,3 +49,37 @@ class TrailTests(unittest.TestCase):
         for atr in ['0', 'NaN', 'Infinity', '60']:
             with self.assertRaises(ValueError):
                 Trail.create(entry=D('100'), atr=D(atr), multiple=D('2'), opened_ms=0)
+
+    def test_short_tracks_closed_bucket_lows_and_crosses_at_equality(self):
+        t = Trail.create(entry=D('100'), atr=D('2'), multiple=D('2'), opened_ms=0, side='short')
+        self.assertEqual(t.threshold, D('104'))
+        self.assertFalse(t.tick(1, D('70'), max_gap_ms=B))
+        t.tick(B, D('95'), max_gap_ms=B)
+        t.tick(B+1, D('92'), max_gap_ms=B)
+        self.assertEqual(t.threshold, D('104'))
+        self.assertTrue(t.tick(2*B, D('96'), max_gap_ms=B))
+        self.assertEqual((t.low, t.threshold), (D('92'), D('96')))
+        # A higher low never loosens an existing threshold.
+        t.tick(3*B, D('90'), max_gap_ms=B)
+        self.assertEqual(t.threshold, D('96'))
+
+    def test_short_gaps_restart_and_late_ticks_keep_confirmed_stop(self):
+        t = Trail.create(entry=D('100'), atr=D('2'), multiple=D('2'), opened_ms=0, side='short')
+        t.tick(1, D('100'), max_gap_ms=B)
+        t.tick(B, D('92'), max_gap_ms=B)
+        t.tick(2*B, D('94'), max_gap_ms=B)
+        restored = Trail.from_dict(t.to_dict())
+        restored.disconnect()
+        self.assertEqual((restored.side, restored.low, restored.threshold), ('short', D('92'), D('96')))
+        self.assertFalse(restored.tick(2*B, D('1'), max_gap_ms=B))
+        self.assertFalse(restored.tick(2*B+1, D('1'), max_gap_ms=B))
+        self.assertTrue(restored.tick(4*B, D('96'), max_gap_ms=B))
+        self.assertEqual(restored.threshold, D('96'))
+
+    def test_legacy_snapshots_default_long_and_unknown_direction_fails(self):
+        data = self.make().to_dict()
+        for key in ['side', 'low', 'bucket_low']:
+            data.pop(key, None)
+        self.assertEqual(Trail.from_dict(data).side, 'long')
+        with self.assertRaises(ValueError):
+            Trail.from_dict({**data, 'side': 'invalid'})

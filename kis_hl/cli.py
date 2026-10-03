@@ -134,15 +134,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--db", default="data/kis_hl.sqlite", help="SQLite database path")
     sub = parser.add_subparsers(dest="command")
 
-    trailing = sub.add_parser("trailing", help="Manage a confirmed protected long or replay recorded ticks")
+    trailing = sub.add_parser("trailing", help="Manage a confirmed protected position or replay recorded ticks")
     trailing_sub = trailing.add_subparsers(dest="trailing_action", required=True)
-    enroll = trailing_sub.add_parser("enroll", help="Explicitly register a filled long with an existing native SL")
+    enroll = trailing_sub.add_parser("enroll", help="Explicitly register a filled position with an existing native SL")
     enroll.add_argument("--symbol", required=True)
+    enroll.add_argument("--side", choices=["long", "short"], default="long", help="Explicit position direction")
     enroll.add_argument("--entry-order-id", required=True, type=int)
     enroll.add_argument("--stop-order-id", required=True, type=int)
     enroll.add_argument("--multiple", required=True, help="Frozen ATR multiplier")
     enroll.add_argument("--max-gap-ms", required=True, type=int, help="Explicit per-symbol freshness budget")
-    enroll.add_argument("--slippage", required=True, help="Maximum sell IOC price discount")
+    enroll.add_argument("--slippage", required=True, help="Maximum exit IOC price deviation")
     enroll.add_argument("--live", action="store_true", help="Enroll live management state (no order at enrollment)")
     enroll.set_defaults(handler=cmd_trailing)
     run = trailing_sub.add_parser("run", help="Resume one enrolled position under an account lock")
@@ -1124,7 +1125,7 @@ def cmd_trailing(args: argparse.Namespace) -> dict[str, Any]:
             return enroll_position(store, info, trading, symbol=args.symbol,
                 entry_oid=args.entry_order_id, stop_oid=args.stop_order_id,
                 multiple=Decimal(args.multiple), max_gap_ms=args.max_gap_ms,
-                slippage=Decimal(args.slippage), live=args.live)
+                slippage=Decimal(args.slippage), live=args.live, side=args.side)
         return run_trailing_stream(store, args.position_id, info, trading,
             live=args.live, recover=args.recover,
             max_messages=args.max_messages, max_reconnects=args.max_reconnects)
