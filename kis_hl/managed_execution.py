@@ -816,9 +816,12 @@ class Supervisor:
             entry_price = (price if p.get('percentage_entry_authorization') else ask) if entry_type == "limit" else price
             if p.get('percentage_entry_authorization') and entry_type != 'limit':
                 raise ValueError('NEW percentage entries require hard-capped limit routing')
-            # Market opens use an IOC capped at SDK mid + 50 bps. Check the
-            # conservative quote-side ceiling against the original risk budget.
-            risk_price = max(entry_price, bid * Decimal("1.005")) if entry_type == "market" else entry_price
+            # Persist the exact legal IOC ceiling; transport must not recalculate
+            # it from a later SDK mid or round it above the checked risk budget.
+            if entry_type == "market":
+                entry_price = normalize_quote_retracement(
+                    bid * Decimal("1.005"), decimal(snap["trailing_price_step"]))
+            risk_price = entry_price
             stop = decimal(p["fixed_stop_price"]) if "fixed_stop_price" in p else price - decimal(p["stop_distance"])
             if (risk_price <= stop or size * (risk_price - stop) > decimal(p["max_loss"])
                     or size * risk_price > decimal(p["max_notional"])
@@ -1187,11 +1190,27 @@ class Supervisor:
                 needs_overlay = (bool(trails) and added_fills > 0
                     and all(decimal(a["quantity"]) < size for a in trails)
                     and p.get("local_trailing_backup", False))
+                trail_started_ms = trails[-1]["created_ms"] if trails else now
+                if "native_trailing_percent" in p:
+                    # Cumulative allocations include UNKNOWN outcomes; never
+                    # resend them. New fills without an attempt get a new deadline.
+                    allocated = sum((decimal(a["quantity"]) for a in trails), Decimal(0))
+                    missing = entry_filled - allocated
+                    # Later fills must not renew an older increment's immediate
+                    # activation deadline. Quote-distance waiting retains its policy.
+                    trail_started_ms = min((a["created_ms"] for a in trails
+                        if a["status"].lower() not in TERMINAL
+                        and orders.get(a.get("order_id"), {}).get("active") is not True),
+                        default=now if missing > 0 else trail_started_ms)
+                if (trails and not row.get("native_trailing_intervention")
+                        and (not waiting or "native_trailing_percent" in p)
+                        and (not entry_active or "native_trailing_percent" in p) and not needs_overlay
+                        and decimal(row["trailing_covered_size"]) < size
+                        and now - trail_started_ms >= p["protection_grace_ms"]):
+                    row["exit_requested_ms"] = row["exit_requested_ms"] or now
                 if "native_trailing_percent" in p:
                     # Each filled increment gets its own immediate percentage watermark.
                     # Include UNKNOWN attempts: never resend an ambiguous native action.
-                    allocated = sum((decimal(a["quantity"]) for a in trails), Decimal(0))
-                    missing = entry_filled - allocated
                     if (missing > 0 and protected and fresh and not row["exit_requested_ms"]
                             and not row.get("native_trailing_intervention")):
                         self._state(row, "PROTECTING", "Fixed SL verified; awaiting added-quantity percentage trail", now)
@@ -1207,11 +1226,6 @@ class Supervisor:
                     self._state(row, "PROTECTING", "Fixed SL verified; awaiting full-position native trailing readback", now)
                     self._send(row, "trailing", now, quantity=str(size), price="0", retracement=str(distance))
                     return
-                if (trails and not row.get("native_trailing_intervention") and not waiting
-                        and not entry_active and not needs_overlay
-                        and decimal(row["trailing_covered_size"]) < size
-                        and now - trails[-1]["created_ms"] >= p["protection_grace_ms"]):
-                    row["exit_requested_ms"] = row["exit_requested_ms"] or now
                 protected = (protected and decimal(row["trailing_covered_size"]) >= size
                              and not row.get("native_trailing_intervention"))
                 if not protected and not row["exit_requested_ms"] and not row.get("native_trailing_intervention"):

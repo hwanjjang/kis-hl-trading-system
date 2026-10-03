@@ -131,6 +131,38 @@ class IntradayPercentageAddTests(unittest.TestCase):
         self.assertIn(self.store.tranches(self.row["id"])[0]["status"], {"EXPIRED", "REJECTED"})
         self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
 
+    def test_partial_add_waiting_trail_timeout_is_not_renewed_by_later_fill(self):
+        self.queue(); self.worker.step(self.row['id'], NOW+1)
+        add = self.g.sent[-1]; self.g.fill(add, '0.2', terminal=False)
+        self.worker.step(self.row['id'], NOW+2)
+        self.worker.step(self.row['id'], NOW+3)
+        first = self.g.sent[-1]
+        self.assertEqual(first['kind'], 'trailing')
+        self.g.orders[first['id']]['active'] = False
+        self.g.fill(add, '0.3', terminal=True)
+        self.worker.step(self.row['id'], NOW+4000)
+        self.worker.step(self.row['id'], NOW+4001)
+        second = self.g.sent[-1]
+        self.assertEqual(second['kind'], 'trailing')
+        self.worker = Supervisor(self.store, self.g, live=True)
+        result = self.worker.step(self.row['id'], NOW+5003)
+        self.assertIsNotNone(result['exit_requested_ms'])
+        self.assertEqual(self.g.sent[-1]['kind'], 'exit')
+        self.assertEqual(len([a for a in self.g.sent if a['kind']=='trailing']), 3)
+
+    def test_waiting_percentage_timeout_cancels_partial_add_before_exit(self):
+        self.queue(); self.worker.step(self.row['id'], NOW+1)
+        add = self.g.sent[-1]; self.g.fill(add, '0.2', terminal=False)
+        self.worker.step(self.row['id'], NOW+2)
+        self.worker.step(self.row['id'], NOW+3)
+        trail = self.g.sent[-1]; self.g.orders[trail['id']]['active'] = False
+        result = self.worker.step(self.row['id'], NOW+5003)
+        self.assertIsNotNone(result['exit_requested_ms'])
+        self.assertEqual(self.g.orders[add['id']]['status'], 'canceled')
+        self.worker.step(self.row['id'], NOW+5004)
+        self.assertEqual(self.g.sent[-1]['kind'], 'exit')
+        self.assertEqual(len([a for a in self.g.sent if a['kind']=='trailing']), 2)
+
     def test_old_nonadjacent_or_unfinished_bars_never_send(self):
         for change in ("old", "gap", "future"):
             with self.subTest(change=change):

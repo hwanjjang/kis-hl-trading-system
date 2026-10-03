@@ -423,12 +423,16 @@ orders and watermarks must not be reset merely to apply this document.
 ## Prepare and submit
 
 AK's Hyperliquid initial-entry order policy is a market buy by default, with
-0.5% SDK IOC price protection. The managed gateway checks full proposed size
+an explicit IOC limit at the preflight best bid plus 0.5%, rounded inward to legal
+price precision. That exact persisted price must pass loss, notional, funds and
+portfolio/correlation checks and is submitted through the SDK's ordinary limit
+order API with `Ioc`; a later SDK mid cannot increase the signed ceiling.
+The managed gateway checks full proposed size
 against visible ask-side book depth: if the spread or estimated execution price
 relative to the best bid exceeds 0.5%, or depth is insufficient, it instead
 submits a current-ask GTC limit buy. This is a visible-book estimate, not a
-fill guarantee; the SDK market cap uses its submission-time mid, which can
-move after preflight. The managed supervisor retains durable client identity,
+fill guarantee; prices above the persisted ceiling cannot fill, so a moving book
+may leave a partial fill or no fill. The managed supervisor retains durable client identity,
 entry risk/preflight checks and immediate post-fill fixed SL verification before
 native TS and local backup coverage. This policy does not bypass the managed
 entry lifecycle. KIS order routing is separate and unchanged.
@@ -455,7 +459,7 @@ limits are decimal strings; durations and UTC epoch milliseconds are integers.
 | `expires_ms` | Entry intent expiry; it does not remove protection from an existing position |
 | `verified_price_step` | Additionally required for KIS; exact permitted price increment for the selected instrument/session |
 | `trailing_provider` | New HL perpetual plans default `native`; KIS defaults `local` |
-| `entry_route` | Optional `limit` for a Hyperliquid entry that must not use the market-open 0.5% IOC route; current-ask GTC limit may remain unfilled and is subject to the plan's entry expiry/cancel lifecycle |
+| `entry_route` | Optional `limit` for a Hyperliquid entry that must not use the preflight-capped 0.5% IOC route; current-ask GTC limit may remain unfilled and is subject to the plan's entry expiry/cancel lifecycle |
 | `local_trailing_backup` | Defaults true with native: concurrent local nine-minute exits; explicitly false disables backup |
 | `harness` | Optional evidenced origin label, such as `codex`, `claude-code` or `hermes` |
 
@@ -684,7 +688,13 @@ not a full-position overlay. Partial fills can create separate protective increm
 Native percentage TS fills reduce their covered tranche and do not independently
 liquidate other protected tranches; fixed-SL fills still request the position-level
 exit. There is no local ATR or percentage backup exit: the unchanged full-size native
-fixed SL protects exposure while a new percentage trail awaits valid readback. Missing,
+fixed SL protects exposure while a new percentage trail awaits valid readback.
+An inactive immediate percentage trail must activate within `protection_grace_ms`
+from its persisted attempt time, including after restart. Later fills and newer
+trails do not extend an older inactive tranche's deadline. On timeout, the existing
+bounded exit lifecycle cancels pending buys before reducing exposure; fixed SLs
+remain until flat cleanup and the trailing action is never blindly resent.
+Quote-distance waiting keeps its existing separate activation policy. Missing,
 ambiguous or rejected trailing evidence freezes further adds; ordinary bounded
 protection/exit guards remain. This exception does not remove the local-backup
 requirement from the older quote-distance overlay add path.

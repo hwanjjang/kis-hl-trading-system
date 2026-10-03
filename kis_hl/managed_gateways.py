@@ -520,15 +520,17 @@ class ManagedHyperliquidGateway:
             result = self.trading.place_order(
                 symbol=asset.symbol,
                 side="buy" if a["kind"] in {"entry", "add"} else "sell",
-                order_type="stop-market" if a["kind"] == "stop" else "market" if entry_market else "limit",
+                # Market routing is a price-bound IOC, never SDK market_open:
+                # the persisted price already passed the supervisor risk checks.
+                order_type="stop-market" if a["kind"] == "stop" else "limit",
                 size=decimal(a["quantity"]),
                 price=decimal(a["price"]),
                 trigger_price=(
                     decimal(a["trigger_price"]) if a["kind"] == "stop" else None
                 ),
                 reduce_only=a["kind"] not in {"entry", "add"},
-                slippage=Decimal("0.005") if entry_market else decimal(row["plan"]["slippage"]),
-                tif="Ioc" if a["kind"] == "exit" else "Gtc",
+                slippage=decimal(row["plan"]["slippage"]),
+                tif="Ioc" if entry_market or a["kind"] == "exit" else "Gtc",
                 cloid=a["id"],
                 dry_run=False,
                 expires_after_ms=min(a["created_ms"] + row["plan"]["max_quote_age_ms"],

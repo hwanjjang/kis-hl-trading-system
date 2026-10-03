@@ -133,6 +133,23 @@ class PercentageNewEntryTests(unittest.TestCase):
         self.assertEqual(result['state'],'INTERVENTION')
         self.assertEqual(len([a for a in self.g.sent if a['kind']=='trailing']),1)
 
+    def test_immediate_percentage_waiting_times_out_after_restart(self):
+        row = self.queue(); self.worker.step(row['id'], self.now+1)
+        entry = self.g.sent[-1]
+        self.g.size = self.g.filled = entry['quantity']
+        self.g.orders[entry['id']]['status'] = 'filled'
+        self.worker.step(row['id'], self.now+2)
+        self.worker.step(row['id'], self.now+3)
+        trail = self.g.sent[-1]
+        self.g.orders[trail['id']].update(retracement='8.35', retracement_unit='percent', active=False)
+        self.assertIsNone(self.worker.step(row['id'], self.now+4)['exit_requested_ms'])
+        self.worker = Supervisor(self.store, self.g, live=True)
+        result = self.worker.step(row['id'], self.now+5003)
+        self.assertIsNotNone(result['exit_requested_ms'])
+        self.assertEqual(self.g.sent[-1]['kind'], 'exit')
+        self.assertEqual(len([a for a in self.g.sent if a['kind']=='trailing']), 1)
+        self.assertEqual(self.g.orders[next(a['id'] for a in self.g.sent if a['kind']=='stop')]['status'], 'open')
+
     def test_once_claim_survives_closed_owner_and_new_bar(self):
         row=self.queue(); row['state']='CLOSED'; self.store.save(row,self.now+1)
         self.store=ExecutionStore(self.store.path)

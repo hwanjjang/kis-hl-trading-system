@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from decimal import Decimal
 from pathlib import Path
 from kis_hl.managed_execution import ExecutionStore, Supervisor, validate_plan
 
@@ -227,6 +228,23 @@ class ManagedExecutionTests(unittest.TestCase):
         self.worker.step(row["id"], 10)
         self.assertEqual(self.g.sent, [])
         self.assertEqual(self.store.get(row["id"])["state"], "INTERVENTION")
+
+    def test_market_attempt_persists_exact_legal_risk_ceiling(self):
+        p = plan() | {"max_loss": "4.51"}
+        row = self.queue(p)
+        self.worker.step(row["id"], 10)
+        entry = self.g.sent[0]
+        self.assertEqual(entry["order_type"], "market")
+        self.assertEqual(Decimal(entry["price"]), Decimal("100.5"))
+        self.assertLessEqual(Decimal(entry["price"]) - 96, Decimal(p["max_loss"]))
+
+    def test_market_ceiling_rounds_inward_to_legal_precision(self):
+        preflight = self.g.preflight
+        self.g.preflight = lambda p, now: preflight(p, now) | {
+            "price": "100.13", "ask": "100.14"}
+        row = self.queue()
+        self.worker.step(row["id"], 10)
+        self.assertEqual(self.g.sent[0]["price"], "100.63")
 
     def test_intent_cannot_be_replayed_after_close(self):
         row = self.queue()

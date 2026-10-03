@@ -248,8 +248,13 @@ monitoring. Condition parsing failure on an otherwise verified owned trailing or
 also preserves independent SL supervision with zero trailing coverage. Identity,
 order semantics and account validation remain strict; generic intervention clears
 the native-only exception. Valid same-ID readback can recover without resubmission.
-Open waiting readback is distinct from active trailing coverage and
-does not itself request an exit. Native KIS SL/trailing remain
+Open waiting readback is distinct from active trailing coverage. Quote-distance
+waiting does not itself request an exit; immediate percentage waiting is bounded
+by `protection_grace_ms` from the oldest inactive tranche attempt, including across
+restart and later partial fills. Timeout enters the existing cancel/exit lifecycle
+while retaining fixed SLs until flat cleanup. Managed market entries persist and
+validate an inward-rounded best-bid-plus-0.5% IOC price, then submit that exact limit
+through the SDK without a new mid-price calculation. Native KIS SL/trailing remain
 unverified; local protection requires an active worker. Exact HTS equivalence is not
 assumed. The account supervisor serializes actual attempts while its journal worker
 has a separate account lock and a configurable 10800-second default interval.

@@ -349,11 +349,11 @@ class ManagedGatewayTests(unittest.TestCase):
         g, info, row, _, _ = self.hl()
         row["plan"]["max_quote_age_ms"] = 1000
         g.trading.place_order.return_value = SimpleNamespace(status="submitted", response={})
-        g.submit(row, dict(id="0x123", kind="entry", quantity="1", price="100",
+        g.submit(row, dict(id="0x123", kind="entry", quantity="1", price="100.5",
                            order_type="market", created_ms=10))
         call = g.trading.place_order.call_args.kwargs
-        self.assertEqual(call["order_type"], "market")
-        self.assertEqual(call["slippage"], Decimal("0.005"))
+        self.assertEqual((call["order_type"], call["tif"], call["price"]),
+                         ("limit", "Ioc", Decimal("100.5")))
         self.assertEqual(call["cloid"], "0x123")
         self.assertFalse(call["reduce_only"])
 
@@ -367,6 +367,31 @@ class ManagedGatewayTests(unittest.TestCase):
         self.assertEqual((call["order_type"], call["price"], call["tif"]),
                          ("limit", Decimal("100.1"), "Gtc"))
         self.assertEqual(call["expires_after_ms"], 20)
+
+    def test_market_route_signs_exact_cap_even_if_sdk_mid_moves(self):
+        from tests.test_hyperliquid_client import ExchangeSafetyTests
+        from hyperliquid.exchange import Exchange
+        for mid in ("100.05", "200"):
+            with self.subTest(mid=mid):
+                g, _, row, _, _ = self.hl()
+                g.trading = ExchangeSafetyTests().client()
+                exchange = g.trading._sdk[1]
+                exchange.info.name_to_coin = {"BTC": "BTC"}
+                exchange.info.coin_to_asset = {"BTC": 0}
+                exchange.info.asset_to_sz_decimals = {0: 2}
+                exchange.info.all_mids.return_value = {"BTC": mid}
+                exchange._slippage_price.side_effect = lambda *a: Exchange._slippage_price(exchange, *a)
+                exchange.market_open.side_effect = lambda *a, **kw: Exchange.market_open(exchange, *a, **kw)
+                exchange.order.return_value = {"status": "ok", "response": {"data": {"statuses": [{"filled": {"oid": 42}}]}}}
+                with patch("kis_hl.managed_gateways.time.time", return_value=.011), patch(
+                        "kis_hl.hyperliquid.client.time.time", return_value=.011), patch(
+                        "kis_hl.hyperliquid.client.sdk_cloid", side_effect=lambda x: x):
+                    g.submit(row, dict(id="0x"+"a"*32, kind="entry", quantity="1", price="100.50",
+                                       order_type="market", created_ms=10))
+                self.assertEqual(exchange.order.call_args.args[:6],
+                    ("BTC", True, 1.0, 100.5, {"limit": {"tif": "Ioc"}}, False))
+                exchange.market_open.assert_not_called()
+                exchange.info.all_mids.assert_not_called()
 
     def test_entry_preflight_uses_instrument_buying_power_not_dex_withdrawable(self):
         g, info, row, _, _ = self.hl()
