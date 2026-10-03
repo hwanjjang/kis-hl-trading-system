@@ -16,6 +16,13 @@ from kis_hl.hyperliquid.trailing import normalize_quote_retracement, wire_decima
 
 TERMINAL = {"filled", "canceled", "rejected", "expired"}
 FINISHED = {"CLOSED", "REJECTED", "PREVIEWED"}
+TAKE_PROFIT_ACTIVE = {"REQUESTED", "EXECUTING"}
+# Hyperliquid rejects orders below USD 10 notional; a half exit never becomes a full one.
+TAKE_PROFIT_MIN_NOTIONAL = Decimal(10)
+
+
+def take_profit_active(row):
+    return (row.get("take_profit") or {}).get("status") in TAKE_PROFIT_ACTIVE
 _entry_permit = ContextVar("managed_entry_permit", default=None)
 
 
@@ -274,10 +281,12 @@ class ExecutionStore:
         check_authority(scope, authority['mode'], p, now_ms)
         return self.enqueue(scope, p, live=live, now_ms=now_ms)
 
-    def tranches(self, position_id):
-        with self.connect() as db:
+    def tranches(self, position_id, db=None):
+        if db is not None:
             return [json.loads(r[0]) for r in db.execute(
                 "SELECT snapshot FROM managed_tranches WHERE position_id=? ORDER BY rowid", (position_id,))]
+        with self.connect() as db:
+            return self.tranches(position_id, db)
 
     def save_tranche(self, tranche):
         with self.connect() as db:
@@ -323,6 +332,8 @@ class ExecutionStore:
                 raise RuntimeError("Position changed before add authorization")
             if any(t["status"] in {"QUEUED", "SUBMITTED", "UNKNOWN"} for t in self.tranches(owner["id"])):
                 raise ValueError("An add lifecycle is already pending")
+            if take_profit_active(owner):
+                raise ValueError("An active take profit blocks adds")
             db.execute("INSERT INTO managed_intents VALUES(?,?,?,?)",
                        (owner["scope"], owner["mode"], plan["intent_id"], owner["id"]))
             db.execute("INSERT INTO managed_tranches VALUES(?,?,?)", (tranche["id"], owner["id"], encode(tranche)))
@@ -494,24 +505,27 @@ class ExecutionStore:
             ]
 
     def save(self, row, now_ms):
-        new = {**row, "version": row["version"] + 1}
         with self.connect() as db:
-            changed = db.execute(
-                "UPDATE managed_positions SET state=?,version=?,snapshot=? WHERE id=? AND version=?",
-                (new["state"], new["version"], encode(new), row["id"], row["version"]),
-            )
-            if changed.rowcount != 1:
-                raise RuntimeError("Managed position changed; reload")
-            db.execute(
-                "INSERT INTO managed_events(position_id,time_ms,state,reason,details) VALUES(?,?,?,?,?)",
-                (row["id"], now_ms, new["state"], new["reason"], encode({
-                    label: new[key] for label, key in (("error", "last_error"),
-                        ("first_intervention", "first_intervention")) if key in new
-                })),
-            )
-            if new["state"] in FINISHED:
-                # Same transaction: a terminal owner never persists with unsent adds.
-                self._retire_unsent(db, row["id"], new["state"], now_ms)
+            self._save(db, row, now_ms)
+
+    def _save(self, db, row, now_ms):
+        new = {**row, "version": row["version"] + 1}
+        changed = db.execute(
+            "UPDATE managed_positions SET state=?,version=?,snapshot=? WHERE id=? AND version=?",
+            (new["state"], new["version"], encode(new), row["id"], row["version"]),
+        )
+        if changed.rowcount != 1:
+            raise RuntimeError("Managed position changed; reload")
+        db.execute(
+            "INSERT INTO managed_events(position_id,time_ms,state,reason,details) VALUES(?,?,?,?,?)",
+            (row["id"], now_ms, new["state"], new["reason"], encode({
+                label: new[key] for label, key in (("error", "last_error"),
+                    ("first_intervention", "first_intervention")) if key in new
+            })),
+        )
+        if new["state"] in FINISHED:
+            # Same transaction: a terminal owner never persists with unsent adds.
+            self._retire_unsent(db, row["id"], new["state"], now_ms)
         row.update(new)
 
     def attempts(self, position_id):
@@ -557,6 +571,41 @@ class ExecutionStore:
         else:
             row["exit_requested_ms"] = row["exit_requested_ms"] or now_ms
         self.save(row, now_ms)
+        return row
+
+    def request_take_profit(self, position_id, now_ms, *, decision_id, rationale):
+        """Record one discretionary 50% take-profit decision; the supervisor sizes and sends it."""
+        decision_id, rationale = str(decision_id or "").strip(), str(rationale or "").strip()
+        if not decision_id or not rationale:
+            raise ValueError("Take profit requires a decision ID and rationale")
+        # One write transaction excludes a concurrent add admission (enqueue_add).
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            r = db.execute("SELECT snapshot FROM managed_positions WHERE id=?", (position_id,)).fetchone()
+            if not r:
+                raise ValueError("Unknown managed position")
+            return self._request_take_profit(db, json.loads(r[0]), now_ms, decision_id, rationale)
+
+    def _request_take_profit(self, db, row, now_ms, decision_id, rationale):
+        current = row.get("take_profit") or {}
+        if take_profit_active(row) and current["decision_id"] == decision_id:
+            return row
+        if decision_id in row.get("take_profit_decisions", []):
+            raise ValueError("Take-profit decision ID already used")
+        if take_profit_active(row):
+            raise ValueError("Another take-profit decision is active")
+        if not row["plan"]["instrument"].startswith("hl:"):
+            raise ValueError("Partial take profit is supported for Hyperliquid owners only")
+        if row["exit_requested_ms"] or row["cancel_entry"]:
+            raise ValueError("Take profit requires an owner without an exit/cancel request")
+        if row["state"] != "PROTECTED":
+            raise ValueError("Take profit requires a PROTECTED owner")
+        if any(t["status"] in {"QUEUED", "SUBMITTED", "UNKNOWN"} for t in self.tranches(row["id"], db)):
+            raise ValueError("Reconcile the pending add before a take profit")
+        row["take_profit"] = dict(decision_id=decision_id, rationale=rationale,
+                                  requested_ms=now_ms, status="REQUESTED")
+        row["take_profit_decisions"] = [*row.get("take_profit_decisions", []), decision_id]
+        self._save(db, row, now_ms)
         return row
 
     def heartbeat(self, scope, now_ms, live):
@@ -1005,10 +1054,15 @@ class Supervisor:
         ]
         exits = [a for a in attempts if a["kind"] == "exit"]
         unresolved_exits = [a for a in exits if a["status"].lower() not in TERMINAL]
+        # Take-profit sells are kept out of the full-exit budget but never race it.
+        unresolved_tps = [a for a in attempts if a["kind"] == "take_profit"
+                          and a["status"].lower() not in TERMINAL]
+        coverage_verified = False
         if row["state"] == "INTERVENTION" and not (
             native_trailing and row.get("native_trailing_intervention")
         ):
-            if size == 0 and not entry_active and not stops and not unresolved_exits:
+            if (size == 0 and not entry_active and not stops and not unresolved_exits
+                    and not unresolved_tps):
                 self._state(
                     row,
                     "CLOSED",
@@ -1231,6 +1285,7 @@ class Supervisor:
                 if not protected and not row["exit_requested_ms"] and not row.get("native_trailing_intervention"):
                     row["state"], row["reason"] = "PROTECTING", "Await entry terminality and verified native trailing coverage"
             if protected and fresh and not row["exit_requested_ms"]:
+                coverage_verified = True
                 row["state"], row["reason"] = (
                     "PROTECTED",
                     "Coverage verified; native trailing active" if native_trailing else "Coverage verified; local trailing active",
@@ -1238,6 +1293,9 @@ class Supervisor:
         if any(a["status"] == "FILLED" and (a["kind"] == "stop" or
                (a["kind"] == "trailing" and "native_trailing_percent" not in p)) for a in attempts):
             row["exit_requested_ms"] = row["exit_requested_ms"] or now
+        if take_profit_active(row) and (row["exit_requested_ms"] or row["cancel_entry"] or size == 0):
+            # A full SL/TS/manual exit owns the residual; the half exit never resumes.
+            row["take_profit"].update(status="SUPERSEDED", superseded_ms=now)
         expired_entries = [a for a in entry_active if now >= a.get("expires_ms", p["expires_ms"])]
         if row["cancel_entry"] or row["exit_requested_ms"] or expired_entries:
             for a in entry_active:
@@ -1317,7 +1375,7 @@ class Supervisor:
                     now,
                 )
                 return
-            for a in unresolved_exits:
+            for a in unresolved_exits + unresolved_tps:
                 # Resting KIS limits must terminate before a bounded repriced replacement.
                 target = a.get("order_id")
                 if (
@@ -1342,7 +1400,7 @@ class Supervisor:
                             price="0",
                             organization_id=a.get("organization_id", ""),
                         )
-            if not unresolved_exits:
+            if not unresolved_exits and not unresolved_tps:
                 if len(exits) >= p["max_exit_attempts"]:
                     self._state(
                         row,
@@ -1367,7 +1425,7 @@ class Supervisor:
             self._state(row, "EXIT_PENDING", "Reconcile exit before any retry", now)
             return
         if size == 0 and entry_filled > 0 and not entry_active:
-            cleanup = stops + unresolved_exits
+            cleanup = stops + unresolved_exits + unresolved_tps
             for a in cleanup:
                 target = a.get("order_id")
                 if not target:
@@ -1419,7 +1477,55 @@ class Supervisor:
             self.store.save(row, now)
         if (row["state"] == "PROTECTED" and not entry_active and not unresolved_exits
                 and not row["exit_requested_ms"] and not row["cancel_entry"]):
-            self._try_add(row, now)
+            if take_profit_active(row):
+                if coverage_verified:
+                    self._take_profit(row, now, snap, size, attempts, unresolved_tps)
+            else:
+                self._try_add(row, now)
+
+    def _take_profit(self, row, now, snap, size, attempts, unresolved):
+        """Reduce the owner by one frozen 50% target; coverage was verified in this step."""
+        p, tp = row["plan"], row["take_profit"]
+        step = decimal(snap["quantity_step"], positive=True)
+        price = decimal(snap["price"], positive=True)
+        if tp["status"] == "REQUESTED":
+            target = (size / 2 / step).to_integral_value(rounding=ROUND_DOWN) * step
+            tp.update(basis_size=wire_decimal(size), target_quantity=wire_decimal(target),
+                      frozen_ms=now, status="EXECUTING")
+            if target * price < TAKE_PROFIT_MIN_NOTIONAL:
+                # The residual is at least the target, so only the target can be too small.
+                tp.update(status="BELOW_MINIMUM")
+                self._state(row, "PROTECTED", "Take-profit target is below the minimum order; no order sent", now)
+                return
+        # Earlier decisions' fills and attempts never count toward this decision.
+        tps = [a for a in attempts if a["kind"] == "take_profit"
+               and a.get("decision_id") == tp["decision_id"]]
+        filled = sum((decimal(snap.get("fills_by_attempt", {}).get(a["id"], "0")) for a in tps), Decimal(0))
+        tp["filled_quantity"] = wire_decimal(filled)
+        remaining = decimal(tp["target_quantity"]) - filled
+        if remaining <= 0:
+            tp.update(status="COMPLETED", completed_ms=now, residual_size=wire_decimal(size))
+            self._state(row, "PROTECTED", "Take profit completed; residual coverage verified", now)
+            return
+        if unresolved:
+            # Never resend an ambiguous sell; protection continues and adds stay blocked.
+            self._state(row, "PROTECTED", "Take-profit outcome unresolved past deadline; reconcile manually"
+                        if now - tp["frozen_ms"] > p["exit_deadline_ms"]
+                        else "Reconcile take-profit fills before any retry", now)
+            return
+        if len(tps) >= p["max_exit_attempts"] or now - tp["frozen_ms"] > p["exit_deadline_ms"]:
+            tp.update(status="EXHAUSTED")
+            self._state(row, "PROTECTED", "Take-profit budget exhausted; residual remains protected", now)
+            return
+        qty = (min(remaining, size, decimal(snap["sellable"])) / step).to_integral_value(rounding=ROUND_DOWN) * step
+        if qty * price < TAKE_PROFIT_MIN_NOTIONAL:
+            tp.update(status="BELOW_MINIMUM")
+            self._state(row, "PROTECTED", "Remaining take-profit quantity is below the minimum order", now)
+            return
+        tick = decimal(snap["price_step"], positive=True)
+        limit = (price * (1 - decimal(p["slippage"])) / tick).to_integral_value(rounding=ROUND_UP) * tick
+        self._send(row, "take_profit", now, quantity=wire_decimal(qty), price=wire_decimal(limit),
+                   decision_id=tp["decision_id"])
 
     def _try_add(self, row, now):
         from kis_hl.conditional_add import preflight_add

@@ -410,6 +410,7 @@ class ManagedHyperliquidGateway:
         foreign = False
         fill_sizes = {}
         protective_ids = {str(a.get("order_id")) for a in attempts if a["kind"] in {"stop", "trailing"} and a.get("order_id")}
+        take_profit_ids = {str(a.get("order_id")) for a in attempts if a["kind"] == "take_profit" and a.get("order_id")}
         protective_filled = Decimal(0)
         fixed_stop_filled = Decimal(0)
         fixed_ids = {str(a.get("order_id")) for a in attempts if a["kind"] == "stop"}
@@ -430,6 +431,8 @@ class ManagedHyperliquidGateway:
                     protective_filled += qty
                 if str(f["oid"]) in fixed_ids:
                     fixed_stop_filled += qty
+                if str(f["oid"]) in take_profit_ids:
+                    fill_sizes[str(f["oid"])] = fill_sizes.get(str(f["oid"]), Decimal(0)) + qty
             else:
                 raise ValueError("Unknown execution side")
         order_fills_match = True
@@ -478,7 +481,7 @@ class ManagedHyperliquidGateway:
             "protective_filled": str(protective_filled),
             "fixed_stop_filled": str(fixed_stop_filled),
             "fills_by_attempt": {a["id"]: str(fill_sizes.get(str(a.get("order_id")), 0))
-                                 for a in attempts if a["kind"] in {"entry", "add"}},
+                                 for a in attempts if a["kind"] in {"entry", "add", "take_profit"}},
             "price": str(bid),
             "time_ms": timestamp,
             "sellable": str(max(size, 0)),
@@ -531,7 +534,7 @@ class ManagedHyperliquidGateway:
                 ),
                 reduce_only=a["kind"] not in {"entry", "add"},
                 slippage=decimal(row["plan"]["slippage"]),
-                tif="Ioc" if entry_market or a["kind"] == "exit" else "Gtc",
+                tif="Ioc" if entry_market or a["kind"] in {"exit", "take_profit"} else "Gtc",
                 cloid=a["id"],
                 dry_run=False,
                 expires_after_ms=min(a["created_ms"] + row["plan"]["max_quote_age_ms"],
@@ -928,6 +931,8 @@ class ManagedKisGateway:
         }
 
     def submit(self, row, a):
+        if a["kind"] == "take_profit":
+            raise ValueError("KIS partial take profit is unsupported")
         asset = self._asset(row["plan"]["instrument"])
         if a["kind"] == "stop":
             raise ValueError("Native KIS protection is unverified")

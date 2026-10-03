@@ -151,8 +151,9 @@ skill and its deterministic tools:
 
 The [exit quantity policy](trading-operations.md#exit-quantity-policy) distinguishes
 full strategy/SL/TS exits from discretionary top-based half-position proposals.
-It applies to aggregate exposure after adds. Half-position execution remains
-outside this implementation and is deferred to #28.
+It applies to aggregate exposure after adds. Half-position execution is the
+Hyperliquid-only [50% take-profit lifecycle](trading-operations.md#discretionary-50-take-profit-hyperliquid)
+(#28); a strategy decision still does not place it.
 
 - **Bounded add-ups:** implemented by issue #27 under the existing account/instrument
   owner, with immutable tranche evidence, one durable signal lifecycle, total-account
