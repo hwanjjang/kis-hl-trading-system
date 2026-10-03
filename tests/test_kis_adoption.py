@@ -147,6 +147,79 @@ class KisAdoptionTests(unittest.TestCase):
         self.assertEqual(result["state"], "INTERVENTION")
         self.assertIsNotNone(result["exit_requested_ms"])
 
+    def test_closed_read_failure_preserves_explicit_exit_and_reports_no_new_exit(self):
+        close = ms("2026-09-29T15:30:00+09:00")
+        self.row = self.adopt(at=close - 3_000)
+        self.step(close - 2_000)
+        self.step(close - 1_000)
+        night = ms("2026-09-30T01:42:00+09:00")
+        self.store.request_exit(self.row["id"], night - 1_000)
+        self.g.snapshot = Mock(side_effect=RuntimeError("fixture read unavailable"))
+        result = self.step(night)
+        self.assertEqual(result["state"], "DEGRADED")
+        self.assertEqual(result["exit_requested_ms"], night - 1_000)
+        self.assertIn("no new read-failure exit latched", result["reason"])
+        self.assertEqual(self.g.sent, [])
+
+    def test_overnight_failure_count_survives_restart_and_applies_at_open(self):
+        close = ms("2026-09-29T15:30:00+09:00")
+        self.row = self.adopt(at=close - 3_000)
+        self.step(close - 2_000)
+        self.step(close - 1_000)
+        snapshot = self.g.snapshot
+        self.g.snapshot = Mock(side_effect=OSError("fixture read unavailable"))
+        night = ms("2026-09-30T01:42:00+09:00")
+        for offset in (0, 5_000, 10_000):
+            result = self.step(night + offset)
+            self.assertEqual(result["state"], "DEGRADED")
+            self.assertIsNone(result["exit_requested_ms"])
+        self.assertEqual(result["read_failures"], 3)
+        self.worker = Supervisor(ExecutionStore(self.store.path), self.g, live=True)
+        opened = ms("2026-09-30T09:00:01+09:00")
+        result = self.step(opened)
+        self.assertEqual(result["state"], "INTERVENTION")
+        self.assertEqual(result["read_failures"], 4)
+        self.assertEqual(result["exit_requested_ms"], opened)
+        self.assertEqual(self.g.sent, [])
+        self.g.snapshot = snapshot
+        result = self.step(opened + 1_000)
+        self.assertEqual(result["exit_requested_ms"], opened)
+        self.assertEqual(len(self.g.sent), 1)
+        self.assertEqual(self.g.sent[0]["kind"], "exit")
+        self.assertEqual(self.g.sent[0]["quantity"], "3")
+
+    def test_closed_read_failures_preserve_manual_intervention(self):
+        close = ms("2026-09-29T15:30:00+09:00")
+        self.row = self.adopt(at=close - 3_000)
+        self.step(close - 2_000)
+        self.step(close - 1_000)
+        self.g.snapshot = Mock(side_effect=ValueError("fixture ownership mismatch"))
+        self.assertEqual(self.step(close - 500)["state"], "INTERVENTION")
+        self.g.snapshot = Mock(side_effect=RuntimeError("fixture read unavailable"))
+        night = ms("2026-09-30T01:42:00+09:00")
+        for offset in (0, 5_000, 10_000):
+            result = self.step(night + offset)
+            self.assertEqual(result["state"], "INTERVENTION")
+            self.assertIsNone(result["exit_requested_ms"])
+        self.assertEqual(self.g.sent, [])
+
+    def test_closed_read_failure_preserves_previously_latched_read_exit(self):
+        close = ms("2026-09-29T15:30:00+09:00")
+        self.row = self.adopt(at=close - 3_000)
+        self.step(close - 2_000)
+        self.step(close - 1_000)
+        self.g.snapshot = Mock(side_effect=RuntimeError("fixture read unavailable"))
+        for offset in (-900, -800, -700):
+            result = self.step(close + offset)
+        requested = result["exit_requested_ms"]
+        self.assertIsNotNone(requested)
+        self.worker = Supervisor(ExecutionStore(self.store.path), self.g, live=True)
+        result = self.step(ms("2026-09-30T01:42:00+09:00"))
+        self.assertEqual(result["state"], "INTERVENTION")
+        self.assertEqual(result["exit_requested_ms"], requested)
+        self.assertTrue(result["read_failure_exit"])
+        self.assertEqual(self.g.sent, [])
+
     def test_closed_session_observation_gap_survives_restart(self):
         for close_day, reopen_day in (("2026-09-28", "2026-09-29"), ("2026-09-25", "2026-09-28")):
             with self.subTest(close_day=close_day):

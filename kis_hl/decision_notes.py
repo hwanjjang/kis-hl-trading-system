@@ -5,9 +5,10 @@ another source) so the next decision can review earlier reasoning next to the
 actual executions. They are advisory records: they never authorize, size or
 change orders, and they never edit trade facts or statistics.
 """
-from decimal import Decimal
+import json
 
 from kis_hl.data_store import encode, now_ms
+from kis_hl.timing_opinion import check_attached, min_confidence
 
 POLICY_VERSION = 'decision-note-v1'
 AUTHORS = {'ak', 'agent', 'jev', 'other'}
@@ -51,6 +52,7 @@ def validate_note(note, *, recorded_ms=None):
     context = note.get('context', {})
     if not isinstance(context, dict) or len(encode(context)) > 8000:
         raise ValueError('context must be a JSON object of at most 8000 encoded characters')
+    instrument = _text(note.get('instrument'), 'instrument', limit=100)
     jev = note.get('jev')
     if jev is not None:
         # Keep the unchanged `strategy opinion` output; it must stay advisory.
@@ -59,18 +61,20 @@ def validate_note(note, *, recorded_ms=None):
             raise ValueError('jev must be an unchanged advisory strategy opinion output')
         if author != 'jev':
             raise ValueError('Only a jev-authored note may carry a Jev opinion')
-        for key in ('confidence', 'min_confidence'):
-            if jev.get(key) is not None and not isinstance(jev[key], str):
-                raise ValueError('Jev decimals must stay decimal strings')
-        if jev.get('confidence') is not None:
-            Decimal(jev['confidence'])
+        _text(jev.get('snapshot_id'), 'Jev snapshot_id', limit=300)
+        asof = jev.get('asof_ms')
+        if type(asof) is not int or not 0 < asof <= observed:
+            raise ValueError('Jev asof_ms must be a positive timestamp no later than observed_ms')
+        check_attached(jev, instrument=instrument, snapshot_id=jev['snapshot_id'], asof_ms=asof)
+        # Unavailable results also retain a valid decimal-string threshold.
+        min_confidence(jev)
     elif author == 'jev':
         raise ValueError('A jev-authored note requires the unchanged Jev opinion output')
     text = _text(note.get('text'), 'text') if author != 'jev' or note.get('text') else None
     return {
         'policy_version': POLICY_VERSION,
         'account': _text(note.get('account'), 'account', limit=200),
-        'instrument': _text(note.get('instrument'), 'instrument', limit=100),
+        'instrument': instrument,
         'author': author, 'phase': phase, 'stance': stance, 'text': text,
         'observed_ms': observed, 'recorded_ms': recorded,
         'journal_id': note.get('journal_id'), 'fact_id': note.get('fact_id'),
@@ -86,17 +90,32 @@ def add_note(store, note):
     entry = validate_note(note)
     with store.connect() as db:
         db.execute('BEGIN IMMEDIATE')
+        if db.execute('SELECT 1 FROM accounts WHERE id=?', (entry['account'],)).fetchone() is None:
+            raise ValueError('account must reference a canonical account')
+        journal = None
         if entry['journal_id'] is not None:
-            row = db.execute("SELECT kind FROM analysis_runs WHERE id=?", (entry['journal_id'],)).fetchone()
+            row = db.execute("SELECT kind,result FROM analysis_runs WHERE id=?", (entry['journal_id'],)).fetchone()
             if row is None or row['kind'] != 'position_change':
                 raise ValueError('journal_id must reference an automatic position-change journal')
-        if entry['fact_id'] is not None and db.execute(
-                "SELECT 1 FROM fact_revisions WHERE id=? AND dataset='trade'", (entry['fact_id'],)).fetchone() is None:
-            raise ValueError('fact_id must reference a trade fact')
+            journal = json.loads(row['result'])
+            if (journal['account'], journal['instrument']) != (entry['account'], entry['instrument']):
+                raise ValueError('journal_id account and instrument must match the note')
+        if entry['fact_id'] is not None:
+            row = db.execute("SELECT scope,instrument FROM fact_revisions WHERE id=? AND dataset='trade'",
+                             (entry['fact_id'],)).fetchone()
+            if row is None:
+                raise ValueError('fact_id must reference a trade fact')
+            if (row['scope'], row['instrument']) != (entry['account'], entry['instrument']):
+                raise ValueError('fact_id account and instrument must match the note')
+            if journal is not None and journal['fact_id'] != entry['fact_id']:
+                raise ValueError('journal_id and fact_id must reference the same trade revision')
         if entry['supersedes_note_id'] is not None:
-            row = db.execute("SELECT kind FROM analysis_runs WHERE id=?", (entry['supersedes_note_id'],)).fetchone()
+            row = db.execute("SELECT kind,result FROM analysis_runs WHERE id=?", (entry['supersedes_note_id'],)).fetchone()
             if row is None or row['kind'] != 'decision_note':
                 raise ValueError('supersedes_note_id must reference a decision note')
+            original = json.loads(row['result'])
+            if (original['account'], original['instrument']) != (entry['account'], entry['instrument']):
+                raise ValueError('supersedes_note_id account and instrument must match the note')
         run = db.execute(
             'INSERT INTO analysis_runs(kind,created_ms,as_of_ms,parameters,result) VALUES(?,?,?,?,?)',
             ('decision_note', entry['recorded_ms'], entry['observed_ms'],
@@ -107,11 +126,12 @@ def add_note(store, note):
     return {'note_id': run, **entry}
 
 
-def list_notes(store, *, accounts=None, instrument=None, since_ms=None, limit=200):
-    import json
+def list_notes(store, *, accounts=None, instrument=None, since_ms=None, limit=200, as_of_ms=None):
     with store.connect() as db:
         rows = db.execute("SELECT id,result FROM analysis_runs WHERE kind='decision_note' ORDER BY as_of_ms,id").fetchall()
     notes = [{'note_id': r['id'], **json.loads(r['result'])} for r in rows]
+    if as_of_ms is not None:
+        notes = [n for n in notes if n['recorded_ms'] <= as_of_ms]
     superseded = {n['supersedes_note_id'] for n in notes if n.get('supersedes_note_id')}
     out = []
     for n in notes:

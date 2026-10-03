@@ -71,6 +71,8 @@ transport. Its stable decision ID uses the existing SQLite managed-intent claim;
 no operational database, supervisor restart or scheduler change is performed by
 implementation. See the [activation and rollout contract](trading-operations.md#explicit-manual-new-percentage-entry).
 
+`kis_hl.advisory_ts` supplies the read-only nine-minute TS advisory monitor. It validates complete candle coverage before advancing a separate alert watermark, records allowlisted failure diagnostics per symbol and emits one verified recovery transition. `scripts/hl_9m_ts_alert.py` handles scheduling entry and stdout delivery; Hermes retains notification delivery. Operational ownership is read-only and exchange reads use only `HyperliquidInfoClient`; the execution supervisor and native orders remain separate. See [advisory operations and scoped installation](trading-operations.md#nine-minute-ts-advisory-monitor).
+
 ## Hyperliquid execution identity
 
 `HyperliquidConfig.account_address` is always the effective execution account.
@@ -210,6 +212,13 @@ The worker's attempts retain raw exchange responses independently of manual
 | Actual-history ingestion | `journal_history.py`; native HL fills/funding and unresolved KIS/spot snapshots |
 | Journal reconciliation and schedule | `journal_sync.py`; `journal_source_fills`, `journal_cash_costs`, `journal_sync_runs`, `journal_cycles`, `journal_sync_schedule`, `journal_position_checks` |
 | Harness-neutral commands | `operations_cli.py`, registered by the existing `cli.py` parser |
+
+`managed_events.details` is additive JSON diagnostic evidence (default `{}` for
+legacy rows). It records sanitized `error` details and retained `first_intervention`
+evidence from the owner snapshot, including fresh Hyperliquid reconciliation timing
+and bounded-read context. The schema upgrade preserves existing event reasons.
+Ownership and recovery requirements are specified in
+[trading operations](trading-operations.md#hyperliquid-snapshot-timing-and-latched-ownership-intervention).
 
 The target Archify views show the managed entry path, external HTS/web execution
 path, deferred journals and future strategy/notification boundaries. The implemented

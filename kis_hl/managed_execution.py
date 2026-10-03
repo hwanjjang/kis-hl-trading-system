@@ -186,6 +186,10 @@ class ExecutionStore:
                 snapshot TEXT NOT NULL);
             """
             )
+            # Serialize legacy migrations across CLI/supervisor processes.
+            db.execute("BEGIN IMMEDIATE")
+            if "details" not in {r["name"] for r in db.execute("PRAGMA table_info(managed_events)")}:
+                db.execute("ALTER TABLE managed_events ADD COLUMN details TEXT NOT NULL DEFAULT '{}'")
 
     @contextmanager
     def connect(self):
@@ -499,8 +503,11 @@ class ExecutionStore:
             if changed.rowcount != 1:
                 raise RuntimeError("Managed position changed; reload")
             db.execute(
-                "INSERT INTO managed_events(position_id,time_ms,state,reason) VALUES(?,?,?,?)",
-                (row["id"], now_ms, new["state"], new["reason"]),
+                "INSERT INTO managed_events(position_id,time_ms,state,reason,details) VALUES(?,?,?,?,?)",
+                (row["id"], now_ms, new["state"], new["reason"], encode({
+                    label: new[key] for label, key in (("error", "last_error"),
+                        ("first_intervention", "first_intervention")) if key in new
+                })),
             )
             if new["state"] in FINISHED:
                 # Same transaction: a terminal owner never persists with unsent adds.
@@ -580,9 +587,43 @@ class Supervisor:
         self.store, self.gateway, self.live = store, gateway, live
         self.seen = set()
 
+    def _record_error(self, row, exc, now, *, reason=None):
+        # Only fixed local validation messages may be retained. Transport payloads,
+        # missing keys and arbitrary exception text can contain credentials.
+        safe_reasons = {
+            "External ownership or inconsistent exposure", "Unexpected position generation",
+            "Order identity mismatch", "Native order identifier mismatch",
+            "Client order identifier mismatch", "Order direction or reduce-only contract mismatch",
+            "Native SL semantics did not match", "Trailing order size mismatch",
+            "Execution retention gap", "Unknown execution side", "Invalid execution time",
+            "Inconsistent add tranche fills", "Entry preflight not ready",
+            "Only verified USDC collateral is supported", "Delisted execution asset",
+            "Native trailing order semantics did not match", "Native trailing retracement mismatch",
+            "Native trailing activation mismatch; immediate activation required",
+            "Insufficient available funds", "Portfolio notional limit exceeded",
+            "Correlated notional limit exceeded", "Execution spread limit exceeded",
+            "Entry limit is outside the quote band", "ATR instrument mismatch",
+            "Plan ATR differs from current execution-instrument history", "Invalid order lot/tick",
+            "No protective provider available", "Native trailing provider unavailable",
+        }
+        category = next((cls.__name__ for cls in (KeyError, IndexError, TypeError,
+            ValueError, RuntimeError, OSError, StopIteration) if isinstance(exc, cls)), "ExecutionError")
+        context = dict(row.get("reconciliation_context", {}))
+        row["last_error"] = {
+            "category": category,
+            "reason": reason or (str(exc) if str(exc) in safe_reasons else "Invalid execution evidence"),
+            "tick_ms": now,
+            "observed_ms": context.get("observed_now_ms", context.get("exposure_observed_ms", now)),
+            "context": context,
+        }
+
     def _state(self, row, state, reason, now, *, preserve_native_intervention=False):
         if state == "INTERVENTION" and not preserve_native_intervention:
             row.pop("native_trailing_intervention", None)
+            if row.get("last_error"):
+                row.setdefault("first_intervention", {**row["last_error"], "summary": reason})
+            if row["state"] == "INTERVENTION" and row.get("first_intervention"):
+                reason = row["first_intervention"]["summary"]
         row.update(state=state, reason=reason)
         self.store.save(row, now)
 
@@ -644,16 +685,18 @@ class Supervisor:
                 OSError,
                 IndexError,
                 StopIteration,
-            ):
+            ) as exc:
                 current = self.store.get(position_id)
                 if current["version"] == row["version"]:
                     row.pop("read_failure_exit", None)
                     row.pop("native_trailing_intervention", None)
+                    self._record_error(row, exc, now_ms)
+                    error = row["last_error"]
                     self._state(
                         row,
                         "INTERVENTION",
-                        "Preflight or reconciliation failed; inspect source state",
-                        now_ms,
+                        f"Preflight or reconciliation failed ({error['category']}): {error['reason']}",
+                        error["observed_ms"],
                     )
                 # Concurrent control requests win; reload on the next supervisor iteration.
             # _try_add rejects an expired add only when it evaluates it this tick; retire
@@ -662,6 +705,8 @@ class Supervisor:
             return self.store.get(position_id)
 
     def _step(self, row, now):
+        row.pop("last_error", None)
+        row.pop("reconciliation_context", None)
         p = row["plan"]
         attempts = self.store.attempts(row["id"])
         native_trailing = p.get("trailing_provider", "local") == "native"
@@ -839,6 +884,7 @@ class Supervisor:
         try:
             snap = self.gateway.snapshot(row, attempts, now)
         except (RuntimeError, OSError) as exc:
+            self._record_error(row, exc, now, reason="Account snapshot unavailable")
             session_check = getattr(self.gateway, "execution_session_open", None)
             if (session_check is not None and not row.get("read_failure_exit")
                     and row["state"] != "INTERVENTION"
@@ -850,7 +896,7 @@ class Supervisor:
                     row,
                     "DEGRADED",
                     f"Account snapshot unavailable outside the execution session ({type(exc).__name__}); "
-                    f"consecutive failures={row['read_failures']}; no exit latched",
+                    f"consecutive failures={row['read_failures']}; no new read-failure exit latched",
                     now,
                 )
                 return
@@ -878,6 +924,7 @@ class Supervisor:
         row.pop("read_failure_since_ms", None)
         if row.pop("read_failure_exit", False):
             row["state"] = "EXITING"
+        row["reconciliation_context"] = dict(snap.get("reconciliation_context", {}))
         now = int(snap.get("observed_now_ms", now))
         if not snap["consistent"] or snap["foreign_add"]:
             raise ValueError("External ownership or inconsistent exposure")
