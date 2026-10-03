@@ -141,6 +141,7 @@ class Monitor:
 
         for coin, owner_id in owner_ids.items():
             operation = 'configuration'
+            pending_messages, savepoint_open = [], False
             prior = self.conn.execute('SELECT generation,last_end,high,threshold FROM bars WHERE coin=?', (coin,)).fetchone()
             saved = self.conn.execute('SELECT payload FROM diagnostics WHERE coin=?', (coin,)).fetchone()
             previous = json.loads(saved[0]) if saved else {}
@@ -158,7 +159,9 @@ class Monitor:
                 plan = owner['plan']
                 if owner['id'] != owner_id or plan['instrument'] != 'hl:' + coin or owner['mode'] != 'live':
                     raise ObservationError('owner_identity_mismatch')
-                owner_qty = positive(owner['observed_size'])
+                owner_qty = Decimal(str(owner['observed_size']))
+                if not owner_qty.is_finite() or owner_qty < 0:
+                    raise ObservationError('invalid_schema')
                 operation = 'positions'
                 account = read('positions', lambda: self.info.clearinghouse_state(dex='xyz'))
                 positions = account['assetPositions']
@@ -169,8 +172,10 @@ class Monitor:
                     raise ObservationError('invalid_schema')
                 if not matches:
                     # Preserve advisory history; absence cannot certify a verified recovery.
+                    self.conn.execute('SAVEPOINT advisory_observation')
+                    savepoint_open = True
                     if status(self.conn, coin, 'closed') != 'yes':
-                        messages.append(f'{coin}: position closed; nine-minute observation stopped. Verify remaining protection orders separately. observed_ms={now}.')
+                        pending_messages.append(f'{coin}: position closed; nine-minute observation stopped. Verify remaining protection orders separately. observed_ms={now}.')
                     set_status(self.conn, coin, 'closed', 'yes')
                     diagnostic.update(reason='closed', explanation='Exchange exposure is absent; observation stopped.')
                 else:
@@ -238,18 +243,32 @@ class Monitor:
                         raise ObservationError('invalid_bid') from None
                     covered = end if bars else start
                     operation = 'state'
+                    self.conn.execute('SAVEPOINT advisory_observation')
+                    savepoint_open = True
                     if bars or not same:
                         self.conn.execute('INSERT INTO bars VALUES(?,?,?,?,?) ON CONFLICT(coin) DO UPDATE SET generation=excluded.generation,last_end=excluded.last_end,high=excluded.high,threshold=excluded.threshold',
                                           (coin, generation, covered, str(high), str(threshold)))
                     breached = bid <= threshold
                     if breached and status(self.conn, coin, 'breach') != str(threshold):
-                        messages.append(f'{coin}: nine-minute TS advisory: best bid {bid} <= reference threshold {threshold}; trade-candle high {high}, entry ATR distance {distance}. Proxy differs from supervisor bid watermark. No automatic order. observed_ms={now}.')
+                        pending_messages.append(f'{coin}: nine-minute TS advisory: best bid {bid} <= reference threshold {threshold}; trade-candle high {high}, entry ATR distance {distance}. Proxy differs from supervisor bid watermark. No automatic order. observed_ms={now}.')
                     set_status(self.conn, coin, 'breach', str(threshold) if breached else 'clear')
                     if status(self.conn, coin, 'error') not in {None, 'ok'}:
-                        messages.append(f'{coin}: nine-minute TS observation recovered; covered_through_ms={covered}, observed_ms={now}. Protection status is separate; no automatic order.')
+                        pending_messages.append(f'{coin}: nine-minute TS observation recovered; covered_through_ms={covered}, observed_ms={now}. Protection status is separate; no automatic order.')
                     set_status(self.conn, coin, 'error', 'ok')
                     diagnostic.update(last_success_ms=now, covered_through_ms=covered)
+                diagnostic['operation'] = operation
+                self.conn.execute('INSERT INTO diagnostics VALUES(?,?) ON CONFLICT(coin) DO UPDATE SET payload=excluded.payload',
+                                  (coin, json.dumps(diagnostic, sort_keys=True)))
+                self.conn.execute('RELEASE advisory_observation')
+                savepoint_open = False
+                messages.extend(pending_messages)
             except Exception as exc:
+                if savepoint_open:
+                    self.conn.execute('ROLLBACK TO advisory_observation')
+                    self.conn.execute('RELEASE advisory_observation')
+                    # Discard any candidate coverage/success evidence before degradation.
+                    diagnostic.update(last_success_ms=previous.get('last_success_ms'),
+                                      covered_through_ms=prior[1] if prior else None)
                 if isinstance(exc, ObservationError):
                     reason = exc.reason
                     diagnostic.update(bucket_start_ms=exc.bucket_start_ms, missing_minutes_ms=exc.missing_minutes_ms)
@@ -263,9 +282,9 @@ class Monitor:
                 if status(self.conn, coin, 'error') != reason:
                     messages.append(f'{coin}: nine-minute TS observation degraded: operation={operation}, reason={reason}. {REASONS[reason]} bucket_start_ms={diagnostic["bucket_start_ms"]}, missing_minutes_ms={diagnostic["missing_minutes_ms"]}, prior_watermark_ms={diagnostic["prior_watermark_ms"]}, last_success_ms={diagnostic["last_success_ms"]}, observed_ms={now}. This advisory is not exchange protection.')
                 set_status(self.conn, coin, 'error', reason)
-            diagnostic['operation'] = operation
-            self.conn.execute('INSERT INTO diagnostics VALUES(?,?) ON CONFLICT(coin) DO UPDATE SET payload=excluded.payload',
-                              (coin, json.dumps(diagnostic, sort_keys=True)))
+                diagnostic['operation'] = operation
+                self.conn.execute('INSERT INTO diagnostics VALUES(?,?) ON CONFLICT(coin) DO UPDATE SET payload=excluded.payload',
+                                  (coin, json.dumps(diagnostic, sort_keys=True)))
             diagnostics[coin] = diagnostic
         self.conn.commit()
         return {'messages': messages, 'diagnostics': diagnostics}

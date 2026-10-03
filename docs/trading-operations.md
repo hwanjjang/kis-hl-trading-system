@@ -1075,7 +1075,12 @@ and threshold calculation. Every bucket needs all nine valid one-minute bars.
 A missing or boundary-invalid minute produces `coverage_gap`; no bar is filled in.
 The previous `bars.last_end`, high and threshold remain unchanged, and the next
 scheduled tick requests the same pending start. A failed bid or owner/exposure
-check also leaves bar state unchanged. History beyond 4900 constituent minutes
+check also leaves bar state unchanged. Candidate bars, successful alerts and the
+verified diagnostic use a per-symbol savepoint: a late write failure rolls them
+back before reporting degradation, and breach/recovery messages are released only
+after those writes succeed. A normally reconciled `CLOSED` owner with local size
+zero and verified absent exchange exposure stops observation; a zero local size
+with positive exchange exposure is an exposure mismatch. History beyond 4900 constituent minutes
 produces `retention_limit`; do not reset bars to hide the gap.
 
 `diagnostics` is an additive table in the existing alert database. Its allowlisted

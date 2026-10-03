@@ -217,6 +217,52 @@ class MonitorTests(unittest.TestCase):
         self.assertFalse(any('recovered' in m for m in result['messages']))
         self.assertEqual(self.bar()[1],540000)
 
+    def test_late_alert_write_failure_rolls_back_bars_and_retries(self):
+        prior = self.bar()
+        self.info.raw['xyz:KORU'][0]['h'] = '50'
+        self.conn.execute("CREATE TRIGGER reject_koru_breach BEFORE INSERT ON alerts WHEN NEW.coin='xyz:KORU' AND NEW.kind='breach' BEGIN SELECT RAISE(ABORT, 'SECRET_TRIGGER_TEXT'); END")
+        result = self.tick()
+        self.assertEqual(self.bar(), prior)
+        self.assertEqual(result['diagnostics']['xyz:KORU']['reason'], 'read_unavailable')
+        self.assertEqual(result['diagnostics']['xyz:SP500']['reason'], 'verified')
+        self.assertFalse(any('TS advisory:' in m or 'recovered' in m for m in result['messages']))
+        self.assertNotIn('SECRET_TRIGGER_TEXT', json.dumps(result))
+        self.conn.execute('DROP TRIGGER reject_koru_breach')
+        result = self.tick(1097000)
+        self.assertEqual(sum('recovered' in m for m in result['messages']), 1)
+        self.assertEqual(self.bar(), (1000,1080000,'50','46.8236'))
+        requests = [r for r in self.info.requests if r['type']=='candleSnapshot' and r['req']['coin']=='xyz:KORU']
+        self.assertEqual([r['req']['startTime'] for r in requests], [540000,540000])
+
+    def test_verified_diagnostic_write_failure_rolls_back_success_and_recovery(self):
+        self.info.bids['xyz:KORU']='0'; self.tick()
+        prior = self.bar()
+        self.info.bids['xyz:KORU']='22.6'
+        self.conn.execute("CREATE TRIGGER reject_koru_verified BEFORE INSERT ON diagnostics WHEN NEW.coin='xyz:KORU' AND json_extract(NEW.payload, '$.reason')='verified' BEGIN SELECT RAISE(ABORT, 'SECRET_TRIGGER_TEXT'); END")
+        result = self.tick()
+        self.assertEqual(self.bar(),prior)
+        self.assertEqual(result['diagnostics']['xyz:KORU']['reason'],'read_unavailable')
+        self.assertFalse(any('recovered' in m for m in result['messages']))
+        self.assertIsNone(result['diagnostics']['xyz:KORU']['last_success_ms'])
+        self.conn.execute('DROP TRIGGER reject_koru_verified')
+        self.assertEqual(sum('recovered' in m for m in self.tick()['messages']),1)
+
+    def test_reconciled_closed_zero_owner_stops_without_false_recovery(self):
+        self.info.bids['xyz:KORU']='0'; self.tick()
+        self.owners['owner-koru']=('CLOSED', dict(self.owners['owner-koru'][1], observed_size='0'))
+        del self.info.quantities['xyz:KORU']
+        result=self.tick()
+        self.assertEqual(result['diagnostics']['xyz:KORU']['reason'], 'closed')
+        self.assertEqual(result['diagnostics']['xyz:SP500']['reason'], 'verified')
+        self.assertEqual(sum('position closed' in m for m in result['messages']), 1)
+        self.assertFalse(any('recovered' in m or 'degraded:' in m for m in result['messages']))
+        self.assertEqual(self.bar()[1],540000)
+        self.assertFalse(self.tick()['messages'])
+
+    def test_zero_owner_with_positive_exchange_exposure_is_mismatch(self):
+        self.owners['owner-koru'][1]['observed_size']='0'
+        self.assertEqual(self.tick()['diagnostics']['xyz:KORU']['reason'], 'exposure_mismatch')
+
     @patch('urllib.request.urlopen', side_effect=AssertionError('Real network forbidden'))
     @patch('kis_hl.hyperliquid.client.HyperliquidTradingClient', side_effect=AssertionError('Trading forbidden'))
     def test_only_recorded_info_reads_never_signed_or_network_mutations(self, *_):
