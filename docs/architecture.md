@@ -202,6 +202,13 @@ The worker's attempts retain raw exchange responses independently of manual
 | Journal reconciliation and schedule | `journal_sync.py`; `journal_source_fills`, `journal_cash_costs`, `journal_sync_runs`, `journal_cycles`, `journal_sync_schedule`, `journal_position_checks` |
 | Harness-neutral commands | `operations_cli.py`, registered by the existing `cli.py` parser |
 
+`managed_events.details` is additive JSON diagnostic evidence (default `{}` for
+legacy rows). It records sanitized `error` details and retained `first_intervention`
+evidence from the owner snapshot, including fresh Hyperliquid reconciliation timing
+and bounded-read context. The schema upgrade preserves existing event reasons.
+Ownership and recovery requirements are specified in
+[trading operations](trading-operations.md#hyperliquid-snapshot-timing-and-latched-ownership-intervention).
+
 The target Archify views show the managed entry path, external HTS/web execution
 path, deferred journals and future strategy/notification boundaries. The implemented
 supervisor directly reuses the deterministic `Trail` policy rather than handing

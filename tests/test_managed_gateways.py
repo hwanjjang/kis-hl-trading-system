@@ -100,6 +100,205 @@ class ManagedGatewayTests(unittest.TestCase):
         self.assertEqual(s["orders"]["0x123"]["native_id"], "42")
         self.assertEqual(s["first_fill_time_ms"], 10)
 
+    def test_snapshot_cutoff_is_fresh_even_when_tick_predates_fill(self):
+        g, info, row, attempts, _ = self.hl()
+        info.user_fills_by_time.return_value[0]["time"] = 28
+        with patch("kis_hl.managed_gateways.time.time", return_value=0.030):
+            snap = g.snapshot(row, attempts, 20)
+        self.assertTrue(snap["consistent"])
+        self.assertEqual(snap["entry_filled"], "1")
+        info.user_fills_by_time.assert_called_once_with(start_time_ms=1, end_time_ms=30)
+        self.assertEqual(snap["reconciliation_context"]["tick_ms"], 20)
+        self.assertEqual(snap["reconciliation_context"]["fill_cutoff_ms"], 30)
+
+    def test_fill_between_history_and_exposure_converges_by_full_readback(self):
+        g, info, row, attempts, order = self.hl()
+        clock = [20]
+        fill = dict(info.user_fills_by_time.return_value[0], time=28)
+        info.user_fills_by_time.side_effect = lambda **kw: [fill] if kw["end_time_ms"] >= 28 else []
+        state = info.clearinghouse_state.return_value
+        def exposure(**kw):
+            clock[0] = 30  # The authorized fill arrives after the history read.
+            return state
+        info.clearinghouse_state.side_effect = exposure
+        order["sz"] = "1"
+        info.order_status.side_effect = [
+            {"status": "order", "order": {"status": "open", "order": dict(order)}},
+            {"status": "order", "order": {"status": "filled", "order": dict(order, sz="0")}},
+        ]
+        with patch("kis_hl.managed_gateways.time.time", side_effect=lambda: clock[0] / 1000):
+            snap = g.snapshot(row, attempts, 20)
+        self.assertTrue(snap["consistent"])
+        self.assertEqual(snap["reconciliation_context"]["fill_cutoff_ms"], 30)
+        self.assertEqual([c.kwargs["end_time_ms"] for c in info.user_fills_by_time.call_args_list], [20, 30])
+        self.assertEqual(snap["reconciliation_context"]["readback_attempt"], 2)
+        self.assertEqual(info.order_status.call_count, 2)
+        self.assertEqual(info.frontend_open_orders.call_count, 2)
+        self.assertEqual(info.clearinghouse_state.call_count, 2)
+        # Snapshot discovery must not mutate the caller's durable attempt view.
+        self.assertIsNone(attempts[0]["order_id"])
+
+    def test_terminal_entry_with_missing_fills_is_not_consistent_flat(self):
+        g, info, row, attempts, _ = self.hl()
+        info.user_fills_by_time.return_value = []
+        info.clearinghouse_state.return_value["assetPositions"] = []
+        snap = g.snapshot(row, attempts, 20)
+        self.assertFalse(snap["consistent"])
+        self.assertEqual(info.user_fills_by_time.call_count, 3)
+        self.assertEqual(snap["reconciliation_context"]["mismatch"], "order_fills")
+
+    def test_snapshot_mismatch_readback_is_bounded_and_remains_unsafe(self):
+        g, info, row, attempts, _ = self.hl()
+        info.user_fills_by_time.return_value = []
+        snap = g.snapshot(row, attempts, 20)
+        self.assertFalse(snap["consistent"])
+        self.assertEqual(info.user_fills_by_time.call_count, 3)
+        self.assertEqual(snap["reconciliation_context"]["readback_attempt"], 3)
+
+    def test_external_protections_are_never_adopted_or_retried_away(self):
+        for kind in ("Stop Market", "Trailing Stop Market"):
+            with self.subTest(kind=kind):
+                g, info, row, attempts, _ = self.hl()
+                info.frontend_open_orders.return_value = [dict(coin="BTC", oid=99,
+                    side="A", sz="1", reduceOnly=True, orderType=kind)]
+                snap = g.snapshot(row, attempts, 20)
+                self.assertTrue(snap["foreign_add"])
+                self.assertEqual(info.frontend_open_orders.call_count, 1)
+                self.assertNotIn("99", snap["orders"])
+
+    def test_verified_exact_external_ids_still_require_explicit_latch_recovery(self):
+        import tempfile
+        from pathlib import Path
+        from kis_hl.managed_execution import ExecutionStore, Supervisor
+
+        g, info, _, _, entry = self.hl()
+        stop = dict(entry, oid=43, side="A", reduceOnly=True, isTrigger=True,
+                    orderType="Stop Market", sz="1", triggerPx="96")
+        trailing = dict(stop, oid=44, orderType="Trailing Stop Market",
+                        triggerCondition="Activation immediate, retracement 4, best 104")
+        info.frontend_open_orders.return_value = [stop, trailing]
+        info.order_status.side_effect = lambda *, oid: {"status": "order", "order": {
+            "status": "filled" if oid == 42 else "open",
+            "order": {42: entry, 43: stop, 44: trailing}[oid]}}
+        with tempfile.TemporaryDirectory() as temp:
+            store = ExecutionStore(Path(temp) / "state.sqlite")
+            row = store.enqueue(g.scope, plan(), live=True, now_ms=1)
+            row["state"] = "ENTERING"
+            store.save(row, 2)
+            attempt = store.attempt(row, "entry", 2, quantity="1", price="100")
+            store.update_attempt(attempt, order_id="42", status="SUBMITTED")
+            worker = Supervisor(store, g, live=True)
+            with patch("kis_hl.managed_gateways.time.time", return_value=0.030):
+                result = worker.step(row["id"], 20)
+            self.assertEqual(result["state"], "INTERVENTION")
+            self.assertIsNone(result["trail"])
+            self.assertFalse(g.trading.place_order.called)
+            # Simulate a separately reviewed exact-ID binding in this offline DB.
+            # This does not add or authorize a production recovery command.
+            for kind, oid, values in (("stop", "43", {"trigger_price": "96"}),
+                                      ("trailing", "44", {"retracement": "4"})):
+                a = store.attempt(result, kind, 31, quantity="1", price="100", **values)
+                store.update_attempt(a, order_id=oid, status="SUBMITTED")
+            with patch("kis_hl.managed_gateways.time.time", return_value=0.040):
+                snap = g.snapshot(result, store.attempts(row["id"]), 40)
+                self.assertTrue(snap["consistent"])
+                self.assertFalse(snap["foreign_add"])
+                result = worker.step(row["id"], 40)
+            self.assertEqual(result["state"], "INTERVENTION")
+            self.assertIsNone(result["trail"])
+            # Even verified IDs alone cannot silently clear generic intervention.
+            result["state"] = "ENTERING"
+            store.save(result, 41)
+            with patch("kis_hl.managed_gateways.time.time", return_value=0.050):
+                result = worker.step(row["id"], 50)
+            self.assertEqual(result["state"], "PROTECTED")
+            self.assertEqual(result["covered_size"], "1")
+            self.assertFalse(g.trading.place_order.called)
+            self.assertFalse(g.trading.place_trailing_stop_order.called)
+
+    def test_stale_open_entry_status_is_refreshed_after_fill(self):
+        g, info, row, attempts, order = self.hl()
+        info.order_status.side_effect = [
+            {"status": "order", "order": {"status": "open", "order": dict(order, sz="1")}},
+            info.order_status.return_value,
+        ]
+        snap = g.snapshot(row, attempts, 20)
+        self.assertTrue(snap["consistent"])
+        self.assertEqual(info.order_status.call_count, 2)
+        self.assertEqual(snap["orders"]["42"]["status"], "filled")
+
+    def test_sp500_immediate_post_submit_fill_initializes_one_sl_and_trailing(self):
+        import tempfile
+        from pathlib import Path
+        from kis_hl.managed_execution import ExecutionStore, Supervisor
+        from tests.test_managed_execution import Gateway
+
+        for provider in ("local", "native"):
+            with self.subTest(provider=provider), tempfile.TemporaryDirectory() as temp:
+                g, info, _, _, _ = self.hl()
+                coin = "xyz:SP500"
+                p = plan() | dict(instrument="hl:xyz:SP500", signal_instrument="hl:xyz:SP500",
+                    quantity="0.177", limit_price="7700", atr="61.04", atr_multiple="2",
+                    fixed_stop_price="7577", max_notional="1400", max_loss="30",
+                    max_portfolio_notional="10000", max_correlated_notional="10000")
+                p["trailing_provider"] = provider
+                info.meta_and_asset_ctxs.return_value = [{"collateralToken": 0,
+                    "universe": [{"name": coin, "szDecimals": 3}]}, []]
+                info.l2_book.return_value = {"time": 30,
+                    "levels": [[{"px": "7698.7"}], [{"px": "7699"}]]}
+                info.clearinghouse_state.return_value["assetPositions"][0]["position"].update(
+                    coin=coin, szi="0.177", entryPx="7698.7", positionValue="1362.673")
+                fill = dict(tid=1, coin=coin, side="B", sz="0.177", px="7698.7", time=28, oid=42)
+                info.user_fills_by_time.side_effect = lambda **kw: [fill] if kw["end_time_ms"] >= 28 else []
+                orders = {}
+                def submit(**kw):
+                    oid = 42 if kw["side"] == "buy" else 43
+                    order = dict(oid=oid, cloid=kw["cloid"], coin=coin,
+                        origSz=str(kw["size"]), sz="0" if oid == 42 else str(kw["size"]),
+                        side="B" if oid == 42 else "A", reduceOnly=oid != 42,
+                        isTrigger=oid != 42, orderType="Limit" if oid == 42 else "Stop Market",
+                        triggerPx=str(kw.get("trigger_price") or 0))
+                    orders[str(oid)] = {"status": "order", "order": {
+                        "status": "filled" if oid == 42 else "open", "order": order}}
+                    return SimpleNamespace(status="submitted", response={"response": {"data": {
+                        "statuses": [{"filled" if oid == 42 else "resting": {"oid": oid}}]}}})
+                def trailing(**kw):
+                    orders["44"] = {"status": "order", "order": {"status": "open", "order": dict(
+                        oid=44, coin=coin, side="A", reduceOnly=True, isTrigger=True, sz=str(kw["size"]),
+                        orderType="Trailing Stop Market", triggerCondition=(
+                            f"Activation immediate, retracement {kw['retracement']}, best 7698.7"))}}
+                    return SimpleNamespace(status="submitted", response={"response": {"data": {
+                        "statuses": [{"resting": {"oid": 44}}]}}})
+                g.trading.place_order.side_effect = submit
+                g.trading.place_trailing_stop_order.side_effect = trailing
+                info.order_status.side_effect = lambda *, oid: orders[str(oid)]
+                info.frontend_open_orders.side_effect = lambda **kw: [
+                    r["order"]["order"] for r in orders.values() if r["order"]["status"] == "open"]
+                pre = Gateway().preflight(p, 23) | {"observed_now_ms": 23, "price": "7700",
+                    "ask": "7701", "available_notional": "10000", "atr": "61.04",
+                    "quantity_step": "0.001", "trailing_price_step": "0.001"}
+                g.preflight = Mock(return_value=pre)
+                store = ExecutionStore(Path(temp) / "state.sqlite")
+                row = store.enqueue(g.scope, p, live=True, now_ms=1)
+                worker = Supervisor(store, g, live=True)
+                worker.step(row["id"], 20)  # intent/attempt at 23, fill at 28
+                # Emulate the IOC caller's same-tick post-submit readback. Routing
+                # is deliberately independent: this bug affects any filled entry.
+                with patch("kis_hl.managed_gateways.time.time", return_value=0.030):
+                    result = worker.step(row["id"], 20)
+                    self.assertNotEqual(result["state"], "INTERVENTION")
+                    self.assertEqual(result["entry_filled"], "0.177")
+                    self.assertEqual(result["first_fill_ms"], 28)
+                    self.assertIsNotNone(result["trail"])
+                    self.assertEqual([a["kind"] for a in store.attempts(row["id"])], ["entry", "stop"])
+                    for now in (31, 32, 33):
+                        result = Supervisor(store, g, live=True).step(row["id"], now)
+                self.assertEqual(result["state"], "PROTECTED", result["reason"])
+                self.assertEqual(result["covered_size"], "0.177")
+                self.assertEqual(g.trading.place_order.call_count, 2)
+                self.assertEqual(g.trading.place_trailing_stop_order.call_count, int(provider == "native"))
+                self.assertTrue(all(a.get("order_id") for a in store.attempts(row["id"])))
+
     def test_owned_add_fills_remain_owned_and_partial_protective_fill_is_reported(self):
         g, info, row, attempts, order = self.hl()
         attempts[0]["kind"] = "add"

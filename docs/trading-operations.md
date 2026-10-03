@@ -739,6 +739,64 @@ through an append-only fill revision; a later unknown observation cannot erase i
 Execution amounts, costs, times and conflicting known attribution still require
 explicit correction imports.
 
+### Hyperliquid snapshot timing and latched ownership intervention
+
+The supervisor tick is a scheduling timestamp, not a fill-history cutoff. Every
+Hyperliquid snapshot samples a fresh cutoff after order-status reads (and therefore
+after any preceding entry submission), then reads fills, open orders and exposure.
+This contract applies both to ordinary polling and to immediate IOC post-submit
+readback. An end-of-read observation timestamp cannot repair an earlier truncated
+fill window. Current main still uses limit/GTC entry routing; the timing contract
+also covers market/IOC callers without changing entry order type.
+
+The endpoints do not provide an atomic account snapshot. If fill-derived net
+exposure differs from the position, or entry/add order status and cumulative fills
+disagree, the gateway performs at most three complete read sets with fresh cutoffs.
+Each set repeats order status, history, open orders and exposure; it does not mix
+an old order status with a newer fill total. Consistent owned evidence can initialize
+fixed SL and the configured local/native trailing policy. Exhausted disagreement
+remains unsafe. Foreign entry fills or unregistered open orders and identity/semantics
+errors are never excused as timing races or retried until they disappear. Missing
+acknowledgements retain the durable UNKNOWN/no-resend contract.
+
+`managed_events.details` stores structured sanitized errors and the owner's first
+causal intervention: exception category, fixed local reason, scheduling tick,
+fill cutoff, read phase/count, exposure observation and completion time where
+available. Generic intervention preserves this first evidence across repeated
+polls and restarts, even if later failures have a different cause. Raw exception
+payloads, URLs, credentials and transport bodies are not copied into these events.
+Legacy events receive empty details; historical tracebacks cannot be reconstructed
+by this migration. `order status` exposes the retained `first_intervention` and the
+latest reconciliation context. Generic identity/ownership intervention remains
+latched even after a later consistent snapshot while exposure remains.
+
+For an already latched owner with protections installed outside its attempts:
+
+1. Obtain separate explicit authorization for recovery of that owner/account.
+   Preserve the owner, attempts, first-cause events and current protection; do not
+   resume automation or submit replacement protections during diagnosis.
+2. Read the exact execution account/network/coin, identified entry fills and live
+   position. Reconcile retained history, net side/size, partial exits, and every
+   open order. Matching quantity or creation time alone is not ownership evidence.
+3. Verify each proposed protection by its exact native order ID on that account:
+   sell, reduce-only, remaining size, status, instrument, fixed SL trigger and
+   Stop Market semantics; for native trailing also verify quote retracement,
+   immediate activation, current condition and remaining coverage. Enumerate all
+   other orders and reject ambiguous IDs, missing evidence or conflicting owners.
+4. Use a separately reviewed, explicitly authorized reconciliation/migration
+   procedure to bind those exact IDs to this existing owner's durable attempts,
+   record verification evidence and initialize protection state without sending
+   duplicate SL/trailing orders. No CLI currently supports this binding for a
+   latched Hyperliquid owner with an external native trail. Do not edit SQLite or
+   create another owner as a shortcut. Keep it in intervention until such a
+   supported procedure is implemented and verified; an operator may manage the
+   existing protection separately under their own live authorization.
+5. `order recover` only requests another reconciliation using unchanged ownership
+   and budgets. It cannot register the external IDs; they remain blocked. Existing
+   `order adopt` is a separate admission flow and rejects external native trailing;
+   it does not migrate this owner. The timing fix alone does not authorize recovery,
+   live orders, service restart or deployment.
+
 ### Read outages and recovery limits
 
 A transient account snapshot `RuntimeError`/`OSError` puts active protection in
