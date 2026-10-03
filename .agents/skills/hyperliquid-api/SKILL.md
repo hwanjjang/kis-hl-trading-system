@@ -76,6 +76,12 @@ The low-level `trailing_readback` verifier accepts an explicit
 `retracement_unit="percent"` to validate percentage policy and calculate the
 threshold from the observed best price without changing that watermark. The
 safe default remains quote distance; existing managed callers do not opt in.
+Percentage condition readback truncates percentage points to two decimals with
+`ROUND_DOWN` (for example, `3.1300000000000003%` becomes `3.13%`), per the owner
+policy. Bounds are checked before truncation; zero after truncation rejects.
+The normalized value must still equal the explicit authorized retracement.
+This readback policy does not round prices, quantities or best-price watermarks,
+and does not relax the signed-input four-decimal precision limit.
 This read-only capability does not implement external-order adoption or native
 trailing quantity modification and does not authorize either action.
 
