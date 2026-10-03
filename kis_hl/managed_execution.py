@@ -281,10 +281,12 @@ class ExecutionStore:
         check_authority(scope, authority['mode'], p, now_ms)
         return self.enqueue(scope, p, live=live, now_ms=now_ms)
 
-    def tranches(self, position_id):
-        with self.connect() as db:
+    def tranches(self, position_id, db=None):
+        if db is not None:
             return [json.loads(r[0]) for r in db.execute(
                 "SELECT snapshot FROM managed_tranches WHERE position_id=? ORDER BY rowid", (position_id,))]
+        with self.connect() as db:
+            return self.tranches(position_id, db)
 
     def save_tranche(self, tranche):
         with self.connect() as db:
@@ -503,24 +505,27 @@ class ExecutionStore:
             ]
 
     def save(self, row, now_ms):
-        new = {**row, "version": row["version"] + 1}
         with self.connect() as db:
-            changed = db.execute(
-                "UPDATE managed_positions SET state=?,version=?,snapshot=? WHERE id=? AND version=?",
-                (new["state"], new["version"], encode(new), row["id"], row["version"]),
-            )
-            if changed.rowcount != 1:
-                raise RuntimeError("Managed position changed; reload")
-            db.execute(
-                "INSERT INTO managed_events(position_id,time_ms,state,reason,details) VALUES(?,?,?,?,?)",
-                (row["id"], now_ms, new["state"], new["reason"], encode({
-                    label: new[key] for label, key in (("error", "last_error"),
-                        ("first_intervention", "first_intervention")) if key in new
-                })),
-            )
-            if new["state"] in FINISHED:
-                # Same transaction: a terminal owner never persists with unsent adds.
-                self._retire_unsent(db, row["id"], new["state"], now_ms)
+            self._save(db, row, now_ms)
+
+    def _save(self, db, row, now_ms):
+        new = {**row, "version": row["version"] + 1}
+        changed = db.execute(
+            "UPDATE managed_positions SET state=?,version=?,snapshot=? WHERE id=? AND version=?",
+            (new["state"], new["version"], encode(new), row["id"], row["version"]),
+        )
+        if changed.rowcount != 1:
+            raise RuntimeError("Managed position changed; reload")
+        db.execute(
+            "INSERT INTO managed_events(position_id,time_ms,state,reason,details) VALUES(?,?,?,?,?)",
+            (row["id"], now_ms, new["state"], new["reason"], encode({
+                label: new[key] for label, key in (("error", "last_error"),
+                    ("first_intervention", "first_intervention")) if key in new
+            })),
+        )
+        if new["state"] in FINISHED:
+            # Same transaction: a terminal owner never persists with unsent adds.
+            self._retire_unsent(db, row["id"], new["state"], now_ms)
         row.update(new)
 
     def attempts(self, position_id):
@@ -573,7 +578,15 @@ class ExecutionStore:
         decision_id, rationale = str(decision_id or "").strip(), str(rationale or "").strip()
         if not decision_id or not rationale:
             raise ValueError("Take profit requires a decision ID and rationale")
-        row = self.get(position_id)
+        # One write transaction excludes a concurrent add admission (enqueue_add).
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            r = db.execute("SELECT snapshot FROM managed_positions WHERE id=?", (position_id,)).fetchone()
+            if not r:
+                raise ValueError("Unknown managed position")
+            return self._request_take_profit(db, json.loads(r[0]), now_ms, decision_id, rationale)
+
+    def _request_take_profit(self, db, row, now_ms, decision_id, rationale):
         current = row.get("take_profit") or {}
         if take_profit_active(row) and current["decision_id"] == decision_id:
             return row
@@ -587,12 +600,12 @@ class ExecutionStore:
             raise ValueError("Take profit requires an owner without an exit/cancel request")
         if row["state"] != "PROTECTED":
             raise ValueError("Take profit requires a PROTECTED owner")
-        if any(t["status"] in {"QUEUED", "SUBMITTED", "UNKNOWN"} for t in self.tranches(position_id)):
+        if any(t["status"] in {"QUEUED", "SUBMITTED", "UNKNOWN"} for t in self.tranches(row["id"], db)):
             raise ValueError("Reconcile the pending add before a take profit")
         row["take_profit"] = dict(decision_id=decision_id, rationale=rationale,
                                   requested_ms=now_ms, status="REQUESTED")
         row["take_profit_decisions"] = [*row.get("take_profit_decisions", []), decision_id]
-        self.save(row, now_ms)
+        self._save(db, row, now_ms)
         return row
 
     def heartbeat(self, scope, now_ms, live):
@@ -1484,7 +1497,9 @@ class Supervisor:
                 tp.update(status="BELOW_MINIMUM")
                 self._state(row, "PROTECTED", "Take-profit target is below the minimum order; no order sent", now)
                 return
-        tps = [a for a in attempts if a["kind"] == "take_profit"]
+        # Earlier decisions' fills and attempts never count toward this decision.
+        tps = [a for a in attempts if a["kind"] == "take_profit"
+               and a.get("decision_id") == tp["decision_id"]]
         filled = sum((decimal(snap.get("fills_by_attempt", {}).get(a["id"], "0")) for a in tps), Decimal(0))
         tp["filled_quantity"] = wire_decimal(filled)
         remaining = decimal(tp["target_quantity"]) - filled
@@ -1509,7 +1524,8 @@ class Supervisor:
             return
         tick = decimal(snap["price_step"], positive=True)
         limit = (price * (1 - decimal(p["slippage"])) / tick).to_integral_value(rounding=ROUND_UP) * tick
-        self._send(row, "take_profit", now, quantity=wire_decimal(qty), price=wire_decimal(limit))
+        self._send(row, "take_profit", now, quantity=wire_decimal(qty), price=wire_decimal(limit),
+                   decision_id=tp["decision_id"])
 
     def _try_add(self, row, now):
         from kis_hl.conditional_add import preflight_add

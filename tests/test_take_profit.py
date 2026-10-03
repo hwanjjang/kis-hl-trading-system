@@ -167,6 +167,100 @@ class TakeProfitTests(unittest.TestCase):
                          stops_before)
         self.assertTrue(all(self.g.orders[i]["status"] == "open" for i in stops_before))
 
+    def test_successive_decisions_do_not_inherit_prior_fills_or_budget(self):
+        pid = self.protected("10")
+        self.store.request_take_profit(pid, 40, decision_id="first", rationale="First top")
+        self.worker.step(pid, 50)
+        self.g.sell(self.tp_sent()[0]["id"], "5")
+        self.assertEqual(self.worker.step(pid, 60)["take_profit"]["status"], "COMPLETED")
+        self.store.request_take_profit(pid, 70, decision_id="second", rationale="Second top")
+        row = self.worker.step(pid, 80)
+        self.assertEqual(row["take_profit"]["filled_quantity"], "0")
+        self.assertEqual([a["quantity"] for a in self.tp_sent()], ["5", "2.5"])
+        self.g.sell(self.tp_sent()[1]["id"], "2.5")
+        row = self.worker.step(pid, 90)
+        self.assertEqual((row["take_profit"]["status"], row["take_profit"]["residual_size"]), ("COMPLETED", "2.5"))
+
+    def test_exhausted_decision_attempts_do_not_consume_next_decision_budget(self):
+        pid = self.protected("10")
+        self.store.request_take_profit(pid, 40, decision_id="first", rationale="First top")
+        for now in (50, 60, 70, 80):
+            self.worker.step(pid, now)
+            for a in self.tp_sent():
+                self.g.orders[a["id"]]["status"] = "canceled"  # IOC without any fill.
+        self.assertEqual(self.store.get(pid)["take_profit"]["status"], "EXHAUSTED")
+        self.assertEqual(len(self.tp_sent()), 3)
+        self.store.request_take_profit(pid, 90, decision_id="second", rationale="Second top")
+        self.worker.step(pid, 100)
+        self.assertEqual(len(self.tp_sent()), 4)
+        self.assertEqual(self.tp_sent()[-1]["decision_id"], "second")
+
+    def native_protected(self):
+        self.g.native_trailing = True
+        p = plan(trailing_provider="native", local_trailing_backup=True)
+        p.update(quantity="10", max_notional="2000", max_loss="50",
+                 max_portfolio_notional="2000", max_correlated_notional="2000")
+        row = self.store.enqueue("scope", p, live=True, now_ms=1)
+        submit = self.g.submit
+
+        def native_submit(owner, attempt):
+            result = submit(owner, attempt)
+            if attempt["kind"] == "trailing":
+                self.g.orders[attempt["id"]].update(active=True, retracement_unit="quote",
+                                                    retracement=attempt["retracement"])
+            return result
+
+        self.g.submit = native_submit
+        self.worker.step(row["id"], 10)
+        self.g.size = self.g.filled = "10"
+        self.g.orders[self.g.sent[0]["id"]]["status"] = "filled"
+        for now in (20, 30, 40):
+            state = self.worker.step(row["id"], now)["state"]
+        self.assertEqual(state, "PROTECTED")
+        return row["id"]
+
+    def test_native_trailing_is_retained_and_covers_residual(self):
+        pid = self.native_protected()
+        before = self.store.get(pid)
+        protection = {a["id"]: dict(self.g.orders[a["id"]]) for a in self.g.sent if a["kind"] in {"stop", "trailing"}}
+        self.assertEqual(sorted(o["kind"] for o in protection.values()), ["stop", "trailing"])
+        self.store.request_take_profit(pid, 45, decision_id="top-1", rationale="Judged top")
+        self.worker.step(pid, 50)
+        self.g.sell(self.tp_sent()[0]["id"], "5")
+        row = self.worker.step(pid, 60)
+        self.assertEqual(row["take_profit"]["status"], "COMPLETED")
+        self.assertEqual((row["covered_size"], row["trailing_covered_size"]), ("5", "5"))
+        self.assertEqual(row["native_trailing_distance"], before["native_trailing_distance"])
+        self.assertEqual({a["id"]: self.g.orders[a["id"]] for a in self.g.sent if a["kind"] in {"stop", "trailing"}},
+                         protection)
+        for key in ("high", "threshold", "distance"):
+            self.assertEqual(row["trail"][key], before["trail"][key])
+
+    def test_native_trailing_fill_during_take_profit_supersedes_it(self):
+        pid = self.native_protected()
+        self.store.request_take_profit(pid, 45, decision_id="top-1", rationale="Judged top")
+        submit = self.g.submit
+
+        def resting(owner, attempt):
+            result = submit(owner, attempt)
+            if attempt["kind"] == "take_profit":
+                self.g.orders[attempt["id"]]["status"] = "open"  # Unresolved TP outcome.
+            return result
+
+        self.g.submit = resting
+        self.worker.step(pid, 50)
+        trail = next(a["id"] for a in self.g.sent if a["kind"] == "trailing")
+        self.g.orders[trail]["status"] = "filled"
+        self.g.size = "4"  # The trail sold six before the TP resolved.
+        row = self.worker.step(pid, 60)
+        self.assertEqual(row["take_profit"]["status"], "SUPERSEDED")
+        self.assertEqual([a for a in self.g.sent if a["kind"] == "exit"], [])
+        self.g.orders[self.tp_sent()[0]["id"]]["status"] = "canceled"
+        self.worker.step(pid, 70)
+        self.assertEqual([a["quantity"] for a in self.g.sent if a["kind"] == "exit"], ["4"])
+        self.assertEqual(len(self.tp_sent()), 1)
+        self.assertEqual(len([a for a in self.g.sent if a["kind"] == "trailing"]), 1)
+
     # AC4: a competing full exit takes precedence.
     def test_stop_fill_during_take_profit_supersedes_without_oversell(self):
         pid = self.protected("10")
@@ -215,6 +309,42 @@ class TakeProfitTests(unittest.TestCase):
         self.store.enqueue_add(owner, {"intent_id": "add-1"}, now_ms=35, sizing={})
         with self.assertRaisesRegex(ValueError, "add"):
             self.store.request_take_profit(pid, 40, decision_id="top-1", rationale="Judged top")
+
+    def test_add_committing_during_take_profit_admission_cannot_both_succeed(self):
+        import sqlite3
+        from unittest.mock import patch
+
+        pid = self.protected("10")
+        tranches = self.store.tranches
+        connect = sqlite3.connect
+        outcome = {}
+
+        def interleaved(position_id, *db):
+            seen = tranches(position_id, *db)
+            # Another process tries to admit an add after TP admission read the tranches.
+            with patch("kis_hl.managed_execution.sqlite3.connect",
+                       lambda path, timeout: connect(path, timeout=0.2)):
+                try:
+                    other = ExecutionStore(self.path)
+                    other.enqueue_add(other.get(pid), {"intent_id": "add-race"}, now_ms=41, sizing={})
+                    outcome["add"] = "committed"
+                except sqlite3.OperationalError:
+                    outcome["add"] = "blocked"
+            return seen
+
+        with patch.object(self.store, "tranches", side_effect=interleaved):
+            self.store.request_take_profit(pid, 40, decision_id="top-1", rationale="Judged top")
+        self.assertEqual(outcome["add"], "blocked")
+        self.assertEqual(self.store.tranches(pid), [])
+        self.assertEqual(self.store.get(pid)["take_profit"]["status"], "REQUESTED")
+
+    def test_add_authorized_from_owner_read_before_take_profit_is_rejected(self):
+        pid = self.protected("10")
+        stale_owner = self.store.get(pid)
+        self.store.request_take_profit(pid, 40, decision_id="top-1", rationale="Judged top")
+        with self.assertRaisesRegex(RuntimeError, "changed"):
+            self.store.enqueue_add(stale_owner, {"intent_id": "add-1"}, now_ms=45, sizing={})
+        self.assertEqual(self.store.tranches(pid), [])
 
     def test_unsupported_owners_and_requests_fail_closed(self):
         pid = self.protected("10")

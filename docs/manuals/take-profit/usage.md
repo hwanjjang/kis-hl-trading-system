@@ -19,9 +19,10 @@ The running supervisor (`supervisor run --venue hyperliquid --live`) freezes 50%
 the reconciled position, rounded down to the lot step, and sends reduce-only IOC
 sells only for the unfilled remainder. In the smoke a 10 BTC owner received a
 partial fill of 2, then one retry of 3, and finished `COMPLETED` with a residual of
-5 still covered by the original fixed SL. A later decision was `SUPERSEDED` when the
-SL filled first; no take-profit order or new protection was sent for the flat
-position, and the owner closed.
+5 still covered by the original fixed SL. A second decision halved the residual
+(2.5) without counting the first decision's fills. A third decision was
+`SUPERSEDED` when the SL filled first; no take-profit order or new protection was
+sent for the flat position, and the owner closed.
 
 ![Actual selected smoke output](take-profit-cli.png)
 

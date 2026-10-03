@@ -19,6 +19,13 @@ feat/issue-28-partial-take-profit from 5bf175c.
    PR; cross-provider review (Codex) and corrections until PASS; merge-ready report.
 
 User scenarios: reports/sdlc/issue-28/user-scenarios.json (S1-S4).
-Rollback: revert the commit; persisted `take_profit` fields are additive JSON and
-ignored by older code; never cancel protection or replay UNKNOWN orders.
+Rollback: stop requesting take profits, then reconcile every SUBMITTED/UNKNOWN
+`take_profit` attempt to a terminal exchange status (never infer that an UNKNOWN sell
+was unsent) before starting an older supervisor, because older code neither waits
+for nor cleans up TP orders. Persisted `take_profit` fields are additive JSON.
+Never cancel protection or replay UNKNOWN orders as a rollback step.
+
+Review corrections (R1-1..R1-4): decision-scoped TP fills/budget via `decision_id`
+on attempts; TP admission checks pending adds and saves in one `BEGIN IMMEDIATE`
+transaction; native quote-distance trailing TP tests; rollback prerequisite.
 Blast radius: managed HL owners only when a TP is requested; no change otherwise.

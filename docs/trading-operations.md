@@ -499,6 +499,13 @@ supervisor executes it. Requirements and behavior:
   cancels owned TP orders. No protection is created for a flat position.
 - **Adds:** conditional/intraday add authorization and queueing reject an owner with
   an active (`REQUESTED`/`EXECUTING`) decision.
+  Admission checks pending adds and records the decision in one SQLite write
+  transaction, so an add and a decision cannot both be admitted concurrently.
+- **Successive decisions:** each attempt records its `decision_id`; a later decision
+  sizes from the current residual and never counts earlier fills or attempts.
+- **Rollback:** before running a supervisor without this lifecycle, stop new
+  decisions and reconcile every submitted/UNKNOWN `take_profit` attempt to a terminal
+  exchange status; older code neither waits for nor cleans up TP orders.
 
 `order status` shows `take_profit` and `take_profit_decisions`. Offline evidence:
 `tests/test_take_profit.py` and `python scripts/smoke_take_profit.py` (CLI, SQLite,

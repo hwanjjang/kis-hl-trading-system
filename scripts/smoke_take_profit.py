@@ -179,21 +179,30 @@ def run():
             reused = cli(*request, expect=1)
             assert "already used" in reused
 
-            # S3: the fixed SL fills before the next decision is sized; no TP or new protection.
+            # S2: a second decision halves the current residual without inheriting earlier fills.
             cli("order", "take-profit", "--id", pid, "--decision-id", "top-2", "--rationale", "Second top")
-            exchange.fill(int(stop_oid), "5", "95")
+            second_decision = supervise()["take_profit"]
+            assert second_decision["status"] == "EXECUTING" and second_decision["target_quantity"] == "2.5"
+            second_done = supervise()["take_profit"]
+            assert second_done["status"] == "COMPLETED" and second_done["residual_size"] == "2.5", second_done
+            assert [str(o["size"]) for o in exchange.placed] == ["5", "3", "2.5"]
+
+            # S3: the fixed SL fills before the next decision is sized; no TP or new protection.
+            cli("order", "take-profit", "--id", pid, "--decision-id", "top-3", "--rationale", "Third top")
+            exchange.fill(int(stop_oid), "2.5", "95")
             exchange.orders[stop_oid]["status"] = "filled"
             superseded = supervise()
             assert superseded["take_profit"]["status"] == "SUPERSEDED", superseded
             closed = supervise()
             assert closed["state"] == "CLOSED", closed
-            assert len(exchange.placed) == 2 and exchange.size == 0
+            assert len(exchange.placed) == 3 and exchange.size == 0
             assert len([a for a in store.attempts(pid) if a["kind"] == "stop"]) == 1
             status = cli("order", "status", "--id", pid)
         return {"ok": True, "commands": commands,
                 "take_profit_orders": [{k: str(o[k]) for k in ("side", "size", "reduce_only", "tif")}
                                        for o in exchange.placed],
-                "first_decision": done["take_profit"], "final_state": status["state"],
+                "first_decision": done["take_profit"], "second_decision": second_done,
+                "final_state": status["state"],
                 "final_take_profit": status["take_profit"]}
 
 
