@@ -248,6 +248,11 @@ monitoring. Condition parsing failure on an otherwise verified owned trailing or
 also preserves independent SL supervision with zero trailing coverage. Identity,
 order semantics and account validation remain strict; generic intervention clears
 the native-only exception. Valid same-ID readback can recover without resubmission.
+
+A discretionary 50% take profit is stored on the same owner snapshot
+(`take_profit`) and executed by the supervisor as a separate `take_profit` attempt
+kind; it reuses existing coverage readback and never resizes protection. See the
+[take-profit contract](trading-operations.md#discretionary-50-take-profit-hyperliquid).
 Open waiting readback is distinct from active trailing coverage. Quote-distance
 waiting does not itself request an exit; immediate percentage waiting is bounded
 by `protection_grace_ms` from the oldest inactive tranche attempt, including across

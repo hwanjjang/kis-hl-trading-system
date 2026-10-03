@@ -155,6 +155,16 @@ def add_commands(sub, journal_sub):
         c = order_sub.add_parser(action)
         c.add_argument("--id", required=True)
         c.set_defaults(handler=cmd_order)
+    take_profit = order_sub.add_parser(
+        "take-profit",
+        help="Record one discretionary 50%% take profit on a protected Hyperliquid owner; "
+             "the supervisor sizes and sends it",
+    )
+    take_profit.add_argument("--id", required=True)
+    take_profit.add_argument("--decision-id", required=True,
+                             help="Unique judged-top decision; reuse never halves again")
+    take_profit.add_argument("--rationale", required=True)
+    take_profit.set_defaults(handler=cmd_order)
     amend = order_sub.add_parser(
         "amend",
         help="Replace an unsent plan; active entries require cancel/reconciliation",
@@ -561,6 +571,9 @@ def cmd_order(args):
         return store.enqueue(scope.key, p, live=args.live, now_ms=now)
     if args.order_action == "status":
         return {**store.get(args.id), "attempts": store.attempts(args.id), "tranches": store.tranches(args.id)}
+    if args.order_action == "take-profit":
+        return store.request_take_profit(args.id, now, decision_id=args.decision_id,
+                                         rationale=args.rationale)
     if args.order_action in {"exit", "cancel"}:
         return store.request_exit(
             args.id, now, cancel_only=args.order_action == "cancel"

@@ -462,12 +462,51 @@ instrument, including all filled tranches, not just the most recent entry.
   associated orders only; do not touch unrelated positions or orders.
 
 Existing full-exit controls and the bounded conditional add contract below remain
-supported. Discretionary partial take-profit execution is deferred to #28; this
-policy does not implement that lifecycle or grant trading authority.
-Do not route an add as a new flat entry, route a 50% TP through a full-exit command,
-or bypass ownership/protection guards with raw orders. Activation requires a
-supported, tested lifecycle and a complete authorized plan. Existing trailing
-orders and watermarks must not be reset merely to apply this document.
+supported. Do not route an add as a new flat entry, route a 50% TP through a
+full-exit command, or bypass ownership/protection guards with raw orders. Existing
+trailing orders and watermarks must not be reset merely to apply this document.
+
+### Discretionary 50% take profit (Hyperliquid)
+
+`order take-profit --id POSITION_ID --decision-id ID --rationale TEXT` records one
+explicitly identified judged-top decision on a managed Hyperliquid owner. It sends
+nothing itself and grants no authority beyond the already-armed live owner; the
+supervisor executes it. Requirements and behavior:
+
+- **Admission:** the owner must be `PROTECTED`, Hyperliquid, without an exit/cancel
+  request or a pending add. Decision ID and rationale are required. Repeating the
+  active decision ID is a no-op; a used ID or a second concurrent decision is
+  rejected. KIS owners are rejected (the KIS gateway also refuses `take_profit`), so
+  the small-account KIS full-exit policy above is unaffected.
+- **Quantity:** on the first reconciled, fresh step with verified coverage and no
+  active entry/add order, the supervisor freezes `basis_size` (the actual position,
+  including add fills) and `target_quantity = floor(50% / lot) × lot`. A target below
+  the USD 10 order minimum ends as `BELOW_MINIMUM` with no order; it is never
+  promoted to a full exit. The residual is never smaller than the target.
+- **Execution:** each send is a reduce-only IOC sell (attempt kind `take_profit`) for
+  `target − reconciled TP fills`, bounded by `max_exit_attempts` and, from the freeze,
+  `exit_deadline_ms`. An UNKNOWN or unresolved attempt is never resent; past the
+  deadline the reason asks for manual reconciliation. Exhausted budgets end as
+  `EXHAUSTED` with the residual still protected. TP attempts do not consume the
+  full-exit budget, and TP fills are not protective fills.
+- **Completion:** `COMPLETED` (with `residual_size`) only when TP fills reach the
+  target in a step whose fixed-SL/TS coverage is verified. Existing reduce-only
+  SL/TS orders larger than the residual count as coverage; trails are not
+  cancelled, resized or recreated, and local trail watermarks stay unchanged.
+- **Competition:** a latched SL/TS/manual full exit or a flat position marks an
+  active decision `SUPERSEDED`. The full-exit loop waits for unresolved TP orders
+  (cancelling resting ones after `exit_reprice_ms`) before sending, and flat cleanup
+  cancels owned TP orders. No protection is created for a flat position.
+- **Adds:** conditional/intraday add authorization and queueing reject an owner with
+  an active (`REQUESTED`/`EXECUTING`) decision.
+
+`order status` shows `take_profit` and `take_profit_decisions`. Offline evidence:
+`tests/test_take_profit.py` and `python scripts/smoke_take_profit.py` (CLI, SQLite,
+real Hyperliquid gateway over an in-memory exchange, network forbidden).
+**Unverified live risk:** Hyperliquid handling of a resting reduce-only SL/TS whose
+size exceeds a shrunken position has not been exercised live. If such an order is
+cancelled or rejected, the existing coverage readback treats the residual as
+unprotected and follows the normal protection grace and full-exit path.
 
 ## Prepare and submit
 
@@ -919,6 +958,7 @@ the partial bucket; a latched exit survives a rebound and process death.
 python -m kis_hl.cli order status --id POSITION_ID
 python -m kis_hl.cli order cancel --id POSITION_ID
 python -m kis_hl.cli order exit --id POSITION_ID
+python -m kis_hl.cli order take-profit --id POSITION_ID --decision-id TOP_ID --rationale "Judged top"
 python -m kis_hl.cli supervisor pause-entries --venue kis
 python -m kis_hl.cli supervisor status --venue kis
 python -m kis_hl.cli order recover --id POSITION_ID
@@ -1363,8 +1403,9 @@ migration executor is added here. Ordinary strategy/SL exits default to the enti
 remaining position, and executable TS always closes the entire residual, including
 adds, regardless of profit. Competing native/local fills reduce subsequent exit
 quantity; reduce-only IOC orders cannot reverse exposure. Flat cleanup touches only
-associated persisted order IDs. Discretionary half exits remain deferred to #28;
-do not use the full-exit command to approximate them.
+associated persisted order IDs. Discretionary half exits use the
+[50% take-profit lifecycle](#discretionary-50-take-profit-hyperliquid); do not use the
+full-exit command to approximate them.
 
 Offline evidence: `python scripts/smoke_conditional_add.py` exercises actual CLI
 handlers and temporary SQLite with a stub gateway and network forbidden. It covers

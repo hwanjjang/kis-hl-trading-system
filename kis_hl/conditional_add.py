@@ -1,6 +1,7 @@
 """Bounded add admission on an existing owner; no scheduling or order transport."""
 
 from kis_hl.journal_sync import decimal
+from kis_hl.managed_execution import take_profit_active
 from kis_hl.strategy_tools import evaluate_setup, size_position
 
 
@@ -23,8 +24,9 @@ def validate_add(plan, owner, signal, now, *, preview=False):
             or plan.get("position_id") != owner["id"]
             or plan["instrument"] != original["instrument"]):
         raise ValueError("Add requires the identified Hyperliquid position owner")
-    if owner["state"] != "PROTECTED" or owner["exit_requested_ms"] or owner["cancel_entry"]:
-        raise ValueError("Add requires a protected owner without an exit/cancel request")
+    if (owner["state"] != "PROTECTED" or owner["exit_requested_ms"] or owner["cancel_entry"]
+            or take_profit_active(owner)):
+        raise ValueError("Add requires a protected owner without an exit/cancel/take-profit request")
     for key in ("atr", "atr_multiple", "local_atr_multiple", "native_atr_multiple",
                 "trailing_provider", "local_trailing_backup", "protection_grace_ms",
                 "max_exit_attempts", "exit_deadline_ms", "exit_reprice_ms", "slippage",

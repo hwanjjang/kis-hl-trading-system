@@ -463,6 +463,13 @@ class ConditionalAddTests(unittest.TestCase):
                     self.signals.execute(signal["id"], "scope", p, manual=case != "missing", live=True, now_ms=NOW+5)
                 self.assertEqual(len(self.g.sent), before)
 
+    def test_active_take_profit_rejects_add_authorization(self):
+        self.store.request_take_profit(self.row["id"], NOW+1, decision_id="top-1", rationale="Judged top")
+        with self.assertRaisesRegex(ValueError, "take-profit"):
+            self.authorize()
+        self.assertEqual(self.store.tranches(self.row["id"]), [])
+        self.assertFalse(any(a["kind"] == "add" for a in self.g.sent))
+
     def test_expired_or_changed_fresh_state_preserves_existing_protection(self):
         self.authorize()
         original_stops = [a["id"] for a in self.g.sent if a["kind"] == "stop"]

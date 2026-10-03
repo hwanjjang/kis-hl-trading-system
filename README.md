@@ -551,3 +551,19 @@ existing-position add plan; `order status` includes tranche sizing/fill records.
 Follow the [bounded add contract](docs/trading-operations.md#bounded-conditional-add-ups).
 Run `python scripts/smoke_conditional_add.py` for the network-free CLI/SQLite smoke.
 No live add is armed by installing this implementation.
+
+### Discretionary 50% take profit (Hyperliquid)
+
+```bash
+python -m kis_hl.cli order take-profit --id POSITION_ID --decision-id TOP_ID --rationale "Judged top"
+python -m kis_hl.cli order status --id POSITION_ID   # take_profit status and sizes
+```
+
+The command records one decision on a `PROTECTED` Hyperliquid owner; the running
+supervisor sells 50% of the reconciled position (lot-rounded, reduce-only IOC) and
+keeps existing SL/TS on the residual. Repeating a decision ID never halves again;
+KIS owners are rejected. See the
+[take-profit contract](docs/trading-operations.md#discretionary-50-take-profit-hyperliquid)
+and run `python scripts/smoke_take_profit.py` for the network-free smoke.
+Operator manual: [docs/manuals/take-profit/usage.md](docs/manuals/take-profit/usage.md)
+([PDF](docs/manuals/take-profit/usage.pdf)).
