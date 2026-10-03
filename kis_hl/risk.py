@@ -85,6 +85,53 @@ def n_multiplier_for_asset_class(asset_class: str) -> Decimal:
         raise ValueError(f"unsupported asset_class: {asset_class}") from exc
 
 
+def calculate_isolated_margin(*, quantity, entry, stop, leverage, allocated_margin,
+                              margin_tiers, side="long", buffer="0"):
+    """Allocation at proposed entry to meet initial and stop maintenance requirements.
+
+    Zero buffer is the mathematical maintenance boundary, not an execution guarantee.
+    Tiers use Hyperliquid metadata's lowerBound/maxLeverage fields.
+    """
+    q, entry, stop, leverage, allocated, buffer = map(
+        _to_decimal, (quantity, entry, stop, leverage, allocated_margin, buffer))
+    if min(q, entry, stop) <= 0 or leverage < 1 or leverage != leverage.to_integral_value():
+        raise ValueError("Positive quantity/prices and integer leverage >= 1 required")
+    if allocated < 0 or buffer < 0:
+        raise ValueError("Allocated margin and buffer must be non-negative")
+    if side not in {"long", "short"}:
+        raise ValueError("Side must be long or short")
+    loss = q * (entry - stop if side == "long" else stop - entry)
+    if loss <= 0:
+        raise ValueError("Stop must be on the loss side of entry")
+    if not isinstance(margin_tiers, list) or not margin_tiers:
+        raise ValueError("Complete margin tiers required")
+    tiers = []
+    for item in margin_tiers:
+        if not isinstance(item, dict):
+            raise ValueError("Invalid margin tier")
+        lower, maximum = _to_decimal(item.get("lowerBound")), _to_decimal(item.get("maxLeverage"))
+        if (lower < 0 or maximum < 1 or maximum != maximum.to_integral_value()
+                or (not tiers and lower != 0)
+                or (tiers and (lower <= tiers[-1][0] or maximum > tiers[-1][1]))):
+            raise ValueError("Margin tiers must start at zero, increase bounds and not increase leverage")
+        tiers.append((lower, maximum))
+    stop_notional, entry_notional = q * stop, q * entry
+    maintenance, entry_maximum = Decimal(0), tiers[0][1]
+    for i, (lower, maximum) in enumerate(tiers):
+        upper = tiers[i+1][0] if i+1 < len(tiers) else stop_notional
+        if stop_notional > lower:
+            maintenance += (min(stop_notional, upper) - lower) / (2 * maximum)
+        if entry_notional >= lower:
+            entry_maximum = maximum
+    initial = entry_notional / leverage
+    required = max(initial, loss + maintenance + buffer)
+    return dict(initial_margin=initial, maintenance_at_stop=maintenance, loss_at_stop=loss,
+                required_margin=required, allocated_margin=allocated,
+                shortfall=max(Decimal(0), required-allocated), buffer=buffer,
+                entry_notional=entry_notional, stop_notional=stop_notional,
+                leverage=leverage, leverage_exceeds_market_max=leverage > entry_maximum)
+
+
 def calculate_position_size(
     *,
     operating_capital_usdc: Decimal | str | int | float,

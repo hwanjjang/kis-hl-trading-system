@@ -1,0 +1,18 @@
+{
+  "venue": "hyperliquid", "scope": "offline:fixture", "currency": "USDC",
+  "instrument": "hl:ETH", "asof_ms": 1789948800000, "max_age_ms": 60000,
+  "entry": "100", "stop": "90", "units": "1", "quantity_step": "0.01",
+  "minimum_quantity": "0.01", "minimum_notional": "10",
+  "capital_evidence": {
+    "scope": "offline:fixture", "currency": "USDC", "asof_ms": 1789948800000,
+    "max_age_ms": 60000, "account_mode": "unifiedAccount",
+    "spot": {"balances": [{"coin": "USDC", "token": 0, "total": "1000"}]}
+  },
+  "margin_evidence": {
+    "scope": "offline:fixture", "instrument": "hl:ETH", "currency": "USDC",
+    "asof_ms": 1789948800000, "max_age_ms": 60000, "mode": "isolated",
+    "allocation_basis": "proposed_tranche_at_entry", "allocated_margin": "100",
+    "leverage": "10", "buffer": "0",
+    "meta": {"universe": [{"name": "ETH", "maxLeverage": 10, "marginTableId": 10}]}
+  }
+}

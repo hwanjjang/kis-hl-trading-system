@@ -10,6 +10,7 @@ from kis_hl.journal_sync import decimal, encode
 from kis_hl.risk import (
     calculate_atr_10d, calculate_operating_capital, calculate_risk_units,
     calculate_30w_ema_status,
+    calculate_isolated_margin,
     n_multiplier_for_asset_class,
 )
 from kis_hl.signals import evaluate_btcusdc_futures_3h_breakout
@@ -221,7 +222,61 @@ def size_position(request, *, now_ms):
                   sizing=sizing, order_authorized=False)
     if reconciliation is not None:
         result["capital_reconciliation"] = reconciliation
+    result["isolated_margin"] = _isolated_margin_report(request, result, now_ms=now_ms)
     return json.loads(encode(result))
+
+
+def _isolated_margin_report(request, size, *, now_ms):
+    """Report proposed-tranche allocation; never borrow existing-position collateral."""
+    if request["venue"] != "hyperliquid":
+        return dict(status="not_applicable", reasons=["Hyperliquid perpetuals only"])
+    try:
+        evidence = request.get("margin_evidence")
+        if not isinstance(evidence, dict):
+            raise ValueError("Isolated margin evidence required")
+        _fresh(evidence, now_ms)
+        if now_ms - evidence["asof_ms"] > request["max_age_ms"]:
+            raise ValueError("Margin evidence exceeds sizing freshness budget")
+        if any(evidence.get(k) != request[k] for k in ("scope", "instrument", "currency")):
+            raise ValueError("Margin evidence scope/instrument/currency mismatch")
+        if evidence.get("mode") == "cross":
+            return dict(status="not_applicable", reasons=["Cross margin is account-wide"])
+        if evidence.get("mode") != "isolated":
+            raise ValueError("Verified isolated margin mode required")
+        if evidence.get("allocation_basis") != "proposed_tranche_at_entry":
+            raise ValueError("Explicit proposed-tranche allocation at entry required")
+        meta = evidence["meta"]
+        coin = request["instrument"].removeprefix("hl:")
+        matches = [a for a in meta["universe"] if a["name"] == coin]
+        if len(matches) != 1 or matches[0].get("isDelisted"):
+            raise ValueError("Unique listed market metadata required")
+        asset = matches[0]
+        maximum = _integer(asset["maxLeverage"], "maxLeverage", positive=True)
+        table_id = asset.get("marginTableId")
+        tables = [t[1] for t in meta.get("marginTables", []) if t[0] == table_id]
+        if table_id is not None:
+            _integer(table_id, "marginTableId", positive=True)
+        if len(tables) > 1:
+            raise ValueError("Ambiguous margin table")
+        if tables:
+            tiers = tables[0]["marginTiers"]
+        elif table_id is None or (table_id < 50 and table_id == maximum):
+            tiers = [{"lowerBound": "0", "maxLeverage": maximum}]
+        else:
+            raise ValueError("Complete referenced margin table required")
+        if not tiers or decimal(tiers[0]["maxLeverage"]) != maximum:
+            raise ValueError("Margin table and market maximum leverage disagree")
+        report = calculate_isolated_margin(quantity=size["quantity"], entry=request["entry"],
+            stop=request["stop"], side=request.get("side", "long"),
+            leverage=evidence["leverage"], allocated_margin=evidence["allocated_margin"],
+            margin_tiers=tiers, buffer=evidence.get("buffer", "0"))
+        return dict(report, status="available", asof_ms=evidence["asof_ms"],
+                    allocation_basis=evidence["allocation_basis"], reasons=[],
+                    source_sha256=hashlib.sha256(encode(evidence).encode()).hexdigest(),
+                    assumptions=["Stop is the assumed mark price; fees, funding, gaps and slippage excluded",
+                                 "Zero buffer is a maintenance boundary, not guaranteed stop execution"])
+    except (ValueError, KeyError, TypeError, IndexError) as exc:
+        return dict(status="unavailable", reasons=[str(exc)])
 
 
 def indicator_facts(snapshot, *, now_ms):

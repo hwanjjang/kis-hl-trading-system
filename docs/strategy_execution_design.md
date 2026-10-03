@@ -84,6 +84,9 @@ unit. The unit calculator accepts the actual proposed entry and fixed SL, rounds
 quantity down to the supplied lot step, and reports realized planned risk after
 rounding. A below-minimum result cannot be rounded up silently. Costs, slippage
 and gaps mean actual losses are not guaranteed to equal planned stop risk.
+Optional account/instrument-bound margin evidence reports the required isolated
+allocation and shortfall at that fixed SL; see the
+[margin tool contract](strategy-tools.md#isolated-margin-at-the-fixed-stop).
 
 ### Portfolio risk caps
 

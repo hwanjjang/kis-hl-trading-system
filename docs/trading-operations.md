@@ -288,6 +288,18 @@ of preset cumulative unit caps is decided, not an unresolved limit to invent.
 Current managed execution remains long-only; #15's symmetric short calculation
 and the separate short-trailing follow-up are not claims of working short management.
 
+### Isolated-margin reporting
+
+`strategy size` accepts optional fresh `margin_evidence` for a proposed tranche.
+It reports required allocation at entry, maintenance at SL and the shortfall
+against the explicit allocation; see the
+[input, formula and output contract](strategy-tools.md#isolated-margin-at-the-fixed-stop).
+The report uses the market's metadata margin tiers rather than the operating
+capital multiplier. A shortfall leaves quantity and execution authorization
+unchanged. The operator decides whether to allocate funds or skip; no transfer,
+leverage change or bypass of existing funds checks occurs. Missing/ambiguous
+margin evidence is reported as unavailable, independently of valid unit sizing.
+
 ## Explicit manual NEW percentage entry
 
 `ExecutionStore.enqueue_percentage_new_entry(scope, plan, *, manual,
