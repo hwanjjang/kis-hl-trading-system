@@ -18,4 +18,3 @@ allocation is collateral for the proposed tranche at entry. Missing or mismatche
 evidence produces an unavailable report, not an invented zero shortfall. Funding,
 fees, slippage and gaps are excluded; zero buffer is a maintenance boundary.
 See the [full input/formula contract](../../strategy-tools.md#isolated-margin-at-the-fixed-stop).
-
