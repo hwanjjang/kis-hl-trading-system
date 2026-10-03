@@ -134,6 +134,82 @@ use `instrument: "hl:BTC"`. The tool rounds the quantity for an 80-USDC notional
 down and reports actual fixed-stop risk. It never silently changes that strategy
 to one-unit sizing.
 
+### Isolated margin at the fixed stop
+
+See the [illustrated offline walkthrough](manuals/risk-units/usage.md) and
+[PDF manual](manuals/risk-units/usage.pdf).
+
+Optional `margin_evidence` on `strategy size` reports isolated allocation for the
+**proposed tranche at entry**, using its rounded quantity and fixed SL. It does
+not fetch account state or allocate funds. Supply actual fresh metadata, selected
+leverage and the amount explicitly allocated to this proposal. The fixture below
+uses `hl:ETH`, entry 100, SL 90, quantity 10.
+
+Run the complete [offline fixture](../examples/strategy-size-isolated.json) with
+its explicit replay clock:
+
+```bash
+python -m kis_hl.cli strategy size --input examples/strategy-size-isolated.json --as-of-ms 1789948800000
+```
+
+Add the following field to a matching sizing request:
+
+```json
+{"margin_evidence": {
+  "scope":"mainnet:account-id", "instrument":"hl:ETH", "currency":"USDC",
+  "asof_ms":1790006400000, "max_age_ms":60000, "mode":"isolated",
+  "allocation_basis":"proposed_tranche_at_entry", "allocated_margin":"100",
+  "leverage":"10", "buffer":"0",
+  "meta":{"universe":[{"name":"ETH","maxLeverage":10,"marginTableId":10}]}
+}}
+```
+
+Keep `scope`, `instrument`, currency and freshness consistent with the sizing
+request. `allocated_margin` excludes entry-to-stop P&L: it is collateral at the
+proposed entry price, not `rawUsd`, available buying power, account-total balance
+or the margin already covering an existing position. For an add-up, existing
+collateral is not implicitly available to the new tranche. The report is not a
+combined-position liquidation calculation.
+
+The metadata `universe` must identify one listed coin. A referenced
+`marginTableId` uses the matching `marginTables` entry's complete `marginTiers`.
+IDs below 50 can use their single-tier leverage when it matches `maxLeverage`;
+without a table ID, the metadata's `maxLeverage` supplies the single tier.
+Other missing or ambiguous tables produce `unavailable`; no tiered table is
+invented from the operating-capital multiplier.
+
+For tier boundaries `b[i]` and maximum leverages `L[i]`, maintenance accumulates
+each notional interval at rate `1 / (2 × L[i])`. This is equivalent to the
+[official maintenance-deduction formula](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/margin-tiers).
+Compute maintenance using **stop notional**, including any tier crossed by a
+short price rise or a long price fall:
+
+```text
+initial_margin      = quantity × entry / selected_leverage
+loss_at_stop        = quantity × abs(entry - stop)
+required_margin     = max(initial_margin, loss_at_stop + maintenance_at_stop + buffer)
+shortfall           = max(0, required_margin - allocated_margin)
+```
+
+This follows the [initial and isolated maintenance requirements](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/margining).
+The example returns initial margin 100, maintenance at SL 45, required margin
+145 and shortfall 45. `isolated_margin.status` is `available` with these values,
+stop/entry notionals, selected leverage, buffer, source timestamp/hash and
+assumptions. `leverage_exceeds_market_max` reports an inconsistent leverage
+selection; it introduces no execution guard. A shortfall does not alter quantity,
+grant authority or transfer funds. Existing execution funds checks still apply.
+
+Missing, stale, malformed or mismatched evidence, a missing tier table or zero
+rounded quantity returns `unavailable` with reasons while unit sizing remains
+available. Explicit cross margin and KIS return `not_applicable`. No requirement
+or shortfall is invented in those cases. The report is also computed from the
+actual rounded quantity of the fixed-80-USDC BTC exception.
+
+SL is treated as an assumed mark price. Fees, funding, gaps and slippage are
+excluded; the operator may set a nonnegative quote-currency `buffer` explicitly.
+Default zero is the mathematical maintenance boundary, not a guarantee that an
+SL fills before liquidation. See [mark-price liquidation rules](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/liquidations).
+
 ## Decision records
 
 Use the existing signal fields: `id`, `strategy`, `strategy_version`,

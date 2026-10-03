@@ -1,0 +1,3 @@
+
+# Maintained PDF manuals are binary artifacts.
+*.pdf binary
