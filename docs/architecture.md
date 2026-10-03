@@ -62,6 +62,15 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `docs/strategy_execution_design.md` records the strategy skill/tool integration and existing execution limits. Hermes loads `.agents/skills/trend-strategy/` for strategy judgment and owns timing/briefings/notification. `kis_hl.strategy_tools` supplies deterministic indicators, setup predicates, ATR stop proposals, risk-unit sizing and decision evidence through the existing CLI. `kis_hl.timing_opinion` optionally asks TypeSafe's Jev model for an advisory long/short/wait opinion that is retained with a decision but never grants authority. Decisions reuse `strategy_signals`; protected execution and trailing remain in the existing supervisor rather than a new strategy daemon.
 
+`kis_hl.percentage_entry` checks explicit account/mode-bound manual NEW authority,
+completed adjacent UTC epoch-nine-minute breakout, inward hard price cap and fresh
+account-total sizing. The existing supervisor retains all entry guards and fixed-SL
+coverage before percent native trailing. `kis_hl.eth_new_entry_watch` is a
+paper-default public-read watcher and queue-only handoff, not another signed order
+transport. Its stable decision ID uses the existing SQLite managed-intent claim;
+no operational database, supervisor restart or scheduler change is performed by
+implementation. See the [activation and rollout contract](trading-operations.md#explicit-manual-new-percentage-entry).
+
 `kis_hl.advisory_ts` supplies the read-only nine-minute TS advisory monitor. It validates complete candle coverage before advancing a separate alert watermark, records allowlisted failure diagnostics per symbol and emits one verified recovery transition. `scripts/hl_9m_ts_alert.py` handles scheduling entry and stdout delivery; Hermes retains notification delivery. Operational ownership is read-only and exchange reads use only `HyperliquidInfoClient`; the execution supervisor and native orders remain separate. See [advisory operations and scoped installation](trading-operations.md#nine-minute-ts-advisory-monitor).
 
 ## Hyperliquid execution identity
@@ -239,8 +248,13 @@ monitoring. Condition parsing failure on an otherwise verified owned trailing or
 also preserves independent SL supervision with zero trailing coverage. Identity,
 order semantics and account validation remain strict; generic intervention clears
 the native-only exception. Valid same-ID readback can recover without resubmission.
-Open waiting readback is distinct from active trailing coverage and
-does not itself request an exit. Native KIS SL/trailing remain
+Open waiting readback is distinct from active trailing coverage. Quote-distance
+waiting does not itself request an exit; immediate percentage waiting is bounded
+by `protection_grace_ms` from the oldest inactive tranche attempt, including across
+restart and later partial fills. Timeout enters the existing cancel/exit lifecycle
+while retaining fixed SLs until flat cleanup. Managed market entries persist and
+validate an inward-rounded best-bid-plus-0.5% IOC price, then submit that exact limit
+through the SDK without a new mid-price calculation. Native KIS SL/trailing remain
 unverified; local protection requires an active worker. Exact HTS equivalence is not
 assumed. The account supervisor serializes actual attempts while its journal worker
 has a separate account lock and a configurable 10800-second default interval.
@@ -283,6 +297,21 @@ Binance tick capture deliberately uses the legacy `market_ticks` table. It is no
 Use separate `--db` paths for each Binance environment and key profile: legacy ticks and order events have no account/environment columns. Streams are observational, with no replay or REST gap reconciliation. Per-tick synchronous SQLite writes can lag high-volume streams; use `--no-store` for observation until a bounded buffered writer is implemented. Storage failures and reconnects can leave gaps. These tables must not serve as authoritative protection or position state.
 
 ## Conditional add ownership
+
+`intraday_add.py` implements the explicit direct-authority exception for already
+adopted native percentage owners: it checks newly completed adjacent UTC 9m high
+breakouts, fresh account-total sizing and an inward-rounded close * 1.003 hard
+exchange limit. This is not a weekly strategy signal.
+`conditional_add.preflight_add` rereads exact owned protection after the account
+preflight: reconciled exposure, current open IDs, full fixed-SL coverage and summed
+active percentage coverage must pass before an add attempt is allocated. The final
+read clock also bounds authority and evidence freshness. The existing supervisor and
+attempt ledger own transport, fixed-SL and per-increment percentage trailing
+coverage; no second worker or table is added. Exact-ID percentage handoff/migration
+uses `manual_adoption.py` and atomic `ExecutionStore.complete_adoption`, preserving
+owner and native IDs and the exchange's existing watermark. Details, Python APIs
+and unverified live assumptions are owned by
+[operations](trading-operations.md#exact-id-external-percentage-trailing-handoff-python-api).
 
 `account_capital.py` reconciles supported account-total evidence; `conditional_add.py`
 validates the bounded source/position/sizing contract. `Signals` reserves the approved

@@ -324,6 +324,7 @@ class HyperliquidTradingClient:
             "kind": resolved.kind,
             "side": normalized_side,
             "order_type": normalized_type,
+            "slippage": str(slippage) if normalized_type == "market" else None,
             "size": str(size),
             "price": str(execution_price) if execution_price is not None else None,
             "trigger_price": str(trigger_price) if trigger_price is not None else None,

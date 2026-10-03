@@ -78,7 +78,7 @@ not set venue leverage or waive margin requirements.
 
 ### Position sizing
 
-One unit represents planned fixed-stop loss of 1% of operating capital. For example,
+A valid new entry is proposed at one unit, except for the [KIS small-account full-allocation policy](trading-operations.md#kis-small-account-full-allocation-policy); another size is an explicit adjustment, not a hard cap. The operations document owns that baseline and exception. One unit represents planned fixed-stop loss of 1% of operating capital. For example,
 2372.90 USDC yields 23729 USDC operating capital and 237.29 USDC planned risk per
 unit. The unit calculator accepts the actual proposed entry and fixed SL, rounds
 quantity down to the supplied lot step, and reports realized planned risk after

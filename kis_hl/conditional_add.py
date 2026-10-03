@@ -82,6 +82,44 @@ def validate_add(plan, owner, signal, now, *, preview=False):
     return result
 
 
+def verify_intraday_protection(owner, attempts, snap, now):
+    """Require fresh exact-ID fixed SL and active percentage coverage, without writes."""
+    from kis_hl.managed_execution import TERMINAL
+    p = owner["plan"]
+    size = decimal(snap["size"], positive=True)
+    if (snap.get("consistent") is not True or snap.get("foreign_add") is not False
+            or size != decimal(owner["observed_size"])
+            or decimal(snap["entry_filled"]) != decimal(owner["entry_filled"])
+            or not snap["session_open"]
+            or not 0 <= now - int(snap["time_ms"]) <= p["max_quote_age_ms"]):
+        raise ValueError("Fresh intraday protection exposure/quote changed")
+    decimal(snap["price"], positive=True)
+    open_ids = {str(oid) for oid in snap["open_order_ids"]}
+    stop_coverage = trail_coverage = decimal("0")
+    seen = set()
+    for a in attempts:
+        oid = a.get("order_id")
+        if (not oid or str(oid) in seen or str(oid) not in open_ids
+                or a["status"].lower() in TERMINAL):
+            continue
+        seen.add(str(oid))
+        order = snap["orders"].get(oid, {})
+        if (order.get("status") != "open" or order.get("kind") != a["kind"]
+                or order.get("side") != "sell" or order.get("reduce_only") is not True):
+            continue
+        if (a["kind"] == "stop" and order.get("trigger_type") == "sl"
+                and decimal(order.get("trigger_price", "0")) >= decimal(p["fixed_stop_price"])):
+            stop_coverage += decimal(order.get("coverage_size", order["size"]))
+        elif (a["kind"] == "trailing" and order.get("active") is True
+                and not order.get("trailing_readback_error")
+                and a.get("retracement_unit") == order.get("retracement_unit") == "percent"
+                and decimal(order.get("retracement", "0"))
+                    == decimal(a["retracement"]) == decimal(p["native_trailing_percent"])):
+            trail_coverage += decimal(order["size"])
+    if stop_coverage < size or trail_coverage < size:
+        raise ValueError("Fresh intraday add requires full exact-ID fixed SL and active percentage protection")
+
+
 def preflight_add(gateway, store, owner, tranche, now):
     """Re-read exposure, source identity, total balance and independent funds before send."""
     from kis_hl.managed_execution import validate_plan
@@ -92,8 +130,21 @@ def preflight_add(gateway, store, owner, tranche, now):
     Signals(store).check_authority({**owner, "plan": p}, now_ms=now)
     pre = gateway.preflight(p, now)
     now = int(pre.get("observed_now_ms", now))
+    if p.get("intraday_authorization"):
+        # Read protection after bars, balance and open-order preflight. Cached
+        # PROTECTED state cannot authorize an add after a protection disappears.
+        attempts = store.attempts(owner["id"])
+        snap = gateway.snapshot(owner, attempts, now)
+        now = max(now, int(snap.get("observed_now_ms", now)))
+        verify_intraday_protection(owner, attempts, snap, now)
     validate_plan(p, now)
     Signals(store).check_authority({**owner, "plan": p}, now_ms=now)
+    if p.get("intraday_authorization"):
+        from kis_hl.intraday_add import confirm_breakout
+        confirm_breakout(p["condition_bars"], p["intraday_authorization"]["authorized_ms"],
+                         now, p["max_quote_age_ms"])
+        if decimal(p["limit_price"]) > decimal(p["hard_price_cap"]):
+            raise ValueError("Intraday add hard price cap exceeded")
     if (not pre["eligible"] or not pre["session_open"]
             or not 0 <= now - int(pre["time_ms"]) <= p["max_quote_age_ms"]
             or decimal(pre["position"]) != decimal(p["expected_size"])):

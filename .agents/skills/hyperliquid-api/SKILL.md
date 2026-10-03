@@ -72,6 +72,13 @@ Operating limits: `docs/trading-operations.md#explicit-hyperliquid-subaccount-ro
   native trailing uses the SDK's `sign_l1_action` and transport for the separate
   app-observed action (see `references/exchange-endpoint.md#native-trailing-stop`).
 
+The low-level `trailing_readback` verifier accepts an explicit
+`retracement_unit="percent"` to validate percentage policy and calculate the
+threshold from the observed best price without changing that watermark. The
+safe default remains quote distance; existing managed callers do not opt in.
+This read-only capability does not implement external-order adoption or native
+trailing quantity modification and does not authorize either action.
+
 A wallet address in an info request must be the **actual account address**. Passing an
 agent/API wallet address returns empty results, not an error.
 
@@ -240,10 +247,35 @@ attempt receives a submission permit.
 Bounded conditional adds use the same owner and durable attempt permit, retaining
 per-tranche sizing/fills. Account-total sizing initially supports verified unified
 USDC balances only; reject ambiguous collateral instead of using a perp segment.
-Preserve existing SL/trailing IDs and frozen ATR/watermarks. Native full-size overlays
-require local backup and readback; external trails require an explicit supported
-migration before any signed mutation. See the
-[bounded add contract](../../../docs/trading-operations.md#bounded-conditional-add-ups).
+For existing-owner intervention reconciliation, use the policy-preserving
+`prepare_external_protection_adoption` API without `percent`: retain quote mode,
+frozen ATR/local trail and authorized local backup. Use the percentage wrapper only
+for explicitly authorized percentage handoff. Zero-size fixed SL coverage requires
+exact open Stop Market readback with boolean `isPositionTpsl`, trigger/reduce-only,
+coin/sell-side semantics and a reconciled positive owned account position; plain
+zero-size orders are never coverage. See the operations contract for `coverage_size`.
+Preserve existing SL/trailing IDs and frozen ATR/watermarks. Native full-size quote-distance overlays
+require local backup and readback. Explicit percentage handoff/migration and the
+once-only intraday add exception instead preserve exact existing SL/TS IDs and
+watermarks, verify full fixed-SL coverage and create percentage trails only for
+actual added increments; they never enable ATR local exits. Read exact account
+fills (including startPosition) and order IDs, never infer ownership from size/time.
+UNKNOWN native outcomes, other account interventions and kill switches remain
+blocking. A separate explicit manual NEW route now requires
+`ExecutionStore.enqueue_percentage_new_entry` authority, fresh completed adjacent
+UTC epoch-nine-minute breakout/account-total sizing, hard-capped inward-rounded
+limit dispatch, and full fixed-SL readback before immediately active percent trails.
+Generic percentage enqueue without this authority still rejects. ATR placeholders
+are schema compatibility only; no local ATR backup/exit or ATR history is enabled.
+The ETH-specific paper-default runner (`python -m kis_hl.eth_new_entry_watch`, local
+wrapper `data/analysis/eth-new-entry-watch/runner.py`) only queues; it never signs.
+Its stable decision intent is the SQLite exclusive once claim. Original approval,
+30-second bar/quote/capital freshness, account interventions and immutable decision
+expiry cannot be bypassed or renewed. Operator activation and live ETH NEW
+acceptance/readback remain separate from offline verification. See
+[manual NEW percentage entry](../../../docs/trading-operations.md#explicit-manual-new-percentage-entry) and the
+[percentage APIs and live rollout limits](../../../docs/trading-operations.md#exact-id-external-percentage-trailing-handoff-python-api)
+and [bounded add contract](../../../docs/trading-operations.md#bounded-conditional-add-ups).
 
 Journal retention must be anchored by current `userFills`; a short old-window page
 does not prove completeness. Unknown spot/fee-currency identities are retained

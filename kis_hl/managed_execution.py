@@ -111,6 +111,10 @@ def validate_plan(plan, now_ms):
             raise ValueError("Positive integer risk budgets required")
     if type(plan["allow_local_sl"]) is not bool:
         raise ValueError("Local SL fallback must be explicit")
+    if "entry_route" in plan and (
+        plan["entry_route"] != "limit" or not plan["instrument"].startswith("hl:")
+    ):
+        raise ValueError("Only Hyperliquid limit-only entry routing is supported")
     if plan["instrument"].startswith("kis:"):
         if "verified_price_step" not in plan:
             raise ValueError("KIS plans require verified_price_step")
@@ -144,6 +148,13 @@ def validate_plan(plan, now_ms):
         asset = instrument(plan["instrument"])
         if asset.venue != "hyperliquid" or asset.market != "perp":
             raise ValueError("Native trailing is available only for Hyperliquid perpetuals")
+    if "native_trailing_percent" in plan:
+        from kis_hl.hyperliquid.trailing import retracement_wire
+        retracement_wire(decimal(plan["native_trailing_percent"], positive=True), "percent")
+        if provider != "native" or plan.get("local_trailing_backup") is not False:
+            raise ValueError("Percentage tranches require native trailing and explicitly disabled ATR backup")
+        if "fixed_stop_price" not in plan:
+            raise ValueError("Percentage tranches require an explicit position-level fixed stop")
     backup = plan.get("local_trailing_backup", provider == "native")
     if type(backup) is not bool or (backup and provider != "native"):
         raise ValueError("local_trailing_backup requires a native provider and a boolean")
@@ -196,6 +207,9 @@ class ExecutionStore:
     def enqueue(self, scope, plan, *, live=False, now_ms, adoption=None):
         if plan.get("action") == "add" or plan.get("position_id"):
             raise ValueError("Use signal execute with bounded add authority")
+        if "native_trailing_percent" in plan and (not adoption or not adoption.get("trailing_order_id")):
+            from kis_hl.percentage_entry import check_authority
+            check_authority(scope, "live" if live else "paper", plan, now_ms)
         p = validate_plan(plan, now_ms)
         row = {
             "id": uuid4().hex,
@@ -243,6 +257,22 @@ class ExecutionStore:
                 (scope, row["mode"], p["intent_id"], row["id"]),
             )
         return row
+
+    def enqueue_percentage_new_entry(self, scope, plan, *, manual, authorized_ms,
+                                     decision_expires_ms, units, now_ms, live=False):
+        """Manual once-intent NEW admission, never adoption or a strategy grant."""
+        from kis_hl.percentage_entry import check_authority
+        fields = ('fixed_stop_price', 'native_trailing_percent', 'max_notional',
+                  'max_portfolio_notional', 'max_correlated_notional', 'max_spread_bps',
+                  'max_quote_age_ms', 'slippage', 'protection_grace_ms', 'max_exit_attempts',
+                  'exit_deadline_ms', 'exit_reprice_ms')
+        authority = {k: plan.get(k) for k in fields}
+        authority.update(manual=manual, scope=scope, mode='live' if live else 'paper',
+                         instrument=plan['instrument'], intent_id=plan['intent_id'],
+                         authorized_ms=authorized_ms, expires_ms=decision_expires_ms, units=str(units))
+        p = dict(plan, percentage_entry_authorization=authority)
+        check_authority(scope, authority['mode'], p, now_ms)
+        return self.enqueue(scope, p, live=live, now_ms=now_ms)
 
     def tranches(self, position_id):
         with self.connect() as db:
@@ -298,8 +328,30 @@ class ExecutionStore:
             db.execute("INSERT INTO managed_tranches VALUES(?,?,?)", (tranche["id"], owner["id"], encode(tranche)))
         return tranche
 
+    def enqueue_intraday_add(self, position_id, *, intent_id, units, expires_ms,
+                             authorized_ms, now_ms, manual=False, risk_limits=None):
+        """Queue explicit once-only intraday authority; never fabricate a weekly signal."""
+        from kis_hl.intraday_add import check_intraday_authority
+        owner = self.get(position_id)
+        limits = risk_limits or {}
+        allowed = {"max_loss", "max_notional", "max_portfolio_notional", "max_correlated_notional",
+                   "max_spread_bps", "max_entry_deviation_bps"}
+        if not isinstance(limits, dict) or not set(limits) <= allowed:
+            raise ValueError("Unsupported intraday risk limit override")
+        p = {**owner["plan"], **limits, "intent_id":intent_id, "action":"add",
+             "position_id":position_id, "units":str(units), "expires_ms":expires_ms,
+             "expected_size":owner["observed_size"], "expected_entry_filled":owner["entry_filled"],
+             "intraday_authorization":dict(manual=manual, scope=owner["scope"], mode=owner["mode"],
+                 position_id=position_id, units=str(units), authorized_ms=authorized_ms, expires_ms=expires_ms)}
+        # Prior entry signals are not authority for this directly approved exception.
+        p.pop("signal_id", None); p.pop("grant_id", None)
+        p = validate_plan(p, now_ms)
+        check_intraday_authority(owner, p, now_ms)
+        return self.enqueue_add(owner, p, now_ms=now_ms,
+                                sizing={"pending": "New completed UTC nine-minute high breakout"})
+
     def enqueue_adoption(self, scope, plan, *, entry_order_id, stop_order_id, live=False, now_ms,
-                         entry_since_ms=None):
+                         entry_since_ms=None, trailing_order_id=None):
         from kis_hl.instruments import instrument
         asset = instrument(plan["instrument"])
         if asset.venue == "kis":
@@ -318,15 +370,94 @@ class ExecutionStore:
         if (any(type(x) is not int or x <= 0 for x in (entry_order_id, stop_order_id))
                 or entry_order_id == stop_order_id or plan.get("signal_id") or plan.get("grant_id")):
             raise ValueError("Adoption requires distinct native IDs and direct management authority")
-        return self.enqueue(scope, plan, live=live, now_ms=now_ms,
-                            adoption={"entry_order_id":entry_order_id, "stop_order_id":stop_order_id})
+        request = {"entry_order_id":entry_order_id, "stop_order_id":stop_order_id}
+        if trailing_order_id is not None:
+            if (type(trailing_order_id) is not int or trailing_order_id <= 0
+                    or trailing_order_id in {entry_order_id, stop_order_id}
+                    or "native_trailing_percent" not in plan):
+                raise ValueError("External trailing adoption requires a distinct exact ID and percentage policy")
+            request["trailing_order_id"] = trailing_order_id
+        return self.enqueue(scope, plan, live=live, now_ms=now_ms, adoption=request)
+
+    def prepare_external_percentage_adoption(self, position_id, *, entry_order_id,
+                                            stop_order_id, trailing_order_id, percent, now_ms,
+                                            admission_expires_ms=None):
+        """Explicit percentage-policy handoff; use generic reconciliation for quote owners."""
+        return self.prepare_external_protection_adoption(position_id,
+            entry_order_id=entry_order_id, stop_order_id=stop_order_id,
+            trailing_order_id=trailing_order_id, percent=percent, now_ms=now_ms,
+            admission_expires_ms=admission_expires_ms)
+
+    def prepare_external_protection_adoption(self, position_id, *, entry_order_id,
+                                            stop_order_id, trailing_order_id, now_ms,
+                                            admission_expires_ms=None, percent=None):
+        """Requeue the same intervention owner; no exchange mutations."""
+        row = self.get(position_id)
+        existing = self.attempts(position_id)
+        if (row["state"] != "INTERVENTION"
+                or row.get("exit_requested_ms") or row.get("cancel_entry")
+                or any(a["kind"] not in {"entry", "stop", "trailing"} or not a.get("order_id")
+                       or a["status"] == "UNKNOWN" for a in existing)):
+            raise ValueError("Migration requires an intervention owner with exact known IDs and no competing lifecycle")
+        ids = (entry_order_id, stop_order_id, trailing_order_id)
+        if any(type(x) is not int or x <= 0 for x in ids) or len(set(ids)) != 3:
+            raise ValueError("Migration requires distinct exact native IDs")
+        request = row.get("adoption", {})
+        for key, value, kind in (("entry_order_id", entry_order_id, "entry"),
+                                 ("stop_order_id", stop_order_id, "stop"),
+                                 ("trailing_order_id", trailing_order_id, "trailing")):
+            if key in request and request[key] != value:
+                raise ValueError("Migration must preserve original exact IDs")
+            if any(a["kind"] == kind and str(a["order_id"]) != str(value) for a in existing):
+                raise ValueError("Migration cannot replace an existing owned order")
+        if self.tranches(position_id):
+            raise ValueError("Migration with an existing add history is unsupported")
+        p = dict(row["plan"])
+        if percent is not None:
+            if any(a["kind"] == "trailing" and a.get("retracement_unit", "quote") != "percent"
+                   for a in existing):
+                raise ValueError("Migration cannot change an owned trailing unit")
+            p.update(native_trailing_percent=str(percent),
+                     trailing_provider="native", local_trailing_backup=False)
+        if p.get("trailing_provider") != "native":
+            raise ValueError("Exact-ID reconciliation requires the authorized native trailing policy")
+        expiry = p["expires_ms"] if admission_expires_ms is None else admission_expires_ms
+        original_expiry = p["expires_ms"]
+        p = validate_plan(dict(p, expires_ms=expiry), now_ms)
+        p["expires_ms"] = original_expiry  # Never renew the original entry authority.
+        row.update(plan=p, percentage_migration_pending=True, admission_expires_ms=expiry,
+                   adoption=dict(entry_order_id=entry_order_id, stop_order_id=stop_order_id,
+                                 trailing_order_id=trailing_order_id),
+                   state="ADOPTING", reason="Exact-ID protection migration awaiting read-only verification")
+        self.save(row, now_ms)
+        return row
+
 
     def complete_adoption(self, row, updates, attempts, now_ms):
         new = {**row, **updates, "version":row["version"]+1}
+        new.pop("percentage_migration_pending", None)
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            if db.execute("SELECT 1 FROM managed_attempts WHERE position_id=?", (row["id"],)).fetchone():
+            existing = [json.loads(r[0]) for r in db.execute(
+                "SELECT snapshot FROM managed_attempts WHERE position_id=?", (row["id"],))]
+            if existing and not row.get("percentage_migration_pending"):
                 raise RuntimeError("Adoption already has owned attempts")
+            for old in existing:
+                match = next((a for a in attempts if a["kind"] == old["kind"]
+                              and a["order_id"] == str(old.get("order_id"))), None)
+                if (match is None or old["status"] == "UNKNOWN"
+                        or decimal(old["quantity"]) != decimal(match["quantity"])):
+                    raise ValueError("Migration evidence does not match existing exact ownership")
+                refreshed = {**old, "status":match["status"]}
+                if old["kind"] == "trailing":
+                    if (old.get("retracement_unit", "quote") != match["retracement_unit"]
+                            or decimal(old["retracement"]) != decimal(match["retracement"])):
+                        raise ValueError("Migration cannot change owned trailing parameters")
+                    refreshed.update(retracement=match["retracement"], retracement_unit=match["retracement_unit"],
+                                     adopted_readback=match["adopted_readback"])
+                db.execute("UPDATE managed_attempts SET status=?,snapshot=? WHERE id=?",
+                           (refreshed["status"], encode(refreshed), old["id"]))
+                attempts.remove(match)
             owned_ids = {a["order_id"] for a in attempts}
             for prior in db.execute("SELECT a.snapshot FROM managed_attempts a JOIN managed_positions p ON p.id=a.position_id WHERE p.scope=? AND p.mode=?", (row["scope"],row["mode"])):
                 if str(json.loads(prior[0]).get("order_id")) in owned_ids:
@@ -579,13 +710,16 @@ class Supervisor:
         p = row["plan"]
         attempts = self.store.attempts(row["id"])
         native_trailing = p.get("trailing_provider", "local") == "native"
-        if row.get("adoption") and not row.get("adopted_ms"):
+        if row.get("adoption") and (not row.get("adopted_ms") or row.get("percentage_migration_pending")):
             if row["cancel_entry"] or row["exit_requested_ms"] is not None:
+                if attempts or row.get("adopted_ms"):
+                    self._state(row, "INTERVENTION", "Migration canceled; retain existing owner and protections for manual reconciliation", now)
+                    return
                 self._state(row, "CLOSED", "Handoff canceled; external position and orders unchanged", now)
                 return
             if row["state"] != "ADOPTING":
                 return
-            validate_plan(p, now)
+            validate_plan(dict(p, expires_ms=row.get("admission_expires_ms", p["expires_ms"])), now)
             if not self.live:
                 self._state(row, "PREVIEWED", "Paper handoff; no account reads or ownership imported", now)
                 return
@@ -598,6 +732,8 @@ class Supervisor:
                     self._state(row, "INTERVENTION", str(exc), now)
                     return
                 raise
+            if row.get("percentage_migration_pending") and updates["adopted_ms"] >= row["admission_expires_ms"]:
+                raise ValueError("Read-only migration authority expired during account reads")
             self.store.complete_adoption(row, updates, imported, now)
             return
         if row["state"] == "ENTERING" and not attempts:
@@ -638,8 +774,14 @@ class Supervisor:
                     now,
                 )
                 return
+            if p.get('percentage_entry_authorization'):
+                from kis_hl.percentage_entry import prepare_entry
+                bars = self.gateway.completed_nine_minute_bars(p['instrument'], now)
             snap = self.gateway.preflight(p, now)
             now = int(snap.get("observed_now_ms", now))
+            if p.get('percentage_entry_authorization'):
+                p = prepare_entry(row['scope'], row['mode'], p, snap, bars, now)
+                row['plan'] = p
             validate_plan(p, now)
             size, price = decimal(p["quantity"]), decimal(p["limit_price"])
             fresh = 0 <= now - int(snap["time_ms"]) <= p["max_quote_age_ms"]
@@ -668,6 +810,25 @@ class Supervisor:
                 raise ValueError("Execution spread limit exceeded")
             if abs(price - ask) / ask * 10000 > decimal(p["max_entry_deviation_bps"]):
                 raise ValueError("Entry limit is outside the quote band")
+            entry_type = snap.get("entry_order_type") if p["instrument"].startswith("hl:") else None
+            if p["instrument"].startswith("hl:") and entry_type not in {"market", "limit"}:
+                raise ValueError("Verified Hyperliquid entry routing required")
+            entry_price = (price if p.get('percentage_entry_authorization') else ask) if entry_type == "limit" else price
+            if p.get('percentage_entry_authorization') and entry_type != 'limit':
+                raise ValueError('NEW percentage entries require hard-capped limit routing')
+            # Persist the exact legal IOC ceiling; transport must not recalculate
+            # it from a later SDK mid or round it above the checked risk budget.
+            if entry_type == "market":
+                entry_price = normalize_quote_retracement(
+                    bid * Decimal("1.005"), decimal(snap["trailing_price_step"]))
+            risk_price = entry_price
+            stop = decimal(p["fixed_stop_price"]) if "fixed_stop_price" in p else price - decimal(p["stop_distance"])
+            if (risk_price <= stop or size * (risk_price - stop) > decimal(p["max_loss"])
+                    or size * risk_price > decimal(p["max_notional"])
+                    or size * risk_price > decimal(snap["available_notional"])
+                    or size * risk_price + decimal(snap["portfolio_notional"]) > decimal(p["max_portfolio_notional"])
+                    or size * risk_price + decimal(snap["correlated_notional"]) > decimal(p["max_correlated_notional"])):
+                raise ValueError("Execution price exceeds entry risk budgets")
             if abs(decimal(snap["atr"]) - decimal(p["atr"])) > decimal(
                 p["atr"]
             ) * Decimal("0.000001"):
@@ -680,11 +841,15 @@ class Supervisor:
                 snap["price_step"], positive=True
             ):
                 raise ValueError("Invalid order lot/tick")
+            if entry_type == "limit" and (entry_price % decimal(snap["price_step"], positive=True)
+                    or (entry_price != entry_price.to_integral_value()
+                        and len(entry_price.normalize().as_tuple().digits) > 5)):
+                raise ValueError("Current ask violates Hyperliquid price precision")
             if not self.gateway.native_sl and not p["allow_local_sl"]:
                 raise ValueError("No protective provider available")
             if native_trailing and not getattr(self.gateway, "native_trailing", False):
                 raise ValueError("Native trailing provider unavailable")
-            if native_trailing:
+            if native_trailing and 'native_trailing_percent' not in p:
                 row["native_trailing_distance"] = wire_decimal(normalize_quote_retracement(
                     decimal(p["atr"]) * decimal(p.get("native_atr_multiple", p["atr_multiple"])),
                     decimal(snap["trailing_price_step"])))
@@ -706,7 +871,18 @@ class Supervisor:
             self._state(
                 row, "ENTERING", "Intent persisted; fill/protection unconfirmed", now
             )
-            self._send(row, "entry", now, quantity=str(size), price=str(price))
+            attempt = self._send(row, "entry", now, quantity=str(size), price=str(entry_price),
+                                 **({"expires_ms": p['expires_ms']} if p.get('percentage_entry_authorization') else {}),
+                                 **({"order_type": entry_type} if entry_type else {}))
+            if entry_type == "market" and attempt["status"] == "SUBMITTED":
+                # An IOC may fill in the submission response. Reconcile in this
+                # cycle so the existing partial-fill SL path runs immediately.
+                self._step(row, now)
+                if row.get("first_fill_ms") and any(
+                    a["kind"] == "stop" for a in self.store.attempts(row["id"])
+                ):
+                    # Read back the fixed SL before allowing native trailing.
+                    self._step(row, now)
             return
         try:
             snap = self.gateway.snapshot(row, attempts, now)
@@ -775,8 +951,10 @@ class Supervisor:
                 row["trail"] = trail.to_dict()
         row.update(observed_size=str(size), entry_filled=str(entry_filled))
         protective_filled = decimal(snap.get("protective_filled", "0"))
-        if protective_filled > decimal(row.get("protective_filled", "0")):
+        exit_filled = decimal(snap["fixed_stop_filled"]) if "native_trailing_percent" in p else protective_filled
+        if exit_filled > decimal(row.get("exit_protective_filled", row.get("protective_filled", "0"))):
             row["exit_requested_ms"] = row["exit_requested_ms"] or now
+        row["exit_protective_filled"] = str(exit_filled)
         row["protective_filled"] = str(protective_filled)
         previous_observation = row.get("last_observed_ms", now)
         same_session = (
@@ -895,7 +1073,7 @@ class Supervisor:
                         and decimal(order.get("trigger_price", "0"))
                         >= fixed_floor
                     ):
-                        covered += decimal(order["size"], positive=True)
+                        covered += decimal(order.get("coverage_size", order["size"]))
                         if a.get("coverage_recorded") != order:
                             from kis_hl.capabilities import CapabilityEvidence
 
@@ -981,7 +1159,8 @@ class Supervisor:
                         continue
                     if a["status"].lower() in TERMINAL:
                         if a["status"].lower() == "filled":
-                            row["exit_requested_ms"] = row["exit_requested_ms"] or now
+                            if "native_trailing_percent" not in p:
+                                row["exit_requested_ms"] = row["exit_requested_ms"] or now
                         else:
                             terminated_trail = True
                         continue
@@ -991,12 +1170,14 @@ class Supervisor:
                         continue
                     if (order.get("status") == "open" and order.get("kind") == "trailing"
                           and order.get("side") == "sell" and order.get("reduce_only") is True
-                          and order.get("retracement_unit") == "quote"
+                          and order.get("retracement_unit") == a.get("retracement_unit", "quote")
                           and decimal(order.get("retracement", "0")) == decimal(a["retracement"])):
                         order_size = decimal(order["size"], positive=True)
-                        waiting |= order.get("active") is False and order_size >= size
+                        waiting |= order.get("active") is False and (order_size >= size or "native_trailing_percent" in p)
                         if order.get("active") is True:
-                            row["trailing_covered_size"] = str(max(decimal(row["trailing_covered_size"]), min(size, order_size)))
+                            prior = decimal(row["trailing_covered_size"])
+                            row["trailing_covered_size"] = str(min(size, prior + order_size)
+                                if "native_trailing_percent" in p else max(prior, min(size, order_size)))
                 # An older terminated trail need not force an exit when another
                 # owned, active native trail still covers the entire residual.
                 if terminated_trail and decimal(row["trailing_covered_size"]) < size:
@@ -1009,7 +1190,34 @@ class Supervisor:
                 needs_overlay = (bool(trails) and added_fills > 0
                     and all(decimal(a["quantity"]) < size for a in trails)
                     and p.get("local_trailing_backup", False))
-                if (not trails or needs_overlay) and protected and fresh and not entry_active and not row["exit_requested_ms"] and not row.get("native_trailing_intervention"):
+                trail_started_ms = trails[-1]["created_ms"] if trails else now
+                if "native_trailing_percent" in p:
+                    # Cumulative allocations include UNKNOWN outcomes; never
+                    # resend them. New fills without an attempt get a new deadline.
+                    allocated = sum((decimal(a["quantity"]) for a in trails), Decimal(0))
+                    missing = entry_filled - allocated
+                    # Later fills must not renew an older increment's immediate
+                    # activation deadline. Quote-distance waiting retains its policy.
+                    trail_started_ms = min((a["created_ms"] for a in trails
+                        if a["status"].lower() not in TERMINAL
+                        and orders.get(a.get("order_id"), {}).get("active") is not True),
+                        default=now if missing > 0 else trail_started_ms)
+                if (trails and not row.get("native_trailing_intervention")
+                        and (not waiting or "native_trailing_percent" in p)
+                        and (not entry_active or "native_trailing_percent" in p) and not needs_overlay
+                        and decimal(row["trailing_covered_size"]) < size
+                        and now - trail_started_ms >= p["protection_grace_ms"]):
+                    row["exit_requested_ms"] = row["exit_requested_ms"] or now
+                if "native_trailing_percent" in p:
+                    # Each filled increment gets its own immediate percentage watermark.
+                    # Include UNKNOWN attempts: never resend an ambiguous native action.
+                    if (missing > 0 and protected and fresh and not row["exit_requested_ms"]
+                            and not row.get("native_trailing_intervention")):
+                        self._state(row, "PROTECTING", "Fixed SL verified; awaiting added-quantity percentage trail", now)
+                        self._send(row, "trailing", now, quantity=str(missing), price="0",
+                                   retracement=p["native_trailing_percent"], retracement_unit="percent")
+                        return
+                if "native_trailing_percent" not in p and (not trails or needs_overlay) and protected and fresh and not entry_active and not row["exit_requested_ms"] and not row.get("native_trailing_intervention"):
                     distance = normalize_quote_retracement(
                         decimal(row.get("native_trailing_distance",
                             decimal(p["atr"]) * decimal(p.get("native_atr_multiple", p["atr_multiple"])))),
@@ -1018,11 +1226,6 @@ class Supervisor:
                     self._state(row, "PROTECTING", "Fixed SL verified; awaiting full-position native trailing readback", now)
                     self._send(row, "trailing", now, quantity=str(size), price="0", retracement=str(distance))
                     return
-                if (trails and not row.get("native_trailing_intervention") and not waiting
-                        and not entry_active and not needs_overlay
-                        and decimal(row["trailing_covered_size"]) < size
-                        and now - trails[-1]["created_ms"] >= p["protection_grace_ms"]):
-                    row["exit_requested_ms"] = row["exit_requested_ms"] or now
                 protected = (protected and decimal(row["trailing_covered_size"]) >= size
                              and not row.get("native_trailing_intervention"))
                 if not protected and not row["exit_requested_ms"] and not row.get("native_trailing_intervention"):
@@ -1032,7 +1235,8 @@ class Supervisor:
                     "PROTECTED",
                     "Coverage verified; native trailing active" if native_trailing else "Coverage verified; local trailing active",
                 )
-        if any(a["kind"] in {"stop", "trailing"} and a["status"] == "FILLED" for a in attempts):
+        if any(a["status"] == "FILLED" and (a["kind"] == "stop" or
+               (a["kind"] == "trailing" and "native_trailing_percent" not in p)) for a in attempts):
             row["exit_requested_ms"] = row["exit_requested_ms"] or now
         expired_entries = [a for a in entry_active if now >= a.get("expires_ms", p["expires_ms"])]
         if row["cancel_entry"] or row["exit_requested_ms"] or expired_entries:
@@ -1219,6 +1423,7 @@ class Supervisor:
 
     def _try_add(self, row, now):
         from kis_hl.conditional_add import preflight_add
+        from kis_hl.intraday_add import AddConditionPending, prepare_intraday_add
         from kis_hl.hyperliquid.client import TransientInfoError
         from kis_hl.strategy_signals import Signals
         for tranche in self.store.tranches(row["id"]):
@@ -1247,7 +1452,12 @@ class Supervisor:
                     tranche["reason"] = "Waiting for other account position reconciliation"
                     self.store.save_tranche(tranche)
                     continue
-                sizing, now = preflight_add(self.gateway, self.store, row, tranche, now)
+                prepare = prepare_intraday_add if tranche["plan"].get("intraday_authorization") else preflight_add
+                sizing, now = prepare(self.gateway, self.store, row, tranche, now)
+            except AddConditionPending as exc:
+                tranche["reason"] = str(exc)
+                self.store.save_tranche(tranche)
+                continue
             except TransientInfoError as exc:
                 tranche["reason"] = str(exc)
                 self.store.save_tranche(tranche)

@@ -77,7 +77,18 @@ User requirements (policy, not an implemented automatic router):
   do not replace an exit with a fallback entry.
 - Apply shared strategy entry/exit decisions to all explicitly paired market
   groups, not just KOSPI. The preferred/fallback ETF choices above are KIS-only;
-  do not change the independently selected Hyperliquid contract.
+  do not change the independently selected Hyperliquid contract. For gold,
+  independently review KIS-listed `kis:GLD` and Hyperliquid `hl:xyz:GOLD`:
+  GLD is a USD ETF, whereas the HL contract references gold spot and trades in
+  USDC. Do not transfer a price, stop, ATR, quantity or account balance between
+  them. If both legs independently pass with funding and protection, both may be
+  considered; if only one passes, consider only that leg. A shared thesis is not
+  automatic cross-venue routing or authority for either order.
+- The U.S. pre-auction review window applies to KIS GLD entries; it does not
+  close the 24-hour HL GOLD market. A completed HL 4H candle after the U.S.
+  regular close can support a fresh HL-only entry review, subject to its own
+  liquidity, funding, margin, liquidation, metadata and protection checks.
+  Underlying-session status on HL is advisory, not an order-blocking gate.
 - If one venue cannot execute because of its session, funds or a rejected order,
   execute only the eligible venue. Reassess the skipped venue on a new valid
   signal; do not automatically carry the old signal into its next trading session.
@@ -175,6 +186,15 @@ Confirmed user semantics:
 
 - One risk unit is a planned loss at the fixed stop-loss equal to 1% of the
   account's defined operating assets, not a purchase notional of 1% of assets.
+  A valid new entry is proposed at one unit. That size is the baseline for
+  review and later adjustment, not a hard per-entry, per-asset or portfolio cap.
+  A different size, including an add or a reduction, is an explicit adjustment:
+  state the reason, resulting unit count and planned fixed-SL loss before
+  treating it as approved. Do not start from an unconstrained size and relabel
+  it in units afterward. Comparing an existing position with one current unit
+  does not by itself authorize a resize, add or exit. The KIS small-account
+  full-allocation policy below is an explicit exception to the one-unit entry
+  baseline; retain its full-cash entry target and whole-position exits.
   Keep sizing tied to the fixed SL; do not increase quantity merely because a
   tighter trailing exit might close earlier. Separately, #15 permits verified
   improvements in existing stops to free budget for a new tranche; that tranche
@@ -225,9 +245,13 @@ Operating assets for advisory risk-unit calculations are now specified:
 
 Scheduled advisory briefings must include fixed SL, recommended TS percentage,
 immediate activation with loss exits allowed, per-unit quantity/notional/risk and
-the proposed unit count with available-margin evidence. Under #15 there is no
-preset per-asset/portfolio unit cap or add-up count limit; distinguish actual
-funds and existing plan constraints from such a policy cap. If margin is short,
+the proposed unit count with available-margin evidence. Recommend one unit for a
+valid new entry, except for the KIS small-account full-allocation policy below,
+and zero when the signal is WAIT or evidence is missing. Show
+any other count as an explicit adjustment from that baseline, not as the default.
+Under #15 there is no preset per-asset/portfolio unit cap or add-up count limit;
+the one-unit baseline does not restore one. Distinguish actual funds and existing
+plan constraints from such a policy cap. If margin is short,
 report the shortfall for the user's fund-or-skip decision; do not silently add funds
 or bypass current execution checks.
 Missing evidence must appear as an explicit unavailable field, not invented sizing.
@@ -247,16 +271,103 @@ The contract is owned by
 [the strategy requirements](strategy_execution_design.md#daily-volatility-execution-and-close-briefing-reference-requirements).
 
 There is no strategy-wide per-asset/portfolio stop-risk cap or add-count limit.
-Existing funds, order-notional and authority limits remain. Do not invent a
-recommended or maximum unit count without supporting account evidence.
-Conversational approval and notification belong to Hermes; managed percentage
-trailing and any new execution contract remain separate implementation work. The current
-managed trailing path still uses frozen ATR quote distance; low-level percentage
-support does not establish end-to-end managed support. Implementation and tests are
-required before the proposed approval workflow can execute trades. The absence
+A valid new entry is still proposed at one unit when the signal and account
+evidence support a quantity, except for the KIS small-account full-allocation
+policy below; do not invent a different recommended count or a maximum without
+that evidence. Existing funds, order-notional and authority
+limits remain.
+Conversational approval and notification belong to Hermes. Default managed trailing
+still uses frozen ATR quote distance. The narrow
+[exact-ID percentage handoff and explicit intraday add APIs](#exact-id-external-percentage-trailing-handoff-python-api)
+are implemented and offline-tested. A separate
+[explicit manual NEW percentage route](#explicit-manual-new-percentage-entry)
+now supports the narrowly authorized adjacent UTC nine-minute condition; it is
+not an automatic strategy/grant approval workflow. Separately authorized live
+readback is still required. The absence
 of preset cumulative unit caps is decided, not an unresolved limit to invent.
 Current managed execution remains long-only; #15's symmetric short calculation
 and the separate short-trailing follow-up are not claims of working short management.
+
+## Explicit manual NEW percentage entry
+
+`ExecutionStore.enqueue_percentage_new_entry(scope, plan, *, manual,
+authorized_ms, decision_expires_ms, units, now_ms, live=False)` is a separate
+manual admission API, not adoption, add authority, a signal or a strategy grant.
+It requires native percentage trailing, an explicit fixed SL, limit-only entry,
+and both ATR backup and local SL fallback disabled. The persisted authority binds
+account/mode/intent/instrument, original approval and expiry, risk units, protection
+and technical budgets. Missing manual authority, scope/policy changes, expired
+approvals and ordinary percentage `enqueue` calls without this authority fail closed.
+Use a stable decision-level `intent_id`, not a new ID per qualifying bar.
+
+The supervisor rereads adjacent completed UTC epoch-aligned nine-minute bars,
+requires the latest close strictly above the previous high and completion strictly
+after original approval, and rejects bars over 30 seconds old for the ETH watch.
+It rereconciles fresh account-total USDC equity and sizes at 0.2 units using the
+existing Hyperliquid 10x operating-capital / 1%-per-unit convention (2% of equity).
+`max_loss` is freshly 2% of equity. Existing instrument-flat, open-order, eligibility,
+quote age, spread, buying-power, portfolio/correlation, account intervention,
+kill-switch, ownership, durable-attempt and UNKNOWN-outcome guards remain active.
+Sizing is recomputed, not copied from the paper review. No ATR history is read for
+this route; positive legacy ATR schema placeholders never enable an ATR exit.
+
+The actual buy is a GTC **limit**, never SDK market-open. Its price is the signal
+close times 1.003 rounded **down** to the current decimal tick and five-significant-
+figure constraint. A higher current ask is rejected. The gateway rechecks authority,
+bar/quote/capital freshness, exact quantity/price and the hard cap before dispatch.
+The signed action's `expiresAfter` cannot exceed the trigger deadline or decision
+expiry. This bounds acceptance, not the lifetime of a resting GTC order: the existing
+supervisor cancels unfilled remainder at plan expiry and reconciles partial fills.
+Full owned fixed Stop Market coverage must read back before each filled increment
+gets its immediately active native percentage trail (`price=0`, percent unit).
+The fixed SL is retained. Neither local ATR trailing nor local SL fallback is enabled;
+unknown native outcomes are never resent automatically.
+
+### ETH watch activation artifact (not activated by implementation)
+
+Canonical runnable module: `python -m kis_hl.eth_new_entry_watch`. Local wrapper:
+`data/analysis/eth-new-entry-watch/runner.py`. It exclusively targets mainnet account
+`0x1dac321cd9a14a9a6da3ae155601c6cc38a748b4`, ETH NEW (no old ETH adoption), fixed SL
+2610, native TS 8.35%, 0.2 units, and immutable expiry **2026-10-02T19:55:00Z**.
+Notional/portfolio/correlated budgets are 2000/3000/2000 USDC; spread 30 bps,
+quote and trigger age 30 seconds, slippage .003, protection grace 120 seconds,
+three exit attempts / 120-second deadline / five-second reprice. These are the
+explicit decision's inherited limits, not newly authorized portfolio budgets.
+
+Paper mode reads only and does not construct an ExecutionStore or claim an intent.
+`--watch` polls public reads every five seconds until ready or original expiry.
+Live mode requires `--manual-authorization AK-ETH-NEW-20261002`, the existing shared
+`data/kis_hl.sqlite`, and a fresh entries-enabled live supervisor with reconciled
+other owners. It **only queues** the owner. The supervisor alone signs/transmits.
+The existing SQLite `BEGIN IMMEDIATE`, permanent `(scope, mode, intent_id)` claim
+and unique active owner make the stable decision intent exclusive across processes,
+bar changes, crash/restart and completion. Do not delete the claim or retry under a
+new intent. A queue acknowledgement is not protection verification.
+
+Before activation, independently reconcile ETH flat/no ETH orders and clean old
+ownership; resolve SP500/account interventions by supported exact-ID APIs. Do not
+adopt the stopped old ETH. Ensure the supervisor process has loaded this code and
+uses the same account/database. Implementation/testing does not restart it or
+write the operational database. Preserve the **original** approval UTC timestamp;
+do not replace it with launch time, extend expiry or invent a renewal.
+
+```bash
+# Operator supplies ORIGINAL_APPROVAL_UTC from the actual approval record.
+.venv/bin/python data/analysis/eth-new-entry-watch/runner.py --authorized-utc "$ORIGINAL_APPROVAL_UTC"
+# Explicit later operator activation; this command was NOT executed during implementation.
+.venv/bin/python data/analysis/eth-new-entry-watch/runner.py --authorized-utc "$ORIGINAL_APPROVAL_UTC" --watch --live --manual-authorization AK-ETH-NEW-20261002 --execution-db /root/projects/kis-hl-trading-system/data/kis_hl.sqlite
+# Offline verification, no vendor or operational database writes.
+.venv/bin/python -m unittest tests.test_percentage_new_entry tests.test_eth_new_entry_watch -q
+```
+
+Inspect the returned owner until `state=PROTECTED`, `covered_size` and
+`trailing_covered_size` cover the actual residual, fixed Stop Market exact-ID
+coverage is recorded, and active percent readback matches 8.35. Expected
+`local_trailing_covered_size` is zero, **not** a missing ATR backup to restore.
+Any UNKNOWN, unverified SL/TS, foreign fill or intervention needs operator review.
+Live ETH NEW percentage acceptance/activation/trigger-fill quality remain unverified;
+this change's verification is offline only. No cron, service install or scheduling
+change is included.
 
 ## KIS small-account full-allocation policy
 
@@ -311,6 +422,21 @@ orders and watermarks must not be reset merely to apply this document.
 
 ## Prepare and submit
 
+AK's Hyperliquid initial-entry order policy is a market buy by default, with
+an explicit IOC limit at the preflight best bid plus 0.5%, rounded inward to legal
+price precision. That exact persisted price must pass loss, notional, funds and
+portfolio/correlation checks and is submitted through the SDK's ordinary limit
+order API with `Ioc`; a later SDK mid cannot increase the signed ceiling.
+The managed gateway checks full proposed size
+against visible ask-side book depth: if the spread or estimated execution price
+relative to the best bid exceeds 0.5%, or depth is insufficient, it instead
+submits a current-ask GTC limit buy. This is a visible-book estimate, not a
+fill guarantee; prices above the persisted ceiling cannot fill, so a moving book
+may leave a partial fill or no fill. The managed supervisor retains durable client identity,
+entry risk/preflight checks and immediate post-fill fixed SL verification before
+native TS and local backup coverage. This policy does not bypass the managed
+entry lifecycle. KIS order routing is separate and unchanged.
+
 Create a JSON plan with the following required fields. Numeric prices, sizes and
 limits are decimal strings; durations and UTC epoch milliseconds are integers.
 
@@ -333,6 +459,7 @@ limits are decimal strings; durations and UTC epoch milliseconds are integers.
 | `expires_ms` | Entry intent expiry; it does not remove protection from an existing position |
 | `verified_price_step` | Additionally required for KIS; exact permitted price increment for the selected instrument/session |
 | `trailing_provider` | New HL perpetual plans default `native`; KIS defaults `local` |
+| `entry_route` | Optional `limit` for a Hyperliquid entry that must not use the preflight-capped 0.5% IOC route; current-ask GTC limit may remain unfilled and is subject to the plan's entry expiry/cancel lifecycle |
 | `local_trailing_backup` | Defaults true with native: concurrent local nine-minute exits; explicitly false disables backup |
 | `harness` | Optional evidenced origin label, such as `codex`, `claude-code` or `hermes` |
 
@@ -459,6 +586,134 @@ local. Imported entry/SL fills retain their original journal attribution; new
 supervisor orders can carry the management harness/strategy. Adoption does not prove
 that the original manual entry was generated by that strategy. Reconcile/close active
 adoptions before rolling back to code without this state support.
+
+### Exact-ID external percentage trailing handoff (Python API)
+
+This is an explicit exception for an existing native percentage trail, not a change
+in the default ATR strategy and not authority for a new entry. Set
+`native_trailing_percent: "8.35"`, `trailing_provider: "native"`,
+`local_trailing_backup: false` and an explicit `fixed_stop_price`. The ATR fields
+remain frozen compatibility data; no ATR local exit is silently enabled. Percentage
+handoff does not require frozen ATR to equal a newly recalculated ATR.
+
+- `ExecutionStore.enqueue_adoption(scope, plan, entry_order_id=..., stop_order_id=...,
+  trailing_order_id=..., live=False, now_ms=...)` accepts distinct positive integer
+  native IDs. Live supervision reads the exact IDs, complete retained account fills,
+  flat-to-long generation, entry average/quantity, full-size fixed Stop Market SL,
+  active immediate percentage trail, current account size and absence of foreign
+  orders. A filled entry's `sz=0` is its remaining order size, not position size;
+  original size and actual fills establish quantity. Acknowledgement alone is not
+  coverage. Import itself performs no signed action, cancellation, modification or
+  watermark reset.
+- `ExecutionStore.prepare_external_percentage_adoption(position_id,
+  entry_order_id=..., stop_order_id=..., trailing_order_id=..., percent="8.35",
+  now_ms=..., admission_expires_ms=...)` requeues the **same** `INTERVENTION` owner
+  for read-only verification. `admission_expires_ms` can explicitly bound management
+  admission when the original entry authority has expired; the original plan expiry
+  is never renewed. If omitted, the original expiry remains the admission bound.
+  It preserves its position ID and existing matching attempt/native IDs. Competing
+  lifecycles, ambiguous/UNKNOWN attempts, changed IDs, existing add history and
+  exit/cancel requests fail closed. The next supervisor pass verifies before atomic
+  import; the following pass must establish `PROTECTED`. Never create a second owner
+  to work around intervention. Canceling an already-owned pending migration retains
+  intervention/ownership for manual reconciliation; it does not release a live owner.
+- `ExecutionStore.prepare_external_protection_adoption(position_id,
+  entry_order_id=..., stop_order_id=..., trailing_order_id=..., now_ms=...,
+  admission_expires_ms=...)` is the policy-preserving reconciliation API for an
+  existing `INTERVENTION` owner, including quote-distance native trails. Omit
+  `percent` to preserve the entire original plan, native quote distance, frozen ATR,
+  local trail state/watermark and already-authorized local backup. It never converts
+  SP500 quote distance to percentage or turns off its local protection. Both exact
+  existing attempt IDs and native IDs survive re-import; owned trailing unit/distance
+  changes reject. The percentage-named API remains an explicit policy-handoff wrapper,
+  not the generic repair path. The existing `percentage_migration_pending` JSON flag
+  also marks this generic read-only admission for compatibility. Exact fills and
+  current position average establish the executed price on reconciliation (not the
+  original submitted limit); actual loss/notional still must fit the unchanged caps.
+  Partially closed generations and existing add histories remain unsupported.
+- A fixed SL with wire `sz=0` counts as position-level coverage **only** when its
+  exact orderStatus readback is open Stop Market, `isTrigger=true`,
+  `isPositionTpsl=true` (actual booleans), correct coin, sell side and
+  `reduceOnly=true`, with the required fixed floor. Gateway snapshots retain wire
+  `size` and expose `coverage_size` from the positive, owned-fill-reconciled account
+  position; inconsistent or foreign exposure receives no sentinel coverage.
+  Ordinary zero-size orders are not protection. This same verification is repeated
+  during supervision, so a verified position-level SL can cover owned added fills
+  without modifying the existing SL or manufacturing a replacement quantity.
+- Existing owner/intent uniqueness and order-ID reuse checks remain in force. New
+  fields are stored in existing JSON snapshots and `managed_attempts`; there is no
+  table rebuild, owner replacement or operational database migration on code import.
+
+### Explicit once-only intraday percentage add (Python API)
+
+After the identified owner is `PROTECTED`, queue direct user authority with:
+
+```python
+store.enqueue_intraday_add(
+    position_id, intent_id="unique-direct-intraday-add", units="0.2",
+    expires_ms=absolute_expiry_ms, authorized_ms=user_approval_ms,
+    now_ms=enqueue_ms, manual=True,
+    # Optional explicitly approved caps; omitted values retain the owner's caps.
+    risk_limits={"max_loss": approved_loss_cap, "max_notional": approved_notional_cap},
+)
+```
+
+This does **not** register a weekly breakout/rebreakout signal or claim weekly
+qualification. The requested expiry is absolute (for the approved ETH exception,
+`2026-10-02T19:55:00Z`); equality expires authority. The UTC nine-minute confirmation
+must end **after approval**, close strictly above the preceding adjacent completed
+bar's high, and remain fresh through account reads. The gateway derives both bars
+from all eighteen native 1m candles; gaps, duplicates, wrong identities, unfinished
+or unaligned bars cannot qualify. Nonqualifying bars leave an unsent approval queued
+only until expiry. The account supervisor, not the conversation, owns every signed
+transport.
+
+Fresh account-total USDC evidence sizes the additional quantity from authorized risk
+units and the unchanged fixed stop. The signed GTC buy is capped at the confirming
+close times `1.003`, rounded **down** to legal tick/significant precision, not replaced
+by the current ask. Funds, quote freshness/spread/deviation, lot/tick, notional/loss
+budgets, exposure identity, entry kill switch, peer interventions and ownership
+checks all remain mandatory. One durable attempt consumes the once-only intent;
+UNKNOWN entries/trails are never resent on restart.
+
+After the bar and account preflight reads, the supervisor takes a fresh exact-ID
+protection snapshot before recording an add attempt. The existing exposure must
+still reconcile, every counted protective ID must remain in the latest open-order
+list, fixed SLs must cover the full position at the unchanged floor, and verified
+active percentage tranches must together cover it with the frozen retracement.
+Missing, canceled, inactive, undersized or invalid protection rejects the unsent
+add without allocating an attempt or signing an order. Authority, bar/quote freshness
+and capital sizing are checked again at the final snapshot's observed time.
+Exchange reads and submission are not atomic; this closes the earlier preflight
+read window but does not guarantee against a subsequent exchange-side change.
+
+Each actual filled increment first receives verified fixed-SL coverage at the
+unchanged position-level floor, then a **new percentage trailing order for only that
+increment**, with its own exchange watermark. Existing SL/TS IDs, quantity and native
+watermark are never modified. Supplemental fixed-SL orders at the same floor make
+aggregate coverage full-size without replacing the old SL when its explicit-size
+coverage is insufficient; verified zero-size position-level SLs already cover the
+reconciled account quantity. `trailing_covered_size`
+is the sum of verified active percentage tranches (capped at residual account size),
+not a full-position overlay. Partial fills can create separate protective increments.
+Native percentage TS fills reduce their covered tranche and do not independently
+liquidate other protected tranches; fixed-SL fills still request the position-level
+exit. There is no local ATR or percentage backup exit: the unchanged full-size native
+fixed SL protects exposure while a new percentage trail awaits valid readback.
+An inactive immediate percentage trail must activate within `protection_grace_ms`
+from its persisted attempt time, including after restart. Later fills and newer
+trails do not extend an older inactive tranche's deadline. On timeout, the existing
+bounded exit lifecycle cancels pending buys before reducing exposure; fixed SLs
+remain until flat cleanup and the trailing action is never blindly resent.
+Quote-distance waiting keeps its existing separate activation policy. Missing,
+ambiguous or rejected trailing evidence freezes further adds; ordinary bounded
+protection/exit guards remain. This exception does not remove the local-backup
+requirement from the older quote-distance overlay add path.
+
+Live rollout remains unverified: simultaneous percentage tranches, trigger/fill
+readback and position-level SL resizing behavior must be observed with exact account
+readback under separately authorized activation. This implementation and offline
+suite are not activation; no exchange or operational state is changed by these docs.
 
 ### KIS domestic holding handoff
 

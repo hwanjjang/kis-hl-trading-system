@@ -17,7 +17,8 @@ def verify_adoption(gateway, row, now):
         raise ValueError("Legacy trailing already owns this position")
     gateway.trading._require_credentials()
     pre = gateway.preflight(p, now, existing_position=True)
-    if any(o.get("orderType") == "Trailing Stop Market" for o in pre["open_orders"]):
+    if any(o.get("orderType") == "Trailing Stop Market" and
+           str(o.get("oid")) != str(request.get("trailing_order_id")) for o in pre["open_orders"]):
         raise ValueError("migration-required: external trailing order needs an explicit supported migration plan")
     now = int(pre.get("observed_now_ms", now))
     if (not pre["eligible"] or not 0 <= now - int(pre["time_ms"]) <= p["max_quote_age_ms"]
@@ -25,7 +26,8 @@ def verify_adoption(gateway, row, now):
             or decimal(pre["correlated_notional"]) > decimal(p["max_correlated_notional"])):
         raise ValueError("Adoption eligibility, quote or portfolio limit failed")
     if (pre["atr_source"]["instrument"] != asset.id
-            or abs(decimal(pre["atr"]) - decimal(p["atr"])) > decimal(p["atr"]) * Decimal("0.000001")):
+            or ("native_trailing_percent" not in p and not row.get("percentage_migration_pending") and
+                abs(decimal(pre["atr"]) - decimal(p["atr"])) > decimal(p["atr"]) * Decimal("0.000001"))):
         raise ValueError("Adoption ATR differs from current execution history")
     entry_id, stop_id = request["entry_order_id"], request["stop_order_id"]
     response = gateway.info.order_status(oid=entry_id)
@@ -65,12 +67,22 @@ def verify_adoption(gateway, row, now):
         cost += size * decimal(f["px"], positive=True)
     average = cost / quantity
     if (quantity != decimal(entry["origSz"]) or quantity != decimal(p["quantity"])
-            or average != decimal(p["limit_price"]) or quantity % lot):
+            or (not row.get("percentage_migration_pending") and average != decimal(p["limit_price"]))
+            or quantity % lot or cost > decimal(p["max_notional"])):
         raise ValueError("Adoption plan does not match entry executions")
     attempts = [{"id":"0x"+uuid4().hex, "position_id":row["id"], "kind":kind,
                  "order_id":str(oid), "status":status, "created_ms":now,
                  "quantity":str(quantity), "price":str(average), "imported":True}
                 for kind,oid,status in (("entry",entry_id,"FILLED"),("stop",stop_id,"SUBMITTED"))]
+    if request.get("trailing_order_id") is not None:
+        unit = "percent" if "native_trailing_percent" in p else "quote"
+        retracement = (p["native_trailing_percent"] if unit == "percent" else
+            row.get("native_trailing_distance", wire_decimal(normalize_quote_retracement(
+                decimal(p["atr"]) * decimal(p.get("native_atr_multiple", p["atr_multiple"])), tick))))
+        attempts.append(dict(id="0x"+uuid4().hex, position_id=row["id"], kind="trailing",
+            order_id=str(request["trailing_order_id"]), status="SUBMITTED", created_ms=now,
+            quantity=str(quantity), price="0", imported=True,
+            retracement=retracement, retracement_unit=unit))
     candidate = row | {"fill_history_start_ms": start}
     snap = gateway.snapshot(candidate, attempts, now)
     now = int(snap.get("observed_now_ms", now))
@@ -80,12 +92,22 @@ def verify_adoption(gateway, row, now):
         raise ValueError("Adoption quote freshness failed after account reads")
     stop = snap["orders"].get(str(stop_id), {})
     distance = decimal(p["stop_distance"])
+    fixed_floor = decimal(p["fixed_stop_price"]) if "fixed_stop_price" in p else average-distance
     if (not snap["consistent"] or snap["foreign_add"] or decimal(snap["size"]) != quantity
             or decimal(snap["entry_filled"]) != quantity or decimal(snap["entry_price"]) != average
             or stop.get("status") != "open" or stop.get("kind") != "stop"
-            or decimal(stop.get("size", "0")) != quantity
-            or decimal(stop.get("trigger_price", "0")) < average-distance):
+            or decimal(stop.get("coverage_size", stop.get("size", "0"))) != quantity
+            or decimal(stop.get("trigger_price", "0")) < fixed_floor
+            or quantity * max(Decimal(0), average-fixed_floor) > decimal(p["max_loss"])):
         raise ValueError("Current position or fixed SL cannot be reconciled")
+    if request.get("trailing_order_id") is not None:
+        observed = snap["orders"].get(str(request["trailing_order_id"]), {})
+        if (observed.get("status") != "open" or observed.get("kind") != "trailing"
+                or observed.get("retracement_unit") != unit or observed.get("active") is not True
+                or decimal(observed.get("size", "0")) != quantity
+                or decimal(observed.get("retracement", "0")) != decimal(retracement)):
+            raise ValueError("Exact external trailing coverage is unverified")
+        attempts[-1]["adopted_readback"] = observed
     trail = Trail.create(entry=average, atr=decimal(p["atr"]),
                          multiple=decimal(p.get("local_atr_multiple", p["atr_multiple"])), opened_ms=now)
     if "local_atr_multiple" not in p and "fixed_stop_price" not in p:
@@ -101,6 +123,11 @@ def verify_adoption(gateway, row, now):
     if native:
         native_distance = decimal(p["atr"]) * decimal(p.get("native_atr_multiple", p["atr_multiple"]))
         updates["native_trailing_distance"] = wire_decimal(normalize_quote_retracement(native_distance,tick))
+    if row.get("percentage_migration_pending"):
+        # Reconciliation must not reset an authorized local trail or frozen distance.
+        for field in ("trail", "native_trailing_distance", "atr_source", "first_fill_ms", "fill_history_start_ms"):
+            if row.get(field) is not None:
+                updates[field] = row[field]
     attempts[1]["trigger_price"] = stop["trigger_price"]
     return updates, attempts
 

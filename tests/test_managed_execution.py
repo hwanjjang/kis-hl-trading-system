@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from decimal import Decimal
 from pathlib import Path
 from kis_hl.managed_execution import ExecutionStore, Supervisor, validate_plan
 
@@ -39,6 +40,7 @@ class Gateway:
     account = "test-account"
     scope = "scope"
     native_sl = True
+    native_trailing = False
 
     def __init__(self):
         self.sent = []
@@ -51,6 +53,7 @@ class Gateway:
         return {
             "price": "100",
             "ask": "100.1",
+            "entry_order_type": "market",
             "time_ms": now,
             "available_notional": "1000",
             "position": "0",
@@ -59,6 +62,7 @@ class Gateway:
             "session_open": True,
             "quantity_step": "0.01",
             "price_step": "0.01",
+            "trailing_price_step": "0.01",
             "portfolio_notional": "0",
             "correlated_notional": "0",
             "atr": "2",
@@ -78,6 +82,7 @@ class Gateway:
             "orders": dict(self.orders),
             "consistent": True,
             "price_step": "0.01",
+            "trailing_price_step": "0.01",
             "quantity_step": "0.01",
         }
 
@@ -117,6 +122,25 @@ class ManagedExecutionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_plan(p, 1)
 
+    def test_limit_only_route_is_explicit_and_hyperliquid_only(self):
+        self.assertEqual(validate_plan(plan(entry_route="limit"), 1)["entry_route"], "limit")
+        for route in ("market", "ioc", "", None):
+            with self.subTest(route=route), self.assertRaises(ValueError):
+                validate_plan(plan(entry_route=route), 1)
+        kis = plan(entry_route="limit")
+        kis.update(instrument="kis:SPY", verified_price_step="0.01")
+        with self.assertRaises(ValueError):
+            validate_plan(kis, 1)
+
+    def test_limit_only_plan_reaches_supervisor_send_boundary(self):
+        old_preflight = self.g.preflight
+        self.g.preflight = lambda p, now: {**old_preflight(p, now), "entry_order_type": "limit"}
+        row = self.queue(plan(entry_route="limit"))
+        self.worker.step(row["id"], 2)
+        sent = [a for a in self.g.sent if a["kind"] == "entry"]
+        self.assertEqual(len(sent), 1)
+        self.assertEqual((sent[0]["order_type"], sent[0]["price"]), ("limit", "100.1"))
+
     def test_independent_parameters_fail_closed_before_enrollment(self):
         for key in ("local_atr_multiple", "native_atr_multiple"):
             for value in ("0", "-1", "NaN", "Infinity", None):
@@ -145,6 +169,82 @@ class ManagedExecutionTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "owned"):
             self.queue()
         self.assertEqual(self.store.get(row["id"])["state"], "QUEUED")
+
+    def test_immediate_market_fill_reconciles_stop_then_native_trailing(self):
+        self.g.native_trailing = True
+        row = self.queue(plan(trailing_provider="native", local_trailing_backup=True))
+        submit = self.g.submit
+
+        def filled_submit(row, attempt):
+            result = submit(row, attempt)
+            if attempt["kind"] == "entry":
+                self.g.size = self.g.filled = "1"
+                self.g.orders[attempt["id"]]["status"] = "filled"
+            return result
+
+        self.g.submit = filled_submit
+        self.worker.step(row["id"], 10)
+        self.assertEqual([a["kind"] for a in self.g.sent], ["entry", "stop", "trailing"])
+        self.assertEqual(self.store.get(row["id"])["covered_size"], "1")
+        self.assertEqual(self.store.get(row["id"])["local_trailing_covered_size"], "1")
+        self.assertEqual(self.g.sent[0]["order_type"], "market")
+
+    def test_immediate_partial_market_fill_protects_actual_size_without_resend(self):
+        self.g.native_trailing = True
+        row = self.queue(plan(trailing_provider="native", local_trailing_backup=True))
+        submit = self.g.submit
+
+        def partial_submit(row, attempt):
+            result = submit(row, attempt)
+            if attempt["kind"] == "entry":
+                self.g.size = self.g.filled = "0.4"
+                self.g.orders[attempt["id"]]["status"] = "canceled"
+            return result
+
+        self.g.submit = partial_submit
+        self.worker.step(row["id"], 10)
+        self.assertEqual([a["kind"] for a in self.g.sent], ["entry", "stop", "trailing"])
+        self.assertEqual(self.g.sent[1]["quantity"], "0.4")
+        self.assertEqual(self.g.sent[2]["quantity"], "0.4")
+        self.assertEqual(self.store.get(row["id"])["covered_size"], "0.4")
+        self.assertEqual(self.store.get(row["id"])["local_trailing_covered_size"], "0.4")
+        self.worker.step(row["id"], 20)
+        self.assertEqual(len([a for a in self.g.sent if a["kind"] == "entry"]), 1)
+
+    def test_wide_book_uses_current_ask_limit_and_checks_risk(self):
+        preflight = self.g.preflight
+        self.g.preflight = lambda p, now: {**preflight(p, now), "entry_order_type": "limit", "ask": "100.8"}
+        p = plan()
+        p["max_spread_bps"] = "100"
+        row = self.queue(p)
+        self.worker.step(row["id"], 10)
+        self.assertEqual(self.g.sent[0]["price"], "100.8")
+        self.assertEqual(self.g.sent[0]["order_type"], "limit")
+
+    def test_market_worst_case_risk_rejects_before_submission(self):
+        p = plan()
+        p["max_notional"] = "100.1"
+        row = self.queue(p)
+        self.worker.step(row["id"], 10)
+        self.assertEqual(self.g.sent, [])
+        self.assertEqual(self.store.get(row["id"])["state"], "INTERVENTION")
+
+    def test_market_attempt_persists_exact_legal_risk_ceiling(self):
+        p = plan() | {"max_loss": "4.51"}
+        row = self.queue(p)
+        self.worker.step(row["id"], 10)
+        entry = self.g.sent[0]
+        self.assertEqual(entry["order_type"], "market")
+        self.assertEqual(Decimal(entry["price"]), Decimal("100.5"))
+        self.assertLessEqual(Decimal(entry["price"]) - 96, Decimal(p["max_loss"]))
+
+    def test_market_ceiling_rounds_inward_to_legal_precision(self):
+        preflight = self.g.preflight
+        self.g.preflight = lambda p, now: preflight(p, now) | {
+            "price": "100.13", "ask": "100.14"}
+        row = self.queue()
+        self.worker.step(row["id"], 10)
+        self.assertEqual(self.g.sent[0]["price"], "100.63")
 
     def test_intent_cannot_be_replayed_after_close(self):
         row = self.queue()
@@ -423,8 +523,10 @@ class ManagedExecutionTests(unittest.TestCase):
 
     def test_external_full_exit_cleans_resting_owned_exit_and_stop(self):
         p = plan()
-        p.update(quantity="10", max_notional="1001", max_loss="50",
-                 max_correlated_notional="1000")
+        p.update(quantity="10", max_notional="1010", max_loss="50",
+                 max_portfolio_notional="1010", max_correlated_notional="1010")
+        preflight = self.g.preflight
+        self.g.preflight = lambda p, now: {**preflight(p, now), "available_notional": "1100"}
         row = self.queue(p)
         self.worker.step(row["id"], 10)
         self.g.size = self.g.filled = "10"

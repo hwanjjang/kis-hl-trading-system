@@ -485,6 +485,19 @@ class ExchangeSafetyTests(unittest.TestCase):
         c._sdk = (MagicMock(), MagicMock())
         return c
 
+    def test_market_entry_forwards_managed_cap_and_durable_cloid(self):
+        c = self.client()
+        cloid = '0x' + 'a' * 32
+        with patch('kis_hl.hyperliquid.client.sdk_cloid', side_effect=lambda x: x):
+            result = c.place_order(symbol='BTC-PERP', side='buy', order_type='market',
+                                   size=Decimal('1'), slippage=Decimal('0.005'),
+                                   cloid=cloid, dry_run=False)
+        sdk = c._sdk
+        assert sdk is not None
+        sdk[1].market_open.assert_called_once_with('BTC', True, 1.0, None, 0.005, cloid=cloid)
+        self.assertEqual(result.request['slippage'], '0.005')
+        sdk[1].order.assert_not_called()
+
     def test_market_reduce_only_never_uses_market_open(self):
         c = self.client()
         with patch.object(HyperliquidInfoClient, 'clearinghouse_state', return_value={'assetPositions':[{'position':{'coin':'BTC','szi':'1'}}]}), patch.object(HyperliquidInfoClient, 'all_mids', return_value={'BTC':'100'}), patch.object(HyperliquidInfoClient, 'meta_and_asset_ctxs', return_value=[{'universe':[{'name':'BTC','szDecimals':3}]},[]]):
