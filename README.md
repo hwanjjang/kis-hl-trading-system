@@ -14,7 +14,7 @@ Existing collection and trading tools include:
 - Strategy risk helpers for operating capital, ATR(10D), 30-week EMA, and position sizing.
 - Advisory underlying-market session reporting for Hyperliquid entries; KIS execution enforces exchange sessions.
 - CLI defaults that never place a live order unless `--live` is passed.
-- Explicitly enrolled long-position trailing management, durable reconciliation, and offline tick replay.
+- Explicitly enrolled long/short single-position trailing management, durable reconciliation, and offline tick replay.
 
 ## Multi-venue protected trading
 
@@ -69,6 +69,9 @@ not assume a fill price or profitability. Replay accepts JSONL: a `position`
 header (`symbol`, `size`, `entry`, `atr`, `multiple`, `opened_ms`, `max_gap_ms`),
 then `{ "time_ms": 123, "price": "100", "age_ms": 0 }` ticks or
 `{ "type": "disconnect" }`. Each replay has a separate paper identity.
+An optional `side: "short"` header tracks completed-bucket lows and triggers on
+a rebound; omitted `side` keeps the long default. Try
+`examples/trailing-stop-short-replay.jsonl` for a short threshold of 104 → 96.
 
 To shadow an existing protected long, supply its actual entry and native stop
 order IDs (replace 123 and 456):
@@ -79,13 +82,20 @@ python -m kis_hl.cli --db data/kis_hl.sqlite trailing run --position-id POSITION
 python -m kis_hl.cli --db data/kis_hl.sqlite trailing status --position-id POSITION_ID
 ```
 
+For an already filled short, add `--side short` to enrollment and supply its
+sell-entry and buy reduce-only Stop Market IDs. Defaults remain paper. See the
+[direction and recovery contract](docs/trading-operations.md#single-position-short-trailing)
+and [captured operator manual](docs/operations/short-trailing.md).
+
 Enrollment reads account/order/fill/metadata data and 11 closed Hyperliquid daily
-bars. It requires a fully filled single long entry, unchanged position quantity,
+bars. It requires a fully filled single entry matching the selected direction, unchanged position
+quantity,
 no unowned open orders in that coin, and a matching reduce-only Stop Market order
-at or above the initial ATR risk floor. It creates no entry or SL. Paper enrollment
+no looser than the initial ATR risk floor (at or above for longs, at or below for
+shorts). It creates no entry or SL. Paper enrollment
 and execution are the defaults; paper exits record intent without sending or
 simulating fills. Its ATR is frozen **at explicit enrollment**, and historical
-pre-enrollment highs are not inferred. Enroll promptly after confirming protection.
+pre-enrollment extremes are not inferred. Enroll promptly after confirming protection.
 
 Live management requires `--live` on both **enroll** and **run**. Modes cannot be
 promoted in place. With live enabled, the worker can send only reduce-only exits

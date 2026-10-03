@@ -286,7 +286,44 @@ not an automatic strategy/grant approval workflow. Separately authorized live
 readback is still required. The absence
 of preset cumulative unit caps is decided, not an unresolved limit to invent.
 Current managed execution remains long-only; #15's symmetric short calculation
-and the separate short-trailing follow-up are not claims of working short management.
+does not enable managed short entries. The separate single-position manager now
+supports [explicit enrollment of protected shorts](#single-position-short-trailing).
+
+### Single-position short trailing
+
+The legacy `trailing enroll --side short` route manages an already filled
+eligible Hyperliquid short with an existing buy reduce-only Stop Market. This
+is local nine-minute trailing, separate from managed strategy entry/add-up plans
+and their native trailing integration, which remain long-only. Paper enrollment
+and execution remain the default; a live row still requires explicit `--live`
+to run. No live short lifecycle has been verified by these offline tests.
+
+Enrollment verifies a terminal filled sell entry, complete matching fill ledger,
+negative exchange `szi`, unchanged average entry, metadata/eligibility and the
+exact native stop ID, direction, trigger and coverage. The stop must be no looser
+than entry + frozen ATR × multiplier. It starts a new watermark at entry; no
+pre-enrollment low is invented. Position quantities in stored rows are positive
+magnitudes; `side` retains the direction. Old rows/snapshots without `side` are
+long. The JSON snapshot stores short `low`/`bucket_low` alongside the existing
+long `high`/`bucket_high`; no SQLite schema migration is needed.
+
+Only fully observed, consecutive nine-minute buckets may lower the short low
+watermark; its threshold is tightened to min(previous threshold, low + distance).
+A fresh price at or above the threshold creates the same durable exit intent.
+Gaps, disconnects and restarts discard partial buckets without loosening the
+confirmed threshold. IOC exits buy reduce-only, round quantity down and round
+the buy limit inward to the approved slippage budget. Partial fills retain the
+intent; retry requires terminal evidence. Unknown submissions are not resent.
+Direction reversals, quantity increases, foreign entries/orders or missing
+native protection require intervention. Flat cleanup cancels only the owned
+stop after generation/attempt reconciliation. Use the same SQLite path and
+account lock; never run this manager alongside a managed owner for the coin.
+
+The [short replay fixture](../examples/trailing-stop-short-replay.jsonl) provides
+network-free paper evidence: entry 100, distance 4, initial threshold 104;
+completed low 92 tightens it to 96 and equality at 96 records `PAPER_EXIT`.
+See the [operator manual](operations/short-trailing.md) and its
+[PDF](operations/short-trailing.pdf) for actual offline CLI captures.
 
 ## Explicit manual NEW percentage entry
 

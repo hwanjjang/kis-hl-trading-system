@@ -56,10 +56,122 @@ class GatewayTests(unittest.TestCase):
         info.candle_snapshot.return_value=[{'s':'BTC','t':i*day,'T':(i+1)*day-1,'h':'102','l':'98','c':'100'} for i in range(11)]
         return store,info,MagicMock(),11*day+1
 
-    def enroll(self,store,info,trading,now):
+    def enroll(self,store,info,trading,now,**changes):
         from kis_hl.trailing_runner import enroll_position
         return enroll_position(store,info,trading,symbol='BTC-PERP',entry_oid=5,stop_oid=7,
-            multiple=D('2'),max_gap_ms=15000,slippage=D('0.01'),now_ms=now)
+            multiple=D('2'),max_gap_ms=15000,slippage=D('0.01'),now_ms=now,**changes)
+
+    def short_fixture(self):
+        store, info, trading, now = self.enrollment_fixture()
+        info.order_status.return_value['order']['order']['side'] = 'A'
+        info.user_fills_by_time.return_value[0]['side'] = 'A'
+        info.frontend_open_orders.return_value[0].update(side='B', triggerPx='108')
+        info.clearinghouse_state.return_value['assetPositions'][0]['position']['szi'] = '-1'
+        return store, info, trading, now
+
+    def test_short_enrollment_requires_matching_entry_position_and_buy_stop(self):
+        store, info, trading, now = self.short_fixture()
+        row = self.enroll(store, info, trading, now, side='short')
+        self.assertEqual((row['side'], row['size'], row['trail']['threshold']), ('short', '1', '108'))
+        self.assertEqual(row['trail']['low'], '100')
+        trading.place_order.assert_not_called()
+
+    def test_short_enrollment_rejects_wrong_side_loose_stop_and_reversal(self):
+        for target, key, value in [('entry', 'side', 'B'), ('fill', 'side', 'B'),
+                                   ('stop', 'side', 'A'), ('stop', 'triggerPx', '110'),
+                                   ('position', 'szi', '1'), ('position', 'entryPx', '101')]:
+            with self.subTest(target=target, key=key):
+                store, info, trading, now = self.short_fixture()
+                objects = {'entry': info.order_status.return_value['order']['order'],
+                           'fill': info.user_fills_by_time.return_value[0],
+                           'stop': info.frontend_open_orders.return_value[0],
+                           'position': info.clearinghouse_state.return_value['assetPositions'][0]['position']}
+                objects[target][key] = value
+                with self.assertRaises((ValueError, RuntimeError)):
+                    self.enroll(store, info, trading, now, side='short')
+                self.assertEqual(store.list(), [])
+                trading.place_order.assert_not_called()
+
+    def test_short_gateway_submits_only_buy_reduce_only_ioc(self):
+        store, info, trading, now = self.short_fixture()
+        row = self.enroll(store, info, trading, now, side='short')
+        attempt = {'size': '1', 'limit_price': '110', 'cloid': '0x'+'a'*32, 'created_ms': now}
+        HyperliquidGateway(info, trading).submit(row, attempt)
+        call = trading.place_order.call_args.kwargs
+        self.assertEqual((call['side'], call['reduce_only'], call['tif']), ('buy', True, 'Ioc'))
+
+    def test_short_fill_ledger_tracks_partial_close_and_foreign_entry(self):
+        store, info, trading, now = self.short_fixture()
+        row = self.enroll(store, info, trading, now, side='short')
+        info.user_fills_by_time.return_value.append({'coin':'BTC','oid':8,'tid':2,'side':'B','sz':'0.4','px':'110'})
+        info.clearinghouse_state.return_value['assetPositions'][0]['position']['szi'] = '-0.6'
+        result = HyperliquidGateway(info, trading).snapshot(row, [], now)
+        self.assertTrue(result['generation_ok'])
+        self.assertEqual(D(result['size']), D('0.6'))
+        info.user_fills_by_time.return_value.append({'coin':'BTC','oid':9,'tid':3,'side':'A','sz':'0.2','px':'100'})
+        info.clearinghouse_state.return_value['assetPositions'][0]['position']['szi'] = '-0.8'
+        self.assertFalse(HyperliquidGateway(info, trading).snapshot(row, [], now)['generation_ok'])
+
+    def test_short_reversed_exposure_and_wrong_side_exit_status_require_intervention(self):
+        store, info, trading, now = self.short_fixture()
+        row = self.enroll(store, info, trading, now, side='short')
+        info.clearinghouse_state.return_value['assetPositions'][0]['position']['szi'] = '1'
+        result = HyperliquidGateway(info, trading).snapshot(row, [], now)
+        self.assertFalse(result['generation_ok'])
+        self.assertEqual(result['size'], '-1')
+        info.clearinghouse_state.return_value['assetPositions'][0]['position']['szi'] = '-1'
+        cloid = '0x'+'a'*32
+        info.order_status.return_value = {'order': {'status': 'filled', 'order':
+            {'coin':'BTC', 'reduceOnly':True, 'side':'A', 'cloid':cloid}}}
+        result = HyperliquidGateway(info, trading).snapshot(row, [{'cloid':cloid,'status':'UNKNOWN'}], now)
+        self.assertFalse(result['generation_ok'])
+        trading.place_order.assert_not_called()
+
+    def test_short_enrollment_rejects_missing_insufficient_or_unowned_protection(self):
+        for problem in ['missing', 'coverage', 'foreign-order', 'quantity', 'unfilled']:
+            with self.subTest(problem=problem):
+                store, info, trading, now = self.short_fixture()
+                if problem == 'missing':
+                    info.frontend_open_orders.return_value = []
+                elif problem == 'coverage':
+                    info.frontend_open_orders.return_value[0]['sz'] = '0.4'
+                elif problem == 'foreign-order':
+                    info.frontend_open_orders.return_value.append({'oid': 99, 'coin': 'BTC'})
+                elif problem == 'quantity':
+                    info.clearinghouse_state.return_value['assetPositions'][0]['position']['szi'] = '-2'
+                else:
+                    info.order_status.return_value['order']['status'] = 'open'
+                with self.assertRaises((ValueError, RuntimeError)):
+                    self.enroll(store, info, trading, now, side='short')
+                self.assertEqual(store.list(), [])
+                trading.place_order.assert_not_called()
+                trading.cancel_order.assert_not_called()
+
+    def test_short_wrong_side_stop_or_opposite_position_never_mutates_even_when_flat(self):
+        from kis_hl.trailing_runner import TrailingRunner
+        for problem in ['wrong-stop', 'opposite-position', 'flat-wrong-stop', 'flat-foreign-entry']:
+            with self.subTest(problem=problem):
+                store, info, trading, now = self.short_fixture()
+                row = self.enroll(store, info, trading, now, side='short')
+                row['mode'] = 'live'
+                store.save(row, 'offline live-shaped fixture')
+                if problem in {'wrong-stop', 'flat-wrong-stop'}:
+                    info.frontend_open_orders.return_value[0]['side'] = 'A'
+                if problem == 'opposite-position':
+                    info.clearinghouse_state.return_value['assetPositions'][0]['position']['szi'] = '1'
+                if problem.startswith('flat-'):
+                    info.clearinghouse_state.return_value = {'assetPositions': []}
+                    info.user_fills_by_time.return_value.append(
+                        {'coin':'BTC','oid':8,'tid':2,'side':'B','sz':'1','px':'105'})
+                    if problem == 'flat-foreign-entry':
+                        info.user_fills_by_time.return_value.extend([
+                            {'coin':'BTC','oid':9,'tid':3,'side':'A','sz':'1','px':'100'},
+                            {'coin':'BTC','oid':10,'tid':4,'side':'B','sz':'1','px':'105'}])
+                runner = TrailingRunner(store, row['id'], HyperliquidGateway(info, trading))
+                runner.on_tick(now, D('109'))
+                self.assertEqual(runner.row['state'], 'MANUAL_INTERVENTION')
+                trading.place_order.assert_not_called()
+                trading.cancel_order.assert_not_called()
 
     def test_enrollment_reconciles_existing_entry_and_stop_without_mutation(self):
         store,info,trading,now=self.enrollment_fixture()

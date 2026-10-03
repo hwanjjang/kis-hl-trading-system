@@ -1,0 +1,4 @@
+{"type":"position","symbol":"BTC-PERP","side":"short","size":"1","entry":"100","atr":"2","multiple":"2","opened_ms":0,"max_gap_ms":540000}
+{"time_ms":1,"price":"100"}
+{"time_ms":540000,"price":"92"}
+{"time_ms":1080000,"price":"96"}

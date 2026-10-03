@@ -18,6 +18,8 @@ class TrailingRunner:
         self.store, self.gateway = store, gateway
         self.row = store.get(position_id)
         self.trail = Trail.from_dict(self.row['trail'])
+        if self.row.get('side', 'long') != self.trail.side:
+            raise ValueError('Position and trailing direction mismatch')
         self.trail.disconnect()
         self.last_sync = None
         self.observation = None
@@ -109,11 +111,11 @@ class TrailingRunner:
             self.trail.disconnect()
             self.state('DEGRADED', 'price aged during initial reconciliation')
             return
-        prior = (self.trail.high, self.trail.threshold)
+        prior = (self.trail.high, self.trail.low, self.trail.threshold)
         crossed = self.trail.tick(time_ms, price, max_gap_ms=self.row['max_gap_ms'])
         self.row['trail'] = self.trail.to_dict()
-        if prior != (self.trail.high, self.trail.threshold):
-            self.store.save(self.row, 'closed bar raised threshold')
+        if prior != (self.trail.high, self.trail.low, self.trail.threshold):
+            self.store.save(self.row, 'closed bar tightened threshold')
         if crossed and not self.store.intent(self.row['id']):
             self.store.decide_exit(self.row, now_ms=time_ms)
         if not self.store.intent(self.row['id']):
@@ -135,7 +137,8 @@ class TrailingRunner:
         try:
             limit, size = prepare_perp_exit(price=price, size=Decimal(self.row['size']),
                                             sz_decimals=self.row['sz_decimals'],
-                                            slippage=Decimal(self.row['slippage']))
+                                            slippage=Decimal(self.row['slippage']),
+                                            is_buy=self.trail.side == 'short')
         except ValueError as exc:
             self.state('MANUAL_INTERVENTION', str(exc))
             return
@@ -160,7 +163,9 @@ def protection_matches(row, order, size):
         covered = Decimal(order['sz'])
         trigger = Decimal(order['triggerPx'])
         return (int(order['oid']) == row['stop_oid'] and order['coin'] == row['coin']
-                and order['side'] == 'A' and order['reduceOnly'] is True
+                and row.get('side', 'long') in {'long', 'short'}
+                and order['side'] == ('B' if row.get('side', 'long') == 'short' else 'A')
+                and order['reduceOnly'] is True
                 and order['isTrigger'] is True and order['orderType'] == 'Stop Market'
                 and covered.is_finite() and covered >= size
                 and trigger.is_finite() and trigger == Decimal(row['native_trigger']))
@@ -173,6 +178,10 @@ class HyperliquidGateway:
         self.info, self.trading = info, trading
 
     def snapshot(self, row, attempts, now_ms):
+        side = row.get('side', 'long')
+        if side not in {'long', 'short'}:
+            raise ValueError('side must be long or short')
+        entry_side, exit_side = ('A', 'B') if side == 'short' else ('B', 'A')
         states = {}
         valid_orders = True
         for attempt in attempts:
@@ -182,7 +191,7 @@ class HyperliquidGateway:
             status = response.get('order', {}).get('status', 'unknownOid')
             order = response.get('order', {}).get('order', {})
             if status != 'unknownOid' and (order.get('coin') != row['coin'] or order.get('reduceOnly') is not True
-                                           or order.get('side') != 'A' or order.get('cloid') != attempt['cloid']):
+                                           or order.get('side') != exit_side or order.get('cloid') != attempt['cloid']):
                 valid_orders = False
             states[attempt['cloid']] = status
         fills = self.info.user_fills_by_time(start_time_ms=row['opened_ms'], end_time_ms=now_ms)
@@ -198,22 +207,25 @@ class HyperliquidGateway:
         if not isinstance(positions, list):
             raise ValueError('Invalid position snapshot')
         position = next((p['position'] for p in positions if p['position']['coin'] == row['coin']), None)
-        size = Decimal(position['szi']) if position else Decimal(0)
+        size = (Decimal(position['szi']) * (-1 if side == 'short' else 1)) if position else Decimal(0)
         entry = Decimal(position['entryPx']) if position and size else Decimal(0)
         relevant = {str(f['tid']): f for f in fills if f['coin'] == row['coin']}
         entry_ids = set(row['entry_fill_ids'])
-        generation_ok = valid_orders and len(fills) < 2000 and entry_ids.issubset(relevant)
+        generation_ok = valid_orders and size >= 0 and len(fills) < 2000 and entry_ids.issubset(relevant)
         balance = Decimal(0)
         for fill in relevant.values():
             amount = positive(Decimal(fill['sz']), 'fill size')
-            if fill['side'] == 'B':
+            if fill['side'] == entry_side:
                 if int(fill['oid']) != row['entry_oid']:
                     generation_ok = False
                 balance += amount
-            elif fill['side'] == 'A':
+            elif fill['side'] == exit_side:
                 balance -= amount
             else:
                 generation_ok = False
+        # A reused/wrong-side stop ID is not owned cleanup evidence, even when flat.
+        if stop is not None and not protection_matches(row, stop, Decimal(0)):
+            generation_ok = False
         # A missing/truncated ledger cannot prove position-generation continuity.
         if generation_ok and balance != size:
             raise RuntimeError('Position and fill snapshots are not yet consistent')
@@ -228,7 +240,10 @@ class HyperliquidGateway:
                 'stop_open':stop_active, 'order_states':states}
 
     def submit(self, row, attempt):
-        result = self.trading.place_order(symbol=row['symbol'], dex=row['dex'], side='sell',
+        side = row.get('side', 'long')
+        if side not in {'long', 'short'}:
+            raise ValueError('side must be long or short')
+        result = self.trading.place_order(symbol=row['symbol'], dex=row['dex'], side='buy' if side == 'short' else 'sell',
             order_type='limit', size=Decimal(attempt['size']), price=Decimal(attempt['limit_price']),
             reduce_only=True, tif='Ioc', cloid=attempt['cloid'], dry_run=False,
             expires_after_ms=attempt['created_ms'] + row['max_gap_ms'])
@@ -265,13 +280,16 @@ def fetch_trailing_atr(info, symbol, *, now_ms, dex=None):
 
 
 def enroll_position(store, info, trading, *, symbol, entry_oid, stop_oid, multiple,
-                    max_gap_ms, slippage, live=False, now_ms=None):
+                    max_gap_ms, slippage, live=False, now_ms=None, side='long'):
     from kis_hl.assets import resolve_hyperliquid_symbol
     from kis_hl.hyperliquid.client import is_supported_live_asset
     now_ms = int(time.time()*1000) if now_ms is None else now_ms
     resolved = resolve_hyperliquid_symbol(symbol)
+    if side not in {'long', 'short'}:
+        raise ValueError('side must be long or short')
+    entry_side = 'A' if side == 'short' else 'B'
     if resolved.kind != 'perp' or not is_supported_live_asset(resolved):
-        raise ValueError('Trailing enrollment requires an eligible long perpetual')
+        raise ValueError('Trailing enrollment requires an eligible perpetual')
     if not 0 < max_gap_ms <= 60_000:
         raise ValueError('max_gap_ms must be between 1 and 60000')
     positive(slippage, 'slippage')
@@ -287,35 +305,37 @@ def enroll_position(store, info, trading, *, symbol, entry_oid, stop_oid, multip
     status = info.order_status(oid=entry_oid)
     order = status.get('order', {}).get('order', {})
     if (status.get('order', {}).get('status') != 'filled' or order.get('coin') != resolved.coin
-            or order.get('side') != 'B' or order.get('reduceOnly') is not False):
-        raise ValueError('Enrollment requires a confirmed filled long-entry order')
+            or order.get('side') != entry_side or order.get('reduceOnly') is not False):
+        raise ValueError('Enrollment requires a confirmed filled entry matching the selected side')
     opened_ms = int(order['timestamp'])
     fills = info.user_fills_by_time(start_time_ms=opened_ms, end_time_ms=now_ms)
     entry_fills = {str(f['tid']): f for f in fills if int(f['oid']) == entry_oid and f['coin'] == resolved.coin}
     if not entry_fills or len(fills) >= 2000:
         raise ValueError('Complete entry fills unavailable')
+    if any(f.get('side') != entry_side for f in entry_fills.values()):
+        raise ValueError('Entry fill direction mismatch')
     size = sum((positive(Decimal(f['sz']), 'fill size') for f in entry_fills.values()), Decimal(0))
     entry = sum((Decimal(f['px'])*Decimal(f['sz']) for f in entry_fills.values()), Decimal(0))/size
     if size != Decimal(order['origSz']):
         raise ValueError('Entry fill quantity does not match terminal order size')
     atr, bars = fetch_trailing_atr(info, symbol, now_ms=now_ms)
-    trail = Trail.create(entry=entry, atr=atr, multiple=multiple, opened_ms=opened_ms)
+    trail = Trail.create(entry=entry, atr=atr, multiple=multiple, opened_ms=opened_ms, side=side)
     meta = info.meta_and_asset_ctxs(dex=resolved.dex)[0]
     universe = [x for x in meta['universe'] if x['name'] == resolved.coin]
     if len(universe) != 1 or universe[0].get('isDelisted'):
         raise ValueError('Managed asset absent or delisted in metadata')
     decimals = int(universe[0]['szDecimals'])
-    prepare_perp_exit(price=entry, size=size, sz_decimals=decimals, slippage=slippage)
+    prepare_perp_exit(price=entry, size=size, sz_decimals=decimals, slippage=slippage, is_buy=side == 'short')
     stops = info.frontend_open_orders(dex=resolved.dex)
     stop = next((o for o in stops if int(o['oid']) == stop_oid), None)
     if stop is None:
         raise ValueError('Enrollment requires an existing confirmed native stop')
     trigger = positive(Decimal(stop['triggerPx']), 'native trigger')
-    if trigger < trail.threshold:
-        raise ValueError('Existing native stop is below the configured initial risk floor')
+    if (trigger < trail.threshold if side == 'long' else trigger > trail.threshold):
+        raise ValueError('Existing native stop exceeds the configured initial risk floor')
     trail.threshold = trigger
     row = {'network':info.config.base_url.rstrip('/'), 'account':info.config.account_address.lower(),
-        'coin':resolved.coin,'dex':resolved.dex,'symbol':symbol,'mode':'live' if live else 'paper',
+        'coin':resolved.coin,'dex':resolved.dex,'symbol':symbol,'side':side,'mode':'live' if live else 'paper',
         'state':'RECOVERING','size':str(size),'entry_size':str(size),'entry':str(entry),
         'opened_ms':opened_ms,'entry_oid':entry_oid,'entry_fill_ids':sorted(entry_fills),
         'stop_oid':stop_oid,'native_trigger':str(trigger),'atr':str(atr),'multiple':str(multiple),
@@ -323,9 +343,10 @@ def enroll_position(store, info, trading, *, symbol, entry_oid, stop_oid, multip
         'enrolled_ms':now_ms,'protection_verified_ms':now_ms,'verified_covered_size':str(size),'sz_decimals':decimals,'max_gap_ms':max_gap_ms,'slippage':str(slippage),
         'max_attempts':3,'exit_timeout_ms':120000,'trail':trail.to_dict()}
     observed = HyperliquidGateway(info, trading).snapshot(row, [], now_ms)
-    if not observed['generation_ok'] or not observed['protection'] or Decimal(observed['size']) != size:
+    if (not observed['generation_ok'] or not observed['protection']
+            or Decimal(observed['size']) != size or Decimal(observed['entry']) != entry):
         raise ValueError('Position, entry ledger or native protection cannot be reconciled')
-    # Enrollment starts a new management interval; past highs cannot be recovered
+    # Enrollment starts a new management interval; past extremes cannot be recovered
     # from daily bars. This explicit choice is recorded, never silently backfilled.
     row['state'] = 'PROTECTED'
     row['reason'] = 'explicit enrollment; no pre-enrollment intraday watermark'
@@ -427,12 +448,13 @@ def replay_trailing(store, input_path):
         if header.get('type') != 'position':
             raise ValueError('Replay first line must be a position header')
         trail = Trail.create(entry=Decimal(header['entry']), atr=Decimal(header['atr']),
-                             multiple=Decimal(header['multiple']), opened_ms=int(header['opened_ms']))
+                             multiple=Decimal(header['multiple']), opened_ms=int(header['opened_ms']),
+                             side=header.get('side', 'long'))
         gap = int(header['max_gap_ms'])
         if gap <= 0:
             raise ValueError('max_gap_ms must be positive')
         row = store.enroll({'network':'offline-replay','account':'paper-' + uuid4().hex,'coin':header['symbol'],
-                           'mode':'paper','state':'PROTECTED','size':str(positive(Decimal(header['size']), 'size')),
+                           'mode':'paper','state':'PROTECTED','side':trail.side,'size':str(positive(Decimal(header['size']), 'size')),
                            'trail':trail.to_dict(),'price_basis':'hyperliquid:allMids:receive-time'})
         try:
             for line in source:
