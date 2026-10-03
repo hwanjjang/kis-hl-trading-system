@@ -301,11 +301,14 @@ the provisional threshold; a directory alone is not calibration evidence.
    outcomes or proof that the majority answer is correct.
 5. Assess candidate `min_confidence` values against outcomes defined in advance
    for the review horizon, using separate calibration and held-out snapshots.
-   Keep all repeats of one snapshot in the same split and prevent future-data
-   leakage. Compare directional errors, coverage/abstention and stability;
-   record the sample size, model, threshold, rationale and limitations. Do not
-   lower the threshold merely to obtain more `long` opinions. Without sufficient
-   outcome evidence, retain the provisional default and disclose the limitation.
+   Separate performance evaluation by the target instrument and venue, and by
+   setup and horizon when these differ; do not pool unlike targets into one
+   claimed accuracy or threshold. Keep all repeats of one snapshot in the same
+   split and prevent future-data leakage. Compare directional errors,
+   coverage/abstention and stability within each target; record its sample size,
+   model, threshold, rationale and limitations. Do not lower the threshold merely
+   to obtain more `long` opinions. Without sufficient target-specific outcome
+   evidence, retain the provisional default and disclose the limitation.
 6. Apply an evidence-supported gate through the decimal-string `min_confidence`
    input. The 0.8 `high` band boundary is fixed in code, not a configurable gate;
    changing it requires a separate code/test/documentation change. Revalidate

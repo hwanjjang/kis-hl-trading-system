@@ -67,7 +67,7 @@ class ManagedGatewayTests(unittest.TestCase):
         ]
         info.l2_book.return_value = {
             "time": 20,
-            "levels": [[{"px": "100"}], [{"px": "100.1"}]],
+            "levels": [[{"px": "100", "sz": "10"}], [{"px": "100.1", "sz": "10"}]],
         }
         order = {
             "oid": 42,
@@ -130,6 +130,44 @@ class ManagedGatewayTests(unittest.TestCase):
         self.assertEqual(call["cloid"], "0x123")
         self.assertEqual(call["expires_after_ms"], 20)
 
+    def test_full_size_book_selects_market_or_current_ask_limit(self):
+        g, info, row, _, _ = self.hl()
+        from kis_hl.assets import resolve_hyperliquid_symbol
+        resolved = resolve_hyperliquid_symbol("BTC-PERP")
+        for asks, expected in [
+            ([{"px": "100.1", "sz": "1"}], "market"),
+            ([{"px": "100.1", "sz": "0.5"}, {"px": "101", "sz": "0.5"}], "limit"),
+            ([{"px": "100.1", "sz": "0.5"}], "limit"),
+            ([{"px": "100.6", "sz": "1"}], "limit"),
+        ]:
+            with self.subTest(asks=asks):
+                info.l2_book.return_value = {"time": 20, "levels": [[{"px": "100", "sz": "1"}], asks]}
+                bid, ask, _, route = g._entry_quote(resolved, Decimal("1"))
+                self.assertEqual((bid, ask, route), (Decimal("100"), Decimal(asks[0]["px"]), expected))
+
+    def test_market_entry_transport_retains_cloid_and_half_percent_cap(self):
+        g, info, row, _, _ = self.hl()
+        row["plan"]["max_quote_age_ms"] = 1000
+        g.trading.place_order.return_value = SimpleNamespace(status="submitted", response={})
+        g.submit(row, dict(id="0x123", kind="entry", quantity="1", price="100",
+                           order_type="market", created_ms=10))
+        call = g.trading.place_order.call_args.kwargs
+        self.assertEqual(call["order_type"], "market")
+        self.assertEqual(call["slippage"], Decimal("0.005"))
+        self.assertEqual(call["cloid"], "0x123")
+        self.assertFalse(call["reduce_only"])
+
+    def test_limit_only_entry_transport_is_capped_limit_order(self):
+        g, info, row, _, _ = self.hl()
+        row["plan"]["entry_route"] = "limit"
+        g.trading.place_order.return_value = SimpleNamespace(status="submitted", response={})
+        g.submit(row, dict(id="0x123", kind="entry", quantity="1", price="100.1",
+                           order_type="limit", created_ms=10, expires_ms=20))
+        call = g.trading.place_order.call_args.kwargs
+        self.assertEqual((call["order_type"], call["price"], call["tif"]),
+                         ("limit", Decimal("100.1"), "Gtc"))
+        self.assertEqual(call["expires_after_ms"], 20)
+
     def test_entry_preflight_uses_instrument_buying_power_not_dex_withdrawable(self):
         g, info, row, _, _ = self.hl()
         info.clearinghouse_state.return_value["withdrawable"] = "0.0"
@@ -139,6 +177,15 @@ class ManagedGatewayTests(unittest.TestCase):
         self.assertEqual(snap["available_notional"], "200")
         self.assertNotIn("capital_evidence", snap)
         info.active_asset_data.assert_called_once_with("BTC")
+
+    def test_explicit_limit_only_entry_never_routes_to_market(self):
+        g, info, row, _, _ = self.hl()
+        row["plan"]["entry_route"] = "limit"
+        info.l2_book.return_value = {"time": 20, "levels": [
+            [{"px": "100", "sz": "1"}], [{"px": "100.1", "sz": "10"}]]}
+        with patch("kis_hl.trailing_runner.fetch_trailing_atr", return_value=(Decimal(2), [{"T": 10}])):
+            snap = g.preflight(row["plan"], 20)
+        self.assertEqual(snap["entry_order_type"], "limit")
 
     def test_add_preflight_collects_total_balance_separately_from_buying_power(self):
         g, info, row, _, _ = self.hl()

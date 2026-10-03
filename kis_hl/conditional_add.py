@@ -94,6 +94,12 @@ def preflight_add(gateway, store, owner, tranche, now):
     now = int(pre.get("observed_now_ms", now))
     validate_plan(p, now)
     Signals(store).check_authority({**owner, "plan": p}, now_ms=now)
+    if p.get("intraday_authorization"):
+        from kis_hl.intraday_add import confirm_breakout
+        confirm_breakout(p["condition_bars"], p["intraday_authorization"]["authorized_ms"],
+                         now, p["max_quote_age_ms"])
+        if decimal(p["limit_price"]) > decimal(p["hard_price_cap"]):
+            raise ValueError("Intraday add hard price cap exceeded")
     if (not pre["eligible"] or not pre["session_open"]
             or not 0 <= now - int(pre["time_ms"]) <= p["max_quote_age_ms"]
             or decimal(pre["position"]) != decimal(p["expected_size"])):

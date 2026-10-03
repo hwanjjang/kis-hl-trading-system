@@ -116,6 +116,27 @@ class ManagedHyperliquidGateway:
         ask = decimal(book["levels"][1][0]["px"], positive=True)
         return bid, ask, int(book["time"])
 
+    def _entry_quote(self, resolved, quantity):
+        """Use market only when visible full-size impact is within 50 bps."""
+        book = self.info.l2_book(resolved.coin)
+        bid = decimal(book["levels"][0][0]["px"], positive=True)
+        asks = book["levels"][1]
+        ask = decimal(asks[0]["px"], positive=True)
+        if ask < bid:
+            raise ValueError("Crossed execution book")
+        remaining, cost = quantity, Decimal(0)
+        for level in asks:
+            price = decimal(level["px"], positive=True)
+            depth = decimal(level["sz"], positive=True)
+            take = min(remaining, depth)
+            cost += take * price
+            remaining -= take
+            if remaining == 0:
+                break
+        # Incomplete depth cannot justify a market order.
+        market = remaining == 0 and (cost / quantity - bid) / bid <= Decimal("0.005")
+        return bid, ask, int(book["time"]), "market" if market else "limit"
+
     def _session(self, resolved, now):
         # Hyperliquid is a 24h venue; the underlying-market session is advisory
         # for HL (including trade.xyz RWA) entries and never blocks execution.
@@ -147,7 +168,13 @@ class ManagedHyperliquidGateway:
             ),
             "0",
         )
-        bid, ask, timestamp = self._quote(resolved)
+        if existing_position:
+            bid, ask, timestamp = self._quote(resolved)
+            entry_type = None
+        else:
+            bid, ask, timestamp, entry_type = self._entry_quote(resolved, decimal(p["quantity"], positive=True))
+            if p.get("entry_route") == "limit":
+                entry_type = "limit"
         portfolio = Decimal(0)
         group = Decimal(0)
         for dex in [None, "xyz"]:
@@ -169,9 +196,12 @@ class ManagedHyperliquidGateway:
                         group += value
         from kis_hl.trailing_runner import fetch_trailing_atr
 
-        atr, bars = fetch_trailing_atr(self.info, resolved.coin, now_ms=now)
+        if p.get('percentage_entry_authorization'):
+            atr, bars = decimal(p['atr']), []  # Schema compatibility only; no ATR exit policy.
+        else:
+            atr, bars = fetch_trailing_atr(self.info, resolved.coin, now_ms=now)
         capital = {}
-        if p.get("action") == "add":
+        if p.get("action") == "add" or p.get('percentage_entry_authorization'):
             from kis_hl.account_capital import capture_capital
             capital = {"capital_evidence": capture_capital(self.info, scope=self.scope,
                 now_ms=now, max_age_ms=p["max_quote_age_ms"])}
@@ -194,6 +224,7 @@ class ManagedHyperliquidGateway:
             "price": str(bid),
             "ask": str(ask),
             "time_ms": timestamp,
+            "entry_order_type": entry_type,
             "position": current,
             "available_notional": available_notional,
             "open_orders": [
@@ -209,8 +240,8 @@ class ManagedHyperliquidGateway:
             "atr": str(atr),
             "atr_source": {
                 "instrument": asset.id,
-                "basis": "Hyperliquid closed 1d bars / ATR(10)",
-                "last_bar_end_ms": bars[-1]["T"],
+                "basis": "Manual fixed SL / native percent; ATR not used" if not bars else "Hyperliquid closed 1d bars / ATR(10)",
+                "last_bar_end_ms": bars[-1]["T"] if bars else None,
                 "sha256": hashlib.sha256(encode(bars).encode()).hexdigest(),
             },
             "quantity_step": str(lot),
@@ -218,6 +249,38 @@ class ManagedHyperliquidGateway:
             "trailing_price_step": str(tick),
             "observed_now_ms": int(time.time() * 1000),
         }
+
+    def completed_nine_minute_bars(self, instrument_id, now):
+        """Derive two adjacent UTC-aligned 9m bars from complete native 1m bars."""
+        from kis_hl.intraday_add import NINE_MINUTES
+        asset, resolved, _, _ = self._market(instrument_id)
+        end = now // NINE_MINUTES * NINE_MINUTES
+        start = end - 2*NINE_MINUTES
+        raw = self.info.candle_snapshot(resolved.coin, interval="1m",
+                                       start_time_ms=start, end_time_ms=end)
+        minutes = {}
+        for bar in raw:
+            t = bar.get("t")
+            if type(t) is not int or t % 60000:
+                raise ValueError("Invalid native one-minute candle timestamp")
+            if not start <= t < end:
+                continue
+            if (bar.get("s") != resolved.coin or bar.get("i") != "1m"
+                    or bar.get("T") not in {t+59999, t+60000} or t in minutes):
+                raise ValueError("Invalid or duplicate native candle identity")
+            minutes[t] = bar
+        if set(minutes) != set(range(start, end, 60000)):
+            return []  # Incomplete history never establishes a breakout.
+        result = []
+        for left in (start, start+NINE_MINUTES):
+            rows = [minutes[t] for t in range(left, left+NINE_MINUTES, 60000)]
+            for bar in rows:
+                low, high = decimal(bar["l"], positive=True), decimal(bar["h"], positive=True)
+                if not low <= decimal(bar["c"], positive=True) <= high or not low <= decimal(bar["o"], positive=True) <= high:
+                    raise ValueError("Invalid native candle prices")
+            result.append(dict(start_ms=left, end_ms=left+NINE_MINUTES,
+                high=str(max(decimal(r["h"]) for r in rows)), close=str(decimal(rows[-1]["c"]))))
+        return result
 
     def snapshot(self, row, attempts, now):
         asset, resolved, lot, tick = self._market(row["plan"]["instrument"])
@@ -244,7 +307,7 @@ class ManagedHyperliquidGateway:
                 raise ValueError("Client order identifier mismatch")
             if order["side"] != ("B" if a["kind"] in {"entry", "add"} else "A") or order.get(
                 "reduceOnly"
-            ) != (a["kind"] not in {"entry", "add"}):
+            ) is not (a["kind"] not in {"entry", "add"}):
                 raise ValueError("Order direction or reduce-only contract mismatch")
             kind = (
                 "stop"
@@ -262,11 +325,16 @@ class ManagedHyperliquidGateway:
             trailing = {}
             if a["kind"] == "trailing":
                 from kis_hl.hyperliquid.trailing import TrailingConditionError, trailing_readback
-                try:
-                    trailing = trailing_readback(order, retracement=decimal(a["retracement"]))
-                except TrailingConditionError as exc:
-                    # Preserve independent SL/account evidence without claiming trail coverage.
-                    trailing = {"trailing_readback_error": str(exc)}
+                if status == "filled" and a.get("retracement_unit") == "percent":
+                    if order.get("orderType") != "Trailing Stop Market":
+                        raise ValueError("Filled percentage trailing order type mismatch")
+                else:
+                    try:
+                        trailing = trailing_readback(order, retracement=decimal(a["retracement"]),
+                            retracement_unit=a.get("retracement_unit", "quote"))
+                    except TrailingConditionError as exc:
+                        # Preserve independent SL/account evidence without claiming trail coverage.
+                        trailing = {"trailing_readback_error": str(exc)}
                 if decimal(order["sz"]) < 0 or decimal(order["sz"]) > decimal(a["quantity"]):
                     raise ValueError("Trailing order size mismatch")
                 kind = "trailing"
@@ -283,6 +351,9 @@ class ManagedHyperliquidGateway:
                 "side": "sell" if order["side"] == "A" else "buy",
                 "reduce_only": order.get("reduceOnly"),
                 "trigger_type": "sl" if kind == "stop" else None,
+                "position_tpsl": (a["kind"] == "stop" and kind == "stop"
+                                  and status == "open" and order.get("isPositionTpsl") is True
+                                  and decimal(order["sz"]) == 0),
             }
             observed.update(trailing)
             orders[str(query)] = orders[str(order["oid"])] = observed
@@ -304,14 +375,25 @@ class ManagedHyperliquidGateway:
             if a["kind"] in {"entry", "add"} and a.get("order_id")
         }
         owned = {str(a.get("order_id")) for a in attempts if a.get("order_id")}
-        relevant = {str(f["tid"]): f for f in fills if f["coin"] == resolved.coin}
+        relevant = {}
+        for f in fills:
+            if f["coin"] != resolved.coin:
+                continue
+            key = str(f["tid"])
+            if key in relevant and relevant[key] != f:
+                raise ValueError("Conflicting duplicate account fill")
+            relevant[key] = f
         net = Decimal(0)
         entry = Decimal(0)
         foreign = False
         fill_sizes = {}
         protective_ids = {str(a.get("order_id")) for a in attempts if a["kind"] in {"stop", "trailing"} and a.get("order_id")}
         protective_filled = Decimal(0)
-        for f in relevant.values():
+        fixed_stop_filled = Decimal(0)
+        fixed_ids = {str(a.get("order_id")) for a in attempts if a["kind"] == "stop"}
+        for f in sorted(relevant.values(), key=lambda f: (f["time"], int(f["tid"]))):
+            if row["plan"].get("native_trailing_percent") and decimal(f["startPosition"]) != net:
+                raise ValueError("Percentage tranche account fill generation is incomplete")
             qty = decimal(f["sz"], positive=True)
             if f["side"] == "B":
                 net += qty
@@ -324,6 +406,8 @@ class ManagedHyperliquidGateway:
                 net -= qty
                 if str(f["oid"]) in protective_ids:
                     protective_filled += qty
+                if str(f["oid"]) in fixed_ids:
+                    fixed_stop_filled += qty
             else:
                 raise ValueError("Unknown execution side")
         opens = self.info.frontend_open_orders(dex=resolved.dex)
@@ -340,6 +424,11 @@ class ManagedHyperliquidGateway:
             None,
         )
         size = decimal(pos["szi"]) if pos else Decimal(0)
+        # Zero is a position-level sentinel only for an exact verified live SL.
+        # Preserve wire size separately; coverage comes from reconciled account size.
+        for observed in orders.values():
+            observed["coverage_size"] = (str(size) if observed["position_tpsl"]
+                and size > 0 and net == size and not foreign else observed["size"])
         try:
             bid, ask, timestamp = self._quote(resolved)
         except (ValueError, KeyError, IndexError, RuntimeError, OSError):
@@ -350,6 +439,7 @@ class ManagedHyperliquidGateway:
             "entry_price": str(pos["entryPx"]) if pos and size else "0",
             "entry_filled": str(entry),
             "protective_filled": str(protective_filled),
+            "fixed_stop_filled": str(fixed_stop_filled),
             "fills_by_attempt": {a["id"]: str(fill_sizes.get(str(a.get("order_id")), 0))
                                  for a in attempts if a["kind"] in {"entry", "add"}},
             "price": str(bid),
@@ -373,25 +463,33 @@ class ManagedHyperliquidGateway:
         asset = instrument(row["plan"]["instrument"])
         from kis_hl.managed_execution import entry_permit
 
+        if a['kind'] == 'entry' and row['plan'].get('percentage_entry_authorization'):
+            if row['scope'] != self.scope or row['mode'] != 'live':
+                raise ValueError('NEW percentage transport requires the exact live account scope')
+            from kis_hl.percentage_entry import check_send
+            check_send(row, a, int(time.time()*1000))
         if a["kind"] == "trailing":
             result = self.trading.place_trailing_stop_order(
                 symbol=asset.symbol, side="sell", size=decimal(a["quantity"]),
                 retracement=decimal(a["retracement"]), dry_run=False,
+                retracement_unit=a.get("retracement_unit", "quote"),
                 expires_after_ms=a["created_ms"] + row["plan"]["max_quote_age_ms"],
             )
             return {"status": result.status,
                     "order_id": extract_hyperliquid_order_id(result.response) if result.status == "submitted" else None}
         with entry_permit(self.scope, asset.id, a["id"]):
+            entry_market = a["kind"] == "entry" and a.get("order_type") == "market"
             result = self.trading.place_order(
                 symbol=asset.symbol,
                 side="buy" if a["kind"] in {"entry", "add"} else "sell",
-                order_type="stop-market" if a["kind"] == "stop" else "limit",
+                order_type="stop-market" if a["kind"] == "stop" else "market" if entry_market else "limit",
                 size=decimal(a["quantity"]),
                 price=decimal(a["price"]),
                 trigger_price=(
                     decimal(a["trigger_price"]) if a["kind"] == "stop" else None
                 ),
                 reduce_only=a["kind"] not in {"entry", "add"},
+                slippage=Decimal("0.005") if entry_market else decimal(row["plan"]["slippage"]),
                 tif="Ioc" if a["kind"] == "exit" else "Gtc",
                 cloid=a["id"],
                 dry_run=False,

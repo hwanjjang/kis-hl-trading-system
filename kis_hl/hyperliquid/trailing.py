@@ -92,8 +92,9 @@ def parse_trailing_condition(condition):
     return result
 
 
-def trailing_readback(order, *, retracement):
-    """Verify managed long protective quote-distance semantics, never infer ownership."""
+def trailing_readback(order, *, retracement, retracement_unit="quote"):
+    """Verify explicitly selected long trailing semantics; never infer ownership."""
+    retracement_wire(retracement, retracement_unit)
     if (order.get("orderType") != "Trailing Stop Market" or order.get("isTrigger") is not True
             or order.get("reduceOnly") is not True or order.get("side") != "A"):
         raise ValueError("Native trailing order semantics did not match")
@@ -101,12 +102,14 @@ def trailing_readback(order, *, retracement):
         result = parse_trailing_condition(order.get("triggerCondition"))
     except ValueError as exc:
         raise TrailingConditionError(str(exc)) from exc
-    if result["retracement_unit"] != "quote" or positive(result["retracement"]) != positive(retracement):
+    if result["retracement_unit"] != retracement_unit or positive(result["retracement"]) != positive(retracement):
         raise ValueError("Native trailing retracement mismatch")
     if "activation_price" in result:
         raise ValueError("Native trailing activation mismatch; immediate activation required")
     if result["active"]:
-        threshold = positive(result["best_price"]) - positive(result["retracement"])
+        best = positive(result["best_price"])
+        distance = positive(result["retracement"])
+        threshold = best * (Decimal(1) - distance / Decimal(100)) if retracement_unit == "percent" else best - distance
         if threshold <= 0:
             raise ValueError("Invalid native trailing threshold")
         result["trigger_price"] = wire_decimal(threshold)

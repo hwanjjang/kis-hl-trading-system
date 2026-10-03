@@ -62,6 +62,15 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `docs/strategy_execution_design.md` records the strategy skill/tool integration and existing execution limits. Hermes loads `.agents/skills/trend-strategy/` for strategy judgment and owns timing/briefings/notification. `kis_hl.strategy_tools` supplies deterministic indicators, setup predicates, ATR stop proposals, risk-unit sizing and decision evidence through the existing CLI. `kis_hl.timing_opinion` optionally asks TypeSafe's Jev model for an advisory long/short/wait opinion that is retained with a decision but never grants authority. Decisions reuse `strategy_signals`; protected execution and trailing remain in the existing supervisor rather than a new strategy daemon.
 
+`kis_hl.percentage_entry` checks explicit account/mode-bound manual NEW authority,
+completed adjacent UTC epoch-nine-minute breakout, inward hard price cap and fresh
+account-total sizing. The existing supervisor retains all entry guards and fixed-SL
+coverage before percent native trailing. `kis_hl.eth_new_entry_watch` is a
+paper-default public-read watcher and queue-only handoff, not another signed order
+transport. Its stable decision ID uses the existing SQLite managed-intent claim;
+no operational database, supervisor restart or scheduler change is performed by
+implementation. See the [activation and rollout contract](trading-operations.md#explicit-manual-new-percentage-entry).
+
 ## Hyperliquid execution identity
 
 `HyperliquidConfig.account_address` is always the effective execution account.
@@ -274,6 +283,17 @@ Binance tick capture deliberately uses the legacy `market_ticks` table. It is no
 Use separate `--db` paths for each Binance environment and key profile: legacy ticks and order events have no account/environment columns. Streams are observational, with no replay or REST gap reconciliation. Per-tick synchronous SQLite writes can lag high-volume streams; use `--no-store` for observation until a bounded buffered writer is implemented. Storage failures and reconnects can leave gaps. These tables must not serve as authoritative protection or position state.
 
 ## Conditional add ownership
+
+`intraday_add.py` implements the explicit direct-authority exception for already
+adopted native percentage owners: it checks newly completed adjacent UTC 9m high
+breakouts, fresh account-total sizing and an inward-rounded close * 1.003 hard
+exchange limit. This is not a weekly strategy signal. The existing supervisor and
+attempt ledger own transport, fixed-SL and per-increment percentage trailing
+coverage; no second worker or table is added. Exact-ID percentage handoff/migration
+uses `manual_adoption.py` and atomic `ExecutionStore.complete_adoption`, preserving
+owner and native IDs and the exchange's existing watermark. Details, Python APIs
+and unverified live assumptions are owned by
+[operations](trading-operations.md#exact-id-external-percentage-trailing-handoff-python-api).
 
 `account_capital.py` reconciles supported account-total evidence; `conditional_add.py`
 validates the bounded source/position/sizing contract. `Signals` reserves the approved

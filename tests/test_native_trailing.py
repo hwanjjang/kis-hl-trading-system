@@ -318,7 +318,7 @@ class NativeTrailingManagedTests(unittest.TestCase):
         p = plan(trailing_provider="native")
         p.update(limit_price="100000", max_notional="100001", max_portfolio_notional="1000000", max_correlated_notional="500000")
         preflight, snapshot = self.g.preflight, self.g.snapshot
-        self.g.preflight = lambda *a: preflight(*a) | {"price": "100000", "ask": "100000.1", "price_step": "0.1", "trailing_price_step": "0.1", "available_notional": "1000000"}
+        self.g.preflight = lambda *a: preflight(*a) | {"price": "100000", "ask": "100000", "entry_order_type": "limit", "price_step": "0.1", "trailing_price_step": "0.1", "available_notional": "1000000"}
         self.g.snapshot = lambda *a: snapshot(*a) | {"price": "100000", "entry_price": "100000", "price_step": "10", "trailing_price_step": "0.1"}
         observed_before_entry = []
         original = self.g.submit

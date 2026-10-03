@@ -141,6 +141,11 @@ class Signals:
 
     def check_authority(self, row, *, now_ms):
         p = row["plan"]
+        if p.get("intraday_authorization"):
+            from kis_hl.intraday_add import check_intraday_authority
+            owner = self.store.get(p["position_id"])
+            check_intraday_authority(owner, p, now_ms)
+            return
         if p.get("signal_id"):
             with self.store.connect() as db:
                 raw = db.execute(
