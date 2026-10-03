@@ -80,6 +80,12 @@ def parse_trailing_condition(condition):
     raw = fields["retracement"]
     unit = "percent" if raw.endswith("%") else "quote"
     distance = positive(raw[:-1] if unit == "percent" else raw)
+    if unit == "percent":
+        if distance >= 100:
+            raise ValueError("Percent retracement must be below 100")
+        # Readback-only owner policy: truncate percentage points, never round up.
+        # Signed input precision and quote-distance/price/watermark remain unchanged.
+        distance = distance.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
     retracement_wire(distance, unit)
     best = fields.get("best", "waiting")
     result = {"retracement": wire_decimal(distance), "retracement_unit": unit,

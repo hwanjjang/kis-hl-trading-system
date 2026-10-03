@@ -39,6 +39,16 @@ class PercentageAdoptionTests(unittest.TestCase):
         self.c.g.trading.place_order.assert_not_called()
         self.c.g.trading.place_trailing_stop_order.assert_not_called()
 
+    def test_float_percentage_import_preserves_exact_native_orders(self):
+        self.c.orders[99]["order"]["triggerCondition"] = (
+            "Activation immediate, retracement 8.350000000000001%, best 105")
+        row = self.queue(); before = copy.deepcopy(self.c.orders)
+        self.assertEqual(self.c.step(row)["state"], "PROTECTING")
+        self.assertEqual(self.c.step(row, 22)["state"], "PROTECTED")
+        self.assertEqual(self.c.orders, before)
+        self.c.g.trading.place_order.assert_not_called()
+        self.c.g.trading.place_trailing_stop_order.assert_not_called()
+
     def test_existing_intervention_owner_migrates_in_place(self):
         row = self.c.queue(local_trailing_backup=False, fixed_stop_price="96")
         self.assertEqual(self.c.step(row)["state"], "INTERVENTION")
