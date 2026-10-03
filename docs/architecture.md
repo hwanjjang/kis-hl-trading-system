@@ -62,6 +62,8 @@ The project favors a narrow CLI-first shape before adding daemons or strategy au
 
 `docs/strategy_execution_design.md` records the strategy skill/tool integration and existing execution limits. Hermes loads `.agents/skills/trend-strategy/` for strategy judgment and owns timing/briefings/notification. `kis_hl.strategy_tools` supplies deterministic indicators, setup predicates, ATR stop proposals, risk-unit sizing and decision evidence through the existing CLI. `kis_hl.timing_opinion` optionally asks TypeSafe's Jev model for an advisory long/short/wait opinion that is retained with a decision but never grants authority. Decisions reuse `strategy_signals`; protected execution and trailing remain in the existing supervisor rather than a new strategy daemon.
 
+`kis_hl.advisory_ts` supplies the read-only nine-minute TS advisory monitor. It validates complete candle coverage before advancing a separate alert watermark, records allowlisted failure diagnostics per symbol and emits one verified recovery transition. `scripts/hl_9m_ts_alert.py` handles scheduling entry and stdout delivery; Hermes retains notification delivery. Operational ownership is read-only and exchange reads use only `HyperliquidInfoClient`; the execution supervisor and native orders remain separate. See [advisory operations and scoped installation](trading-operations.md#nine-minute-ts-advisory-monitor).
+
 ## Hyperliquid execution identity
 
 `HyperliquidConfig.account_address` is always the effective execution account.

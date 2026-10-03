@@ -1060,3 +1060,88 @@ buying-power semantics, concurrent native trail acceptance/retention, activation
 trigger-time fills, cancel races, latency and restart timing. Passing local checks
 does not prove exchange behavior. The earlier 0.5-unit ETH conversation remains
 unarmed without a complete approved plan, expiry and fresh total-balance evidence.
+
+## Nine-minute TS advisory monitor
+
+The profile cron monitor is notification-only. `kis_hl.advisory_ts` owns its tested
+aggregation, validation and separate SQLite alert state; the profile script is the
+versioned `scripts/hl_9m_ts_alert.py` stdout wrapper. Hermes owns scheduling and
+notification delivery. Neither script submits, cancels or changes exchange orders;
+managed execution and the existing native protections retain their authority.
+
+The monitor reconstructs trade-candle highs as a proxy for sampled bid highs. It
+keeps the existing nine-minute buckets, 15-second grace, frozen entry ATR distance
+and threshold calculation. Every bucket needs all nine valid one-minute bars.
+A missing or boundary-invalid minute produces `coverage_gap`; no bar is filled in.
+The previous `bars.last_end`, high and threshold remain unchanged, and the next
+scheduled tick requests the same pending start. A failed bid or owner/exposure
+check also leaves bar state unchanged. Candidate bars, successful alerts and the
+verified diagnostic use a per-symbol savepoint: a late write failure rolls them
+back before reporting degradation, and breach/recovery messages are released only
+after those writes succeed. A normally reconciled `CLOSED` owner with local size
+zero and verified absent exchange exposure stops observation; a zero local size
+with positive exchange exposure is an exposure mismatch. History beyond 4900 constituent minutes
+produces `retention_limit`; do not reset bars to hide the gap.
+
+`diagnostics` is an additive table in the existing alert database. Its allowlisted
+JSON includes operation, stable reason, fixed explanation, failing bucket and
+missing minute timestamps, observation time, last successful observation, prior
+watermark and covered-through time. All timestamps use UTC epoch milliseconds.
+Protection presence (`fixed_sl`, `native_ts`) is separate from observation health.
+A scheduler exit of zero means the tick completed; one or both symbols may still
+be degraded. An unavailable owner affects that symbol; unavailable shared account
+readback explicitly degrades affected symbols. An absent position stops observation
+without declaring recovery. Missing full-size protection raises its own warning,
+independently of a verified advisory calculation.
+
+| Reason | Operator action |
+| --- | --- |
+| `coverage_gap` | Inspect bucket/missing timestamps; allow the pending bucket to retry. |
+| `retention_limit` | Investigate unrecoverable source history; do not manufacture bars or reset the watermark. |
+| `exposure_mismatch` | Compare local ownership and exchange quantity through the existing supervisor. |
+| `entry_evidence_missing` | Verify persisted entry time or matching entry-order fills. |
+| `invalid_bid` / `invalid_schema` | Check quote/source schema; no advisory crossing is inferred. |
+| `owner_missing` / `owner_identity_mismatch` | Verify the configured owner and live instrument identity. |
+| `configuration_mismatch` | Verify mainnet and the expected execution account locally. |
+| `read_unavailable` / `unexpected_failure` | Investigate the named operation; transport exception text is deliberately omitted. |
+
+Repeated failures deduplicate by reason. A different reason notifies even when
+both errors derive from `ValueError`. The first fully verified tick after a
+failure emits one recovery with `covered_through_ms`; later healthy ticks are
+silent. Existing legacy `error=ValueError` rows follow the same verified recovery
+path. State never retains credentials, arbitrary exception messages, or complete
+account payloads. A later complete candle response does not establish why an
+older run failed; the October 2 KORU incident remains unconfirmed.
+
+### Scoped installation and read-only verification
+
+Start from the existing profile script. The installer extracts only its repository
+root, expected public account and named owner IDs into a local sibling JSON file.
+It preserves all unrelated deployment edits and the cron command. By default it
+only previews target hashes; `--apply` explicitly installs the advisory module,
+local configuration and thin wrapper. It writes a backup manifest before replacing
+files, installs the wrapper last, and verifies exact source bytes. Do not sync an
+entire dirty deployment checkout.
+
+```bash
+python3 scripts/install_hl_9m_ts_alert.py --profile-script /path/to/profile/scripts/hl_9m_ts_alert.py
+python3 scripts/install_hl_9m_ts_alert.py --profile-script /path/to/profile/scripts/hl_9m_ts_alert.py --apply
+python3 /path/to/profile/scripts/hl_9m_ts_alert.py --state-path /tmp/hl-9m-ts-check.sqlite --report
+```
+
+For a diagnostic preserving historical context, back up the alert database through
+SQLite's backup API into the scratch path first. `--state-path` changes only the
+monitor database; operational owners are always opened with `mode=ro`. `--report`
+prints sanitized verified/degraded evidence even when no notification is due.
+A scratch invocation does not consume production recovery deduplication. The
+normal cron invocation keeps the existing state path and prints notifications
+only. Configuration/module/storage failures return a scheduler failure with fixed
+sanitized text. Verify module/wrapper hashes and cron path after installation.
+Restore each pre-existing file from the installer backup manifest to roll back;
+remove only task-added files identified by `existed=false`. Retain the alert
+watermark and additive diagnostics table.
+
+Run `python3 -m unittest tests.test_advisory_ts -q` and
+`python3 scripts/smoke_advisory_ts.py` for offline regressions and a distinct
+SQLite/recorded-info transport smoke. The synthetic missing-minute fixture proves
+the failure/retry path, not the historical incident cause.
