@@ -250,6 +250,68 @@ class ManagedExecutionTests(unittest.TestCase):
         self.assertEqual(self.store.get(row["id"])["state"], "INTERVENTION")
         self.assertEqual(len(self.g.sent), 1)
 
+    def test_first_sanitized_intervention_cause_survives_polls_and_restart(self):
+        import json
+        row = self.queue()
+        self.worker.step(row["id"], 10)
+        original_snapshot = self.g.snapshot
+        context = {"tick_ms": 20, "fill_cutoff_ms": 28, "observed_now_ms": 30,
+                   "readback_attempt": 3}
+        self.g.snapshot = lambda *args: original_snapshot(*args) | {
+            "consistent": False, "reconciliation_context": context, "observed_now_ms": 30}
+        first = self.worker.step(row["id"], 20)
+        self.assertEqual(first["state"], "INTERVENTION")
+        cause = first["first_intervention"]
+        self.assertEqual(cause["category"], "ValueError")
+        self.assertEqual(cause["reason"], "External ownership or inconsistent exposure")
+        self.assertEqual(cause["context"], context)
+        self.assertEqual(cause["observed_ms"], 30)
+        self.g.snapshot = lambda *args: (_ for _ in ()).throw(
+            ValueError("private_key=SECRET https://account:TOKEN@example.test"))
+        result = Supervisor(self.store, self.g, live=True).step(row["id"], 40)
+        self.assertEqual(result["first_intervention"], cause)
+        self.assertEqual(result["reason"], first["reason"])
+        self.assertNotIn("SECRET", json.dumps(result))
+        with self.store.connect() as db:
+            events = list(db.execute("SELECT reason,details FROM managed_events WHERE position_id=?", (row["id"],)))
+        self.assertNotIn("SECRET", str([tuple(e) for e in events]))
+        details = json.loads(events[-1]["details"])
+        self.assertEqual(details["first_intervention"], cause)
+        self.assertEqual(details["error"]["reason"], "Invalid execution evidence")
+        self.g.size = self.g.filled = "1"
+        self.g.snapshot = original_snapshot
+        result = self.worker.step(row["id"], 50)
+        self.assertEqual(result["state"], "INTERVENTION")
+        self.assertIsNone(result["trail"])
+        self.assertEqual(len(self.g.sent), 1)
+
+    def test_event_details_migration_preserves_legacy_rows_and_is_idempotent(self):
+        import sqlite3
+        path = Path(self.tmp.name) / "legacy.sqlite"
+        with sqlite3.connect(path) as db:
+            db.execute("CREATE TABLE managed_events(id INTEGER PRIMARY KEY, position_id TEXT NOT NULL, "
+                       "time_ms INTEGER NOT NULL, state TEXT NOT NULL, reason TEXT NOT NULL)")
+            db.execute("INSERT INTO managed_events VALUES(1, 'old', 20, 'INTERVENTION', 'legacy cause')")
+        ExecutionStore(path)
+        migrated = ExecutionStore(path)
+        with migrated.connect() as db:
+            event = dict(db.execute("SELECT * FROM managed_events").fetchone())
+        self.assertEqual(event["reason"], "legacy cause")
+        self.assertEqual(event["details"], "{}")
+
+    def test_read_failure_events_suppress_transport_payloads(self):
+        import json
+        row = self.queue()
+        self.worker.step(row["id"], 10)
+        self.g.snapshot = lambda *args: (_ for _ in ()).throw(OSError("credential=SECRET"))
+        for now in (20, 30, 40):
+            result = self.worker.step(row["id"], now)
+        self.assertEqual(result["first_intervention"]["category"], "OSError")
+        with self.store.connect() as db:
+            details = [json.loads(r[0]) for r in db.execute("SELECT details FROM managed_events")]
+        self.assertNotIn("SECRET", json.dumps(details))
+        self.assertEqual(details[-1]["error"]["reason"], "Account snapshot unavailable")
+
     def test_unknown_entry_is_not_resent(self):
         row = self.queue()
 

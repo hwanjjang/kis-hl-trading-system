@@ -89,7 +89,7 @@ class ReplayExchange:
         if kind == "exit":
             assert request["reduce_only"] is True and request["tif"] == "Ioc"
         return self._accept(kind, {"side": "B" if kind == "entry" else "A",
-            "sz": str(request["size"]), "limitPx": str(request["price"]),
+            "sz": str(request["size"]), "origSz": str(request["size"]), "limitPx": str(request["price"]),
             "cloid": request["cloid"], "reduceOnly": request["reduce_only"],
             "isTrigger": kind == "stop", "orderType": "Stop Market" if kind == "stop" else "Limit",
             "triggerPx": str(request["trigger_price"] or "0")})

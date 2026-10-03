@@ -220,8 +220,27 @@ class ManagedHyperliquidGateway:
         }
 
     def snapshot(self, row, attempts, now):
+        # These endpoints are not atomic. Retry the entire read set, never just
+        # relabel a truncated history with the later account observation time.
+        for readback in range(1, 4):
+            row["reconciliation_context"] = {
+                "tick_ms": now, "snapshot_started_ms": max(now, int(time.time() * 1000)),
+                "readback_attempt": readback, "phase": "orders",
+            }
+            try:
+                snap = self._snapshot_once(row, [dict(a) for a in attempts], now)
+            except (ValueError, KeyError, TypeError, RuntimeError, OSError, IndexError, StopIteration):
+                row["reconciliation_context"]["observed_now_ms"] = max(now, int(time.time() * 1000))
+                raise
+            if snap["consistent"] or snap["foreign_add"]:
+                return snap
+        return snap
+
+    def _snapshot_once(self, row, attempts, now):
+        context = row["reconciliation_context"]
         asset, resolved, lot, tick = self._market(row["plan"]["instrument"])
         orders = {}
+        original_sizes = {}
         for a in attempts:
             if a["kind"] == "cancel":
                 continue
@@ -286,10 +305,13 @@ class ManagedHyperliquidGateway:
             }
             observed.update(trailing)
             orders[str(query)] = orders[str(order["oid"])] = observed
+            if a["kind"] in {"entry", "add"}:
+                original_sizes[str(order["oid"])] = decimal(order["origSz"], positive=True)
+        context.update(phase="fills", fill_cutoff_ms=max(now, int(time.time() * 1000)))
         fills = fetch_time_pages(
             lambda a, b: self.info.user_fills_by_time(start_time_ms=a, end_time_ms=b),
             row.get("fill_history_start_ms", row["created_ms"]),
-            now,
+            context["fill_cutoff_ms"],
             limit=2000,
         )
         if len(fills) >= 10000:
@@ -326,11 +348,22 @@ class ManagedHyperliquidGateway:
                     protective_filled += qty
             else:
                 raise ValueError("Unknown execution side")
+        order_fills_match = True
+        for oid, original in original_sizes.items():
+            observed = orders[oid]
+            filled = fill_sizes.get(oid, Decimal(0))
+            if observed["status"] == "filled":
+                order_fills_match &= filled == original
+            elif observed["status"] == "open":
+                order_fills_match &= filled + decimal(observed["size"]) == original
+        context["phase"] = "open_orders"
         opens = self.info.frontend_open_orders(dex=resolved.dex)
         foreign |= any(
             o["coin"] == resolved.coin and str(o["oid"]) not in owned for o in opens
         )
+        context["phase"] = "exposure"
         state = self.info.clearinghouse_state(dex=resolved.dex)
+        context["exposure_observed_ms"] = max(now, int(time.time() * 1000))
         pos = next(
             (
                 x["position"]
@@ -340,10 +373,14 @@ class ManagedHyperliquidGateway:
             None,
         )
         size = decimal(pos["szi"]) if pos else Decimal(0)
+        context.update(history_net=str(net), observed_size=str(size), foreign_evidence=foreign,
+                       mismatch="exposure" if net != size else "order_fills" if not order_fills_match else None,
+                       phase="quote")
         try:
             bid, ask, timestamp = self._quote(resolved)
         except (ValueError, KeyError, IndexError, RuntimeError, OSError):
             bid, ask, timestamp = Decimal(0), Decimal(0), 0
+        context.update(phase="complete", observed_now_ms=max(now, int(time.time() * 1000)))
         # HL reduce-only exits remain available outside the underlying entry session.
         return {
             "size": str(size),
@@ -362,11 +399,12 @@ class ManagedHyperliquidGateway:
             "session_open": True,
             "foreign_add": foreign,
             "orders": orders,
-            "consistent": net == size,
+            "consistent": net == size and order_fills_match,
+            "reconciliation_context": dict(context),
             "price_step": str(max(tick, Decimal(10) ** (bid.adjusted() - 4))),
             "trailing_price_step": str(tick),
             "quantity_step": str(lot),
-            "observed_now_ms": int(time.time() * 1000),
+            "observed_now_ms": context["observed_now_ms"],
         }
 
     def submit(self, row, a):
