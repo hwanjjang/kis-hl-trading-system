@@ -49,7 +49,8 @@ class ReplayExchange:
 
     def l2_book(self, symbol):
         assert symbol == "BTC"
-        return {"time": self.now, "levels": [[{"px": "100000"}], [{"px": "100000.1"}]]}
+        return {"time": self.now, "levels": [[{"px": "100000", "sz": "10"}],
+                                             [{"px": "100001", "sz": "10"}]]}
 
     def candle_snapshot(self, symbol, *, dex, interval, start_time_ms, end_time_ms):
         assert symbol == "BTC" and dex is None and interval == "1d"
@@ -117,7 +118,8 @@ def replay_managed_lifecycle(root, *, reject_trailing, condition_failure=None):
     exchange = ReplayExchange(store, reject_trailing=reject_trailing)
     gateway = ManagedHyperliquidGateway(exchange, exchange)
     p = plan(trailing_provider="native")
-    p.update(limit_price="100000", max_notional="100001", max_portfolio_notional="1000000",
+    # Keep this lifecycle replay limit-only; market routing has separate tests.
+    p.update(entry_route="limit", limit_price="100000", max_notional="100001", max_portfolio_notional="1000000",
              max_correlated_notional="500000", expires_ms=exchange.now + 100000)
     row = store.enqueue(gateway.scope, p, live=True, now_ms=exchange.now)
     exchange.position_id = row["id"]
