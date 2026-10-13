@@ -206,9 +206,12 @@ class KisClient:
             body=response.body
             if response.status>=400 or not isinstance(body,dict) or body.get('rt_cd')!='0':
                 error=RuntimeError('KIS account inquiry failed')
-                # Availability failure (HTTP/broker refusal), unlike malformed pages below.
-                error.read_unavailable=True
-                error.kind,error.http_status=('http',response.status) if response.status>=400 else ('other',None)
+                # Only an HTTP failure or a well-formed broker refusal is a read-availability
+                # failure; a malformed success envelope is invalid evidence (unmarked).
+                refusal=isinstance(body,dict) and isinstance(body.get('rt_cd'),str) and body['rt_cd'].strip() not in {'','0'}
+                if response.status>=400 or refusal:
+                    error.read_unavailable=True
+                    error.kind,error.http_status=('http',response.status) if response.status>=400 else ('other',None)
                 raise error
             if page_observer is not None:
                 page_observer(response)

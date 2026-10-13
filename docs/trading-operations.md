@@ -1134,10 +1134,12 @@ A read failure here means a read-availability failure:
 
 - an `OSError` transport or timeout error;
 - an error the venue client marks `read_unavailable`: Hyperliquid
-  `TransientInfoError` or HTTP failures, KIS HTTP or broker refusals of an account
-  inquiry, and KIS token throttling or HTTP failures.
+  `TransientInfoError` or HTTP failures; a KIS account inquiry that returns
+  HTTP >= 400, or a well-formed broker refusal (a string `rt_cd` other than `"0"`);
+  and KIS token throttling or HTTP failures.
 
-A successful response with a malformed or unexpected shape, a pagination error, an
+A successful response with a malformed or unexpected shape (including a KIS
+envelope that is not an object or lacks a valid `rt_cd`), a pagination error, an
 identity mismatch or any other invalid evidence is not an outage. It keeps the
 fail-closed `INTERVENTION` and requires manual reconciliation.
 
@@ -1226,14 +1228,18 @@ outages. Such latches are kept and never cleared in bulk. Exit provenance is:
   `flag+event` while the `read_failure_exit` flag is still pending);
 - `ambiguous_legacy` when the flag is present but the request predates that
   transition. The old code also set the flag on top of an earlier operator or
-  protection exit. Such a request is honored within its original budget, and it
-  cannot be withdrawn;
+  protection exit. Such a request cannot be withdrawn. It is honored within its
+  original budget, but only after any current `INTERVENTION` has been explicitly
+  recovered;
 - `other` otherwise.
 
 A pending `read_outage_latch` with residual exposure holds the owner in
 `INTERVENTION` ("Legacy read-outage exit latch retained") and sends nothing. An
-`ambiguous_legacy` flag is dropped and the earlier request proceeds. Once the
-owner is flat, the flag is dropped so that ordinary cleanup can run.
+`ambiguous_legacy` flag never releases an `INTERVENTION` by itself, because it
+cannot show which blocker is current: a later identity or ownership conflict stays
+manual. After an explicit `order recover`, the flag is dropped and the earlier
+request proceeds. Once the owner is flat, the flag is dropped so that ordinary
+cleanup can run.
 
 To resolve an exhausted legacy latch, first get separate explicit authorization
 for that owner, then:

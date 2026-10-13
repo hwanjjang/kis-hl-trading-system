@@ -79,7 +79,8 @@ authorization for that exact owner.
    command refuses a wrong time, any other provenance, an existing exit attempt,
    an UNKNOWN or unresolved entry/add, a recorded protective fill, or a pending
    entry cancellation. A flag on an older independent request shows provenance
-   `ambiguous_legacy`, cannot be withdrawn, and that earlier request is honored. It never renews a budget and never sends an order.
+   `ambiguous_legacy` and cannot be withdrawn. After an explicit `order recover`,
+   that earlier request is honored within its original budget. It never renews a budget and never sends an order.
 3. Run `order recover --id ID`. The next supervisor tick reconciles with
    unchanged budgets. In the example it returns to `PROTECTED` with no new orders.
 

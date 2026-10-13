@@ -14,6 +14,7 @@ import sqlite3
 
 from kis_hl import managed_execution
 from kis_hl.managed_execution import ExecutionStore, Supervisor
+from kis_hl.kis.client import KisHttpResponse
 from tests.read_errors import read_unavailable
 from tests.test_kis_adoption import NOW, FixtureKisGateway, plan as kis_plan
 from tests.test_managed_execution import Gateway, plan
@@ -295,10 +296,35 @@ class LegacyLatchTests(HyperliquidOwnerBase):
         self.assertEqual(diag["exit"]["provenance"]["kind"], "ambiguous_legacy")
         with self.assertRaisesRegex(ValueError, "ambiguous_legacy"):
             self.store.withdraw_read_outage_exit(pid, 35, now_ms=70)
+        # R2-F1: the flag does not prove why the owner is in INTERVENTION; wait for recover.
         result = self.worker.step(pid, 80)
+        self.assertEqual(result["state"], "INTERVENTION")
+        self.assertEqual([a["kind"] for a in self.g.sent], ["entry", "stop"])
+        self.store.recover_intervention(pid, 85)
+        result = self.worker.step(pid, 90)
         self.assertNotIn("read_failure_exit", result)
         self.assertEqual(result["exit_requested_ms"], 35)
         self.assertEqual(self.g.sent[-1]["kind"], "exit")
+
+    def test_ambiguous_flag_never_releases_a_later_ownership_intervention(self):
+        # R2-F1: a later identity/ownership blocker stays manual despite the old flag.
+        pid = self.protect()
+        row = self.store.get(pid)
+        row["exit_requested_ms"] = 35
+        self.store.save(row, 35)
+        row = self.store.get(pid)
+        row.update(state="DEGRADED", reason="Account snapshot unavailable (OSError); consecutive failures=2; awaiting readback")
+        self.store.save(row, 50)
+        self.latch(pid, 35, flag=True, event_ms=60)
+        self.recover(foreign_add=True)
+        blocked = self.worker.step(pid, 70)
+        self.assertEqual(blocked["reason"], "Preflight or reconciliation failed (ValueError): External ownership or inconsistent exposure")
+        self.assertTrue(blocked["read_failure_exit"])
+        self.recover()
+        for now in (80, 90):
+            result = self.worker.step(pid, now)
+            self.assertEqual(result["state"], "INTERVENTION")
+        self.assertEqual([a["kind"] for a in self.g.sent], ["entry", "stop"])
 
     def test_outage_event_inside_existing_intervention_is_not_a_latch(self):
         pid = self.protect()
@@ -454,6 +480,15 @@ class KisReadOutageTests(unittest.TestCase):
         self.assertIsNone(result["exit_requested_ms"])
         self.assertEqual(self.g.sent, [])
 
+    def test_malformed_kis_envelope_from_real_client_stays_fail_closed(self):
+        # R1-F3 (round 2): HTTP 200 with a malformed envelope is invalid evidence.
+        error = KisClientReadAvailabilityTests().raised_from(KisHttpResponse(200, [], {}))
+        self.g.client.account_pages.side_effect = error
+        self.assertEqual(self.step(NOW + 5_000)["state"], "INTERVENTION")
+        self.g.client.account_pages.side_effect = None
+        self.assertEqual(self.step(NOW + 10_000)["state"], "INTERVENTION")
+        self.assertEqual(self.store.notifications(self.g.scope, "live"), [])
+
     def test_malformed_kis_account_page_stays_fail_closed(self):
         # R1-F3: a malformed page is invalid evidence, never a warning-only outage.
         self.g._history = Mock(side_effect=RuntimeError("Malformed KIS account page"))
@@ -554,6 +589,9 @@ class KisClientReadAvailabilityTests(unittest.TestCase):
         return KisClient(load_kis_config(env))
 
     def raised(self, response):
+        return self.raised_from(response)
+
+    def raised_from(self, response):
         client = self.client()
         with patch.object(client, "_request_with_auth", return_value=response), \
                 self.assertRaises(RuntimeError) as caught:
@@ -569,6 +607,9 @@ class KisClientReadAvailabilityTests(unittest.TestCase):
         self.assertTrue(managed_execution.read_unavailable(refusal))
         malformed = self.raised(KisHttpResponse(200, {"rt_cd": "0", "output": "not-a-list"}, {"tr_cont": "D"}))
         self.assertFalse(managed_execution.read_unavailable(malformed))
+        for body in ([], {}, {"rt_cd": 0}, {"rt_cd": ""}, {"msg1": "no code"}):
+            with self.subTest(body=body):
+                self.assertFalse(managed_execution.read_unavailable(self.raised(KisHttpResponse(200, body, {}))))
 
 
 class InfoClientClassificationTests(unittest.TestCase):

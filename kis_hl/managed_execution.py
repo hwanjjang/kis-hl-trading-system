@@ -1140,11 +1140,10 @@ class Supervisor:
                 self._state(row, "INTERVENTION", "Legacy read-outage exit latch retained; explicit scoped "
                             "withdrawal or exit decision required", now)
                 return
-            row.pop("read_failure_exit")
-            if row["state"] == "INTERVENTION" and size > 0:
-                # The flag's INTERVENTION came from the old outage branch; as before,
-                # leave it to execute the earlier request within its own budget.
-                row["state"] = "EXITING"
+            # The flag cannot prove why the owner is in INTERVENTION: keep any current
+            # blocker until explicit recovery, then honor the earlier request.
+            if size == 0 or row["state"] != "INTERVENTION":
+                row.pop("read_failure_exit")
         protective_filled = decimal(snap.get("protective_filled", "0"))
         exit_filled = decimal(snap["fixed_stop_filled"]) if "native_trailing_percent" in p else protective_filled
         if exit_filled > decimal(row.get("exit_protective_filled", row.get("protective_filled", "0"))):
