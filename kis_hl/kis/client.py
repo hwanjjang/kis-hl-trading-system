@@ -205,7 +205,11 @@ class KisClient:
             response=self._request_with_auth('GET',path,tr_id=tr_id,query=dict(query),tr_cont=continuation)
             body=response.body
             if response.status>=400 or not isinstance(body,dict) or body.get('rt_cd')!='0':
-                raise RuntimeError('KIS account inquiry failed')
+                error=RuntimeError('KIS account inquiry failed')
+                # Availability failure (HTTP/broker refusal), unlike malformed pages below.
+                error.read_unavailable=True
+                error.kind,error.http_status=('http',response.status) if response.status>=400 else ('other',None)
+                raise error
             if page_observer is not None:
                 page_observer(response)
             for field in result:
@@ -314,7 +318,9 @@ class KisClient:
             return cached.access_token
         if cached and now_ms - cached.last_issued_at_ms < 60_000:
             wait_ms = 60_000 - (now_ms - cached.last_issued_at_ms)
-            raise RuntimeError(f"KIS token refresh throttled; retry after {wait_ms}ms")
+            error = RuntimeError(f"KIS token refresh throttled; retry after {wait_ms}ms")
+            error.read_unavailable = True
+            raise error
         fresh = self._issue_token()
         self._write_token_cache(fresh)
         return fresh.access_token
@@ -406,7 +412,9 @@ class KisClient:
             },
         )
         if response.status >= 400:
-            raise RuntimeError(f"KIS token request failed: HTTP {response.status}")
+            error = RuntimeError(f"KIS token request failed: HTTP {response.status}")
+            error.read_unavailable, error.kind, error.http_status = True, "http", response.status
+            raise error
         if not isinstance(response.body, dict) or "access_token" not in response.body:
             raise RuntimeError("KIS token response is missing access_token")
         expires_at = _parse_kis_expiry_ms(str(response.body["access_token_token_expired"]))

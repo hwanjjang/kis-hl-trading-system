@@ -28,6 +28,9 @@ logger = get_logger(__name__)
 class TransientInfoError(RuntimeError):
     """A retryable read failure; never used for signed exchange submissions."""
 
+    # Account-read availability failure, not malformed evidence (see managed_execution).
+    read_unavailable = True
+
     def __init__(self, message: str, *, kind: str = "transport", http_status: int | None = None) -> None:
         super().__init__(message)
         # Structured, secret-free classification for read-health records.
@@ -76,7 +79,7 @@ class HyperliquidInfoClient:
             except json.JSONDecodeError:
                 payload = {"raw": text}
             error = RuntimeError(f"Hyperliquid info request failed: HTTP {exc.code} {payload}")
-            error.kind, error.http_status = "http", exc.code
+            error.kind, error.http_status, error.read_unavailable = "http", exc.code, True
             raise error from exc
         except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
             timed_out = isinstance(exc, TimeoutError) or isinstance(getattr(exc, "reason", None), TimeoutError)

@@ -78,7 +78,8 @@ authorization for that exact owner.
 2. Run `order withdraw-read-exit --id ID --exit-requested-ms EXACT_MS`. The
    command refuses a wrong time, any other provenance, an existing exit attempt,
    an UNKNOWN or unresolved entry/add, a recorded protective fill, or a pending
-   entry cancellation. It never renews a budget and never sends an order.
+   entry cancellation. A flag on an older independent request shows provenance
+   `ambiguous_legacy`, cannot be withdrawn, and that earlier request is honored. It never renews a budget and never sends an order.
 3. Run `order recover --id ID`. The next supervisor tick reconciles with
    unchanged budgets. In the example it returns to `PROTECTED` with no new orders.
 

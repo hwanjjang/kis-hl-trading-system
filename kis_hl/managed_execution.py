@@ -500,6 +500,21 @@ class ExecutionStore:
             ]
 
     def save(self, row, now_ms):
+        with self.connect() as db:
+            new = self._write(db, row, now_ms)
+        row.update(new)
+
+    def _owner_in_transaction(self, db, position_id):
+        """Lock out other writers, then read the owner and attempts consistently."""
+        db.execute("BEGIN IMMEDIATE")
+        found = db.execute("SELECT snapshot FROM managed_positions WHERE id=?", (position_id,)).fetchone()
+        if not found:
+            raise ValueError("Unknown managed position")
+        attempts = [json.loads(r[0]) for r in db.execute(
+            "SELECT snapshot FROM managed_attempts WHERE position_id=? ORDER BY rowid", (position_id,))]
+        return json.loads(found[0]), attempts
+
+    def _write(self, db, row, now_ms):
         outbox = row.pop("pending_notifications", [])
         new = {**row, "version": row["version"] + 1}
         # The current blocker is kept apart from the first cause; polling with an
@@ -510,40 +525,39 @@ class ExecutionStore:
                 new["intervention_blocker"] = {"reason": new["reason"], "since_ms": now_ms}
         else:
             new.pop("intervention_blocker", None)
-        with self.connect() as db:
-            changed = db.execute(
-                "UPDATE managed_positions SET state=?,version=?,snapshot=? WHERE id=? AND version=?",
-                (new["state"], new["version"], encode(new), row["id"], row["version"]),
-            )
-            if changed.rowcount != 1:
-                raise RuntimeError("Managed position changed; reload")
-            db.execute(
-                "INSERT INTO managed_events(position_id,time_ms,state,reason,details) VALUES(?,?,?,?,?)",
-                (row["id"], now_ms, new["state"], new["reason"], encode({
-                    label: new[key] for label, key in (("error", "last_error"),
-                        ("first_intervention", "first_intervention"), ("read_health", "read_health")) if key in new
-                })),
-            )
-            if outbox:
-                # Same transaction as the state: one row per owner/kind/episode,
-                # whatever polling, restarts or version races occur.
-                attempts = [json.loads(r[0]) for r in db.execute(
-                    "SELECT snapshot FROM managed_attempts WHERE position_id=? ORDER BY rowid", (row["id"],))]
-                for note in outbox:
-                    prefix = new["plan"]["instrument"].split(":")[0]
-                    payload = {"venue": {"hl": "hyperliquid"}.get(prefix, prefix),
-                               "instrument": new["plan"]["instrument"], "state": new["state"],
-                               "reason": new["reason"], "read_health": new.get("read_health"),
-                               **supervision_summary(new, attempts)}
-                    db.execute(
-                        "INSERT OR IGNORE INTO managed_notifications(position_id,scope,mode,kind,episode_ms,"
-                        "created_ms,payload) VALUES(?,?,?,?,?,?,?)",
-                        (row["id"], new["scope"], new["mode"], note["kind"], note["episode_ms"],
-                         now_ms, encode(payload)))
-            if new["state"] in FINISHED:
-                # Same transaction: a terminal owner never persists with unsent adds.
-                self._retire_unsent(db, row["id"], new["state"], now_ms)
-        row.update(new)
+        changed = db.execute(
+            "UPDATE managed_positions SET state=?,version=?,snapshot=? WHERE id=? AND version=?",
+            (new["state"], new["version"], encode(new), row["id"], row["version"]),
+        )
+        if changed.rowcount != 1:
+            raise RuntimeError("Managed position changed; reload")
+        db.execute(
+            "INSERT INTO managed_events(position_id,time_ms,state,reason,details) VALUES(?,?,?,?,?)",
+            (row["id"], now_ms, new["state"], new["reason"], encode({
+                label: new[key] for label, key in (("error", "last_error"),
+                    ("first_intervention", "first_intervention"), ("read_health", "read_health")) if key in new
+            })),
+        )
+        if outbox:
+            # Same transaction as the state: one row per owner/kind/episode,
+            # whatever polling, restarts or version races occur.
+            attempts = [json.loads(r[0]) for r in db.execute(
+                "SELECT snapshot FROM managed_attempts WHERE position_id=? ORDER BY rowid", (row["id"],))]
+            for note in outbox:
+                prefix = new["plan"]["instrument"].split(":")[0]
+                payload = {"venue": {"hl": "hyperliquid"}.get(prefix, prefix),
+                           "instrument": new["plan"]["instrument"], "state": new["state"],
+                           "reason": new["reason"], "read_health": new.get("read_health"),
+                           **supervision_summary(new, attempts)}
+                db.execute(
+                    "INSERT OR IGNORE INTO managed_notifications(position_id,scope,mode,kind,episode_ms,"
+                    "created_ms,payload) VALUES(?,?,?,?,?,?,?)",
+                    (row["id"], new["scope"], new["mode"], note["kind"], note["episode_ms"],
+                     now_ms, encode(payload)))
+        if new["state"] in FINISHED:
+            # Same transaction: a terminal owner never persists with unsent adds.
+            self._retire_unsent(db, row["id"], new["state"], now_ms)
+        return new
 
     def attempts(self, position_id):
         with self.connect() as db:
@@ -627,14 +641,14 @@ class ExecutionStore:
                 "delivered_ms=? WHERE id=?", (now_ms, now_ms if delivered else None, notification_id))
         return next(n for n in self.notifications(include_delivered=True) if n["id"] == notification_id)
 
-    def recovery_blockers(self, row, attempts, now_ms):
+    def recovery_blockers(self, row, attempts, now_ms, *, db=None):
         """Explain budgets that unchanged-budget recovery cannot resolve."""
         p = row["plan"]
         blockers = []
         residual = decimal(row.get("observed_size", "0")) > 0
         requested = row.get("exit_requested_ms")
-        provenance = exit_provenance(self, row)
-        if row.get("read_failure_exit") and residual:
+        provenance = exit_provenance(self, row, db=db)
+        if row.get("read_failure_exit") and residual and (provenance or {}).get("kind") == "read_outage_latch":
             blockers.append("A legacy read-outage exit latch is still pending; the current policy never "
                             "executes it automatically.")
         if requested is not None and residual:
@@ -664,45 +678,51 @@ class ExecutionStore:
         return blockers
 
     def recover_intervention(self, position_id, now_ms):
-        row = self.get(position_id)
-        if row["state"] != "INTERVENTION":
-            raise ValueError("Only an intervention state can be recovered")
-        blockers = self.recovery_blockers(row, self.attempts(position_id), now_ms)
-        if blockers:
-            raise ValueError("Recovery refused. " + " ".join(blockers))
-        row.update(
-            state="ADOPTING" if row.get("adoption") and not row.get("adopted_ms") else "ENTERING",
-            reason="Explicit recovery requested; budgets and ownership unchanged",
-        )
-        self.save(row, now_ms)
+        with self.connect() as db:
+            row, attempts = self._owner_in_transaction(db, position_id)
+            if row["state"] != "INTERVENTION":
+                raise ValueError("Only an intervention state can be recovered")
+            blockers = self.recovery_blockers(row, attempts, now_ms, db=db)
+            if blockers:
+                raise ValueError("Recovery refused. " + " ".join(blockers))
+            row.update(
+                state="ADOPTING" if row.get("adoption") and not row.get("adopted_ms") else "ENTERING",
+                reason="Explicit recovery requested; budgets and ownership unchanged",
+            )
+            new = self._write(db, row, now_ms)
+        row.update(new)
         return row
 
     def withdraw_read_outage_exit(self, position_id, exit_requested_ms, *, now_ms):
-        """Withdraw one exact read-outage exit latch; never renews budgets or sends orders."""
-        row = self.get(position_id)
-        attempts = self.attempts(position_id)
-        if row["state"] != "INTERVENTION":
-            raise ValueError("Withdrawal requires an INTERVENTION owner")
-        if type(exit_requested_ms) is not int or row.get("exit_requested_ms") != exit_requested_ms:
-            raise ValueError("Withdrawal requires the exact current exit_requested_ms")
-        provenance = exit_provenance(self, row)
-        if provenance["kind"] != "read_outage_latch":
-            raise ValueError(f"Exit provenance is {provenance['kind']}, not read_outage_latch; withdrawal refused")
-        if any(a["kind"] == "exit" and a["created_ms"] >= exit_requested_ms for a in attempts):
-            raise ValueError("An exit attempt exists for this request; withdrawal refused")
-        if any(a["status"] == "UNKNOWN" or (a["kind"] in {"entry", "add"} and a["status"].lower() not in TERMINAL)
-               for a in attempts) or row.get("cancel_entry"):
-            raise ValueError("Unknown or unresolved entry/add lifecycle blocks withdrawal")
-        if (any(a["kind"] in {"stop", "trailing"} and a["status"] == "FILLED" for a in attempts)
-                or decimal(row.get("exit_protective_filled", row.get("protective_filled", "0"))) > 0):
-            raise ValueError("Protective fills are recorded; withdrawal refused")
-        row["exit_requested_ms"] = None
-        row.pop("read_failure_exit", None)
-        row.setdefault("withdrawn_exit_requests", []).append(
-            {"exit_requested_ms": exit_requested_ms, "withdrawn_ms": now_ms, "provenance": provenance})
-        row["reason"] = ("Read-outage exit request withdrawn by explicit command; "
-                         "run order recover to resume supervision")
-        self.save(row, now_ms)
+        """Withdraw one exact read-outage exit latch; never renews budgets or sends orders.
+
+        Every guard and the write share one IMMEDIATE transaction, so a concurrent
+        reconciliation cannot commit attempt evidence between validation and save."""
+        with self.connect() as db:
+            row, attempts = self._owner_in_transaction(db, position_id)
+            if row["state"] != "INTERVENTION":
+                raise ValueError("Withdrawal requires an INTERVENTION owner")
+            if type(exit_requested_ms) is not int or row.get("exit_requested_ms") != exit_requested_ms:
+                raise ValueError("Withdrawal requires the exact current exit_requested_ms")
+            provenance = exit_provenance(self, row, db=db)
+            if provenance["kind"] != "read_outage_latch":
+                raise ValueError(f"Exit provenance is {provenance['kind']}, not read_outage_latch; withdrawal refused")
+            if any(a["kind"] == "exit" and a["created_ms"] >= exit_requested_ms for a in attempts):
+                raise ValueError("An exit attempt exists for this request; withdrawal refused")
+            if any(a["status"] == "UNKNOWN" or (a["kind"] in {"entry", "add"} and a["status"].lower() not in TERMINAL)
+                   for a in attempts) or row.get("cancel_entry"):
+                raise ValueError("Unknown or unresolved entry/add lifecycle blocks withdrawal")
+            if (any(a["kind"] in {"stop", "trailing"} and a["status"] == "FILLED" for a in attempts)
+                    or any(decimal(row.get(key, "0")) > 0 for key in ("protective_filled", "exit_protective_filled"))):
+                raise ValueError("Protective fills are recorded; withdrawal refused")
+            row["exit_requested_ms"] = None
+            row.pop("read_failure_exit", None)
+            row.setdefault("withdrawn_exit_requests", []).append(
+                {"exit_requested_ms": exit_requested_ms, "withdrawn_ms": now_ms, "provenance": provenance})
+            row["reason"] = ("Read-outage exit request withdrawn by explicit command; "
+                             "run order recover to resume supervision")
+            new = self._write(db, row, now_ms)
+        row.update(new)
         return row
 
     def heartbeat(self, scope, now_ms, live):
@@ -787,11 +807,12 @@ class Supervisor:
         # A failed read still proves the supervisor was running: observation gaps
         # count only the time between ticks, never the outage itself.
         anchor = max(row.get("last_observed_ms") or 0, row.get("last_supervised_ms") or 0)
-        if anchor:
+        if anchor and now > anchor:
             gap = getattr(self.gateway, "observation_gap_ms", None)
             interval = int(gap(row, anchor, now)) if gap else now - anchor
             row["unsupervised_gap_ms"] = max(row.get("unsupervised_gap_ms", 0), interval)
-        row["last_supervised_ms"] = now
+        # The next gap starts when this failed read returned, not when it started.
+        row["last_supervised_ms"] = max(now, int(row["last_error"]["observed_ms"]))
         if new_episode:
             row.setdefault("pending_notifications", []).append(
                 {"kind": "read_outage", "episode_ms": health["since_ms"]})
@@ -1067,6 +1088,9 @@ class Supervisor:
         try:
             snap = self.gateway.snapshot(row, attempts, now)
         except (RuntimeError, OSError) as exc:
+            if not read_unavailable(exc):
+                # Malformed or invalid evidence keeps the fail-closed intervention.
+                raise
             self._record_error(row, exc, now, reason="Account snapshot unavailable")
             self._read_outage(row, exc, now)
             return
@@ -1110,12 +1134,17 @@ class Supervisor:
         row.update(observed_size=str(size), entry_filled=str(entry_filled))
         if row.get("read_failure_exit"):
             # Latched by the pre-issue-59 policy: never execute it automatically and
-            # never clear it in bulk. A flat owner needs no exit and may clean up.
-            if size > 0:
+            # never clear it in bulk. A flat owner needs no exit and may clean up. The
+            # old code also flagged an earlier independent request; that one stands.
+            if size > 0 and exit_provenance(self.store, row)["kind"] == "read_outage_latch":
                 self._state(row, "INTERVENTION", "Legacy read-outage exit latch retained; explicit scoped "
                             "withdrawal or exit decision required", now)
                 return
             row.pop("read_failure_exit")
+            if row["state"] == "INTERVENTION" and size > 0:
+                # The flag's INTERVENTION came from the old outage branch; as before,
+                # leave it to execute the earlier request within its own budget.
+                row["state"] = "EXITING"
         protective_filled = decimal(snap.get("protective_filled", "0"))
         exit_filled = decimal(snap["fixed_stop_filled"]) if "native_trailing_percent" in p else protective_filled
         if exit_filled > decimal(row.get("exit_protective_filled", row.get("protective_filled", "0"))):
@@ -1716,7 +1745,26 @@ def notification_message(note):
             f"State {p['state']}: {p['reason']}. Local supervision {p['local_supervision']}.")
 
 
-def exit_provenance(store, row):
+def read_unavailable(exc):
+    """Transport, timeout or HTTP read failures; never malformed or invalid evidence."""
+    return isinstance(exc, OSError) or getattr(exc, "read_unavailable", False) is True
+
+
+def _latch_event(db, position_id, requested):
+    # The old policy created its request in the same tick that moved the owner
+    # into INTERVENTION with an outage reason. A request made earlier, or while
+    # already in INTERVENTION, is not attributable to that latch.
+    event = db.execute(
+        "SELECT id FROM managed_events WHERE position_id=? AND time_ms=? AND state='INTERVENTION' "
+        "AND reason LIKE 'Account snapshot unavailable%' ORDER BY id LIMIT 1", (position_id, requested)).fetchone()
+    if not event:
+        return False
+    prior = db.execute("SELECT state FROM managed_events WHERE position_id=? AND id<? ORDER BY id DESC LIMIT 1",
+                       (position_id, event[0])).fetchone()
+    return prior is None or prior[0] != "INTERVENTION"
+
+
+def exit_provenance(store, row, db=None):
     """Why an exit was requested; legacy read-outage latches are inferred from events."""
     requested = row.get("exit_requested_ms")
     if requested is None:
@@ -1724,15 +1772,18 @@ def exit_provenance(store, row):
     source = row.get("exit_request_source") or {}
     if source.get("requested_ms") == requested:
         return {"kind": source["kind"], "evidence": "recorded"}
-    if row.get("read_failure_exit"):
-        return {"kind": "read_outage_latch", "evidence": "flag"}
-    with store.connect() as db:
-        latched = db.execute(
-            "SELECT 1 FROM managed_events WHERE position_id=? AND time_ms=? AND state='INTERVENTION' "
-            "AND reason LIKE 'Account snapshot unavailable%' LIMIT 1", (row["id"], requested)).fetchone()
+    if db is None:
+        with store.connect() as db:
+            latched = _latch_event(db, row["id"], requested)
+    else:
+        latched = _latch_event(db, row["id"], requested)
     if latched:
-        return {"kind": "read_outage_latch", "evidence": "event",
-                "note": "Inferred from the INTERVENTION event persisted when the read-outage policy latched it"}
+        return {"kind": "read_outage_latch", "evidence": "flag+event" if row.get("read_failure_exit") else "event",
+                "note": "The INTERVENTION transition persisted at exit_requested_ms carries the read-outage reason"}
+    if row.get("read_failure_exit"):
+        return {"kind": "ambiguous_legacy", "evidence": "flag",
+                "note": "The legacy flag was also set on earlier independent requests; this request predates the "
+                        "outage transition and is honored, not withdrawable"}
     return {"kind": "other", "evidence": "none",
             "note": "Protection, trailing or fill trigger; not attributable to a read outage"}
 

@@ -10,12 +10,16 @@ from unittest.mock import Mock, patch
 
 from kis_hl.config import HyperliquidConfig
 from kis_hl.hyperliquid.client import HyperliquidInfoClient, TransientInfoError
+import sqlite3
+
 from kis_hl import managed_execution
 from kis_hl.managed_execution import ExecutionStore, Supervisor
+from tests.read_errors import read_unavailable
 from tests.test_kis_adoption import NOW, FixtureKisGateway, plan as kis_plan
 from tests.test_managed_execution import Gateway, plan
 
-GRACE, DEADLINE = 5000, 60000  # protection_grace_ms / exit_deadline_ms in plan()
+GRACE, DEADLINE = 5000, 60000
+original_connect = sqlite3.connect  # protection_grace_ms / exit_deadline_ms in plan()
 
 
 def outage(secret="SECRET-TOKEN", status=429):
@@ -47,7 +51,7 @@ class HyperliquidOwnerBase(unittest.TestCase):
         self.assertEqual([a["kind"] for a in self.g.sent], ["entry", "stop"])
         return row["id"]
 
-    def fail(self, exc=None):
+    def fail_reads(self, exc=None):
         self.g.snapshot = Mock(side_effect=exc or outage())
 
     def recover(self, **changes):
@@ -62,7 +66,7 @@ class HyperliquidOwnerBase(unittest.TestCase):
 class HyperliquidReadOutageTests(HyperliquidOwnerBase):
     def test_prolonged_outage_with_restart_never_requests_exit_and_resumes(self):
         pid = self.protect()
-        self.fail()
+        self.fail_reads()
         for now in (40, 50, 60):
             result = self.worker.step(pid, now)
             self.assertEqual(result["state"], "DEGRADED")
@@ -85,7 +89,7 @@ class HyperliquidReadOutageTests(HyperliquidOwnerBase):
     def test_outage_preserves_explicit_exit_and_its_original_budget(self):
         pid = self.protect()
         self.store.request_exit(pid, 35)
-        self.fail()
+        self.fail_reads()
         for now in (40, 50, 60, 70):
             self.assertEqual(self.worker.step(pid, now)["exit_requested_ms"], 35)
         self.recover()
@@ -96,7 +100,7 @@ class HyperliquidReadOutageTests(HyperliquidOwnerBase):
 
     def test_real_trailing_breach_after_outage_still_exits(self):
         pid = self.protect()
-        self.fail()
+        self.fail_reads()
         for now in (40, 50, 60):
             self.worker.step(pid, now)
         self.recover(price="95")
@@ -105,7 +109,7 @@ class HyperliquidReadOutageTests(HyperliquidOwnerBase):
 
     def test_outage_notifications_are_deduplicated_across_polls_and_restart(self):
         pid = self.protect()
-        self.fail()
+        self.fail_reads()
         for now in (40, 50, 60):
             self.worker.step(pid, now)
         self.worker = Supervisor(ExecutionStore(self.store.path), self.g, live=True)
@@ -132,7 +136,7 @@ class HyperliquidReadOutageTests(HyperliquidOwnerBase):
 
     def test_failed_delivery_stays_pending_and_never_affects_execution(self):
         pid = self.protect()
-        self.fail()
+        self.fail_reads()
         self.worker.step(pid, 40)
         before = self.store.get(pid)
         note = self.store.notifications("scope", "live")[0]
@@ -153,15 +157,27 @@ class HyperliquidReadOutageTests(HyperliquidOwnerBase):
         pid = self.protect()
         cases = ((outage(), {"category": "TransientInfoError", "kind": "http", "http_status": 429}),
                  (TimeoutError("password=SECRET"), {"category": "TimeoutError", "kind": "timeout", "http_status": None}),
-                 (RuntimeError("KIS account inquiry failed SECRET"), {"category": "RuntimeError", "kind": "other", "http_status": None}))
+                 (read_unavailable("KIS account inquiry failed SECRET"), {"category": "RuntimeError", "kind": "other", "http_status": None}))
         for now, (exc, expected) in zip((40, 50, 60), cases):
-            self.fail(exc)
+            self.fail_reads(exc)
             result = self.worker.step(pid, now)
             self.assertEqual(result["read_health"]["error"], expected)
             self.assertEqual(result["read_health"]["operation"], "account_snapshot")
         with self.store.connect() as db:
             events = [tuple(r) for r in db.execute("SELECT reason, details FROM managed_events")]
         self.assertNotIn("SECRET", json.dumps([result, events, self.store.notifications("scope", "live")]))
+
+    def test_malformed_read_evidence_stays_fail_closed(self):
+        # R1-F3: a successful response with invalid evidence is not an outage.
+        pid = self.protect()
+        self.fail_reads(RuntimeError("Hyperliquid orderStatus returned an unexpected response"))
+        result = self.worker.step(pid, 40)
+        self.assertEqual(result["state"], "INTERVENTION")
+        self.assertEqual(result["read_health"]["status"], "ok")  # evidence failure, not an outage
+        self.recover()
+        self.assertEqual(self.worker.step(pid, 50)["state"], "INTERVENTION")
+        self.assertEqual(self.store.notifications("scope", "live"), [])
+        self.assertEqual([a["kind"] for a in self.g.sent], ["entry", "stop"])
 
     def test_later_read_failure_does_not_hide_current_deadline_blocker(self):
         pid = self.protect()
@@ -171,14 +187,14 @@ class HyperliquidReadOutageTests(HyperliquidOwnerBase):
         self.recover()
         self.store.recover_intervention(pid, 45)
         self.store.request_exit(pid, 50)
-        self.fail()
+        self.fail_reads()
         for now in (60, 70, 80):
             self.worker.step(pid, now)
         self.recover()
         blocked = self.worker.step(pid, 50 + DEADLINE + 10)
         self.assertEqual(blocked["state"], "INTERVENTION")
         self.assertEqual(blocked["reason"], "Exit attempt or deadline budget exhausted")
-        self.fail()
+        self.fail_reads()
         later = self.worker.step(pid, 50 + DEADLINE + 20)
         self.assertEqual(later["reason"], "Exit attempt or deadline budget exhausted")
         self.assertEqual(later["read_health"]["status"], "unavailable")
@@ -208,12 +224,12 @@ class LegacyLatchTests(HyperliquidOwnerBase):
 
     OUTAGE = "Account snapshot unavailable (TransientInfoError); consecutive failures=3; awaiting readback"
 
-    def latch(self, pid, at, *, flag):
+    def latch(self, pid, at, *, flag, event_ms=None):
         row = self.store.get(pid)
         row.update(exit_requested_ms=at, state="INTERVENTION", reason=self.OUTAGE)
         if flag:
             row["read_failure_exit"] = True
-        self.store.save(row, at)
+        self.store.save(row, at if event_ms is None else event_ms)
         return row
 
     def test_pending_legacy_flag_blocks_without_exit_on_recovery(self):
@@ -265,6 +281,73 @@ class LegacyLatchTests(HyperliquidOwnerBase):
         self.assertEqual(result["state"], "PROTECTED")
         self.assertEqual([a["kind"] for a in self.g.sent], ["entry", "stop"])
 
+    def test_flag_on_preexisting_operator_exit_is_ambiguous_and_honored(self):
+        # R1-F2: the old code set the flag on top of an earlier independent request.
+        pid = self.protect()
+        row = self.store.get(pid)
+        row["exit_requested_ms"] = 35  # pre-issue-59 request_exit recorded no source
+        self.store.save(row, 35)
+        row = self.store.get(pid)
+        row.update(state="DEGRADED", reason="Account snapshot unavailable (OSError); consecutive failures=2; awaiting readback")
+        self.store.save(row, 50)
+        self.latch(pid, 35, flag=True, event_ms=60)
+        diag = owner_diagnostics(self.store, self.store.get(pid), 70)
+        self.assertEqual(diag["exit"]["provenance"]["kind"], "ambiguous_legacy")
+        with self.assertRaisesRegex(ValueError, "ambiguous_legacy"):
+            self.store.withdraw_read_outage_exit(pid, 35, now_ms=70)
+        result = self.worker.step(pid, 80)
+        self.assertNotIn("read_failure_exit", result)
+        self.assertEqual(result["exit_requested_ms"], 35)
+        self.assertEqual(self.g.sent[-1]["kind"], "exit")
+
+    def test_outage_event_inside_existing_intervention_is_not_a_latch(self):
+        pid = self.protect()
+        row = self.store.get(pid)
+        row.update(state="INTERVENTION", reason="External ownership or inconsistent exposure")
+        self.store.save(row, 40)
+        self.latch(pid, 50, flag=False)
+        self.assertEqual(owner_diagnostics(self.store, self.store.get(pid), 60)["exit"]["provenance"]["kind"], "other")
+
+    def test_withdrawal_refuses_when_either_protective_fill_counter_is_positive(self):
+        # R1-F4: exit_protective_filled=0 must not mask protective_filled>0.
+        pid = self.protect()
+        row = self.latch(pid, 40, flag=False)
+        row = self.store.get(pid)
+        row.update(protective_filled="0.1", exit_protective_filled="0")
+        self.store.save(row, 41)
+        with self.assertRaisesRegex(ValueError, "Protective fills"):
+            self.store.withdraw_read_outage_exit(pid, 40, now_ms=50)
+        self.assertEqual(self.store.get(pid)["exit_requested_ms"], 40)
+
+    def test_withdrawal_validates_and_writes_atomically_against_reconciliation(self):
+        # R1-F5: a stop fill committed between validation reads and the write must win.
+        pid = self.protect()
+        self.latch(pid, 40, flag=False)
+        stop = next(a for a in self.store.attempts(pid) if a["kind"] == "stop")
+        other = ExecutionStore(self.store.path)
+        original = managed_execution.exit_provenance
+
+        def interleave(store, row, db=None):
+            try:
+                other.update_attempt(dict(stop), status="FILLED")
+            except Exception as exc:  # writer must wait for the withdrawal transaction
+                interleave.blocked = type(exc).__name__
+            return original(store, row, db=db)
+        interleave.blocked = None
+        with patch.object(managed_execution, "exit_provenance", interleave), \
+                patch("kis_hl.managed_execution.sqlite3.connect",
+                      side_effect=lambda path, timeout=10: original_connect(path, timeout=0.05)):
+            try:
+                self.store.withdraw_read_outage_exit(pid, 40, now_ms=50)
+                withdrawn = True
+            except ValueError:
+                withdrawn = False
+        stop_now = next(a for a in self.store.attempts(pid) if a["kind"] == "stop")
+        # Either the concurrent fill was serialized after the withdrawal (blocked),
+        # or the withdrawal saw it and refused; never both a withdrawal and a hidden fill.
+        self.assertFalse(withdrawn and stop_now["status"] == "FILLED")
+        self.assertEqual(interleave.blocked, "OperationalError")
+
     def test_withdrawal_refuses_operator_exit_attempts_and_identity_interventions(self):
         pid = self.protect()
         self.store.request_exit(pid, 40)
@@ -274,7 +357,7 @@ class LegacyLatchTests(HyperliquidOwnerBase):
         with self.assertRaisesRegex(ValueError, "read_outage_latch"):
             self.store.withdraw_read_outage_exit(pid, 40, now_ms=50)
         row = self.store.get(pid)
-        row.update(exit_requested_ms=None)
+        row.update(exit_requested_ms=None, state="PROTECTED", reason="Coverage verified; local trailing active")
         self.store.save(row, 52)
         self.latch(pid, 60, flag=True)
         self.store.attempt(self.store.get(pid), "exit", 61, quantity="1", price="99")
@@ -289,7 +372,7 @@ class LegacyLatchTests(HyperliquidOwnerBase):
         self.assertEqual(result["state"], "INTERVENTION")
         with self.assertRaises(ValueError):
             self.store.withdraw_read_outage_exit(pid, 40, now_ms=50)
-        self.fail()
+        self.fail_reads()
         for now in (60, 70, 80):
             self.assertEqual(self.worker.step(pid, now)["state"], "INTERVENTION")
         self.recover()
@@ -316,7 +399,7 @@ class KisReadOutageTests(unittest.TestCase):
         return self.worker.step(self.row["id"], at)
 
     def outage_then_recover(self, start, end, *, restart_at=None):
-        self.g.snapshot = Mock(side_effect=RuntimeError("KIS account inquiry failed appsecret=SECRET"))
+        self.g.snapshot = Mock(side_effect=read_unavailable("KIS account inquiry failed appsecret=SECRET"))
         for at in range(start, end, 5_000):
             if at == restart_at:
                 self.worker = Supervisor(ExecutionStore(self.store.path), self.g, live=True)
@@ -341,6 +424,45 @@ class KisReadOutageTests(unittest.TestCase):
         self.g.quote = (Decimal("102650"), Decimal("102660"))
         self.outage_then_recover(NOW + 5_000, NOW + 305_000)
         self.assertEqual([a["kind"] for a in self.g.sent], ["exit"])
+
+    def slow_failures(self, *starts, completes_after=135_000):
+        from kis_hl.managed_gateways import ManagedKisGateway
+
+        def slow(row, attempts, now):
+            def history(*args):
+                self.g._clock = now + completes_after  # broker read hangs, then fails
+                raise read_unavailable("KIS account inquiry failed")
+            with patch.object(self.g, "_history", history), \
+                    patch("kis_hl.managed_gateways.time.time", side_effect=lambda: self.g._clock / 1000):
+                return ManagedKisGateway.snapshot(self.g, row, attempts, now)
+        self.g.snapshot = slow
+        for at in starts:
+            result = self.step(at)
+            self.assertEqual(result["state"], "DEGRADED")
+            self.assertIsNone(result["exit_requested_ms"])
+        self.g.snapshot = self.healthy
+
+    def test_slow_failed_reads_are_not_counted_as_unsupervised_time(self):
+        # R1-F1: read latency of failed reads is outage time, never a gap.
+        self.slow_failures(NOW + 5_000)
+        result = self.step(NOW + 140_001)
+        self.assertIsNone(result["exit_requested_ms"])
+        self.assertEqual(result["state"], "PROTECTED")
+        self.slow_failures(NOW + 145_000, NOW + 280_001, NOW + 415_002)
+        self.worker = Supervisor(ExecutionStore(self.store.path), self.g, live=True)
+        result = self.step(NOW + 550_003)
+        self.assertIsNone(result["exit_requested_ms"])
+        self.assertEqual(self.g.sent, [])
+
+    def test_malformed_kis_account_page_stays_fail_closed(self):
+        # R1-F3: a malformed page is invalid evidence, never a warning-only outage.
+        self.g._history = Mock(side_effect=RuntimeError("Malformed KIS account page"))
+        result = self.step(NOW + 5_000)
+        self.assertEqual(result["state"], "INTERVENTION")
+        self.g._history = Mock(return_value=self.g.history)
+        self.assertEqual(self.step(NOW + 10_000)["state"], "INTERVENTION")
+        self.assertEqual(self.store.notifications(self.g.scope, "live"), [])
+        self.assertEqual(self.g.sent, [])
 
     def test_process_downtime_before_outage_keeps_observation_gap_policy(self):
         # Supervisor absent for 138 s of open session before reads start failing.
@@ -422,6 +544,33 @@ class ReadOutageCliTests(unittest.TestCase):
         self.assertEqual([a["kind"] for a in self.g.sent], ["entry", "stop"])
 
 
+class KisClientReadAvailabilityTests(unittest.TestCase):
+    def client(self):
+        from kis_hl.config import load_kis_config
+        from kis_hl.kis.client import KisClient
+        env = {"SANDBOX": "false", "KIS_API_KEY": "fake", "KIS_API_SECRET": "fake",
+               "KIS_STOCK_ACCOUNT": "1234567801", "KIS_API_ST_KEY": "fake", "KIS_API_ST_SECRET": "fake",
+               "KIS_ST_STOCK_ACCOUNT": "1234567801", "KIS_MIN_REQUEST_INTERVAL_MS": "0"}
+        return KisClient(load_kis_config(env))
+
+    def raised(self, response):
+        client = self.client()
+        with patch.object(client, "_request_with_auth", return_value=response), \
+                self.assertRaises(RuntimeError) as caught:
+            client.account_pages("domestic_balance")
+        return caught.exception
+
+    def test_broker_refusal_is_read_unavailable_but_malformed_page_is_not(self):
+        from kis_hl.kis.client import KisHttpResponse
+        http = self.raised(KisHttpResponse(503, {"msg1": "secret"}, {}))
+        self.assertTrue(managed_execution.read_unavailable(http))
+        self.assertEqual((http.kind, http.http_status), ("http", 503))
+        refusal = self.raised(KisHttpResponse(200, {"rt_cd": "1", "msg1": "secret"}, {}))
+        self.assertTrue(managed_execution.read_unavailable(refusal))
+        malformed = self.raised(KisHttpResponse(200, {"rt_cd": "0", "output": "not-a-list"}, {"tr_cont": "D"}))
+        self.assertFalse(managed_execution.read_unavailable(malformed))
+
+
 class InfoClientClassificationTests(unittest.TestCase):
     def setUp(self):
         self.client = HyperliquidInfoClient(HyperliquidConfig(
@@ -441,6 +590,12 @@ class InfoClientClassificationTests(unittest.TestCase):
         self.assertEqual(self.raised(TimeoutError()).kind, "timeout")
         self.assertEqual(self.raised(urllib.error.URLError(TimeoutError("timed out"))).kind, "timeout")
         self.assertEqual(self.raised(ConnectionResetError()).kind, "transport")
+        self.assertTrue(all(managed_execution.read_unavailable(self.raised(e)) for e in (http, permanent)))
+
+    def test_malformed_successful_response_is_not_read_unavailable(self):
+        with patch.object(self.client, "post_info", return_value=[]), self.assertRaises(RuntimeError) as caught:
+            self.client.order_status(oid=1)
+        self.assertFalse(managed_execution.read_unavailable(caught.exception))
 
 
 if __name__ == "__main__":

@@ -79,8 +79,12 @@ the unhandled-rejection gap in `place_order()`.
   and HTTP 408/429/500/502/503/504 as `TransientInfoError` (a `RuntimeError` subclass).
   Both carry a secret-free classification: `kind` (`http`, `timeout`, `transport`) and
   `http_status` on `TransientInfoError`, and `kind="http"` with `http_status` on the
-  permanent HTTP `RuntimeError`. The managed supervisor records only these fields in
-  `read_health` and treats any account-read failure as warning-only (no exit).
+  permanent HTTP `RuntimeError`, and both set `read_unavailable=True`. The managed
+  supervisor records only these fields in `read_health` and treats such
+  read-availability failures, plus `OSError` transport errors, as warning-only (no
+  exit). Unexpected-shape `RuntimeError`s from a successful response (for example
+  `orderStatus returned an unexpected response`) are invalid evidence and remain
+  fail-closed `INTERVENTION`.
   Permanent HTTP failures remain `RuntimeError`; schema/identity errors are not
   transient. The client itself does not retry. Conditional add preflight may retry
   transient reads on existing supervisor ticks within approval expiry, before any

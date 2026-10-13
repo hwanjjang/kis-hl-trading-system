@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from tests.read_errors import read_unavailable
 from kis_hl.managed_execution import ExecutionStore, Supervisor
 from kis_hl.managed_gateways import KisSessionClosed, ManagedKisGateway
 from kis_hl.manual_adoption import verify_kis_adoption
@@ -126,7 +127,7 @@ class KisAdoptionTests(unittest.TestCase):
         self.row = self.adopt(at=close - 2_000)
         self.step(close - 1_000)
         snapshot = self.g.snapshot
-        self.g.snapshot = lambda *a: (_ for _ in ()).throw(RuntimeError("KIS account inquiry failed"))
+        self.g.snapshot = lambda *a: (_ for _ in ()).throw(read_unavailable("KIS account inquiry failed"))
         for offset in range(0, 600_000, 5_000):
             result = self.step(ms("2026-09-30T01:42:00+09:00") + offset)
         self.assertEqual(result["state"], "DEGRADED")
@@ -142,7 +143,7 @@ class KisAdoptionTests(unittest.TestCase):
         self.row = self.adopt()
         self.step(NOW + 1_000)
         self.step(NOW + 2_000)
-        self.g.snapshot = lambda *a: (_ for _ in ()).throw(RuntimeError("KIS account inquiry failed"))
+        self.g.snapshot = lambda *a: (_ for _ in ()).throw(read_unavailable("KIS account inquiry failed"))
         for offset in (5_000, 10_000, 15_000):
             result = self.step(NOW + offset)
         self.assertEqual(result["state"], "DEGRADED")
@@ -156,7 +157,7 @@ class KisAdoptionTests(unittest.TestCase):
         self.step(close - 1_000)
         night = ms("2026-09-30T01:42:00+09:00")
         self.store.request_exit(self.row["id"], night - 1_000)
-        self.g.snapshot = Mock(side_effect=RuntimeError("fixture read unavailable"))
+        self.g.snapshot = Mock(side_effect=read_unavailable("fixture read unavailable"))
         result = self.step(night)
         self.assertEqual(result["state"], "DEGRADED")
         self.assertEqual(result["exit_requested_ms"], night - 1_000)
@@ -196,7 +197,7 @@ class KisAdoptionTests(unittest.TestCase):
         self.step(close - 1_000)
         self.g.snapshot = Mock(side_effect=ValueError("fixture ownership mismatch"))
         self.assertEqual(self.step(close - 500)["state"], "INTERVENTION")
-        self.g.snapshot = Mock(side_effect=RuntimeError("fixture read unavailable"))
+        self.g.snapshot = Mock(side_effect=read_unavailable("fixture read unavailable"))
         night = ms("2026-09-30T01:42:00+09:00")
         for offset in (0, 5_000, 10_000):
             result = self.step(night + offset)
@@ -214,7 +215,7 @@ class KisAdoptionTests(unittest.TestCase):
         row.update(exit_requested_ms=close - 700, read_failure_exit=True, state="INTERVENTION",
                    reason="Account snapshot unavailable (RuntimeError); consecutive failures=3; awaiting readback")
         self.store.save(row, close - 700)
-        self.g.snapshot = Mock(side_effect=RuntimeError("fixture read unavailable"))
+        self.g.snapshot = Mock(side_effect=read_unavailable("fixture read unavailable"))
         requested = close - 700
         self.worker = Supervisor(ExecutionStore(self.store.path), self.g, live=True)
         result = self.step(ms("2026-09-30T01:42:00+09:00"))

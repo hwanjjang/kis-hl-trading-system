@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from decimal import Decimal
 from pathlib import Path
+from tests.read_errors import read_unavailable
 from kis_hl.managed_execution import ExecutionStore, Supervisor, validate_plan
 
 
@@ -306,7 +307,7 @@ class ManagedExecutionTests(unittest.TestCase):
         self.worker.step(row["id"], 20)
         snapshot = self.g.snapshot
         self.g.snapshot = lambda *args: (_ for _ in ()).throw(
-            RuntimeError("inquiry unavailable")
+            read_unavailable("inquiry unavailable")
         )
         self.worker.step(row["id"], 30)
         self.assertEqual(self.store.get(row["id"])["state"], "DEGRADED")

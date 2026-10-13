@@ -783,8 +783,10 @@ suite are not activation; no exchange or operational state is changed by these d
 Local protection observation gaps count the regular cash-session time between
 supervisor ticks, even across dates. Nights and weekends do not count. A tick whose
 account read failed still counts as a tick, because the supervisor was running.
-Time spent in a read outage therefore never counts; only time with no supervisor
-tick at all does (see [read outages](#read-outages-and-recovery-limits)). A
+The next interval is measured from the moment the failed read returned, so a slow
+or hanging read is outage time as well. Time spent in a read outage therefore
+never counts; only time with no supervisor tick at all does (see
+[read outages](#read-outages-and-recovery-limits)). A
 supervisor absence that misses open trading time still requests a bounded exit
 once that time reaches `protection_grace_ms`. The pre-close and post-open portions
 are added together.
@@ -1126,7 +1128,20 @@ For an already latched owner with protections installed outside its attempts:
 
 An account-read failure is an operational warning, not a sell signal. This
 policy was decided by AK on 2026-10-09 and applies to both Hyperliquid and KIS in
-every session. A snapshot `RuntimeError`/`OSError`:
+every session.
+
+A read failure here means a read-availability failure:
+
+- an `OSError` transport or timeout error;
+- an error the venue client marks `read_unavailable`: Hyperliquid
+  `TransientInfoError` or HTTP failures, KIS HTTP or broker refusals of an account
+  inquiry, and KIS token throttling or HTTP failures.
+
+A successful response with a malformed or unexpected shape, a pagination error, an
+identity mismatch or any other invalid evidence is not an outage. It keeps the
+fail-closed `INTERVENTION` and requires manual reconciliation.
+
+A read failure:
 
 - never sets `exit_requested_ms` or `read_failure_exit`, never starts an exit
   deadline and never sends an order, however many failures occur and however long
@@ -1205,14 +1220,20 @@ intervention.
 outages. Such latches are kept and never cleared in bulk. Exit provenance is:
 
 - `operator` when an `order exit` request was recorded;
-- `read_outage_latch` when the pending `read_failure_exit` flag is present, or when
-  it can be inferred from the `INTERVENTION` event persisted at exactly
-  `exit_requested_ms` with an "Account snapshot unavailable" reason;
+- `read_outage_latch` when the event persisted at exactly `exit_requested_ms` is a
+  transition into `INTERVENTION` with an "Account snapshot unavailable" reason, the
+  tick in which the old policy created its request (evidence `event`, or
+  `flag+event` while the `read_failure_exit` flag is still pending);
+- `ambiguous_legacy` when the flag is present but the request predates that
+  transition. The old code also set the flag on top of an earlier operator or
+  protection exit. Such a request is honored within its original budget, and it
+  cannot be withdrawn;
 - `other` otherwise.
 
-A pending flag with residual exposure holds the owner in `INTERVENTION`
-("Legacy read-outage exit latch retained") and sends nothing. Once the owner is
-flat, the flag is dropped so that ordinary cleanup can run.
+A pending `read_outage_latch` with residual exposure holds the owner in
+`INTERVENTION` ("Legacy read-outage exit latch retained") and sends nothing. An
+`ambiguous_legacy` flag is dropped and the earlier request proceeds. Once the
+owner is flat, the flag is dropped so that ordinary cleanup can run.
 
 To resolve an exhausted legacy latch, first get separate explicit authorization
 for that owner, then:
@@ -1223,9 +1244,13 @@ for that owner, then:
    only an `INTERVENTION` owner whose request time matches exactly and whose
    provenance is `read_outage_latch`. It refuses if an exit attempt was created at
    or after that time, an UNKNOWN or unresolved entry/add attempt exists, a
-   protective fill is recorded, or an entry cancellation is pending. It clears
-   only that request, records it under `withdrawn_exit_requests` and leaves the
-   owner in `INTERVENTION`. It never renews a budget or sends an order.
+   protective fill is recorded (either `protective_filled` or
+   `exit_protective_filled`, or a FILLED stop or trailing attempt), or an entry
+   cancellation is pending. All checks and the write share one SQLite IMMEDIATE
+   transaction, so a concurrent reconciliation cannot slip new attempt evidence in
+   between them. The command clears only that request, records it under
+   `withdrawn_exit_requests` and leaves the owner in `INTERVENTION`. It never renews
+   a budget or sends an order. `order recover` uses the same transaction boundary.
 3. Run `order recover --id ID`. The supervisor then reconciles with unchanged
    budgets and ownership.
 

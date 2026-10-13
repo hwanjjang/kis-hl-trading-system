@@ -826,6 +826,16 @@ class ManagedKisGateway:
         )
 
     def snapshot(self, row, attempts, now):
+        row["reconciliation_context"] = {"tick_ms": now, "phase": "history"}
+        try:
+            return self._snapshot_once(row, attempts, now)
+        except (RuntimeError, OSError):
+            # Record when the failed read returned: its duration is outage time.
+            row["reconciliation_context"]["observed_now_ms"] = max(now, int(time.time() * 1000))
+            raise
+
+    def _snapshot_once(self, row, attempts, now):
+        context = row["reconciliation_context"]
         asset = self._asset(row["plan"]["instrument"])
         history = self._history(
             asset, row.get("baseline_start_ms", row["created_ms"]), now
@@ -879,12 +889,14 @@ class ManagedKisGateway:
                     "kind": owned[oid]["kind"],
                     "size": str(qty - cum),
                 }
+        context["phase"] = "open_orders"
         open_rows = self.client.account_pages(
             asset.market + "_orders", exchange="NASD"
         )["output"]
         foreign |= any(
             r["pdno"] == asset.symbol and str(r["odno"]) not in owned for r in open_rows
         )
+        context["phase"] = "positions"
         positions = self._rows(asset)
         pos = next((r for r in positions if r["pdno"] == asset.symbol), None)
         size = (
