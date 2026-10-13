@@ -36,6 +36,11 @@ not human reading. Do not describe retry as guaranteed exactly-once delivery.
   execution candidate, reason and manual/automatic mode.
 - Protection failure, unknown orders or external interference: prompt operational
   alert; already-authorized protection does not wait for notification delivery.
+- Account-read outage and recovery (implemented for issue 59): one warning and one
+  recovery notice per owner episode, held in the SQLite outbox `managed_notifications`.
+  Hermes lists them with `supervisor notifications` and acknowledges them with
+  `supervisor notification-result`. A warning never triggers an exit. See
+  [read outages](../trading-operations.md#read-outages-and-recovery-limits).
 - Journal refresh: summary of imported fills, completed/pending cycles and gaps.
 - Daily review: effective realized metrics, unassigned/mixed attribution and sync
   health, with currencies separate.

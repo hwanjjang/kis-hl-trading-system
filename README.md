@@ -33,7 +33,24 @@ protected entry/supervisor controls, actual-history journals, statement imports,
 and strategy-signal grants. Journal synchronization defaults to **3 hours**
 and is configurable; protection runs separately. KIS order summaries remain pending
 until exact execution/cost statements are supplied. Native KIS protection is not
-inferred from stop-limit names. Notification delivery is not implemented.
+inferred from stop-limit names.
+
+An account-read outage is a warning and never a reason to sell. The supervisor
+keeps native SL/TS orders, pauses local supervision and records one outage
+warning and one recovery notice per episode. Hermes lists, delivers and
+acknowledges these notices. The repository has no messaging transport of its own.
+
+```bash
+python -m kis_hl.cli supervisor notifications --venue hyperliquid
+python -m kis_hl.cli supervisor notification-result --venue hyperliquid --notification-id 7 --result delivered
+python -m kis_hl.cli order status --id POSITION_ID   # diagnostics: first cause, current blocker, read health, exit budget
+```
+
+`order recover` refuses an owner whose exit budget is already exhausted and explains why.
+A legacy read-outage exit latch can only be withdrawn with
+`order withdraw-read-exit --id POSITION_ID --exit-requested-ms EXACT_MS`, and only
+under separate explicit authorization. See
+[read outages](docs/trading-operations.md#read-outages-and-recovery-limits).
 
 New Hyperliquid managed plans default to native continuous-mark trailing plus
 concurrent local nine-minute backup (`local_trailing_backup: true`). KIS stays local;

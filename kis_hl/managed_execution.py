@@ -3,6 +3,7 @@
 from __future__ import annotations
 from contextlib import contextmanager
 from contextvars import ContextVar
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_DOWN, ROUND_UP
 import json
 from pathlib import Path
@@ -184,6 +185,11 @@ class ExecutionStore:
                 intent_id TEXT NOT NULL,position_id TEXT NOT NULL,PRIMARY KEY(scope,mode,intent_id));
             CREATE TABLE IF NOT EXISTS managed_tranches(id TEXT PRIMARY KEY,position_id TEXT NOT NULL,
                 snapshot TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS managed_notifications(id INTEGER PRIMARY KEY,position_id TEXT NOT NULL,
+                scope TEXT NOT NULL,mode TEXT NOT NULL,kind TEXT NOT NULL,episode_ms INTEGER NOT NULL,
+                created_ms INTEGER NOT NULL,payload TEXT NOT NULL,delivered_ms INTEGER,
+                delivery_attempts INTEGER NOT NULL DEFAULT 0,last_attempt_ms INTEGER,
+                UNIQUE(position_id,kind,episode_ms));
             """
             )
             # Serialize legacy migrations across CLI/supervisor processes.
@@ -494,7 +500,16 @@ class ExecutionStore:
             ]
 
     def save(self, row, now_ms):
+        outbox = row.pop("pending_notifications", [])
         new = {**row, "version": row["version"] + 1}
+        # The current blocker is kept apart from the first cause; polling with an
+        # unchanged reason keeps its original time.
+        if new["state"] == "INTERVENTION":
+            blocker = new.get("intervention_blocker")
+            if not blocker or blocker.get("reason") != new["reason"]:
+                new["intervention_blocker"] = {"reason": new["reason"], "since_ms": now_ms}
+        else:
+            new.pop("intervention_blocker", None)
         with self.connect() as db:
             changed = db.execute(
                 "UPDATE managed_positions SET state=?,version=?,snapshot=? WHERE id=? AND version=?",
@@ -506,9 +521,25 @@ class ExecutionStore:
                 "INSERT INTO managed_events(position_id,time_ms,state,reason,details) VALUES(?,?,?,?,?)",
                 (row["id"], now_ms, new["state"], new["reason"], encode({
                     label: new[key] for label, key in (("error", "last_error"),
-                        ("first_intervention", "first_intervention")) if key in new
+                        ("first_intervention", "first_intervention"), ("read_health", "read_health")) if key in new
                 })),
             )
+            if outbox:
+                # Same transaction as the state: one row per owner/kind/episode,
+                # whatever polling, restarts or version races occur.
+                attempts = [json.loads(r[0]) for r in db.execute(
+                    "SELECT snapshot FROM managed_attempts WHERE position_id=? ORDER BY rowid", (row["id"],))]
+                for note in outbox:
+                    prefix = new["plan"]["instrument"].split(":")[0]
+                    payload = {"venue": {"hl": "hyperliquid"}.get(prefix, prefix),
+                               "instrument": new["plan"]["instrument"], "state": new["state"],
+                               "reason": new["reason"], "read_health": new.get("read_health"),
+                               **supervision_summary(new, attempts)}
+                    db.execute(
+                        "INSERT OR IGNORE INTO managed_notifications(position_id,scope,mode,kind,episode_ms,"
+                        "created_ms,payload) VALUES(?,?,?,?,?,?,?)",
+                        (row["id"], new["scope"], new["mode"], note["kind"], note["episode_ms"],
+                         now_ms, encode(payload)))
             if new["state"] in FINISHED:
                 # Same transaction: a terminal owner never persists with unsent adds.
                 self._retire_unsent(db, row["id"], new["state"], now_ms)
@@ -554,8 +585,123 @@ class ExecutionStore:
             return row
         if cancel_only:
             row["cancel_entry"] = True
-        else:
-            row["exit_requested_ms"] = row["exit_requested_ms"] or now_ms
+        elif not row["exit_requested_ms"]:
+            row["exit_requested_ms"] = now_ms
+            row["exit_request_source"] = {"kind": "operator", "requested_ms": now_ms}
+        self.save(row, now_ms)
+        return row
+
+    def notifications(self, scope=None, mode=None, *, include_delivered=False):
+        """Outbox rows for Hermes delivery; listing never marks delivery."""
+        query = "SELECT * FROM managed_notifications WHERE 1=1"
+        args = []
+        for column, value in (("scope", scope), ("mode", mode)):
+            if value is not None:
+                query += f" AND {column}=?"
+                args.append(value)
+        if not include_delivered:
+            query += " AND delivered_ms IS NULL"
+        with self.connect() as db:
+            rows = [dict(r) for r in db.execute(query + " ORDER BY id", args)]
+        result = []
+        for r in rows:
+            note = {k: r[k] for k in ("id", "position_id", "mode", "kind", "episode_ms", "created_ms",
+                                      "delivered_ms", "delivery_attempts", "last_attempt_ms")}
+            note["payload"] = json.loads(r["payload"])
+            note["message"] = notification_message(note)
+            result.append(note)
+        return result
+
+    def record_notification_result(self, notification_id, *, delivered, now_ms):
+        """Record a Hermes delivery outcome; never touches execution state."""
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT delivered_ms FROM managed_notifications WHERE id=?",
+                             (notification_id,)).fetchone()
+            if row is None:
+                raise ValueError("Unknown notification")
+            if row["delivered_ms"] is not None:
+                raise ValueError("Notification already delivered")
+            db.execute(
+                "UPDATE managed_notifications SET delivery_attempts=delivery_attempts+1,last_attempt_ms=?,"
+                "delivered_ms=? WHERE id=?", (now_ms, now_ms if delivered else None, notification_id))
+        return next(n for n in self.notifications(include_delivered=True) if n["id"] == notification_id)
+
+    def recovery_blockers(self, row, attempts, now_ms):
+        """Explain budgets that unchanged-budget recovery cannot resolve."""
+        p = row["plan"]
+        blockers = []
+        residual = decimal(row.get("observed_size", "0")) > 0
+        requested = row.get("exit_requested_ms")
+        provenance = exit_provenance(self, row)
+        if row.get("read_failure_exit") and residual:
+            blockers.append("A legacy read-outage exit latch is still pending; the current policy never "
+                            "executes it automatically.")
+        if requested is not None and residual:
+            exits = [a for a in attempts if a["kind"] == "exit"]
+            unresolved = [a for a in exits if a["status"].lower() not in TERMINAL]
+            if now_ms - requested > p["exit_deadline_ms"]:
+                blockers.append(
+                    f"Exit deadline budget exhausted: the exit request at {requested} ms had "
+                    f"exit_deadline_ms={p['exit_deadline_ms']} and expired at {requested + p['exit_deadline_ms']} ms. "
+                    "Recovery keeps budgets unchanged, so the supervisor would return to INTERVENTION immediately.")
+            elif len(exits) >= p["max_exit_attempts"] and not unresolved:
+                blockers.append(
+                    f"Exit attempt budget exhausted: {len(exits)} of max_exit_attempts={p['max_exit_attempts']} "
+                    "used with residual exposure. Recovery keeps budgets unchanged.")
+        if blockers:
+            kind = provenance["kind"] if provenance else "read_outage_latch"
+            if kind == "read_outage_latch":
+                blockers.append(
+                    f"Exit provenance: read_outage_latch ({(provenance or {}).get('evidence', 'flag')}). Only under "
+                    "separate explicit authorization, withdraw exactly this request with "
+                    f"`order withdraw-read-exit --id {row['id']} --exit-requested-ms {requested}` and then run "
+                    "`order recover`.")
+            else:
+                blockers.append(
+                    f"Exit provenance: {kind}. Manage the residual exposure under a separately authorized "
+                    "procedure; recovery cannot renew budgets.")
+        return blockers
+
+    def recover_intervention(self, position_id, now_ms):
+        row = self.get(position_id)
+        if row["state"] != "INTERVENTION":
+            raise ValueError("Only an intervention state can be recovered")
+        blockers = self.recovery_blockers(row, self.attempts(position_id), now_ms)
+        if blockers:
+            raise ValueError("Recovery refused. " + " ".join(blockers))
+        row.update(
+            state="ADOPTING" if row.get("adoption") and not row.get("adopted_ms") else "ENTERING",
+            reason="Explicit recovery requested; budgets and ownership unchanged",
+        )
+        self.save(row, now_ms)
+        return row
+
+    def withdraw_read_outage_exit(self, position_id, exit_requested_ms, *, now_ms):
+        """Withdraw one exact read-outage exit latch; never renews budgets or sends orders."""
+        row = self.get(position_id)
+        attempts = self.attempts(position_id)
+        if row["state"] != "INTERVENTION":
+            raise ValueError("Withdrawal requires an INTERVENTION owner")
+        if type(exit_requested_ms) is not int or row.get("exit_requested_ms") != exit_requested_ms:
+            raise ValueError("Withdrawal requires the exact current exit_requested_ms")
+        provenance = exit_provenance(self, row)
+        if provenance["kind"] != "read_outage_latch":
+            raise ValueError(f"Exit provenance is {provenance['kind']}, not read_outage_latch; withdrawal refused")
+        if any(a["kind"] == "exit" and a["created_ms"] >= exit_requested_ms for a in attempts):
+            raise ValueError("An exit attempt exists for this request; withdrawal refused")
+        if any(a["status"] == "UNKNOWN" or (a["kind"] in {"entry", "add"} and a["status"].lower() not in TERMINAL)
+               for a in attempts) or row.get("cancel_entry"):
+            raise ValueError("Unknown or unresolved entry/add lifecycle blocks withdrawal")
+        if (any(a["kind"] in {"stop", "trailing"} and a["status"] == "FILLED" for a in attempts)
+                or decimal(row.get("exit_protective_filled", row.get("protective_filled", "0"))) > 0):
+            raise ValueError("Protective fills are recorded; withdrawal refused")
+        row["exit_requested_ms"] = None
+        row.pop("read_failure_exit", None)
+        row.setdefault("withdrawn_exit_requests", []).append(
+            {"exit_requested_ms": exit_requested_ms, "withdrawn_ms": now_ms, "provenance": provenance})
+        row["reason"] = ("Read-outage exit request withdrawn by explicit command; "
+                         "run order recover to resume supervision")
         self.save(row, now_ms)
         return row
 
@@ -621,11 +767,45 @@ class Supervisor:
         if state == "INTERVENTION" and not preserve_native_intervention:
             row.pop("native_trailing_intervention", None)
             if row.get("last_error"):
+                # First cause is history; the reason stays the current blocker.
                 row.setdefault("first_intervention", {**row["last_error"], "summary": reason})
-            if row["state"] == "INTERVENTION" and row.get("first_intervention"):
-                reason = row["first_intervention"]["summary"]
         row.update(state=state, reason=reason)
         self.store.save(row, now)
+
+    def _read_outage(self, row, exc, now):
+        """Account-read failure is a warning: never an exit request, flag or deadline."""
+        row["read_failures"] = row.get("read_failures", 0) + 1
+        row.setdefault("read_failure_since_ms", now)
+        health = row.get("read_health") or {}
+        new_episode = health.get("status") != "unavailable"
+        if new_episode:
+            health = {"status": "unavailable", "since_ms": now, "operation": "account_snapshot",
+                      "last_success_ms": row.get("last_observed_ms")}
+        health.update(last_failure_ms=now, consecutive_failures=row["read_failures"],
+                      phase=row["last_error"]["context"].get("phase"), error=read_error_classification(exc))
+        row["read_health"] = health
+        # A failed read still proves the supervisor was running: observation gaps
+        # count only the time between ticks, never the outage itself.
+        anchor = max(row.get("last_observed_ms") or 0, row.get("last_supervised_ms") or 0)
+        if anchor:
+            gap = getattr(self.gateway, "observation_gap_ms", None)
+            interval = int(gap(row, anchor, now)) if gap else now - anchor
+            row["unsupervised_gap_ms"] = max(row.get("unsupervised_gap_ms", 0), interval)
+        row["last_supervised_ms"] = now
+        if new_episode:
+            row.setdefault("pending_notifications", []).append(
+                {"kind": "read_outage", "episode_ms": health["since_ms"]})
+        if row["state"] == "INTERVENTION":
+            # Read health is reported separately; keep the current blocker.
+            self.store.save(row, now)
+            return
+        self._state(
+            row,
+            "DEGRADED",
+            f"Account snapshot unavailable ({type(exc).__name__}); consecutive failures={row['read_failures']}; "
+            "warning only; no exit requested; native orders retained, local supervision paused",
+            now,
+        )
 
     def _send(self, row, kind, now, **values):
         # Persist triggering decisions before any external effect, including cancellations.
@@ -688,7 +868,7 @@ class Supervisor:
             ) as exc:
                 current = self.store.get(position_id)
                 if current["version"] == row["version"]:
-                    row.pop("read_failure_exit", None)
+                    # A legacy read-failure latch keeps its provenance under any blocker.
                     row.pop("native_trailing_intervention", None)
                     self._record_error(row, exc, now_ms)
                     error = row["last_error"]
@@ -888,47 +1068,25 @@ class Supervisor:
             snap = self.gateway.snapshot(row, attempts, now)
         except (RuntimeError, OSError) as exc:
             self._record_error(row, exc, now, reason="Account snapshot unavailable")
-            session_check = getattr(self.gateway, "execution_session_open", None)
-            if (session_check is not None and not row.get("read_failure_exit")
-                    and row["state"] != "INTERVENTION"
-                    and not session_check(p["instrument"], now)):
-                # Broker maintenance outside the execution session: no local exit
-                # could execute anyway, so do not latch one for the next open.
-                row["read_failures"] = row.get("read_failures", 0) + 1
-                self._state(
-                    row,
-                    "DEGRADED",
-                    f"Account snapshot unavailable outside the execution session ({type(exc).__name__}); "
-                    f"consecutive failures={row['read_failures']}; no new read-failure exit latched",
-                    now,
-                )
-                return
-            row["read_failures"] = row.get("read_failures", 0) + 1
-            row.setdefault("read_failure_since_ms", now)
-            existing_intervention = row["state"] == "INTERVENTION" and not row.get(
-                "read_failure_exit"
-            )
-            exhausted = (
-                row["read_failures"] >= 3
-                or now - row["read_failure_since_ms"] >= p["protection_grace_ms"]
-            )
-            if exhausted and not existing_intervention:
-                row["exit_requested_ms"] = row["exit_requested_ms"] or now
-                row["read_failure_exit"] = True
-            self._state(
-                row,
-                "INTERVENTION" if existing_intervention or exhausted else "DEGRADED",
-                f"Account snapshot unavailable ({type(exc).__name__}); consecutive failures={row['read_failures']}; awaiting readback",
-                now,
-                preserve_native_intervention=bool(row.get("native_trailing_intervention")),
-            )
+            self._read_outage(row, exc, now)
             return
+        supervised_anchor = row.pop("last_supervised_ms", 0)
+        unsupervised_gap = row.pop("unsupervised_gap_ms", 0)
         row["read_failures"] = 0
         row.pop("read_failure_since_ms", None)
-        if row.pop("read_failure_exit", False):
-            row["state"] = "EXITING"
         row["reconciliation_context"] = dict(snap.get("reconciliation_context", {}))
         now = int(snap.get("observed_now_ms", now))
+        health = row.get("read_health") or {}
+        if health.get("status") == "unavailable":
+            row["read_health"] = {"status": "ok", "last_success_ms": now, "last_outage": {
+                "since_ms": health["since_ms"], "until_ms": now, "failures": health["consecutive_failures"],
+                "phase": health.get("phase"), "error": health.get("error")}}
+            # Persisted with whatever state this tick's reconciliation reaches.
+            row.setdefault("pending_notifications", []).append(
+                {"kind": "read_recovered", "episode_ms": health["since_ms"]})
+        else:
+            row["read_health"] = {"status": "ok", "last_success_ms": now,
+                                  **({"last_outage": health["last_outage"]} if "last_outage" in health else {})}
         if not snap["consistent"] or snap["foreign_add"]:
             raise ValueError("External ownership or inconsistent exposure")
         size = decimal(snap["size"])
@@ -950,13 +1108,21 @@ class Supervisor:
                 trail.disconnect()
                 row["trail"] = trail.to_dict()
         row.update(observed_size=str(size), entry_filled=str(entry_filled))
+        if row.get("read_failure_exit"):
+            # Latched by the pre-issue-59 policy: never execute it automatically and
+            # never clear it in bulk. A flat owner needs no exit and may clean up.
+            if size > 0:
+                self._state(row, "INTERVENTION", "Legacy read-outage exit latch retained; explicit scoped "
+                            "withdrawal or exit decision required", now)
+                return
+            row.pop("read_failure_exit")
         protective_filled = decimal(snap.get("protective_filled", "0"))
         exit_filled = decimal(snap["fixed_stop_filled"]) if "native_trailing_percent" in p else protective_filled
         if exit_filled > decimal(row.get("exit_protective_filled", row.get("protective_filled", "0"))):
             row["exit_requested_ms"] = row["exit_requested_ms"] or now
         row["exit_protective_filled"] = str(exit_filled)
         row["protective_filled"] = str(protective_filled)
-        previous_observation = row.get("last_observed_ms", now)
+        previous_observation = max(row.get("last_observed_ms", now), supervised_anchor)
         same_session = (
             snap.get("same_execution_session", True)
             and row.get("last_session_open", True)
@@ -968,10 +1134,10 @@ class Supervisor:
         if (
             size > 0
             and not self.gateway.native_sl
-            and int(snap.get(
+            and max(int(snap.get(
                 "regular_session_gap_ms",
                 now - previous_observation if snap["session_open"] else 0,
-            )) >= p["protection_grace_ms"]
+            )), unsupervised_gap) >= p["protection_grace_ms"]
         ):
             row["exit_requested_ms"] = row["exit_requested_ms"] or now
         orders = snap["orders"]
@@ -1475,3 +1641,135 @@ class Supervisor:
                            tranche_id=tranche["id"], expires_ms=p["expires_ms"])
             tranche.update(status=a["status"], attempt_id=a["id"])
             self.store.save_tranche(tranche)
+
+
+_READ_ERROR_CATEGORIES = {
+    "TransientInfoError", "RuntimeError", "OSError", "TimeoutError", "ConnectionError",
+    "ConnectionResetError", "ConnectionRefusedError", "ConnectionAbortedError",
+    "BrokenPipeError", "URLError", "HTTPError",
+}
+
+
+def read_error_classification(exc):
+    """Allowlisted structure only: never the message, URL or response body."""
+    name = type(exc).__name__
+    category = name if name in _READ_ERROR_CATEGORIES else next(
+        base.__name__ for base in (TimeoutError, ConnectionError, OSError, RuntimeError, Exception)
+        if isinstance(exc, base))
+    kind = getattr(exc, "kind", None)
+    if kind not in {"http", "timeout", "transport"}:
+        kind = ("timeout" if isinstance(exc, TimeoutError)
+                else "transport" if isinstance(exc, ConnectionError) else "other")
+    status = getattr(exc, "http_status", None)
+    return {"category": category, "kind": kind,
+            "http_status": status if type(status) is int and 100 <= status <= 599 else None}
+
+
+def supervision_summary(row, attempts):
+    """Native venue orders versus local supervision, from durable state only."""
+    plan = row["plan"]
+    native = [a["order_id"] for a in attempts if a["kind"] in {"stop", "trailing"}
+              and a.get("order_id") and a["status"].lower() not in TERMINAL]
+    providers = row.get("providers") or {}
+    stop = providers.get("stop_loss", "local" if plan["instrument"].startswith("kis:") else "native")
+    local = (["local_stop_loss"] if stop == "local" and plan.get("allow_local_sl") else []) + (
+        ["local_trailing"] if plan.get("trailing_provider", "local") == "local"
+        or plan.get("local_trailing_backup") else [])
+    if row["state"] in FINISHED:
+        status, reason = "stopped", "Owner finished"
+    elif (row.get("read_health") or {}).get("status") == "unavailable":
+        status, reason = "paused", ("Account reads unavailable: local SL/TS, exits and fill reconciliation "
+                                    "cannot run; native orders are retained but not re-verified")
+    elif row["state"] == "INTERVENTION" and not row.get("native_trailing_intervention"):
+        status, reason = "paused", ("Intervention: local trailing and exit processing are suspended until "
+                                    "explicit recovery; native orders remain at the venue")
+    else:
+        status, reason = "active", "Local supervision runs on each fresh consistent readback"
+    return {"native_orders_retained": native, "local_protections": local,
+            "local_supervision": status, "supervision_reason": reason}
+
+
+def _iso(ms):
+    if ms is None:
+        return "unknown"
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).isoformat(timespec="seconds")
+
+
+def notification_message(note):
+    """Fixed English text built from allowlisted payload fields."""
+    p = note["payload"]
+    health = p.get("read_health") or {}
+    head = f"{p['instrument']} ({p['venue']}, owner {note['position_id'][:8]})"
+    if note["kind"] == "read_outage":
+        error = health.get("error") or {}
+        cause = f"HTTP {error['http_status']}" if error.get("http_status") else error.get("kind", "unknown")
+        native = ", ".join(map(str, p["native_orders_retained"])) or "none"
+        local = ", ".join(p["local_protections"]) or "none"
+        return (f"WARNING {head}: account reads unavailable since {_iso(note['episode_ms'])} "
+                f"({health.get('operation')}, phase {health.get('phase') or 'unknown'}, {cause}). "
+                f"Warning only: no exit requested. Native orders retained: {native}. "
+                f"Local supervision {p['local_supervision']} (local protections: {local}). "
+                f"Last successful observation: {_iso(health.get('last_success_ms'))}.")
+    outage = health.get("last_outage") or {}
+    return (f"RECOVERED {head}: account reads recovered at {_iso(outage.get('until_ms'))} after "
+            f"{outage.get('failures')} failed reads since {_iso(note['episode_ms'])}. "
+            f"State {p['state']}: {p['reason']}. Local supervision {p['local_supervision']}.")
+
+
+def exit_provenance(store, row):
+    """Why an exit was requested; legacy read-outage latches are inferred from events."""
+    requested = row.get("exit_requested_ms")
+    if requested is None:
+        return None
+    source = row.get("exit_request_source") or {}
+    if source.get("requested_ms") == requested:
+        return {"kind": source["kind"], "evidence": "recorded"}
+    if row.get("read_failure_exit"):
+        return {"kind": "read_outage_latch", "evidence": "flag"}
+    with store.connect() as db:
+        latched = db.execute(
+            "SELECT 1 FROM managed_events WHERE position_id=? AND time_ms=? AND state='INTERVENTION' "
+            "AND reason LIKE 'Account snapshot unavailable%' LIMIT 1", (row["id"], requested)).fetchone()
+    if latched:
+        return {"kind": "read_outage_latch", "evidence": "event",
+                "note": "Inferred from the INTERVENTION event persisted when the read-outage policy latched it"}
+    return {"kind": "other", "evidence": "none",
+            "note": "Protection, trailing or fill trigger; not attributable to a read outage"}
+
+
+def owner_diagnostics(store, row, now_ms):
+    """Read-only status view separating causes, blockers, read health and supervision."""
+    p = row["plan"]
+    attempts = store.attempts(row["id"])
+    requested = row.get("exit_requested_ms")
+    exits = [a for a in attempts if a["kind"] == "exit"]
+    unresolved = [a for a in exits if a["status"].lower() not in TERMINAL]
+    with store.connect() as db:
+        total = db.execute("SELECT COUNT(*) FROM managed_events WHERE position_id=?", (row["id"],)).fetchone()[0]
+        transitions = [dict(r) for r in db.execute(
+            "SELECT time_ms,state,reason FROM (SELECT id,time_ms,state,reason,"
+            "LAG(state) OVER w AS prior_state,LAG(reason) OVER w AS prior_reason "
+            "FROM managed_events WHERE position_id=? WINDOW w AS (ORDER BY id)) "
+            "WHERE prior_state IS NULL OR prior_state!=state OR prior_reason!=reason ORDER BY id",
+            (row["id"],))]
+    summary = supervision_summary(row, attempts)
+    return {
+        "intervention": {"first_cause": row.get("first_intervention"),
+                         "current_blocker": row.get("intervention_blocker")}
+        if row["state"] == "INTERVENTION" else None,
+        "read_health": row.get("read_health") or {"status": "unknown"},
+        "supervision": summary,
+        "exit": {
+            "requested_ms": requested,
+            "deadline_at_ms": requested + p["exit_deadline_ms"] if requested is not None else None,
+            "deadline_exhausted": requested is not None and now_ms - requested > p["exit_deadline_ms"],
+            "exit_attempts": len(exits),
+            "max_exit_attempts": p["max_exit_attempts"],
+            "attempts_exhausted": len(exits) >= p["max_exit_attempts"] and not unresolved,
+            "provenance": exit_provenance(store, row),
+            "withdrawn": row.get("withdrawn_exit_requests", []),
+        },
+        # Every save is an event; only state/reason changes are transitions.
+        "events": {"total": total, "transition_count": len(transitions),
+                   "polls": total - len(transitions), "recent_transitions": transitions[-10:]},
+    }

@@ -137,15 +137,17 @@ class KisAdoptionTests(unittest.TestCase):
         self.assertIsNone(result["exit_requested_ms"])
         self.assertEqual(self.g.sent, [])
 
-    def test_in_session_broker_read_failures_still_latch_an_exit(self):
+    def test_in_session_broker_read_failures_warn_without_exit(self):
+        # Issue 59: read failures are warning-only in every session.
         self.row = self.adopt()
         self.step(NOW + 1_000)
         self.step(NOW + 2_000)
         self.g.snapshot = lambda *a: (_ for _ in ()).throw(RuntimeError("KIS account inquiry failed"))
         for offset in (5_000, 10_000, 15_000):
             result = self.step(NOW + offset)
-        self.assertEqual(result["state"], "INTERVENTION")
-        self.assertIsNotNone(result["exit_requested_ms"])
+        self.assertEqual(result["state"], "DEGRADED")
+        self.assertIsNone(result["exit_requested_ms"])
+        self.assertEqual(self.g.sent, [])
 
     def test_closed_read_failure_preserves_explicit_exit_and_reports_no_new_exit(self):
         close = ms("2026-09-29T15:30:00+09:00")
@@ -158,10 +160,10 @@ class KisAdoptionTests(unittest.TestCase):
         result = self.step(night)
         self.assertEqual(result["state"], "DEGRADED")
         self.assertEqual(result["exit_requested_ms"], night - 1_000)
-        self.assertIn("no new read-failure exit latched", result["reason"])
+        self.assertIn("warning only; no exit requested", result["reason"])
         self.assertEqual(self.g.sent, [])
 
-    def test_overnight_failure_count_survives_restart_and_applies_at_open(self):
+    def test_overnight_failure_count_survives_restart_without_exit_at_open(self):
         close = ms("2026-09-29T15:30:00+09:00")
         self.row = self.adopt(at=close - 3_000)
         self.step(close - 2_000)
@@ -177,16 +179,15 @@ class KisAdoptionTests(unittest.TestCase):
         self.worker = Supervisor(ExecutionStore(self.store.path), self.g, live=True)
         opened = ms("2026-09-30T09:00:01+09:00")
         result = self.step(opened)
-        self.assertEqual(result["state"], "INTERVENTION")
+        self.assertEqual(result["state"], "DEGRADED")
         self.assertEqual(result["read_failures"], 4)
-        self.assertEqual(result["exit_requested_ms"], opened)
+        self.assertIsNone(result["exit_requested_ms"])
         self.assertEqual(self.g.sent, [])
         self.g.snapshot = snapshot
         result = self.step(opened + 1_000)
-        self.assertEqual(result["exit_requested_ms"], opened)
-        self.assertEqual(len(self.g.sent), 1)
-        self.assertEqual(self.g.sent[0]["kind"], "exit")
-        self.assertEqual(self.g.sent[0]["quantity"], "3")
+        self.assertIsNone(result["exit_requested_ms"])
+        self.assertEqual(result["state"], "PROTECTED")
+        self.assertEqual(self.g.sent, [])
 
     def test_closed_read_failures_preserve_manual_intervention(self):
         close = ms("2026-09-29T15:30:00+09:00")
@@ -208,11 +209,13 @@ class KisAdoptionTests(unittest.TestCase):
         self.row = self.adopt(at=close - 3_000)
         self.step(close - 2_000)
         self.step(close - 1_000)
+        # A latch written by the pre-issue-59 policy is retained, never cleared in bulk.
+        row = self.store.get(self.row["id"])
+        row.update(exit_requested_ms=close - 700, read_failure_exit=True, state="INTERVENTION",
+                   reason="Account snapshot unavailable (RuntimeError); consecutive failures=3; awaiting readback")
+        self.store.save(row, close - 700)
         self.g.snapshot = Mock(side_effect=RuntimeError("fixture read unavailable"))
-        for offset in (-900, -800, -700):
-            result = self.step(close + offset)
-        requested = result["exit_requested_ms"]
-        self.assertIsNotNone(requested)
+        requested = close - 700
         self.worker = Supervisor(ExecutionStore(self.store.path), self.g, live=True)
         result = self.step(ms("2026-09-30T01:42:00+09:00"))
         self.assertEqual(result["state"], "INTERVENTION")

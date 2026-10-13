@@ -301,7 +301,9 @@ class ManagedHyperliquidGateway:
 
     def _snapshot_once(self, row, attempts, now):
         context = row["reconciliation_context"]
+        context["phase"] = "metadata"
         asset, resolved, lot, tick = self._market(row["plan"]["instrument"])
+        context["phase"] = "orders"
         orders = {}
         original_sizes = {}
         for a in attempts:
@@ -815,6 +817,14 @@ class ManagedKisGateway:
             "observed_now_ms": int(time.time() * 1000),
         }
 
+    def observation_gap_ms(self, row, start_ms, end_ms):
+        """Regular cash-session time between two supervisor ticks."""
+        asset = self._asset(row["plan"]["instrument"])
+        return regular_cash_session_elapsed_ms(
+            start_ms, end_ms,
+            session_group=SESSION_KRX_CASH if asset.market == "domestic" else SESSION_US_CASH,
+        )
+
     def snapshot(self, row, attempts, now):
         asset = self._asset(row["plan"]["instrument"])
         history = self._history(
@@ -904,10 +914,9 @@ class ManagedKisGateway:
         except (ValueError, KeyError, IndexError, RuntimeError, OSError):
             price, ask, stamp = Decimal(0), Decimal(0), 0
         observed_now = int(time.time() * 1000)
-        session_gap_ms = regular_cash_session_elapsed_ms(
-            previous, observed_now,
-            session_group=SESSION_KRX_CASH if asset.market == "domestic" else SESSION_US_CASH,
-        )
+        # Failed-read ticks advance the anchor: only unsupervised time counts.
+        session_gap_ms = self.observation_gap_ms(
+            row, max(previous, row.get("last_supervised_ms") or 0), observed_now)
         return {
             "size": str(size),
             "entry_price": entry_price,
