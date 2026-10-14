@@ -58,13 +58,17 @@ and records `attempts` and `last_error` (the exception type only), then retries 
 python -m kis_hl.cli data journal-status
 ```
 
-The `sync` part shows the request, the account jobs, the last failed collection and
-the worker heartbeat (`worker_last_seen_ms`). If requests stay pending and the
+The `sync` part shows the request, the last sync (success or partial, with the unresolved
+source buckets), the account jobs, the last failed collection and the worker heartbeat
+(`worker_last_seen_ms`). An incomplete KIS collection keeps the previous success time and
+lists its unresolved buckets. A job without an explicit account appears under
+`unattributed_jobs` when its venue has more than one account. If requests stay pending and the
 heartbeat is old, the worker is not running.
 
 ## Daily summary (scenario S5)
 
-`data journal-status` is read-only; the database is byte-for-byte unchanged afterwards.
+`data journal-status` never changes database content. For a WAL database, SQLite may
+create its standard empty `-wal`/`-shm` sidecar files, exactly as `data status` does.
 After the US close, Hermes runs:
 
 ```bash

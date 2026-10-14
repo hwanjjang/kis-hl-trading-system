@@ -163,16 +163,20 @@ manual `data sync` all use the same path (`kis_hl.fill_journal.sync_and_notify`)
    own state first and then records one durable request in `journal_sync_requests`
    for that venue/account. Repeated fills coalesce into the one pending request. The
    supervisor never performs network IO for this and never waits on it. If the request
-   write fails, the failure is logged (`journal_sync_request_failed`) and protection,
-   order handling and supervisor state are unchanged; the fallback below still
-   journals the fill.
+   write runs after the account lock is released and gives up after 0.2 s on a
+   busy database. A failed write is logged (`journal_sync_request_failed`) and retried
+   on the supervisor's next steps. Protection, order handling and supervisor state are
+   unchanged, and the fallback below still journals the fill.
 2. **Worker processing.** `market collect` handles due requests first, inside its
    existing lock and before scheduled jobs. Each request syncs from 15 minutes before
    the supervisor's last observation preceding the fill. A failure or timeout records
    `attempts`, `last_error` (exception type only) and retries with backoff: 30 s,
    doubling up to 15 min, until a success clears it. A fill recorded while a sync runs
    keeps the request pending for one more pass. One account's failure never blocks
-   another.
+   another. An incomplete collection (`collection_complete: false`, for example an
+   ambiguous KIS daily cost bucket) clears the request, because retrying cannot fix a
+   source gap. It does not advance `last_success_ms`; it records
+   `last_error=partial_collection` and the sanitized unresolved buckets instead.
 3. **Fallback interval.** Manual exchange-app trades have no supervisor owner. Configure
    one `account` job per account: Hyperliquid at 300 s and KIS at 3,600 s. Both use the
    default one-day overlap. The KIS job is not session-gated; an hourly job satisfies
@@ -181,9 +185,17 @@ manual `data sync` all use the same path (`kis_hl.fill_journal.sync_and_notify`)
 4. **Notifications.** After each successful sync that created journals, one
    `journal_batch` row is added to the shared `managed_notifications` outbox (see
    [trading operations](trading-operations.md#read-outages-and-recovery-limits)).
-   Each `journal_id` is notified at most once. The first processed sync for an account
-   records a baseline, so historical journals are never announced.
-5. **Status.** `data journal-status` is read-only. Hermes runs
+   Each `journal_id` is notified at most once. The first notifying sync records one
+   enablement baseline *before* it ingests anything. Journals that existed before
+   enablement stay silent; every later journal is announced, from any account and any
+   path (including imports and backfills), and concurrent first syncs cannot hide one.
+5. **Status.** `data journal-status` never changes database content. As with any
+   SQLite reader of a WAL database, including `data status`, SQLite may create the
+   standard empty `-wal`/`-shm` sidecar files. The output includes the last
+   successful or partial sync per account (`sync.last_sync`, written by every sync
+   path). Account jobs are attributed by their explicit account; a job without an
+   account is attributed only when its venue has exactly one account, and is otherwise
+   listed in `unattributed_jobs`. Hermes runs
    `data journal-status --enqueue-summary` after the US close to queue one
    `journal_daily` notification per account and KST date.
 

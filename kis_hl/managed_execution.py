@@ -20,6 +20,7 @@ from kis_hl.hyperliquid.trailing import normalize_quote_retracement, wire_decima
 logger = logging.getLogger(__name__)
 # Fill markers compared before/after a supervisor step to request a journal sync (#58).
 FILL_MARKERS = ("entry_filled", "observed_size", "protective_filled", "exit_protective_filled", "first_fill_ms")
+JOURNAL_REQUEST_TIMEOUT_S = 0.2
 TERMINAL = {"filled", "canceled", "rejected", "expired"}
 FINISHED = {"CLOSED", "REJECTED", "PREVIEWED"}
 _entry_permit = ContextVar("managed_entry_permit", default=None)
@@ -732,9 +733,11 @@ class ExecutionStore:
         return row
 
     def request_journal_sync(self, *, venue, account, scope, since_ms, now_ms):
-        """Durable, coalesced journal sync request; the market collect worker performs it."""
+        """Durable, coalesced journal sync request; the market collect worker performs it.
+
+        Fails fast on a busy database so a competing writer can never stall supervision."""
         fill_journal.request_sync(self.path, venue=venue, account=account, scope=scope,
-                                  since_ms=since_ms, now_ms=now_ms)
+                                  since_ms=since_ms, now_ms=now_ms, timeout=JOURNAL_REQUEST_TIMEOUT_S)
 
     def heartbeat(self, scope, now_ms, live):
         with self.connect() as db:
@@ -763,6 +766,7 @@ class Supervisor:
     def __init__(self, store, gateway, *, live=False):
         self.store, self.gateway, self.live = store, gateway, live
         self.seen = set()
+        self.journal_requests = {}  # (venue, scope) -> since_ms awaiting a durable request
 
     def _record_error(self, row, exc, now, *, reason=None):
         # Only fixed local validation messages may be retained. Transport payloads,
@@ -917,22 +921,31 @@ class Supervisor:
             # any expired unsent approval it did not evaluate so it stops showing as pending.
             self.store.retire_unsent_adds(position_id, now_ms)
             committed = self.store.get(position_id)
-            self._request_journal_sync(markers, since, committed, now_ms)
-            return committed
+        # Outside the account lock: journal bookkeeping never holds up supervision.
+        self._request_journal_sync(markers, since, committed, now_ms)
+        return committed
 
     def _request_journal_sync(self, markers, since, row, now_ms):
-        """After the state commit only; a failure never touches supervision."""
+        """After the state commit only; a failure never touches supervision.
+
+        An unrecorded request is remembered and retried on later steps; the fallback
+        account job still covers the fill if this process stops first."""
         def value(key, source):
             item = source.get(key)
             return item if key == "first_fill_ms" else Decimal(str(item or "0"))
-        if row["mode"] != "live" or all(value(k, markers) == value(k, row) for k in FILL_MARKERS):
-            return
-        venue = {"hl": "hyperliquid", "kis": "kis"}.get(row["plan"]["instrument"].split(":")[0])
-        try:
-            self.store.request_journal_sync(venue=venue, account=self.gateway.account, scope=row["scope"],
-                                            since_ms=since, now_ms=now_ms)
-        except Exception as exc:
-            logger.warning("journal_sync_request_failed", extra={"venue": venue, "error_type": type(exc).__name__})
+        if row["mode"] == "live" and any(value(k, markers) != value(k, row) for k in FILL_MARKERS):
+            venue = {"hl": "hyperliquid", "kis": "kis"}.get(row["plan"]["instrument"].split(":")[0])
+            key = (venue, row["scope"])
+            known = self.journal_requests.get(key)
+            self.journal_requests[key] = min(since, known) if known is not None else since
+        for (venue, scope), pending_since in list(self.journal_requests.items()):
+            try:
+                self.store.request_journal_sync(venue=venue, account=self.gateway.account, scope=scope,
+                                                since_ms=pending_since, now_ms=now_ms)
+            except Exception as exc:
+                logger.warning("journal_sync_request_failed", extra={"venue": venue, "error_type": type(exc).__name__})
+                continue
+            del self.journal_requests[(venue, scope)]
 
     def _step(self, row, now):
         row.pop("last_error", None)

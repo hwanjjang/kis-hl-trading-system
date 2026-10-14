@@ -32,11 +32,16 @@ CREATE TABLE IF NOT EXISTS journal_sync_requests(venue TEXT NOT NULL,account TEX
     last_result TEXT,PRIMARY KEY(venue,account));
 CREATE TABLE IF NOT EXISTS journal_notification_baseline(scope TEXT PRIMARY KEY,
     after_run_id INTEGER NOT NULL,created_ms INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS journal_sync_status(scope TEXT PRIMARY KEY,last_attempt_ms INTEGER,
+    last_success_ms INTEGER,last_outcome TEXT,last_result TEXT);
 CREATE TABLE IF NOT EXISTS journal_notified(journal_id INTEGER PRIMARY KEY,scope TEXT NOT NULL,
     notification_id INTEGER NOT NULL);
 """
 REQUEST_FIELDS = ("pending_since_ms", "requested_ms", "request_count", "attempts", "next_attempt_ms",
-                  "last_attempt_ms", "last_error", "last_success_ms")
+                  "last_attempt_ms", "last_error", "last_success_ms", "last_result")
+# One enablement baseline for all accounts: journals that existed before the first
+# notifying sync stay silent; every later journal (any account, any path) is announced.
+BASELINE = "*"
 
 
 def ensure_schema(db):
@@ -45,10 +50,10 @@ def ensure_schema(db):
 
 
 @contextmanager
-def _connect(path, *, readonly=False):
+def _connect(path, *, readonly=False, timeout=10):
     path = Path(path).expanduser()
-    db = (sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=10) if readonly
-          else sqlite3.connect(path, timeout=10))
+    db = (sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=timeout) if readonly
+          else sqlite3.connect(path, timeout=timeout))
     db.row_factory = sqlite3.Row
     try:
         yield db
@@ -64,11 +69,11 @@ def _account(venue, account):
     return account.lower() if venue == "hyperliquid" and account else account
 
 
-def request_sync(path, *, venue, account, scope, since_ms, now_ms):
+def request_sync(path, *, venue, account, scope, since_ms, now_ms, timeout=10):
     """Record or coalesce the one pending request for this venue/account."""
     if venue not in {"hyperliquid", "kis"} or not account or not scope:
         raise ValueError("Journal sync request requires venue, account and scope")
-    with _connect(path) as db:
+    with _connect(path, timeout=timeout) as db:
         ensure_schema(db)
         db.execute("BEGIN IMMEDIATE")
         db.execute(
@@ -126,17 +131,33 @@ def process_requests(store, *, clock, sync=None):
                              "error_type": type(exc).__name__})
             continue
         result = result if isinstance(result, dict) else {}
-        summary = {k: result.get(k) for k in ("fills", "domestic_trades", "overseas_trades",
-                                              "collection_complete", "notification_id") if k in result}
+        summary = _summary(result)
+        partial = summary["outcome"] == "partial"
         with _connect(store.path) as db:
-            # A fill recorded while this sync ran keeps the request pending for one more pass.
+            # A fill recorded while this sync ran keeps the request pending for one more pass. An
+            # incomplete collection clears the request (retrying cannot fix source gaps) but keeps
+            # the success clock and records the unresolved buckets for journal-status.
             db.execute(
-                "UPDATE journal_sync_requests SET last_success_ms=?,last_attempt_ms=?,attempts=0,last_error=NULL,"
-                "last_result=?,pending_since_ms=CASE WHEN request_count=? THEN NULL ELSE pending_since_ms END,"
+                "UPDATE journal_sync_requests SET last_success_ms=CASE WHEN ? THEN last_success_ms ELSE ? END,"
+                "last_attempt_ms=?,attempts=0,last_error=?,last_result=?,"
+                "pending_since_ms=CASE WHEN request_count=? THEN NULL ELSE pending_since_ms END,"
                 "next_attempt_ms=CASE WHEN request_count=? THEN NULL ELSE ? END WHERE venue=? AND account=?",
-                (clock, clock, encode(summary), row["request_count"], row["request_count"], clock, *key))
-        outcomes.append({"venue": row["venue"], "status": "success", **summary})
+                (partial, clock, clock, "partial_collection" if partial else None, encode(summary),
+                 row["request_count"], row["request_count"], clock, *key))
+        outcomes.append({"venue": row["venue"], "status": summary["outcome"],
+                         **{k: v for k, v in summary.items() if k != "outcome"}})
     return outcomes
+
+
+def _summary(result):
+    """Counts and sanitized source findings only (no raw bodies or addresses)."""
+    summary = {k: result[k] for k in ("fills", "domestic_trades", "overseas_trades", "notification_id") if k in result}
+    summary["outcome"] = "partial" if result.get("collection_complete") is False else "success"
+    findings = [{k: f.get(k) for k in ("market", "date", "instrument", "reason") if f.get(k) is not None}
+                for f in result.get("quality_findings") or [] if isinstance(f, dict)]
+    if findings:
+        summary["quality_findings"] = findings
+    return summary
 
 
 def max_run_id(store):
@@ -144,19 +165,32 @@ def max_run_id(store):
         return db.execute("SELECT coalesce(max(id),0) FROM analysis_runs").fetchone()[0]
 
 
-def ensure_baseline(store, scope, *, after_run_id, now_ms):
-    """Journals at or before the first processed run stay silent (no historical backlog)."""
+def ensure_baseline(store, *, now_ms, after_run_id=None):
+    """Record the enablement baseline once, before any notifying sync ingests."""
+    after = max_run_id(store) if after_run_id is None else after_run_id
     with _connect(store.path) as db:
         ensure_schema(db)
-        db.execute("INSERT OR IGNORE INTO journal_notification_baseline VALUES(?,?,?)", (scope, after_run_id, now_ms))
+        db.execute("INSERT OR IGNORE INTO journal_notification_baseline VALUES(?,?,?)", (BASELINE, after, now_ms))
         return db.execute("SELECT after_run_id FROM journal_notification_baseline WHERE scope=?",
-                          (scope,)).fetchone()[0]
+                          (BASELINE,)).fetchone()[0]
+
+
+def _record_sync(store, scope, result, now_ms):
+    summary = _summary(result)
+    with _connect(store.path) as db:
+        ensure_schema(db)
+        db.execute(
+            "INSERT INTO journal_sync_status VALUES(?,?,?,?,?) ON CONFLICT(scope) DO UPDATE SET "
+            "last_attempt_ms=excluded.last_attempt_ms,last_outcome=excluded.last_outcome,"
+            "last_result=excluded.last_result,last_success_ms=coalesce(excluded.last_success_ms,last_success_ms)",
+            (scope, now_ms, now_ms if summary["outcome"] == "success" else None, summary["outcome"], encode(summary)))
 
 
 def sync_and_notify(store, venue, account, *, start_ms, end_ms=None, client=None, scope=None, now_ms=None):
     """The single sync path for requests, account jobs and `data sync`."""
     from kis_hl.data_account_sync import sync_account
-    before = max_run_id(store)
+    moment = current_ms() if now_ms is None else now_ms
+    ensure_baseline(store, now_ms=moment)  # Before ingestion, so no concurrent sync can hide journals.
     kwargs = {"start_ms": start_ms}
     if end_ms is not None:
         kwargs["end_ms"] = end_ms
@@ -165,16 +199,15 @@ def sync_and_notify(store, venue, account, *, start_ms, end_ms=None, client=None
     result = sync_account(store, venue, account, **kwargs)
     aid = result.get("account_id") if isinstance(result, dict) else None
     if aid:
-        moment = current_ms() if now_ms is None else now_ms
-        ensure_baseline(store, aid, after_run_id=before, now_ms=moment)
         result["notification_id"] = enqueue_journal_notifications(store, aid, now_ms=moment)
+        _record_sync(store, aid, result, moment)
     return result
 
 
 def _pending_journals(store, scope):
     with _connect(store.path) as db:
         ensure_schema(db)
-        base = db.execute("SELECT after_run_id FROM journal_notification_baseline WHERE scope=?", (scope,)).fetchone()
+        base = db.execute("SELECT after_run_id FROM journal_notification_baseline WHERE scope=?", (BASELINE,)).fetchone()
         if base is None:
             return []
         return [(r["id"], json.loads(r["result"])) for r in db.execute(
@@ -187,14 +220,8 @@ def _close_pnl(store, scope, entries):
     """Realized PnL for closes, confirmed only for a FINALIZED cycle."""
     from kis_hl.journal_exports import journal_view
     view = journal_view(store, [scope])[0]
-    times = {e["fact_id"]: e["event_start_ms"] for e in view["position_changes"]}
-    closing = {}
-    for cycle in view["cycles"]:
-        if cycle["closed_ms"] is not None:
-            # The last trade fact at the close time ends the cycle (unclassified KIS rows included).
-            ends = [f for f in cycle["fact_ids"] if times.get(f) == cycle["closed_ms"]]
-            if ends:
-                closing[max(ends)] = cycle
+    # The reconstructed chronology names the fact that returned inventory to zero.
+    closing = {c["closed_fact_id"]: c for c in view["cycles"] if c.get("closed_fact_id") is not None}
     for entry in entries:
         cycle = closing.get(entry["fact_id"])
         if cycle is None:
@@ -291,12 +318,39 @@ def journal_status(store, accounts=None, *, as_of_ms=None):
         worker = db.execute("SELECT max(finished_ms) FROM collection_runs WHERE job_id='worker-heartbeat'").fetchone()[0]
         failures = {r["scope"]: dict(r) for r in db.execute(
             "SELECT scope,dataset,observed_ms,details FROM dataset_coverage WHERE status='failed' ORDER BY id")}
+        try:
+            synced = {r["scope"]: dict(r) for r in db.execute("SELECT * FROM journal_sync_status")}
+        except sqlite3.OperationalError:  # Never written yet; read-only status creates nothing.
+            synced = {}
     selected = [r for r in rows if accounts is None or r["id"] in accounts]
     if accounts is not None and len(selected) != len(set(accounts)):
         raise ValueError("Unknown journal-status account")
     view = journal_view(store, [r["id"] for r in selected], as_of_ms=asof, raw=True)[0] if selected else None
     requests = {r["scope"]: r for r in sync_requests(store.path)}
     today = _kst_date(asof)
+    # Findings without a scope (inventory/chronology) belong to the account owning their facts.
+    finding_facts = sorted({f for i in (view["quality_findings"] if view else []) for f in i.get("fact_ids", [])})
+    fact_scope = {}
+    if finding_facts:
+        with store.connect() as db:
+            fact_scope = dict(db.execute(f"SELECT id,scope FROM fact_revisions WHERE id IN "
+                                         f"({','.join('?' for _ in finding_facts)})", finding_facts).fetchall())
+    venues = Counter(r["venue"] for r in rows)
+
+    def job_owner(job):
+        config = job["config"]
+        if config.get("kind") != "account":
+            return None
+        if config.get("account"):
+            return next((r["id"] for r in rows if r["venue"] == config.get("venue")
+                         and r["native_id"] == _account(config["venue"], config["account"])), None)
+        # A default-account job is attributable only when the venue has exactly one account.
+        return next((r["id"] for r in rows if r["venue"] == config.get("venue")), None) \
+            if venues[config.get("venue")] == 1 else None
+
+    def job_view(job):
+        return {k: job[k] for k in ("id", "interval_seconds", "last_attempt_ms", "last_success_ms", "last_reason")}
+
     result = []
     for account in selected:
         aid = account["id"]
@@ -305,6 +359,7 @@ def journal_status(store, accounts=None, *, as_of_ms=None):
         unsettled = [c for c in cycles if c["status"] != "FINALIZED"]
         request = requests.get(aid)
         failure = failures.get(aid)
+        last_sync = synced.get(aid)
         result.append(serial({
             "account": aid, "label": account["label"], "venue": account["venue"],
             "open_positions": [{"instrument": c["instrument"], "side": c["side"],
@@ -320,18 +375,24 @@ def journal_status(store, accounts=None, *, as_of_ms=None):
                        "statistics": statistics(closed)},
             "pending": {"cycles": len(unsettled),
                         "reasons": dict(Counter(r for c in unsettled for r in set(c["reasons"]))),
-                        "quality_findings": dict(Counter(i["kind"] for i in view["quality_findings"]
-                                                         if i.get("scope") == aid))},
-            "sync": {"request": {k: request[k] for k in REQUEST_FIELDS} if request else None,
-                     "jobs": [{k: j[k] for k in ("id", "interval_seconds", "last_attempt_ms", "last_success_ms",
-                                                   "last_reason")} for j in jobs
-                              if j["config"].get("kind") == "account" and j["config"].get("venue") == account["venue"]
-                              and _account(account["venue"], j["config"].get("account") or "") in
-                              ("", account["native_id"])],
+                        "quality_findings": dict(Counter(
+                            i["kind"] for i in view["quality_findings"]
+                            if i.get("scope") == aid or any(fact_scope.get(f) == aid for f in i.get("fact_ids", []))))},
+            "sync": {"request": ({**{k: request[k] for k in REQUEST_FIELDS},
+                                  "last_result": json.loads(request["last_result"]) if request["last_result"] else None}
+                                 if request else None),
+                     "last_sync": ({"last_attempt_ms": last_sync["last_attempt_ms"],
+                                    "last_success_ms": last_sync["last_success_ms"],
+                                    "last_outcome": last_sync["last_outcome"],
+                                    "last_result": json.loads(last_sync["last_result"]) if last_sync["last_result"] else None}
+                                   if last_sync else None),
+                     "jobs": [job_view(j) for j in jobs if job_owner(j) == aid],
                      "last_failure": {"dataset": failure["dataset"], "observed_ms": failure["observed_ms"],
                                       "reason": json.loads(failure["details"]).get("reason")} if failure else None},
         }))
-    return {"as_of_ms": asof, "kst_date": today.isoformat(), "worker_last_seen_ms": worker, "accounts": result}
+    unattributed = [job_view(j) for j in jobs if j["config"].get("kind") == "account" and job_owner(j) is None]
+    return {"as_of_ms": asof, "kst_date": today.isoformat(), "worker_last_seen_ms": worker, "accounts": result,
+            "unattributed_jobs": unattributed}
 
 
 def enqueue_daily_summary(store, status, *, now_ms):
@@ -372,16 +433,22 @@ def daily_message(payload):
     reasons = payload["pending"]["reasons"]
     if reasons:
         parts.append("pending: " + ", ".join(f"{k} {v}" for k, v in sorted(reasons.items())))
-    request = payload["sync"]["request"]
+    sync_state = payload["sync"]
+    request, last_sync = sync_state["request"], sync_state.get("last_sync")
     if request and request["pending_since_ms"] is not None:
         sync = "sync request pending"
         if request["attempts"]:
             n = request["attempts"]
             sync += f", {n} failed attempt{'s' if n != 1 else ''} ({request['last_error']})"
     else:
-        last = max([request["last_success_ms"] if request else None] +
-                   [j["last_success_ms"] for j in payload["sync"]["jobs"]], key=lambda x: x or 0)
+        last = max([request["last_success_ms"] if request else None,
+                    last_sync["last_success_ms"] if last_sync else None] +
+                   [j["last_success_ms"] for j in sync_state["jobs"]], key=lambda x: x or 0)
         sync = f"last sync {datetime.fromtimestamp(last / 1000, tz=KST):%Y-%m-%d %H:%M KST}" if last else "no successful sync recorded"
+    latest = last_sync if last_sync else None
+    if latest and latest["last_outcome"] == "partial":
+        unresolved = len((latest.get("last_result") or {}).get("quality_findings", []))
+        sync += f"; last sync partial ({unresolved} unresolved source bucket{'s' if unresolved != 1 else ''})"
     parts.append(sync)
     name = payload["venue"] if payload["label"] in ("", payload["venue"]) else f"{payload['venue']}, {payload['label']}"
     return f"DAILY JOURNAL {payload['kst_date']} ({name}): " + "; ".join(parts)

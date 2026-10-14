@@ -298,10 +298,9 @@ class NotificationTests(Base):
 
     def test_close_pnl_is_confirmed_only_for_a_finalized_cycle(self):
         account = self.data.account("kis", "live", "12345678-01")
-        before = fill_journal.max_run_id(self.data)
+        fill_journal.ensure_baseline(self.data, now_ms=T0)
         ingest_rows(self.data, account, "statement", [statement(1, "buy", 2, 100, before=0),
                                                       statement(2, "sell", 2, 110, before=2)])
-        fill_journal.ensure_baseline(self.data, account, after_run_id=before, now_ms=T0)
         pending = self.data_note(account)
         self.assertIn("PnL pending (trade_coverage_unverified)", pending["message"])
         self.data.coverage("trade", account, 0, 10**15, "complete", {})
@@ -318,9 +317,8 @@ class NotificationTests(Base):
 
     def test_kis_day_precision_is_labeled_without_a_time_of_day(self):
         account = self.data.account("kis", "live", "12345678-01")
-        before = fill_journal.max_run_id(self.data)
+        fill_journal.ensure_baseline(self.data, now_ms=T0)
         ingest_rows(self.data, account, "statement", [statement(1, "buy", 3, 70000, precision="DAY", before=0)])
-        fill_journal.ensure_baseline(self.data, account, after_run_id=before, now_ms=T0)
         message = self.data_note(account)["message"]
         self.assertIn("kis:005930 entry +3 @ 70000 KRW, 2026-10-13 KST (DAY precision)", message)
         self.assertNotIn("22:31", message)
@@ -339,7 +337,7 @@ class NotificationTests(Base):
 
     def test_concurrent_enqueue_never_notifies_a_journal_twice(self):
         account = self.data.account("hyperliquid", "mainnet", ADDRESS)
-        fill_journal.ensure_baseline(self.data, account, after_run_id=0, now_ms=T0)
+        fill_journal.ensure_baseline(self.data, now_ms=T0)
         ingest_rows(self.data, account, "hl_fills", [hl_fill(i, str(i - 1)) for i in range(1, 6)])
         barrier = threading.Barrier(4)
 
@@ -357,7 +355,7 @@ class NotificationTests(Base):
 
     def test_large_batch_lists_twenty_entries_and_counts_the_rest(self):
         account = self.data.account("hyperliquid", "mainnet", ADDRESS)
-        fill_journal.ensure_baseline(self.data, account, after_run_id=0, now_ms=T0)
+        fill_journal.ensure_baseline(self.data, now_ms=T0)
         ingest_rows(self.data, account, "hl_fills", [hl_fill(i, str(i - 1)) for i in range(1, 26)])
         note = self.data_note(account)
         self.assertEqual(len(note["payload"]["entries"]), 20)
@@ -466,3 +464,131 @@ class StatusTests(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewRoundOneTests(Base):
+    """Regressions for PR #64 review round 1 (R1-F1..F8)."""
+
+    def setUp(self):
+        super().setUp()
+        self.g = Gateway()
+        self.g.scope, self.g.account = HL.key, ADDRESS
+        self.worker = Supervisor(self.store, self.g, live=True)
+
+    def filled_owner(self):
+        pid = self.store.enqueue(HL.key, plan(), live=True, now_ms=1)["id"]
+        self.worker.step(pid, 10)
+        self.g.size = self.g.filled = "1"
+        self.g.orders[self.g.sent[0]["id"]]["status"] = "filled"
+        return pid
+
+    def test_r1_f1_request_runs_outside_account_lock_and_fails_fast_then_retries(self):
+        import time
+        from kis_hl.execution_lock import account_lock
+        pid = self.filled_owner()
+        holder = sqlite3.connect(self.db, timeout=1)
+        original_hook = Supervisor._request_journal_sync
+        timing = {}
+
+        def contended(worker, *args):
+            holder.execute("BEGIN IMMEDIATE")  # A competing writer takes the database after the commit.
+            timing["start"] = time.monotonic()
+            original_hook(worker, *args)
+            timing["hook"] = time.monotonic() - timing["start"]
+
+        with patch.object(Supervisor, "_request_journal_sync", contended), \
+                self.assertLogs("kis_hl.managed_execution", "WARNING"):
+            row = self.worker.step(pid, 20)
+        self.assertLess(timing["hook"], 1.0)  # Fails fast instead of waiting 10 s.
+        self.assertEqual(row["entry_filled"], "1")
+        holder.rollback()
+        holder.close()
+        self.assertEqual(self.requests(), [])
+        seen = []
+        original = ExecutionStore.request_journal_sync
+
+        def spy(store, **kwargs):
+            with account_lock(self.g.network, self.g.account):  # Raises if the step still held it.
+                seen.append(True)
+            return original(store, **kwargs)
+
+        with patch.object(ExecutionStore, "request_journal_sync", spy):
+            self.worker.step(pid, 30)  # No new fill: the remembered request is retried.
+        self.assertEqual(seen, [True])
+        self.assertEqual(len(self.requests()), 1)
+
+    def test_r1_f2_concurrent_first_syncs_never_hide_journals(self):
+        account = self.data.account("hyperliquid", "mainnet", ADDRESS)
+
+        def nested_sync(store, venue, acct, **kwargs):
+            ingest_rows(self.data, account, "hl_fills", [hl_fill(1, "0")])
+            # A second first-sync for the same account finishes before this one returns.
+            with patch("kis_hl.data_account_sync.sync_account", return_value={"account_id": account}):
+                fill_journal.sync_and_notify(self.data, venue, acct, start_ms=0, now_ms=T0)
+            return {"account_id": account}
+
+        with patch("kis_hl.data_account_sync.sync_account", side_effect=nested_sync):
+            fill_journal.sync_and_notify(self.data, "hyperliquid", ADDRESS, start_ms=0, now_ms=T0 + 1)
+        notified = [e["journal_id"] for n in self.notes("journal_batch") for e in n["payload"]["entries"]]
+        self.assertEqual(notified, self.journals())
+
+    def test_r1_f3_pnl_attaches_to_the_fact_that_closes_the_cycle(self):
+        account = self.data.account("kis", "live", "12345678-01")
+        fill_journal.ensure_baseline(self.data, now_ms=T0)
+        ingest_rows(self.data, account, "statement", [statement(3, "sell", 2, 110, before=2, at=T0),
+                                                      statement(2, "buy", 1, 100, before=1, at=T0),
+                                                      statement(1, "buy", 1, 100, before=0, at=T0)])
+        self.data.coverage("trade", account, 0, 10**15, "complete", {})
+        note_id = fill_journal.enqueue_journal_notifications(self.data, account, now_ms=T0)
+        entries = next(n for n in self.notes() if n["id"] == note_id)["payload"]["entries"]
+        with_pnl = [(e["change"], e["pnl"]["status"]) for e in entries if e.get("pnl")]
+        self.assertEqual(with_pnl, [("close", "confirmed")])
+
+    def test_r1_f4_partial_collection_stays_visible_without_advancing_success(self):
+        fill_journal.request_sync(self.db, venue="kis", account="12345678-01", scope=KIS.key, since_ms=T0, now_ms=T0)
+        partial = {"account_id": KIS.key, "collection_complete": False,
+                   "quality_findings": [{"market": "domestic", "date": "20261013", "instrument": "069500",
+                                         "reason": "Ambiguous daily cost summary"}]}
+        fill_journal.process_requests(self.data, clock=T0, sync=lambda venue, account, start_ms: partial)
+        [request] = self.requests()
+        self.assertIsNone(request["last_success_ms"])
+        self.assertEqual(request["last_error"], "partial_collection")
+        self.assertIn("Ambiguous daily cost summary", request["last_result"])
+        self.data.account("kis", "live", "12345678-01")
+        status = fill_journal.journal_status(DataStore(self.db, readonly=True))
+        kis = next(a for a in status["accounts"] if a["venue"] == "kis")
+        self.assertEqual(kis["sync"]["request"]["last_result"]["outcome"], "partial")
+
+    def test_r1_f5_unscoped_inventory_findings_are_attributed_through_fact_ids(self):
+        account = self.data.account("hyperliquid", "mainnet", ADDRESS)
+        ingest_rows(self.data, account, "hl_fills", [hl_fill(1, "3", "A")])  # Starts mid-position.
+        status = fill_journal.journal_status(DataStore(self.db, readonly=True))
+        [hl] = status["accounts"]
+        self.assertIn("opening_inventory_gap", hl["pending"]["quality_findings"])
+
+    def test_r1_f6_status_never_changes_database_content(self):
+        account = self.data.account("hyperliquid", "mainnet", ADDRESS)
+        ingest_rows(self.data, account, "hl_fills", [hl_fill(1, "0")])
+        wal = self.db.with_name(self.db.name + "-wal")
+        self.assertFalse(wal.exists() and wal.stat().st_size, "fixture must start checkpointed")
+        before = self.db.read_bytes()
+        code, _, err = cli(self.db, "data", "journal-status")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.db.read_bytes(), before)
+        self.assertEqual(wal.stat().st_size if wal.exists() else 0, 0)  # No WAL frames written.
+
+    def test_r1_f7_manual_sync_success_is_reported(self):
+        self.hl.fills = [hl_fill(1, "0")]
+        self.sync(now_ms=T0)
+        status = fill_journal.journal_status(DataStore(self.db, readonly=True))
+        [hl] = status["accounts"]
+        self.assertIsNotNone(hl["sync"]["last_sync"]["last_success_ms"])
+        self.assertEqual(hl["sync"]["last_sync"]["last_outcome"], "success")
+
+    def test_r1_f8_default_account_job_is_not_attributed_to_every_account(self):
+        self.data.account("hyperliquid", "mainnet", ADDRESS)
+        self.data.account("hyperliquid", "mainnet", "0x" + "cd" * 20)
+        configure(self.data, "hl-default", {"kind": "account", "venue": "hyperliquid", "start_ms": 0}, 300)
+        status = fill_journal.journal_status(DataStore(self.db, readonly=True))
+        self.assertEqual([a["sync"]["jobs"] for a in status["accounts"]], [[], []])
+        self.assertEqual([j["id"] for j in status["unattributed_jobs"]], ["hl-default"])

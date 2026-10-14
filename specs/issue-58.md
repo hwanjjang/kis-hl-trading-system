@@ -126,6 +126,25 @@ Payloads hold instrument, quantities, prices, PnL and the account label only. No
 - **One outbox row per journal:** the issue asks for one message per batch. Per-journal dedupe is kept through `journal_notified`.
 - **Changing the checksum-locked canonical DDL:** this would break existing databases.
 
+## Amendment 2026-10-14 (PR #64 review round 1)
+
+- **Supervisor request:** written after the account lock is released, with a 0.2 s
+  busy timeout. Unrecorded requests are kept in memory and retried on later steps
+  (R1-F1).
+- **Baseline:** a single enablement baseline (`scope='*'`), recorded before ingestion by
+  every `sync_and_notify`. It replaces the per-account baseline set after the sync (R1-F2).
+- **Close PnL:** keyed by `closed_fact_id`, which `account_cycles` records when inventory
+  returns to zero (R1-F3).
+- **Partial collection:** clears the request and records `last_error=partial_collection`
+  and the sanitized findings, without advancing `last_success_ms` (R1-F4).
+- **`journal_sync_status`:** a per-account last attempt/success/outcome row written by
+  every sync path and shown as `sync.last_sync` (R1-F7).
+- **Status attribution:** findings are attributed through their fact IDs (R1-F5). A job
+  without an account is attributed only to a venue's single account, otherwise listed
+  in `unattributed_jobs` (R1-F8).
+- **Read-only contract:** "read-only" means no content change. SQLite may create empty
+  WAL sidecars, as with `data status` (R1-F6).
+
 ## Verification strategy
 
 - **AC1:** unit tests using the fake `Gateway` in `test_managed_execution.py`:

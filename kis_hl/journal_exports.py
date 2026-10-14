@@ -139,6 +139,7 @@ def account_cycles(trades):
                 if position==0:
                     inventory_cost=Z
                     active['closed_ms']=p['event_start_ms'];active['closed_end_ms']=p['event_end_ms']
+                    active['closed_fact_id']=fact['id']
             # A DAY balance describes all activity that day, including re-entry.
             # Validate only after the last event; conflicting snapshots are not
             # permission to choose whichever balance matches the reconstruction.
