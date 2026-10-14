@@ -6,15 +6,20 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_DOWN, ROUND_UP
 import json
+import logging
 from pathlib import Path
 import sqlite3
 from uuid import uuid4
 
 from kis_hl.execution_lock import account_lock
+from kis_hl import fill_journal
 from kis_hl.journal_sync import decimal, encode
 from kis_hl.trailing import Trail
 from kis_hl.hyperliquid.trailing import normalize_quote_retracement, wire_decimal
 
+logger = logging.getLogger(__name__)
+# Fill markers compared before/after a supervisor step to request a journal sync (#58).
+FILL_MARKERS = ("entry_filled", "observed_size", "protective_filled", "exit_protective_filled", "first_fill_ms")
 TERMINAL = {"filled", "canceled", "rejected", "expired"}
 FINISHED = {"CLOSED", "REJECTED", "PREVIEWED"}
 _entry_permit = ContextVar("managed_entry_permit", default=None)
@@ -192,6 +197,7 @@ class ExecutionStore:
                 UNIQUE(position_id,kind,episode_ms));
             """
             )
+            fill_journal.ensure_schema(db)
             # Serialize legacy migrations across CLI/supervisor processes.
             db.execute("BEGIN IMMEDIATE")
             if "details" not in {r["name"] for r in db.execute("PRAGMA table_info(managed_events)")}:
@@ -725,6 +731,11 @@ class ExecutionStore:
         row.update(new)
         return row
 
+    def request_journal_sync(self, *, venue, account, scope, since_ms, now_ms):
+        """Durable, coalesced journal sync request; the market collect worker performs it."""
+        fill_journal.request_sync(self.path, venue=venue, account=account, scope=scope,
+                                  since_ms=since_ms, now_ms=now_ms)
+
     def heartbeat(self, scope, now_ms, live):
         with self.connect() as db:
             db.execute(
@@ -870,6 +881,8 @@ class Supervisor:
                 # Repair legacy terminal owners saved before atomic retirement.
                 self.store.retire_unsent_adds(position_id, now_ms)
                 return row
+            markers = {key: row.get(key) for key in FILL_MARKERS}
+            since = row.get("last_observed_ms") or row["created_ms"]
             if position_id not in self.seen:
                 if row["trail"]:
                     trail = Trail.from_dict(row["trail"])
@@ -903,7 +916,23 @@ class Supervisor:
             # _try_add rejects an expired add only when it evaluates it this tick; retire
             # any expired unsent approval it did not evaluate so it stops showing as pending.
             self.store.retire_unsent_adds(position_id, now_ms)
-            return self.store.get(position_id)
+            committed = self.store.get(position_id)
+            self._request_journal_sync(markers, since, committed, now_ms)
+            return committed
+
+    def _request_journal_sync(self, markers, since, row, now_ms):
+        """After the state commit only; a failure never touches supervision."""
+        def value(key, source):
+            item = source.get(key)
+            return item if key == "first_fill_ms" else Decimal(str(item or "0"))
+        if row["mode"] != "live" or all(value(k, markers) == value(k, row) for k in FILL_MARKERS):
+            return
+        venue = {"hl": "hyperliquid", "kis": "kis"}.get(row["plan"]["instrument"].split(":")[0])
+        try:
+            self.store.request_journal_sync(venue=venue, account=self.gateway.account, scope=row["scope"],
+                                            since_ms=since, now_ms=now_ms)
+        except Exception as exc:
+            logger.warning("journal_sync_request_failed", extra={"venue": venue, "error_type": type(exc).__name__})
 
     def _step(self, row, now):
         row.pop("last_error", None)
@@ -1726,6 +1755,12 @@ def _iso(ms):
 def notification_message(note):
     """Fixed English text built from allowlisted payload fields."""
     p = note["payload"]
+    if note["kind"] == "journal_batch":
+        return fill_journal.journal_message(p)
+    if note["kind"] == "journal_daily":
+        return fill_journal.daily_message(p)
+    if note["kind"] not in {"read_outage", "read_recovered"}:
+        raise ValueError("Unknown notification kind")
     health = p.get("read_health") or {}
     head = f"{p['instrument']} ({p['venue']}, owner {note['position_id'][:8]})"
     if note["kind"] == "read_outage":

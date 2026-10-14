@@ -152,30 +152,62 @@ Configuration persists; **a running `market collect` process is required**.
 Installing or supervising a persistent host service is separate from CLI setup.
 No worker is automatically started by import, migration or configuration.
 
-### Current operating policy: user or agent initiated
+### Current operating policy: fill-triggered sync with a fallback interval (#58)
 
-Account synchronization is initiated by the user or by an explicitly instructed
-Hermes/agent. Do not install a daemon, cron entry or agent schedule as part of
-ordinary synchronization. The configurable 10,800-second (three-hour) interval
-remains a freshness target and job due-time setting; it does not cause execution
-without a caller. Data can be older when no run is requested.
+Every fill should produce a journal entry and a notification without a manual sync.
+The repository is the only sync caller. Supervisors, the `market collect` worker and
+manual `data sync` all use the same path (`kis_hl.fill_journal.sync_and_notify`).
 
-Before a run, select the absolute operational DB path, inspect `data status`, and
-confirm KIS live mode and the actual `tradefi` subaccount address. Do not substitute
-the configured Master wallet for `tradefi`. Use the one-shot `data sync` commands
-above with explicit history bounds. They read exchange accounts but **write local
-evidence and facts**. Start before the last successful boundary to capture late
-records; use at least the configured overlap (one day by default), with a separate
-broader historical audit when requested. A successful request is not proof of
-lifetime coverage. Check collection failures, coverage and stale reports before
-generating new KIS, tradefi and combined journals with explicit account IDs.
+1. **Fill-triggered request.** When a live HL or KIS supervisor observes a fill (entry,
+   add, protective or trailing exit, manual close or flat transition), it commits its
+   own state first and then records one durable request in `journal_sync_requests`
+   for that venue/account. Repeated fills coalesce into the one pending request. The
+   supervisor never performs network IO for this and never waits on it. If the request
+   write fails, the failure is logged (`journal_sync_request_failed`) and protection,
+   order handling and supervisor state are unchanged; the fallback below still
+   journals the fill.
+2. **Worker processing.** `market collect` handles due requests first, inside its
+   existing lock and before scheduled jobs. Each request syncs from 15 minutes before
+   the supervisor's last observation preceding the fill. A failure or timeout records
+   `attempts`, `last_error` (exception type only) and retries with backoff: 30 s,
+   doubling up to 15 min, until a success clears it. A fill recorded while a sync runs
+   keeps the request pending for one more pass. One account's failure never blocks
+   another.
+3. **Fallback interval.** Manual exchange-app trades have no supervisor owner. Configure
+   one `account` job per account: Hyperliquid at 300 s and KIS at 3,600 s. Both use the
+   default one-day overlap. The KIS job is not session-gated; an hourly job satisfies
+   the "within 60 minutes during sessions" bound. Repeated syncs never duplicate
+   journals or notifications.
+4. **Notifications.** After each successful sync that created journals, one
+   `journal_batch` row is added to the shared `managed_notifications` outbox (see
+   [trading operations](trading-operations.md#read-outages-and-recovery-limits)).
+   Each `journal_id` is notified at most once. The first processed sync for an account
+   records a baseline, so historical journals are never announced.
+5. **Status.** `data journal-status` is read-only. Hermes runs
+   `data journal-status --enqueue-summary` after the US close to queue one
+   `journal_daily` notification per account and KST date.
 
-`market collect --once` runs all due configured jobs, including market jobs; use
-direct `data sync` for a request limited to particular accounts. Do not use the
-polling form for an on-demand request. Record the selected accounts, requested
-range, collection result and generated report IDs in a private execution receipt.
-Preserve old reports. Source disagreements require investigation and supported
-revisions, not an invented complete-coverage assertion.
+Latency bounds when the worker runs (`market collect --poll-seconds 30`):
+
+| Path | HL | KIS |
+| --- | --- | --- |
+| Supervised fill | one poll plus one sync (about a minute) | one poll plus one sync, still DAY/cumulative precision |
+| Unowned/manual fill | ≤ 5 min (job interval) | ≤ 60 min (job interval) |
+
+These bounds hold only while `market collect` is running. Requests and jobs accumulate
+visibly in `data journal-status` (`sync.request`, `sync.jobs`, `worker_last_seen_ms`)
+when it is not. **Installing and supervising the worker as a host service is a
+separately approved cutover step.** Neither the code nor this document starts it.
+Supervisors and the worker must use the same absolute `--db` path.
+
+Before cutover or a manual run, inspect `data status`, confirm KIS live mode, and
+confirm the actual `tradefi` subaccount address. Do not substitute the configured
+Master wallet for `tradefi`. Manual `data sync` with explicit bounds remains available
+for audits; it writes local evidence and facts and notifies new journals like the
+other paths. A successful request is not proof of lifetime coverage. Check collection
+failures, coverage and stale reports before generating new KIS, tradefi and combined
+journals with explicit account IDs. Source disagreements require investigation and
+supported revisions, not an invented complete-coverage assertion.
 
 ## Market history and sampling
 
@@ -568,8 +600,8 @@ stale when their inputs are superseded. Pre-feature facts appear as `recording=h
 `journal_id`; reading a report never backfills or rewrites old history.
 
 Recording occurs when source evidence is ingested, not when the exchange executes.
-Polling intervals, worker uptime and provider retention still bound latency and
-completeness. DAY/cumulative KIS records remain DAY/cumulative; individual intervening
+The fill-triggered requests and fallback jobs above bound latency while the worker
+runs; provider retention still bounds completeness. DAY/cumulative KIS records remain DAY/cumulative; individual intervening
 fills and exact timestamps cannot be reconstructed. Transfers, corporate actions and
 snapshot-only discrepancies are not fabricated as trades. Missing costs, coverage
 and opening inventory retain existing pending/statistics safeguards. Existing data
@@ -624,7 +656,7 @@ reason, null opinion fields and a valid decimal-string threshold. Invalid result
 are rejected before any note or input link is written. The Jev payload is preserved
 unchanged; see [the timing-opinion contract](strategy-tools.md#jev-timing-opinion).
 
-Workflow after an execution: run the account `data sync` (user or agent initiated),
-read the new `journal_id` from `data journal`, then add linked notes for AK's
+Workflow after an execution: the fill-triggered sync journals it automatically (or run
+`data sync` for an audit), read the new `journal_id` from `data journal`, then add linked notes for AK's
 stated reason, the agent's assessment at the time, and the Jev opinion if one was
 requested. Before the next decision on the same instrument, read `data notes`.

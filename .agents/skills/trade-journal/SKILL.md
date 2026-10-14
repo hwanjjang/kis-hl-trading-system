@@ -71,9 +71,21 @@ behavior-focused tests in the same change when semantics change.
 Record AK, agent and Jev opinions as append-only decision notes linked to the
 automatic position-change journal (`data note` / `data notes`); see
 `docs/unified-data-operations.md#decision-notes-ak-agent-and-jev-opinions`.
-Notes never enter realized statistics. After each real execution, sync the account,
-then add linked notes; read prior notes for the instrument before the next decision.
+Notes never enter realized statistics. After each real execution the fill-triggered
+sync journals it (or run `data sync`); then add linked notes and read prior notes for
+the instrument before the next decision.
 Keep AK's own words under `author: ak`, and keep Jev output unchanged.
+
+## Journal status and notifications
+
+`data journal-status` and the `journal_batch` / `journal_daily` notifications (issue 58)
+compute the nine statistics with `journal_exports.statistics`. Only `FINALIZED`
+canonical cycles are counted; every other closed cycle is reported as excluded, with
+its reasons. Returns stay unweighted `net_return_pct`, and this skill's
+[statistics](references/statistics.md) contract applies. A cycle-closing entry shows
+realized PnL only when its cycle is finalized; otherwise it is labeled pending. Do
+not present pending values as confirmed statistics. See
+`docs/unified-data-operations.md#current-operating-policy-fill-triggered-sync-with-a-fallback-interval-58`.
 
 ## Safety boundary
 

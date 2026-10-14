@@ -13,7 +13,7 @@ def configure(store, job_id, config, interval_seconds=10800):
     return {'job_id':job_id,'interval_seconds':interval_seconds}
 
 
-def run_due(store, execute, *, clock=None):
+def run_due(store, execute, *, clock=None, before_jobs=None):
     timestamp=now_ms() if clock is None else clock
     outcomes=[]
     # The lock covers network time, but SQLite transactions never do.
@@ -25,6 +25,11 @@ def run_due(store, execute, *, clock=None):
                 db.execute('UPDATE collection_runs SET finished_ms=? WHERE id=?',(timestamp,heartbeat[0]))
             else:
                 db.execute("INSERT INTO collection_runs(job_id,started_ms,finished_ms,status,details) VALUES('worker-heartbeat',?,?, 'heartbeat','{}')",(timestamp,timestamp))
+        if before_jobs is not None:
+            # Fill-triggered journal syncs go first; their failures are recorded per request.
+            handled=before_jobs(timestamp)
+            failed=any(r.get('status')=='failed' for r in handled or [])
+            outcomes.append({'job_id':'journal-sync-requests','status':'partial' if failed else 'success','result':handled})
         with store.connect() as db:jobs=[dict(r) for r in db.execute('SELECT * FROM ingestion_jobs WHERE next_due_ms<=? ORDER BY id',(timestamp,))]
         for job in jobs:
             with store.connect() as db:
