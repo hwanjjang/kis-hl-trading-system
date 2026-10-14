@@ -139,7 +139,7 @@ Three different names exist for the same market. Keep them straight:
 
 `HyperliquidTradingClient`: `place_order()`, `place_stop_loss_order()` (reduce-only
 `trigger` with `isMarket: true`, `tpsl: "sl"`), `cancel_order()` (dry-run default), `user_state()`.
-`place_order` forwards optional exchange cloid and distinguishes per-order rejection.
+`place_order` forwards optional exchange cloid and distinguishes per-order and action-level rejection.
 Signed actions share a local POSIX account lock; managed live coins reject new entries
 until cleanup. Use the same verification/state database for all local commands.
 `place_trailing_stop_order()` adds dry-run-first, reduce-only perpetual trailing.
