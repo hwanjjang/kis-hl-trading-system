@@ -53,3 +53,6 @@ logs/
 /docs/architecture/*.visual-check.*.jpg
 /docs/architecture/*.visual-check.*.jpeg
 /docs/architecture/*.visual-check.*.webp
+
+# Archify working folders (candidates, receipts, captures).
+/.archify/

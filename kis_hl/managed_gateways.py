@@ -301,7 +301,9 @@ class ManagedHyperliquidGateway:
 
     def _snapshot_once(self, row, attempts, now):
         context = row["reconciliation_context"]
+        context["phase"] = "metadata"
         asset, resolved, lot, tick = self._market(row["plan"]["instrument"])
+        context["phase"] = "orders"
         orders = {}
         original_sizes = {}
         for a in attempts:
@@ -815,7 +817,25 @@ class ManagedKisGateway:
             "observed_now_ms": int(time.time() * 1000),
         }
 
+    def observation_gap_ms(self, row, start_ms, end_ms):
+        """Regular cash-session time between two supervisor ticks."""
+        asset = self._asset(row["plan"]["instrument"])
+        return regular_cash_session_elapsed_ms(
+            start_ms, end_ms,
+            session_group=SESSION_KRX_CASH if asset.market == "domestic" else SESSION_US_CASH,
+        )
+
     def snapshot(self, row, attempts, now):
+        row["reconciliation_context"] = {"tick_ms": now, "phase": "history"}
+        try:
+            return self._snapshot_once(row, attempts, now)
+        except (RuntimeError, OSError):
+            # Record when the failed read returned: its duration is outage time.
+            row["reconciliation_context"]["observed_now_ms"] = max(now, int(time.time() * 1000))
+            raise
+
+    def _snapshot_once(self, row, attempts, now):
+        context = row["reconciliation_context"]
         asset = self._asset(row["plan"]["instrument"])
         history = self._history(
             asset, row.get("baseline_start_ms", row["created_ms"]), now
@@ -869,12 +889,14 @@ class ManagedKisGateway:
                     "kind": owned[oid]["kind"],
                     "size": str(qty - cum),
                 }
+        context["phase"] = "open_orders"
         open_rows = self.client.account_pages(
             asset.market + "_orders", exchange="NASD"
         )["output"]
         foreign |= any(
             r["pdno"] == asset.symbol and str(r["odno"]) not in owned for r in open_rows
         )
+        context["phase"] = "positions"
         positions = self._rows(asset)
         pos = next((r for r in positions if r["pdno"] == asset.symbol), None)
         size = (
@@ -904,10 +926,9 @@ class ManagedKisGateway:
         except (ValueError, KeyError, IndexError, RuntimeError, OSError):
             price, ask, stamp = Decimal(0), Decimal(0), 0
         observed_now = int(time.time() * 1000)
-        session_gap_ms = regular_cash_session_elapsed_ms(
-            previous, observed_now,
-            session_group=SESSION_KRX_CASH if asset.market == "domestic" else SESSION_US_CASH,
-        )
+        # Failed-read ticks advance the anchor: only unsupervised time counts.
+        session_gap_ms = self.observation_gap_ms(
+            row, max(previous, row.get("last_supervised_ms") or 0), observed_now)
         return {
             "size": str(size),
             "entry_price": entry_price,

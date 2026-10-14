@@ -1,8 +1,9 @@
 # Protected trading operations
 
 This implementation is CLI-first and uses one local SQLite database. Codex,
-Claude Code, Hermes and a person can invoke the same commands. Notification
-delivery is excluded. No services are installed automatically.
+Claude Code, Hermes and a person can invoke the same commands. The repository
+records notifications in a durable outbox, and Hermes delivers them. No messaging
+transport or service is installed automatically.
 
 ## Instruments and source identity
 
@@ -780,16 +781,22 @@ suite are not activation; no exchange or operational state is changed by these d
 ### KIS domestic holding handoff
 
 Local protection observation gaps count the regular cash-session time between
-observations, even across dates. Nights and weekends do not count. A long outage
-that misses open trading time still requests a bounded exit once that time reaches
-`protection_grace_ms`; the pre-close and post-open portions are added together.
+supervisor ticks, even across dates. Nights and weekends do not count. A tick whose
+account read failed still counts as a tick, because the supervisor was running.
+The next interval is measured from the moment the failed read returned, so a slow
+or hanging read is outage time as well. Time spent in a read outage therefore
+never counts; only time with no supervisor tick at all does (see
+[read outages](#read-outages-and-recovery-limits)). A
+supervisor absence that misses open trading time still requests a bounded exit
+once that time reaches `protection_grace_ms`. The pre-close and post-open portions
+are added together.
 Closed endpoints do not excuse an intervening unobserved trading day. Snapshot
 read latency is included. Pure overnight/weekend downtime below the open-time
 budget does not independently request an exit.
 
 This applies to all managed KIS local-SL positions. A new session starts a fresh
-stale-quote grace period, but never clears an outage-triggered or already requested
-exit. A fresh opening quote below the fixed stop still triggers the normal exit.
+stale-quote grace period, but it never clears an exit that a supervisor absence or
+another trigger has already requested. A fresh opening quote below the fixed stop still triggers the normal exit.
 If an exit cannot execute before its existing deadline, manual intervention is
 required. Session accounting shares the KRX/US eligibility windows, including US
 DST. There is no verified holiday/early-close calendar: scheduled weekday open
@@ -929,8 +936,11 @@ python -m kis_hl.cli order recover --id POSITION_ID
 These commands change durable control intent; an already running live worker may
 act on them. `amend --id ID --input FILE` replaces only an unsent queued plan.
 Active orders require cancellation and source-confirmed reconciliation before a
-new request. `recover` requires an intervention state and retains all budgets;
-it cannot authorize an uncertain duplicate order or reset an exhausted budget.
+new request. `recover` requires an intervention state and keeps every budget
+unchanged. It cannot authorize an uncertain duplicate order or reset an exhausted
+budget. If the owner still holds exposure and its exit deadline or attempt budget
+is already exhausted, `recover` refuses and explains why. That explanation includes
+the exit provenance (see [read outages](#read-outages-and-recovery-limits)).
 
 Each attempt is committed before network I/O. Unknown outcomes are queried, never
 blindly resent. Residual entries and resting exit limits must be confirmed terminal
@@ -1116,30 +1126,147 @@ For an already latched owner with protections installed outside its attempts:
 
 ### Read outages and recovery limits
 
-A transient account snapshot `RuntimeError`/`OSError` puts active protection in
-DEGRADED and continues readback. Three consecutive failures, or a read outage lasting
-`protection_grace_ms`, latches an exit and reports INTERVENTION while reads continue.
-Once consistent fresh account data returns, this read-outage intervention resumes
-bounded cancellation/exit automatically. Existing identity/ownership interventions
-remain manual. No order is sent using a failed snapshot; the original protection
-and exit clocks are not reset. Events retain the failed operation, exception class
-and retry count without copying potentially sensitive transport error payloads.
+An account-read failure is an operational warning, not a sell signal. This
+policy was decided by AK on 2026-10-09 and applies to both Hyperliquid and KIS in
+every session.
 
-For KIS, a clock-based closed execution session is an exception: failed account
-reads report `DEGRADED` and increment the diagnostic failure count without creating
-a new read-failure exit. This exception does not clear an existing exit request or
-an `INTERVENTION`, including an already latched read-failure exit. No order is sent
-from a failed snapshot.
+A read failure here means a read-availability failure:
 
-The consecutive failure count and any existing `read_failure_since_ms` are retained
-across the closure and restarts. At reopening the ordinary read-failure policy
-applies: even the first failed opening read can reach the retained count or outage
-timer threshold and latch an exit. A successful consistent snapshot resets the
-read-failure count/timer; fresh valid local coverage can recover when no other exit
-trigger applies. These read-failure budgets are separate from the
-[regular-session observation-gap accounting](#kis-domestic-holding-handoff), which
-excludes nights/weekends and still enforces missed scheduled trading time. Opening
-fixed-stop breaches and existing exit deadlines remain effective.
+- an `OSError` transport or timeout error;
+- an error the venue client marks `read_unavailable`: Hyperliquid
+  `TransientInfoError` or HTTP failures; a KIS account inquiry that returns
+  HTTP >= 400, or a well-formed broker refusal (a string `rt_cd` other than `"0"`);
+  and KIS token throttling or HTTP failures.
+
+A successful response with a malformed or unexpected shape (including a KIS
+envelope that is not an object or lacks a valid `rt_cd`), a pagination error, an
+identity mismatch or any other invalid evidence is not an outage. It keeps the
+fail-closed `INTERVENTION` and requires manual reconciliation.
+
+A read failure:
+
+- never sets `exit_requested_ms` or `read_failure_exit`, never starts an exit
+  deadline and never sends an order, however many failures occur and however long
+  the outage lasts, including across restarts;
+- moves an active owner to `DEGRADED` with a reason that states "warning only; no
+  exit requested". An owner already in `INTERVENTION` keeps its state and current
+  blocker, and only its read health changes;
+- updates `read_health`: status, `since_ms`, `last_failure_ms`,
+  `consecutive_failures`, `last_success_ms`, `operation=account_snapshot`, the
+  gateway phase (Hyperliquid `metadata`, `orders`, `fills`, `open_orders`,
+  `exposure`, `quote`) and `error`. `error` holds an allowlisted exception class,
+  `kind` (`http`, `timeout`, `transport`, `other`) and an integer HTTP status. It
+  never holds exception text, URLs or response bodies.
+
+**Impaired local supervision.** Native SL/TS orders stay at the venue during an
+outage, but they cannot be re-verified. Local supervision is paused: local fixed
+SL (KIS), local nine-minute trailing (including the Hyperliquid backup), exit
+management, fill reconciliation and add evaluation. A KIS local-SL holding has no
+active protection while broker reads fail, and the outage no longer forces an exit
+either. That is the accepted risk of this policy. New entries stay blocked while
+any other owner is `DEGRADED`.
+
+**Recovery.** The first successful snapshot resets the failure count and closes
+the episode: `read_health` becomes `ok`, with a `last_outage` summary. The tick
+then resumes the existing authorized policy, so a covered owner returns to
+`PROTECTED` without new SL/TS orders. Genuine exit causes still apply on that tick
+and later ones: fixed-stop or trailing breaches on fresh prices, verified
+protective fills, explicit `order exit` requests, and exits triggered before the
+outage. They keep their original deadlines and attempt budgets, which an outage
+never resets. Identity or ownership conflicts, foreign orders, malformed evidence
+and UNKNOWN acknowledgements keep their fail-closed `INTERVENTION` and require
+manual reconciliation.
+
+**Notifications.** Each owner records one `read_outage` warning on the first
+failed read of an episode, and one `read_recovered` notice on the first successful
+readback. The supervisor writes each into the additive `managed_notifications`
+table in the same SQLite transaction as the state change. A unique
+owner/kind/episode key means repeated polling, restarts and version races cannot
+duplicate a notice. The payload contains only allowlisted fields: venue,
+instrument, state, current reason, read health, native order IDs retained, local
+protections and local supervision status. Messages omit the account scope.
+Hermes owns scheduling and delivery:
+
+```bash
+python -m kis_hl.cli supervisor notifications --venue hyperliquid
+python -m kis_hl.cli supervisor notification-result --venue hyperliquid --notification-id ID --result delivered
+python -m kis_hl.cli supervisor notification-result --venue hyperliquid --notification-id ID --result failed
+```
+
+Listing is read-only. A row stays pending and visible, with its count in
+`supervisor status`, until Hermes reports `delivered`. `failed` records a retry
+attempt and its time. Notification handling never touches positions, exits or
+orders, so a delivery failure can never cause liquidation. The recovery notice
+carries the state that its tick reached, which may be `INTERVENTION` when the
+readback is inconsistent.
+
+**Diagnostics.** `order status` and every position in `supervisor status` include
+`diagnostics`:
+
+- `intervention.first_cause`: the retained first sanitized cause;
+- `intervention.current_blocker`: the reason and start time of the current
+  blocker. The owner's `reason` is now always that current blocker; a later
+  failure no longer restores the first-cause summary;
+- `read_health`;
+- `supervision`: the native orders retained, plus local supervision as `active`,
+  `paused` or `stopped`;
+- `exit`: requested time, deadline, attempts and whether they are exhausted,
+  plus provenance;
+- `events`: the total count, the number of transitions and the number of polls.
+
+Every save writes a `managed_events` row, so event counts measure polls. Only a
+change of state or reason counts as a transition, and only transitions mark a new
+intervention.
+
+**Legacy read-outage latches.** Code before this change latched exits on read
+outages. Such latches are kept and never cleared in bulk. Exit provenance is:
+
+- `operator` when an `order exit` request was recorded;
+- `read_outage_latch` when the event persisted at exactly `exit_requested_ms` is a
+  transition into `INTERVENTION` with an "Account snapshot unavailable" reason, the
+  tick in which the old policy created its request (evidence `event`, or
+  `flag+event` while the `read_failure_exit` flag is still pending);
+- `ambiguous_legacy` when the flag is present but the request predates that
+  transition. The old code also set the flag on top of an earlier operator or
+  protection exit. Such a request cannot be withdrawn. It is honored within its
+  original budget, but only after any current `INTERVENTION` has been explicitly
+  recovered;
+- `other` otherwise.
+
+A pending `read_outage_latch` with residual exposure holds the owner in
+`INTERVENTION` ("Legacy read-outage exit latch retained") and sends nothing. An
+`ambiguous_legacy` flag never releases an `INTERVENTION` by itself, because it
+cannot show which blocker is current: a later identity or ownership conflict stays
+manual. After an explicit `order recover`, the flag is dropped and the earlier
+request proceeds. Once the owner is flat, the flag is dropped so that ordinary
+cleanup can run.
+
+To resolve an exhausted legacy latch, first get separate explicit authorization
+for that owner, then:
+
+1. Run `order status --id ID` and confirm `exit.provenance.kind=read_outage_latch`,
+   residual exposure, retained native orders and no exit attempt.
+2. Run `order withdraw-read-exit --id ID --exit-requested-ms EXACT_MS`. It accepts
+   only an `INTERVENTION` owner whose request time matches exactly and whose
+   provenance is `read_outage_latch`. It refuses if an exit attempt was created at
+   or after that time, an UNKNOWN or unresolved entry/add attempt exists, a
+   protective fill is recorded (either `protective_filled` or
+   `exit_protective_filled`, or a FILLED stop or trailing attempt), or an entry
+   cancellation is pending. All checks and the write share one SQLite IMMEDIATE
+   transaction, so a concurrent reconciliation cannot slip new attempt evidence in
+   between them. The command clears only that request, records it under
+   `withdrawn_exit_requests` and leaves the owner in `INTERVENTION`. It never renews
+   a budget or sends an order. `order recover` uses the same transaction boundary.
+3. Run `order recover --id ID`. The supervisor then reconciles with unchanged
+   budgets and ownership.
+
+If the exposure is not resolved, or the provenance is not a read-outage latch,
+manage the residual position under a separately authorized procedure. Do not edit
+SQLite. Withdrawing the latches already present in live databases, live
+deployment and any budget renewal remain separate AK decisions.
+
+The [read-outage lifecycle](architecture/read-outage-supervision.html) diagram
+summarizes these transitions.
 
 For Hyperliquid, `max_quote_age_ms` also bounds each action's `expiresAfter` from
 its durable attempt creation, including stops and exits. Use a realistic network

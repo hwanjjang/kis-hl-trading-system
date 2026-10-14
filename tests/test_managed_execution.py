@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from decimal import Decimal
 from pathlib import Path
+from tests.read_errors import read_unavailable
 from kis_hl.managed_execution import ExecutionStore, Supervisor, validate_plan
 
 
@@ -306,7 +307,7 @@ class ManagedExecutionTests(unittest.TestCase):
         self.worker.step(row["id"], 20)
         snapshot = self.g.snapshot
         self.g.snapshot = lambda *args: (_ for _ in ()).throw(
-            RuntimeError("inquiry unavailable")
+            read_unavailable("inquiry unavailable")
         )
         self.worker.step(row["id"], 30)
         self.assertEqual(self.store.get(row["id"])["state"], "DEGRADED")
@@ -314,7 +315,8 @@ class ManagedExecutionTests(unittest.TestCase):
         self.worker.step(row["id"], 40)
         self.assertEqual(self.g.sent[-1]["kind"], "exit")
 
-    def test_repeated_read_failure_latches_exit_and_recovers_without_resend(self):
+    def test_repeated_read_failure_warns_without_exit_and_recovers_without_orders(self):
+        # Issue 59: an account-read outage is a warning, never a liquidation trigger.
         row = self.queue()
         self.g.native_sl = False
         self.worker.step(row["id"], 10)
@@ -323,13 +325,17 @@ class ManagedExecutionTests(unittest.TestCase):
         self.worker.step(row["id"], 20)
         snapshot = self.g.snapshot
         self.g.snapshot = lambda *args: (_ for _ in ()).throw(OSError("unavailable"))
-        for now in (30, 40, 50):
-            self.worker.step(row["id"], now)
-        self.assertTrue(self.store.get(row["id"])["exit_requested_ms"])
+        # A running supervisor keeps polling; the outage outlasts grace and deadline.
+        for now in range(30, 30 + 5000 + 60000 + 1000, 1000):
+            result = self.worker.step(row["id"], now)
+            self.assertEqual(result["state"], "DEGRADED")
+            self.assertIsNone(result["exit_requested_ms"])
         self.assertEqual(len(self.g.sent), 1)
         self.g.snapshot = snapshot
-        self.worker.step(row["id"], 60)
-        self.assertEqual(self.g.sent[-1]["kind"], "exit")
+        result = self.worker.step(row["id"], 70000)
+        self.assertEqual(result["state"], "PROTECTED")
+        self.assertIsNone(result["exit_requested_ms"])
+        self.assertEqual(len(self.g.sent), 1)
 
     def test_read_outage_does_not_clear_existing_identity_intervention(self):
         row = self.queue()
@@ -370,7 +376,9 @@ class ManagedExecutionTests(unittest.TestCase):
             ValueError("private_key=SECRET https://account:TOKEN@example.test"))
         result = Supervisor(self.store, self.g, live=True).step(row["id"], 40)
         self.assertEqual(result["first_intervention"], cause)
-        self.assertEqual(result["reason"], first["reason"])
+        # The first cause is retained separately; the current blocker is the latest one.
+        self.assertEqual(result["reason"], "Preflight or reconciliation failed (ValueError): Invalid execution evidence")
+        self.assertEqual(result["intervention_blocker"]["reason"], result["reason"])
         self.assertNotIn("SECRET", json.dumps(result))
         with self.store.connect() as db:
             events = list(db.execute("SELECT reason,details FROM managed_events WHERE position_id=?", (row["id"],)))
@@ -406,7 +414,9 @@ class ManagedExecutionTests(unittest.TestCase):
         self.g.snapshot = lambda *args: (_ for _ in ()).throw(OSError("credential=SECRET"))
         for now in (20, 30, 40):
             result = self.worker.step(row["id"], now)
-        self.assertEqual(result["first_intervention"]["category"], "OSError")
+        self.assertEqual(result["state"], "DEGRADED")
+        self.assertNotIn("first_intervention", result)
+        self.assertEqual(result["read_health"]["error"]["category"], "OSError")
         with self.store.connect() as db:
             details = [json.loads(r[0]) for r in db.execute("SELECT details FROM managed_events")]
         self.assertNotIn("SECRET", json.dumps(details))
