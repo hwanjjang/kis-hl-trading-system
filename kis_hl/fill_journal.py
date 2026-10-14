@@ -179,10 +179,16 @@ def _record_sync(store, scope, result, now_ms):
     summary = _summary(result)
     with _connect(store.path) as db:
         ensure_schema(db)
+        # Syncs can finish out of order: success time only moves forward, and only a newer
+        # attempt replaces the attempt time, outcome and result.
         db.execute(
             "INSERT INTO journal_sync_status VALUES(?,?,?,?,?) ON CONFLICT(scope) DO UPDATE SET "
-            "last_attempt_ms=excluded.last_attempt_ms,last_outcome=excluded.last_outcome,"
-            "last_result=excluded.last_result,last_success_ms=coalesce(excluded.last_success_ms,last_success_ms)",
+            "last_outcome=CASE WHEN excluded.last_attempt_ms>=last_attempt_ms THEN excluded.last_outcome ELSE last_outcome END,"
+            "last_result=CASE WHEN excluded.last_attempt_ms>=last_attempt_ms THEN excluded.last_result ELSE last_result END,"
+            "last_attempt_ms=max(last_attempt_ms,excluded.last_attempt_ms),"
+            "last_success_ms=CASE WHEN excluded.last_success_ms IS NULL THEN last_success_ms "
+            "WHEN last_success_ms IS NULL THEN excluded.last_success_ms "
+            "ELSE max(last_success_ms,excluded.last_success_ms) END",
             (scope, now_ms, now_ms if summary["outcome"] == "success" else None, summary["outcome"], encode(summary)))
 
 

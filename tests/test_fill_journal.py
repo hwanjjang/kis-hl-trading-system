@@ -592,3 +592,29 @@ class ReviewRoundOneTests(Base):
         status = fill_journal.journal_status(DataStore(self.db, readonly=True))
         self.assertEqual([a["sync"]["jobs"] for a in status["accounts"]], [[], []])
         self.assertEqual([j["id"] for j in status["unattributed_jobs"]], ["hl-default"])
+
+
+class ReviewRoundTwoTests(Base):
+    """R2-F1: an older sync finishing last never rewinds sync status."""
+
+    def test_r2_f1_out_of_order_completion_keeps_the_newest_sync_status(self):
+        self.data.account("hyperliquid", "mainnet", ADDRESS)
+
+        def older(store, venue, account, **kwargs):
+            # A newer sync (now=2000) completes while this older one (now=1000) is still running.
+            with patch("kis_hl.data_account_sync.sync_account",
+                       return_value={"account_id": HL.key, "collection_complete": False,
+                                     "quality_findings": [{"reason": "newer partial"}]}):
+                fill_journal.sync_and_notify(self.data, venue, account, start_ms=0, now_ms=2000)
+            with patch("kis_hl.data_account_sync.sync_account",
+                       return_value={"account_id": HL.key}):
+                fill_journal.sync_and_notify(self.data, venue, account, start_ms=0, now_ms=1500)
+            return {"account_id": HL.key}
+
+        with patch("kis_hl.data_account_sync.sync_account", side_effect=older):
+            fill_journal.sync_and_notify(self.data, "hyperliquid", ADDRESS, start_ms=0, now_ms=1000)
+        [hl] = fill_journal.journal_status(DataStore(self.db, readonly=True))["accounts"]
+        last = hl["sync"]["last_sync"]
+        self.assertEqual((last["last_attempt_ms"], last["last_success_ms"], last["last_outcome"]),
+                         (2000, 1500, "partial"))
+        self.assertEqual(last["last_result"]["quality_findings"], [{"reason": "newer partial"}])
