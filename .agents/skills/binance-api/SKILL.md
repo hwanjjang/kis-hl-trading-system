@@ -20,7 +20,7 @@ CLI commands. Facts below were verified on 2026-09-16 against
 - Public reads need no key. Signed reads fail closed before any network call when the key
   or secret is empty. listenKey calls send only the `X-MBX-APIKEY` header.
 - Orders go through `BinanceTradingClient` (`kis_hl/binance/trading.py`). The Python API defaults to dry-run; CLI commands send by default and use `--dry-run` for preview, per operator instruction. Supported live symbols are pinned in code to BTCUSDT; `BINANCE_LIVE_SYMBOLS` only narrows this set. Current metadata must confirm COIN/PERPETUAL/TRADING before placement. See `references/orders.md` for guards and outcomes.
-- `POST /fapi/v1/order/test` validates regular orders without placing. This skill grants no execution authority; follow `AGENTS.md` and applicable session instructions (and Claude's agent-session rules in `CLAUDE.md`).
+- `POST /fapi/v1/order/test` validates regular orders without placing. This skill grants no execution authority; follow `AGENTS.md` (including its agent-session execution rules) and applicable session instructions.
 - Never attach a Binance MCP server (official Agent OS MCP or community) or any
   order-capable vendor tool to an agent session with live keys. Same rule as KIS/Hyperliquid.
 - Every new call needs a unit test in `tests/test_binance_client.py` or
