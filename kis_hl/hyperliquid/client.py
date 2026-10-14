@@ -450,7 +450,10 @@ class HyperliquidTradingClient:
         finally:
             if expires_after_ms is not None:
                 exchange.set_expires_after(None)
-        statuses = response.get("response", {}).get("data", {}).get("statuses", []) if isinstance(response, dict) else []
+        # An action-level error carries a plain string in "response", not an object.
+        body = response.get("response") if isinstance(response, dict) else None
+        data = body.get("data", {}) if isinstance(body, dict) else {}
+        statuses = data.get("statuses", []) if isinstance(data, dict) else []
         rejected = (isinstance(response, dict) and response.get("status") == "err") or any(
             isinstance(item, dict) and "error" in item for item in statuses)
         status = "rejected" if rejected else "submitted"

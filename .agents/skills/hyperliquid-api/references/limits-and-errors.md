@@ -70,8 +70,9 @@ in-flight post messages.
 | `MissingOrder` (cancel) | Order was never placed, already canceled, or filled. |
 
 All of these arrive as HTTP 200 with `"status": "ok"` and the text inside
-`response.data.statuses[].error`. See `exchange-endpoint.md` for the response shapes and
-the unhandled-rejection gap in `place_order()`.
+`response.data.statuses[].error`. Action-level failures, such as an unregistered signer,
+arrive as HTTP 200 with `"status": "err"` and a string `response`. See
+`exchange-endpoint.md` for the response shapes.
 
 ## Failure modes worth handling in this repo
 

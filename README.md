@@ -471,7 +471,7 @@ Hyperliquid (including trade.xyz RWA) entries may be placed at any HL trading ti
 
 ## References
 
-- `AGENTS.md` holds the shared agent rules, and `CLAUDE.md` is the Claude Code entry point with the file-ownership table used to keep documentation single-sourced.
+- `AGENTS.md` is the single source of truth for agent rules and the file-ownership table used to keep documentation single-sourced; `CLAUDE.md` only imports it for Claude Code.
 - `.agents/skills/kis-open-api/` (also linked as `.claude/skills/kis-open-api/`) is the KIS Open API skill for Claude Code and Codex: auth/transport rules, endpoint and TR ID tables, websocket protocol, and a search script over the official `koreainvestment/open-trading-api` samples.
 - `.agents/skills/hyperliquid-api/` (also linked as `.claude/skills/hyperliquid-api/`) owns Hyperliquid REST/WebSocket, symbol, sizing, rate-limit, and rejection rules used by this repo.
 - `.agents/skills/binance-api/` (also linked as `.claude/skills/binance-api/`) owns Binance USDⓈ-M futures REST/WebSocket, signing, listenKey, filter, rate-limit, and error-code rules used by this repo.

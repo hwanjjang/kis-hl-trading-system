@@ -144,13 +144,17 @@ Anything that moves funds (`usdSend`, `spotSend`, `withdraw3`, `sendAsset`,
 {"status":"ok","response":{"type":"order","data":{"statuses":[{"filled":{"totalSz":"0.02","avgPx":"1891.4","oid":77747314}}]}}}
 {"status":"ok","response":{"type":"order","data":{"statuses":[{"error":"Order must have minimum value of $10."}]}}}
 {"status":"ok","response":{"type":"cancel","data":{"statuses":["success"]}}}
+{"status":"err","response":"User or API Wallet 0x... does not exist."}
 ```
 
 A **rejected order still returns `"status": "ok"`** with the reason inside
 `response.data.statuses[].error`. Per-order status is positional: `statuses[i]`
-corresponds to `orders[i]`.
+corresponds to `orders[i]`. An action-level failure, such as an unregistered or expired
+API wallet, returns `"status": "err"` with a plain string in `response`. Check `status`
+before indexing `response.data`.
 
-`place_order()` reports per-order errors as `status="rejected"`; otherwise it
+`place_order()` reports per-order errors and action-level `err` responses as
+`status="rejected"`; otherwise it
 reports submission, never fill confirmation. Trailing attempts preserve raw
 responses and require independent status/fill/position evidence before resending.
 
