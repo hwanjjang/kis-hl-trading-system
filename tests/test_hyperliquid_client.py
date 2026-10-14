@@ -557,6 +557,13 @@ class ExchangeSafetyTests(unittest.TestCase):
         result=c.place_order(symbol='BTC-PERP',side='sell',order_type='limit',size=Decimal('1'),price=Decimal('100'),reduce_only=True,dry_run=False)
         self.assertEqual(result.status,'rejected')
 
+    def test_action_level_error_string_is_reported_as_rejected(self):
+        c=self.client()
+        c._sdk[1].order.return_value={'status':'err','response':'User or API Wallet does not exist.'}
+        result=c.place_order(symbol='BTC-PERP',side='sell',order_type='limit',size=Decimal('1'),price=Decimal('100'),reduce_only=True,dry_run=False)
+        self.assertEqual(result.status,'rejected')
+        self.assertEqual(result.response['response'],'User or API Wallet does not exist.')
+
     def test_integer_price_exception_and_unrepresentable_slippage(self):
         from kis_hl.hyperliquid.client import prepare_perp_exit
         p,_=prepare_perp_exit(price=Decimal('123456'),size=Decimal('1'),sz_decimals=0,slippage=Decimal('0.01'))
