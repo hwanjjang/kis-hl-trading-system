@@ -25,3 +25,7 @@ Not authorized: live orders, running live commands, owner recovery or withdrawal
 - A single transient read blip produces one warning and one recovery notice. Notification volume under real HL error rates is unverified.
 - The historical HTTP status of the October outages is unknown. The new classification applies only to future failures.
 - Hermes delivery wiring (cron/agent prompt) lives outside this repository. Only the CLI contract is delivered and tested here.
+
+## Amendment 2026-10-14
+
+AK asked for two additions to this PR's scope: integrate the latest `origin/main`, and fix the macOS-only failure in `tests.test_advisory_ts` ("수정해서 PR에 push"). That test compared the installer's canonical manifest path with a `/var` temporary path that was not resolved. The amendment is test-only: installer behavior and acceptance criteria are unchanged, and merge stays unauthorized.

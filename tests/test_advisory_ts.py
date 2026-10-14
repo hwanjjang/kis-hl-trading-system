@@ -291,7 +291,8 @@ class DeploymentTests(unittest.TestCase):
             self.assertEqual((root/'kis_hl/advisory_ts.py').read_bytes(),(SOURCE_ROOT/'kis_hl/advisory_ts.py').read_bytes())
             self.assertEqual(unrelated.read_text(),'unrelated dirty source')
             manifest=json.loads((Path(result['backup'])/'manifest.json').read_text())
-            saved=next(f for f in manifest['files'] if f['path']==str(script))
+            # The installer records canonical paths (macOS /var is a /private/var symlink).
+            saved=next(f for f in manifest['files'] if f['path']==str(script.resolve()))
             self.assertEqual((Path(result['backup'])/saved['backup']).read_text(),old)
             self.assertEqual(json.loads(script.with_suffix('.json').read_text())['owner_ids'],{'xyz:KORU':'owner-koru'})
 
