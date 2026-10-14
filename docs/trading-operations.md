@@ -1200,6 +1200,21 @@ orders, so a delivery failure can never cause liquidation. The recovery notice
 carries the state that its tick reached, which may be `INTERVENTION` when the
 readback is inconsistent.
 
+**Journal notifications (#58).** The same outbox and the same Hermes commands carry
+two more kinds, both scoped to the account.
+- `journal_batch` is written by the journal sync path, not the supervisor. It lists
+  new position-change journals: instrument, change type, signed quantity, price, KST
+  time and source precision. A cycle-closing entry shows realized PnL and return %
+  only when its cycle is `FINALIZED`; otherwise it shows `PnL pending (reasons)`.
+  DAY-precision KIS rows show their KST date and precision, never an invented time.
+- `journal_daily` is queued by `data journal-status --enqueue-summary`, at most once
+  per account and KST date.
+
+Each `journal_id` appears in at most one batch. Delivery is at least once: a crash
+after sending but before `notification-result` can repeat a message. Supervisors
+only record the sync request after their state commit; see
+[the sync policy](unified-data-operations.md#current-operating-policy-fill-triggered-sync-with-a-fallback-interval-58).
+
 **Diagnostics.** `order status` and every position in `supervisor status` include
 `diagnostics`:
 

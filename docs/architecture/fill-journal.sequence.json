@@ -1,0 +1,256 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Issue #58: fill-triggered journal sync, notification and status",
+    "output": "docs/architecture/fill-journal.html",
+    "viewBox": [
+      1052,
+      676
+    ],
+    "column_fit": "spread",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "sup",
+      "type": "backend",
+      "label": "Supervisor",
+      "sublabel": "HL / KIS step"
+    },
+    {
+      "id": "reqs",
+      "type": "database",
+      "label": "Requests",
+      "sublabel": "sync_requests"
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "Worker",
+      "sublabel": "market collect"
+    },
+    {
+      "id": "exch",
+      "type": "external",
+      "label": "Exchanges",
+      "sublabel": "HL / KIS reads"
+    },
+    {
+      "id": "store",
+      "type": "database",
+      "label": "Data store",
+      "sublabel": "facts + journals"
+    },
+    {
+      "id": "outbox",
+      "type": "messagebus",
+      "label": "Outbox",
+      "sublabel": "notifications"
+    },
+    {
+      "id": "status",
+      "type": "backend",
+      "label": "Status CLI",
+      "sublabel": "journal-status"
+    },
+    {
+      "id": "hermes",
+      "type": "external",
+      "label": "Hermes",
+      "sublabel": "delivery"
+    },
+    {
+      "id": "ak",
+      "type": "external",
+      "label": "AK",
+      "sublabel": "Telegram"
+    }
+  ],
+  "segments": [
+    {
+      "from": 178,
+      "to": 370,
+      "label": "Fill → async sync"
+    },
+    {
+      "from": 376,
+      "to": 480,
+      "label": "Notify"
+    },
+    {
+      "from": 486,
+      "to": 566,
+      "label": "Daily status"
+    }
+  ],
+  "messages": [
+    {
+      "id": "request",
+      "from": "sup",
+      "to": "reqs",
+      "y": 188,
+      "label": "after commit: upsert request (coalesced)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "poll",
+      "from": "worker",
+      "to": "reqs",
+      "y": 216,
+      "label": "due requests (before jobs)",
+      "variant": "default"
+    },
+    {
+      "id": "sync",
+      "from": "worker",
+      "to": "exch",
+      "y": 244,
+      "label": "sync_account(since − 15 min)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "rows",
+      "from": "exch",
+      "to": "worker",
+      "y": 272,
+      "label": "fills / statements",
+      "variant": "return"
+    },
+    {
+      "id": "facts",
+      "from": "worker",
+      "to": "store",
+      "y": 300,
+      "label": "facts + position_change (one txn)",
+      "variant": "default"
+    },
+    {
+      "id": "settle",
+      "from": "worker",
+      "to": "reqs",
+      "y": 328,
+      "label": "clear, or backoff 30 s → 15 min",
+      "variant": "dashed"
+    },
+    {
+      "id": "fallback",
+      "from": "worker",
+      "to": "exch",
+      "y": 356,
+      "label": "fallback job: HL 300 s / KIS 3600 s",
+      "variant": "dashed"
+    },
+    {
+      "id": "enqueue",
+      "from": "worker",
+      "to": "outbox",
+      "y": 384,
+      "label": "journal_batch (journal_notified dedupe)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "list",
+      "from": "hermes",
+      "to": "outbox",
+      "y": 412,
+      "label": "list pending (supervisor notifications)",
+      "variant": "default"
+    },
+    {
+      "id": "send",
+      "from": "hermes",
+      "to": "ak",
+      "y": 440,
+      "label": "Telegram",
+      "variant": "emphasis"
+    },
+    {
+      "id": "ack",
+      "from": "hermes",
+      "to": "outbox",
+      "y": 468,
+      "label": "notification-result",
+      "variant": "dashed"
+    },
+    {
+      "id": "daily",
+      "from": "hermes",
+      "to": "status",
+      "y": 496,
+      "label": "after US close: --enqueue-summary",
+      "variant": "default"
+    },
+    {
+      "id": "read",
+      "from": "status",
+      "to": "store",
+      "y": 524,
+      "label": "read-only: cycles, stats, sync health",
+      "variant": "default"
+    },
+    {
+      "id": "summary",
+      "from": "status",
+      "to": "outbox",
+      "y": 552,
+      "label": "journal_daily (once per KST date)",
+      "variant": "dashed"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "sup",
+      "from": 182,
+      "to": 194,
+      "type": "backend"
+    },
+    {
+      "participant": "worker",
+      "from": 210,
+      "to": 392,
+      "type": "backend"
+    },
+    {
+      "participant": "hermes",
+      "from": 408,
+      "to": 476,
+      "type": "external"
+    },
+    {
+      "participant": "status",
+      "from": 470,
+      "to": 558,
+      "type": "backend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Protection first",
+      "items": [
+        "The supervisor only writes a local request after its state commit",
+        "No network IO inside the account lock; a failed write is logged and ignored",
+        "Paper owners never fill, so they never request"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Retry and fallback",
+      "items": [
+        "Failures back off 30 s, doubling to 15 min, until a success clears them",
+        "A fill during a sync keeps the request pending for another pass",
+        "Account jobs journal manual fills at the fallback interval"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Notification contract",
+      "items": [
+        "One batch row per sync; each journal_id is notified at most once",
+        "A per-account baseline keeps historical journals silent",
+        "Delivery is at least once; acknowledgement stays with Hermes"
+      ]
+    }
+  ]
+}

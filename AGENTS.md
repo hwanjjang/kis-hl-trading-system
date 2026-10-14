@@ -16,6 +16,7 @@ to it instead.
 | Agent rules (core, documentation, trading safety, agent-session execution, testing) and this ownership table | `AGENTS.md` | Read directly by Codex; imported by `CLAUDE.md` for Claude Code |
 | Setup, environment variables, CLI usage, safety notes | `README.md` | Keep usage-focused |
 | Protected trade plans, supervisor controls, synchronization, signal/grant usage | `docs/trading-operations.md` | Actual implementation and rollout limits |
+| Account sync policy (fill-triggered requests, fallback jobs, latency bounds, failure behavior), journal notifications and `data journal-status` | `docs/unified-data-operations.md` | Paired with `kis_hl/fill_journal.py`; notification kinds also listed in `docs/trading-operations.md` |
 | Component responsibilities, data flow, storage design | `docs/architecture.md` | Update when a module's responsibility changes |
 | Strategy skill/code ownership and authoring policy | `docs/strategy-authoring.md` | Hermes workflow versus deterministic tools |
 | Trend setup selection, risk-unit semantics and management rationale | `.agents/skills/trend-strategy/` | Canonical rules shared by Hermes, Codex and Claude Code |

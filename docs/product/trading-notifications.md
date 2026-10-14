@@ -41,13 +41,17 @@ not human reading. Do not describe retry as guaranteed exactly-once delivery.
   Hermes lists them with `supervisor notifications` and acknowledges them with
   `supervisor notification-result`. A warning never triggers an exit. See
   [read outages](../trading-operations.md#read-outages-and-recovery-limits).
-- Journal refresh: summary of imported fills, completed/pending cycles and gaps.
-- Daily review: effective realized metrics, unassigned/mixed attribution and sync
-  health, with currencies separate.
+- Journal refresh (implemented for issue 58): one `journal_batch` per sync that
+  created position-change journals, through the same outbox and commands. Closes
+  show PnL only when their cycle is finalized; otherwise PnL is labeled pending.
+- Daily review (implemented for issue 58): `data journal-status --enqueue-summary`
+  queues one `journal_daily` per account and KST date: open positions, today's
+  entries, finalized statistics or pending reasons, and sync health.
 
-User-selected default: history ingestion and journal reconciliation every three
-hours (`journal.sync_interval = 3h`), adjustable in settings, plus on-demand
-refresh. An optional daily review digest is separate. This is independent of real-time protection and strategy evaluation.
+Superseded default (issue 58): the earlier three-hour `journal.sync_interval` was
+replaced by fill-triggered sync plus fallback account jobs (HL 300 s, KIS 3,600 s).
+See [the sync policy](../unified-data-operations.md#current-operating-policy-fill-triggered-sync-with-a-fallback-interval-58).
+On-demand refresh remains available. An optional daily review digest is separate. This is independent of real-time protection and strategy evaluation.
 Tune to actual activity and retention: Hyperliquid documents up to 2,000 fills per
 `userFillsByTime` response and availability of only the latest 10,000 fills. Long
 outages or high activity can therefore require statement backfill. See the

@@ -507,6 +507,33 @@ cost/funding rules, market coverage, jobs (account default: 10800 seconds),
 exports, analysis and backup/restore. Weekly history targets ten calendar years;
 actual provider/listing coverage may be shorter. Jobs require a running collector.
 
+### Fill-triggered journals and journal status
+
+Live supervisors record a journal sync request after each observed fill. The
+`market collect` worker syncs it, then queues one `journal_batch` notification for
+Hermes in the shared outbox. Account jobs (HL every 300 s, KIS every 3,600 s) cover
+manual trades. Supervisors and the worker must share the same `--db`, and the worker
+must be running for any of this to happen.
+
+```bash
+python3 -m kis_hl.cli data configure --job-id hl-account --config data/jobs/hl.json --interval-seconds 300
+python3 -m kis_hl.cli data configure --job-id kis-account --config data/jobs/kis.json --interval-seconds 3600
+python3 -m kis_hl.cli market collect --poll-seconds 30
+python3 -m kis_hl.cli data journal-status                      # read-only
+python3 -m kis_hl.cli data journal-status --enqueue-summary    # daily summary for Hermes
+python3 -m kis_hl.cli supervisor notifications --venue hyperliquid
+```
+
+`data journal-status` reports, per account:
+- open positions
+- today's (KST) journal entries
+- closed cycles with the nine statistics (finalized cycles only)
+- pending reasons
+- sync health: the request, account jobs, the last failure and the worker heartbeat
+
+See the [sync policy](docs/unified-data-operations.md#current-operating-policy-fill-triggered-sync-with-a-fallback-interval-58)
+and the [manual](docs/manuals/journal-status/usage.md) ([PDF](docs/manuals/journal-status/usage.pdf)).
+
 ### Review account changes before applying them
 
 Use `data audit-collect` with an explicit KIS or Hyperliquid account and time range

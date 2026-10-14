@@ -139,6 +139,7 @@ def account_cycles(trades):
                 if position==0:
                     inventory_cost=Z
                     active['closed_ms']=p['event_start_ms'];active['closed_end_ms']=p['event_end_ms']
+                    active['closed_fact_id']=fact['id']
             # A DAY balance describes all activity that day, including re-entry.
             # Validate only after the last event; conflicting snapshots are not
             # permission to choose whichever balance matches the reconstruction.
@@ -155,6 +156,14 @@ def account_cycles(trades):
 
 
 def journal(store, accounts, *, as_of_ms=None):
+    result,fact_ids=journal_view(store,accounts,as_of_ms=as_of_ms)
+    run=store.pin('journal',{'accounts':accounts,'metric_version':'canonical-v1',
+                           'inventory_policy_version':INVENTORY_POLICY_VERSION},fact_ids,result,as_of_ms=result['as_of_ms'])
+    return {'report_id':run,**result}
+
+
+def journal_view(store, accounts, *, as_of_ms=None, raw=False):
+    """Pure report computation; journal() pins it, journal-status reads it."""
     if not accounts or len(set(accounts))!=len(accounts):raise ValueError('Explicit unique account selection required')
     asof=now_ms() if as_of_ms is None else as_of_ms
     allfacts=[f for account in accounts for dataset in ('trade','cash')
@@ -214,13 +223,11 @@ def journal(store, accounts, *, as_of_ms=None):
     # Advisory decision notes (AK/agent/Jev) known at the as-of time sit next to activity.
     notes=list_notes(store,accounts=set(accounts),limit=0,as_of_ms=asof)
     unlinked=attach_notes(changes,notes)
-    result=serial(dict(accounts=accounts,as_of_ms=asof,summary_by_account_currency=summaries,cycles=cycles,quality_findings=issues,
+    report=dict(accounts=accounts,as_of_ms=asof,summary_by_account_currency=summaries,cycles=cycles,quality_findings=issues,
                        position_changes=changes,decision_notes=unlinked,
                        currency_conversion=None,capital_return=None,metric_version='canonical-v1',
-                       inventory_policy_version=INVENTORY_POLICY_VERSION,coverage_evidence=coverage))
-    run=store.pin('journal',{'accounts':accounts,'metric_version':'canonical-v1',
-                           'inventory_policy_version':INVENTORY_POLICY_VERSION},[f['id'] for f in allfacts],result,as_of_ms=asof)
-    return {'report_id':run,**result}
+                       inventory_policy_version=INVENTORY_POLICY_VERSION,coverage_evidence=coverage)
+    return (report if raw else serial(report)),[f['id'] for f in allfacts]
 
 
 def export_report(store, run_id, path):

@@ -211,6 +211,7 @@ The worker's attempts retain raw exchange responses independently of manual
 | Future skill output and authority | `strategy_signals.py`; immutable `strategy_versions`, `strategy_signals`, bounded `execution_grants` |
 | Actual-history ingestion | `journal_history.py`; native HL fills/funding and unresolved KIS/spot snapshots |
 | Journal reconciliation and schedule | `journal_sync.py`; `journal_source_fills`, `journal_cash_costs`, `journal_sync_runs`, `journal_cycles`, `journal_sync_schedule`, `journal_position_checks` |
+| Fill-triggered journal sync, notifications and status (#58) | `fill_journal.py`; additive `journal_sync_requests`, `journal_notification_baseline` (one enablement row), `journal_notified`, `journal_sync_status`; `journal_batch` / `journal_daily` rows in `managed_notifications` |
 | Harness-neutral commands | `operations_cli.py`, registered by the existing `cli.py` parser |
 
 `managed_events.details` is additive JSON diagnostic evidence (default `{}` for
@@ -341,6 +342,28 @@ pending entry cancellation) retires as EXPIRED. The supervisor also repairs
 already-finished owners and opens no additional retirement transaction when
 nothing is QUEUED; status reads do not mutate rows. These are implementation views, not execution authority or live exchange
 validation. See [operations](trading-operations.md#bounded-conditional-add-ups).
+
+## Fill-triggered journal sync (#58)
+
+`Supervisor.step` compares the owner's fill markers before and after a step. They are
+`entry_filled`, `observed_size`, `protective_filled`, `exit_protective_filled` and
+`first_fill_ms`. When a marker changed on a live owner, the supervisor records one
+coalesced `journal_sync_requests` row after the state commit. The write is guarded, so a
+failure is logged and never changes supervision. The write runs outside the account lock, with a 0.2 s busy timeout and in-memory retry.
+`market collect` (`data_jobs.run_due`)
+processes due requests first, inside the worker lock, through
+`fill_journal.process_requests`. Failed requests back off.
+
+Account jobs, requests and `data sync` share `sync_and_notify`. It calls `sync_account`
+after recording the enablement baseline (before ingestion), and then enqueues one
+`journal_batch` for journals above that baseline that are not yet in `journal_notified`.
+Close PnL uses the cycle's `closed_fact_id` from `account_cycles`. That enqueue runs in one `BEGIN IMMEDIATE` transaction, so
+each journal is announced at most once. `data journal-status` uses
+`journal_exports.journal_view` (the pure part of `data journal`, which still pins its
+reports) on a read-only store. All tables are additive `CREATE TABLE IF NOT EXISTS`
+beside the checksum-locked canonical schema, in the same SQLite file. See the
+[sequence](architecture/fill-journal.html) and the
+[sync policy](unified-data-operations.md#current-operating-policy-fill-triggered-sync-with-a-fallback-interval-58).
 
 ## Automatic position activity
 

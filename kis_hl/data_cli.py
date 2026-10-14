@@ -18,6 +18,10 @@ def register(sub):
         if action=='restore':p.add_argument('--source',required=True)
     p=ds.add_parser('reconcile');p.add_argument('--statement',required=True);p.add_argument('--sha256',required=True);p.add_argument('--apply',action='store_true');p.set_defaults(handler=cmd_data)
     p=ds.add_parser('journal');p.add_argument('--accounts',nargs='+',required=True);p.add_argument('--as-of-ms',type=int);p.set_defaults(handler=cmd_data)
+    p=ds.add_parser('journal-status',help='Read-only journal health: positions, today, statistics, pending, sync')
+    p.add_argument('--accounts',nargs='+');p.add_argument('--as-of-ms',type=int)
+    p.add_argument('--enqueue-summary',action='store_true',help='Also enqueue one journal_daily outbox row per account and KST date')
+    p.set_defaults(handler=cmd_data)
     p=ds.add_parser('note',help='Append an advisory decision note (AK/agent/Jev) to the journal')
     p.add_argument('--input',required=True,help='Note JSON; see docs/unified-data-operations.md');p.set_defaults(handler=cmd_data)
     p=ds.add_parser('notes',help='List decision notes for review before the next decision')
@@ -61,6 +65,11 @@ def cmd_data(args):
                     'blockers':len(report['blockers']),'coverage_certified':False}
         store.readonly=False
         return apply_report(store,args.report,args.sha256,allow_corrections=args.allow_corrections,journals=args.journals)
+    if args.data_action=='journal-status':
+        from kis_hl.fill_journal import journal_status,enqueue_daily_summary
+        status=journal_status(DataStore(args.db,readonly=True),args.accounts,as_of_ms=args.as_of_ms)
+        if args.enqueue_summary:status['enqueued']=enqueue_daily_summary(DataStore(args.db),status,now_ms=now_ms())
+        return status
     from kis_hl.data_import import import_manifest
     from kis_hl.data_maintenance import backup,restore,retention_preview
     from kis_hl.data_jobs import configure
@@ -92,8 +101,8 @@ def cmd_data(args):
     if args.data_action=='export':return export_report(store,args.report_id,args.output)
     if args.data_action=='configure':return configure(store,args.job_id,json.loads(Path(args.config).read_text()),args.interval_seconds)
     if args.data_action=='sync':
-        from kis_hl.data_account_sync import sync_account
-        return sync_account(store,args.venue,args.account,start_ms=args.start_ms,end_ms=args.end_ms)
+        from kis_hl.fill_journal import sync_and_notify
+        return sync_and_notify(store,args.venue,args.account,start_ms=args.start_ms,end_ms=args.end_ms)
 
 
 def client_for(key):
@@ -107,13 +116,13 @@ def client_for(key):
 def execute_job(store,config):
     from kis_hl.market_ingestion import backfill,snapshot
     if config['kind']=='account':
-        from kis_hl.data_account_sync import sync_account
+        from kis_hl.fill_journal import sync_and_notify
         start=config['start_ms']
         overlap=config.get('overlap_ms',86400000)
         if type(overlap) is not int or overlap<0:raise ValueError('Nonnegative account overlap required')
         if config.get('_last_success_ms') is not None and not config.get('history_audit',False):
             start=max(start,config['_last_success_ms']-overlap)
-        return sync_account(store,config['venue'],config.get('account'),start_ms=start)
+        return sync_and_notify(store,config['venue'],config.get('account'),start_ms=start)
     key=config['instrument'];client=client_for(key)
     if config['kind']=='bar':
         # Refresh a short overlap; history backfill is an explicit separate operation.
@@ -133,8 +142,10 @@ def cmd_market(args):
     if args.market_action=='backfill':return backfill(store,args.instrument,args.timeframe,client_for(args.instrument),years=args.years,start=args.start,end=args.end)
     if args.market_action=='snapshot':return snapshot(store,args.instrument,client_for(args.instrument),kind=args.kind)
     if args.poll_seconds<=0:raise ValueError('Positive poll interval required')
+    from kis_hl.fill_journal import process_requests
     while True:
-        result=run_due(store,lambda config:execute_job(store,config))
+        result=run_due(store,lambda config:execute_job(store,config),
+                       before_jobs=lambda clock:process_requests(store,clock=clock))
         if args.once:return result
         time.sleep(min(args.poll_seconds,60))
 
