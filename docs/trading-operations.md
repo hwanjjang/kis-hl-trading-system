@@ -510,8 +510,13 @@ supervisor executes it. Requirements and behavior:
 `order status` shows `take_profit` and `take_profit_decisions`. Offline evidence:
 `tests/test_take_profit.py` and `python scripts/smoke_take_profit.py` (CLI, SQLite,
 real Hyperliquid gateway over an in-memory exchange, network forbidden).
-**Unverified live risk:** Hyperliquid handling of a resting reduce-only SL/TS whose
-size exceeds a shrunken position has not been exercised live. If such an order is
+**Live evidence (2026-10-13):** this was a manual check on a core ETH perpetual in a
+separate test account, not a supervisor run. Full-size reduce-only Stop Market SL and
+native trailing TS orders were placed, then 50% was sold with a reduce-only IOC.
+Readback showed both protective orders still `open` at their original size. An
+oversized reduce-only trigger then filled only the residual. Hyperliquid cancelled the
+remaining SL/TS as `reduceOnlyCanceled` once the position was flat. HIP-3 `xyz:`
+markets and the tradefi subaccount were not exercised. If such an order is ever
 cancelled or rejected, the existing coverage readback treats the residual as
 unprotected and follows the normal protection grace and full-exit path.
 

@@ -35,3 +35,6 @@ partial take profit and any top-detection strategy are excluded and fail closed.
 
 Risks: Hyperliquid handling of oversized resting reduce-only SL/TS after a position
 shrinks is not verified offline. Offline success does not certify live behavior.
+A live core-perpetual check on 2026-10-13 confirmed that the protection stays open
+and that a triggered order fills only the residual. HIP-3 `xyz:` markets remain
+unexercised; see `docs/trading-operations.md`.

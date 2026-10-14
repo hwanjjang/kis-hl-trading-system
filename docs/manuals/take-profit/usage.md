@@ -33,6 +33,10 @@ Run `python -m kis_hl.cli order status --id POSITION_ID` and read `take_profit`:
 `EXHAUSTED` or `SUPERSEDED`, with `basis_size`, `target_quantity`,
 `filled_quantity` and `residual_size`. A reason containing "reconcile manually" means
 an ambiguous take-profit order outcome is never resent; protection continues and
-adds stay blocked. Live Hyperliquid handling of oversized reduce-only protection
-after the position shrinks is unverified. See the
+adds stay blocked. A live Hyperliquid check on 2026-10-13 (core ETH perpetual,
+separate test account) confirmed three things. Full-size reduce-only SL and TS
+orders stay open after the position halves. An oversized reduce-only trigger fills
+only the residual. Hyperliquid cancels the remaining protection
+(`reduceOnlyCanceled`) once the position is flat. HIP-3 `xyz:` markets and the
+tradefi subaccount were not exercised. See the
 [full contract](../../trading-operations.md#discretionary-50-take-profit-hyperliquid).

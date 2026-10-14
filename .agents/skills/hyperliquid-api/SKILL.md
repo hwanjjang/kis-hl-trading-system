@@ -186,6 +186,11 @@ rejected or silently ignored.
 - **Reduce-only** orders that would increase a position are rejected
   (`"Reduce only order would increase position."`), so a stop-loss placed before the
   entry fills will fail.
+- **Oversized reduce-only triggers** (live check, core perpetual, 2026-10-13): a resting
+  reduce-only Stop Market or trailing stop larger than a shrunken position stays `open`
+  at its original size. When triggered it fills only the remaining position. Once the
+  position is flat or flips, Hyperliquid cancels it with status `reduceOnlyCanceled`.
+  HIP-3 `xyz:` markets were not exercised.
 - Non-reduce-only market orders use SDK `market_open` (IOC at mid ± slippage).
   Never use that helper for exits: it hardcodes reduce_only=False. Reduce-only
   perpetual market orders verify direction/size, then send a rounded fixed-side IOC
