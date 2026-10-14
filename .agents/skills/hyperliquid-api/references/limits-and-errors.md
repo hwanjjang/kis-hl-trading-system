@@ -70,13 +70,22 @@ in-flight post messages.
 | `MissingOrder` (cancel) | Order was never placed, already canceled, or filled. |
 
 All of these arrive as HTTP 200 with `"status": "ok"` and the text inside
-`response.data.statuses[].error`. See `exchange-endpoint.md` for the response shapes and
-the unhandled-rejection gap in `place_order()`.
+`response.data.statuses[].error`. Action-level failures, such as an unregistered signer,
+arrive as HTTP 200 with `"status": "err"` and a string `response`. See
+`exchange-endpoint.md` for the response shapes.
 
 ## Failure modes worth handling in this repo
 
 - `HyperliquidInfoClient.post_info` classifies transport URL/timeout/connection errors
   and HTTP 408/429/500/502/503/504 as `TransientInfoError` (a `RuntimeError` subclass).
+  Both carry a secret-free classification: `kind` (`http`, `timeout`, `transport`) and
+  `http_status` on `TransientInfoError`, and `kind="http"` with `http_status` on the
+  permanent HTTP `RuntimeError`, and both set `read_unavailable=True`. The managed
+  supervisor records only these fields in `read_health` and treats such
+  read-availability failures, plus `OSError` transport errors, as warning-only (no
+  exit). Unexpected-shape `RuntimeError`s from a successful response (for example
+  `orderStatus returned an unexpected response`) are invalid evidence and remain
+  fail-closed `INTERVENTION`.
   Permanent HTTP failures remain `RuntimeError`; schema/identity errors are not
   transient. The client itself does not retry. Conditional add preflight may retry
   transient reads on existing supervisor ticks within approval expiry, before any

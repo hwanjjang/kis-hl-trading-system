@@ -28,6 +28,15 @@ logger = get_logger(__name__)
 class TransientInfoError(RuntimeError):
     """A retryable read failure; never used for signed exchange submissions."""
 
+    # Account-read availability failure, not malformed evidence (see managed_execution).
+    read_unavailable = True
+
+    def __init__(self, message: str, *, kind: str = "transport", http_status: int | None = None) -> None:
+        super().__init__(message)
+        # Structured, secret-free classification for read-health records.
+        self.kind = kind
+        self.http_status = http_status
+
 
 @dataclass(frozen=True, slots=True)
 class OrderSubmission:
@@ -62,15 +71,20 @@ class HyperliquidInfoClient:
         except urllib.error.HTTPError as exc:
             if exc.code in {408, 429, 500, 502, 503, 504}:
                 exc.close()
-                raise TransientInfoError(f"Hyperliquid info temporarily unavailable: HTTP {exc.code}") from exc
+                raise TransientInfoError(f"Hyperliquid info temporarily unavailable: HTTP {exc.code}",
+                                         kind="http", http_status=exc.code) from exc
             text = exc.read().decode("utf-8")
             try:
                 payload = json.loads(text) if text else {}
             except json.JSONDecodeError:
                 payload = {"raw": text}
-            raise RuntimeError(f"Hyperliquid info request failed: HTTP {exc.code} {payload}") from exc
+            error = RuntimeError(f"Hyperliquid info request failed: HTTP {exc.code} {payload}")
+            error.kind, error.http_status, error.read_unavailable = "http", exc.code, True
+            raise error from exc
         except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
-            raise TransientInfoError("Hyperliquid info transport temporarily unavailable") from exc
+            timed_out = isinstance(exc, TimeoutError) or isinstance(getattr(exc, "reason", None), TimeoutError)
+            raise TransientInfoError("Hyperliquid info transport temporarily unavailable",
+                                     kind="timeout" if timed_out else "transport") from exc
 
     def all_mids(self, *, dex: str | None = None) -> dict[str, str]:
         payload: dict[str, Any] = {"type": "allMids"}
@@ -436,7 +450,10 @@ class HyperliquidTradingClient:
         finally:
             if expires_after_ms is not None:
                 exchange.set_expires_after(None)
-        statuses = response.get("response", {}).get("data", {}).get("statuses", []) if isinstance(response, dict) else []
+        # An action-level error carries a plain string in "response", not an object.
+        body = response.get("response") if isinstance(response, dict) else None
+        data = body.get("data", {}) if isinstance(body, dict) else {}
+        statuses = data.get("statuses", []) if isinstance(data, dict) else []
         rejected = (isinstance(response, dict) and response.get("status") == "err") or any(
             isinstance(item, dict) and "error" in item for item in statuses)
         status = "rejected" if rejected else "submitted"

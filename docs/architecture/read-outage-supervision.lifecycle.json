@@ -1,0 +1,205 @@
+{
+  "schema_version": 2,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Managed Owner Under Account-Read Outages (warning-only)",
+    "output": "docs/architecture/read-outage-supervision.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "Supervised owner"
+    },
+    {
+      "id": "waiting",
+      "label": "Read outage (warning only)"
+    },
+    {
+      "id": "recovery",
+      "label": "Operator commands"
+    },
+    {
+      "id": "terminal",
+      "label": "Blocked or finished"
+    }
+  ],
+  "states": [
+    {
+      "id": "protected",
+      "type": "start",
+      "label": "PROTECTED",
+      "sublabel": "coverage verified",
+      "lane": "main",
+      "col": 0,
+      "step": "01"
+    },
+    {
+      "id": "read",
+      "type": "decision",
+      "label": "Account snapshot",
+      "sublabel": "every poll",
+      "lane": "main",
+      "col": 1,
+      "step": "02"
+    },
+    {
+      "id": "reconcile",
+      "type": "active",
+      "label": "Reconcile",
+      "sublabel": "identity + triggers",
+      "lane": "main",
+      "col": 2,
+      "step": "03"
+    },
+    {
+      "id": "exiting",
+      "type": "active",
+      "label": "Exit pending",
+      "sublabel": "real SL/TS or operator",
+      "lane": "main",
+      "col": 3,
+      "step": "04"
+    },
+    {
+      "id": "closed",
+      "type": "success",
+      "label": "CLOSED",
+      "sublabel": "flat, orders terminal",
+      "lane": "main",
+      "col": 4,
+      "step": "05"
+    },
+    {
+      "id": "degraded",
+      "type": "waiting",
+      "label": "DEGRADED",
+      "sublabel": "no exit; native kept",
+      "lane": "waiting",
+      "col": 1,
+      "tag": "warn"
+    },
+    {
+      "id": "notice",
+      "type": "external",
+      "label": "Hermes outbox",
+      "sublabel": "list, deliver, ack",
+      "lane": "waiting",
+      "col": 0,
+      "tag": "dedup"
+    },
+    {
+      "id": "withdraw",
+      "type": "waiting",
+      "label": "withdraw-read-exit",
+      "sublabel": "exact ms; then recover",
+      "lane": "recovery",
+      "col": 4,
+      "tag": "explicit"
+    },
+    {
+      "id": "intervention",
+      "type": "failure",
+      "label": "INTERVENTION",
+      "sublabel": "first cause + blocker",
+      "lane": "terminal",
+      "col": 2,
+      "tag": "manual"
+    },
+    {
+      "id": "exhausted",
+      "type": "failure",
+      "label": "Budget exhausted",
+      "sublabel": "deadline or attempts",
+      "lane": "terminal",
+      "col": 4,
+      "tag": "manual"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "protected",
+      "to": "read"
+    },
+    {
+      "from": "read",
+      "to": "reconcile",
+      "label": "read ok"
+    },
+    {
+      "from": "reconcile",
+      "to": "exiting",
+      "label": "real trigger"
+    },
+    {
+      "from": "exiting",
+      "to": "closed",
+      "label": "flat"
+    },
+    {
+      "from": "read",
+      "to": "degraded",
+      "label": "read fails",
+      "variant": "dashed"
+    },
+    {
+      "from": "degraded",
+      "to": "notice",
+      "label": "warn once",
+      "variant": "dashed"
+    },
+    {
+      "from": "degraded",
+      "to": "reconcile",
+      "label": "read recovers",
+      "variant": "emphasis"
+    },
+    {
+      "from": "reconcile",
+      "to": "intervention",
+      "label": "conflict",
+      "variant": "security"
+    },
+    {
+      "from": "exiting",
+      "to": "exhausted",
+      "label": "expired",
+      "variant": "security"
+    },
+    {
+      "from": "exhausted",
+      "to": "withdraw",
+      "label": "legacy read latch"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Read failure is not a sell signal",
+      "items": [
+        "Any failure count or duration: no exit request, flag or deadline",
+        "Native SL/TS stay at the venue; local SL/TS and exits pause",
+        "Fresh readback resumes the same authorized protection"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Notifications",
+      "items": [
+        "One read_outage warning per episode and one read_recovered notice",
+        "Outbox row is written in the state transaction (restart-safe)",
+        "Undelivered rows stay listed until Hermes acknowledges them"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Fail-closed paths unchanged",
+      "items": [
+        "Identity, foreign orders and UNKNOWN acks keep manual reconciliation",
+        "Real SL/TS hits and explicit exits keep their budgets during outages",
+        "Legacy latches: exact withdraw-read-exit, then explicit order recover; recover refuses exhausted budgets"
+      ]
+    }
+  ]
+}

@@ -206,7 +206,7 @@ The worker's attempts retain raw exchange responses independently of manual
 | Analysis versus execution identity | `instruments.py`; explicit broker/listing/currency/underlying catalog |
 | Account capability evidence | `capabilities.py`; append-only `capability_evidence` scoped to instrument/account/order/session validity |
 | Exact KIS routes | `kis/client.py`, `kis/routes.py`; full pagination, no automatic write retry |
-| Order ownership and recovery | `managed_execution.py`; `managed_positions`, `managed_intents`, `managed_attempts`, `managed_events`, `managed_supervisors` |
+| Order ownership and recovery | `managed_execution.py`; `managed_positions`, `managed_intents`, `managed_attempts`, `managed_events`, `managed_supervisors`, `managed_notifications` (read-outage/recovery outbox for Hermes) |
 | Actual venue snapshots | `managed_gateways.py`; entry/exit/readback semantics, ATR provenance, price freshness and exposure caps |
 | Future skill output and authority | `strategy_signals.py`; immutable `strategy_versions`, `strategy_signals`, bounded `execution_grants` |
 | Actual-history ingestion | `journal_history.py`; native HL fills/funding and unresolved KIS/spot snapshots |
@@ -216,7 +216,14 @@ The worker's attempts retain raw exchange responses independently of manual
 `managed_events.details` is additive JSON diagnostic evidence (default `{}` for
 legacy rows). It records sanitized `error` details and retained `first_intervention`
 evidence from the owner snapshot, including fresh Hyperliquid reconciliation timing
-and bounded-read context. The schema upgrade preserves existing event reasons.
+and bounded-read context, plus structured `read_health`. The schema upgrade preserves existing event reasons.
+Account-read outages are warning-only. The supervisor writes deduplicated outage and
+recovery notices into `managed_notifications` in the same transaction as the owner
+state. Hermes lists, delivers and acknowledges them through `supervisor notifications`
+and `supervisor notification-result`. The owner's `intervention_blocker` (the current
+reason) is kept apart from `first_intervention`. See the
+[read-outage lifecycle](architecture/read-outage-supervision.html) and
+[read outages](trading-operations.md#read-outages-and-recovery-limits).
 Ownership and recovery requirements are specified in
 [trading operations](trading-operations.md#hyperliquid-snapshot-timing-and-latched-ownership-intervention).
 

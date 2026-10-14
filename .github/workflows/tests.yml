@@ -27,3 +27,5 @@ jobs:
         run: PYTHONPATH=. python3 scripts/smoke_manual_handoff.py
       - name: Offline Jev timing opinion smoke
         run: python3 scripts/smoke_timing_opinion.py
+      - name: Offline warning-only read-outage smoke
+        run: python3 scripts/smoke_read_outage.py

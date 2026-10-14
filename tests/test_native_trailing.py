@@ -1,4 +1,5 @@
 """Native trailing contract and lifecycle tests; no network or real credentials."""
+from tests.read_errors import read_unavailable
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -189,7 +190,7 @@ class NativeTrailingManagedTests(unittest.TestCase):
     def test_transport_failure_preserves_condition_intervention_sl_supervision(self):
         row, _ = self.condition_error()
         self.worker.step(row["id"], 5)
-        with patch.object(self.g, "snapshot", side_effect=RuntimeError("offline")):
+        with patch.object(self.g, "snapshot", side_effect=read_unavailable("offline")):
             result = self.worker.step(row["id"], 6)
         self.assertTrue(result.get("native_trailing_intervention"))
         self.g.orders[self.g.sent[1]["id"]]["status"] = "canceled"

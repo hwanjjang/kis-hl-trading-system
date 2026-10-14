@@ -14,7 +14,7 @@ from kis_hl.journal_sync import Fill, JournalLedger, Scope, SyncSchedule, encode
 from kis_hl.journal_history import sync_hyperliquid, sync_kis
 from kis_hl.kis.client import KisClient
 from kis_hl.hyperliquid.client import HyperliquidInfoClient, HyperliquidTradingClient
-from kis_hl.managed_execution import ExecutionStore, Supervisor, TERMINAL, validate_plan
+from kis_hl.managed_execution import ExecutionStore, Supervisor, TERMINAL, owner_diagnostics, validate_plan
 
 
 def kis_client():
@@ -165,6 +165,13 @@ def add_commands(sub, journal_sub):
                              help="Unique judged-top decision; reuse never halves again")
     take_profit.add_argument("--rationale", required=True)
     take_profit.set_defaults(handler=cmd_order)
+    withdraw = order_sub.add_parser(
+        "withdraw-read-exit",
+        help="Withdraw one exact legacy read-outage exit latch; requires separate explicit authorization")
+    withdraw.add_argument("--id", required=True)
+    withdraw.add_argument("--exit-requested-ms", type=int, required=True,
+                          help="Exact current exit_requested_ms shown by order status")
+    withdraw.set_defaults(handler=cmd_order)
     amend = order_sub.add_parser(
         "amend",
         help="Replace an unsent plan; active entries require cancel/reconciliation",
@@ -176,8 +183,11 @@ def add_commands(sub, journal_sub):
         "supervisor", help="Multiplex managed positions under one account owner"
     )
     sup.add_argument(
-        "action", choices=["run", "status", "pause-entries", "resume-entries"]
+        "action", choices=["run", "status", "pause-entries", "resume-entries",
+                           "notifications", "notification-result"]
     )
+    sup.add_argument("--notification-id", type=int, help="notification-result: outbox row id")
+    sup.add_argument("--result", choices=["delivered", "failed"], help="notification-result: Hermes outcome")
     sup.add_argument("--venue", choices=["kis", "hyperliquid"], required=True)
     sup.add_argument("--live", action="store_true")
     sup.add_argument("--once", action="store_true")
@@ -570,10 +580,14 @@ def cmd_order(args):
         scope, client = scope_client(asset.venue)
         return store.enqueue(scope.key, p, live=args.live, now_ms=now)
     if args.order_action == "status":
-        return {**store.get(args.id), "attempts": store.attempts(args.id), "tranches": store.tranches(args.id)}
+        row = store.get(args.id)
+        return {**row, "attempts": store.attempts(args.id), "tranches": store.tranches(args.id),
+                "diagnostics": owner_diagnostics(store, row, now)}
     if args.order_action == "take-profit":
         return store.request_take_profit(args.id, now, decision_id=args.decision_id,
                                          rationale=args.rationale)
+    if args.order_action == "withdraw-read-exit":
+        return store.withdraw_read_outage_exit(args.id, args.exit_requested_ms, now_ms=now)
     if args.order_action in {"exit", "cancel"}:
         return store.request_exit(
             args.id, now, cancel_only=args.order_action == "cancel"
@@ -599,14 +613,7 @@ def cmd_order(args):
         row["plan"] = p
         store.save(row, now)
         return row
-    if row["state"] != "INTERVENTION":
-        raise ValueError("Only an intervention state can be recovered")
-    row.update(
-        state="ADOPTING" if row.get("adoption") and not row.get("adopted_ms") else "ENTERING",
-        reason="Explicit recovery requested; budgets and ownership unchanged",
-    )
-    store.save(row, now)
-    return row
+    return store.recover_intervention(args.id, now)
 
 
 def cmd_supervisor(args):
@@ -624,10 +631,25 @@ def cmd_supervisor(args):
         ]} for row in store.list(scope.key)]
 
     if args.action == "status":
+        now = int(time.time() * 1000)
         return {
-            "positions": positions(),
+            "positions": [{**row, "diagnostics": owner_diagnostics(store, row, now)} for row in positions()],
             "entries_enabled": store.entries_enabled(scope.key),
+            "pending_notifications": len(store.notifications(scope.key)),
         }
+    if args.action == "notifications":
+        # Hermes delivers each message, then reports the outcome; listing is read-only.
+        return {"notifications": [{k: n[k] for k in ("id", "kind", "mode", "position_id", "episode_ms", "created_ms",
+                                                    "delivery_attempts", "last_attempt_ms", "message", "payload")}
+                                  for n in store.notifications(scope.key)]}
+    if args.action == "notification-result":
+        if args.notification_id is None or args.result is None:
+            raise ValueError("notification-result requires --notification-id and --result")
+        if not any(n["id"] == args.notification_id for n in store.notifications(scope.key)):
+            raise ValueError("No pending notification with that id for this venue account")
+        note = store.record_notification_result(args.notification_id, delivered=args.result == "delivered",
+                                                now_ms=int(time.time() * 1000))
+        return {k: note[k] for k in ("id", "kind", "delivered_ms", "delivery_attempts", "last_attempt_ms")}
     if args.action in {"pause-entries", "resume-entries"}:
         store.set_entries(scope.key, args.action == "resume-entries")
         return {"entries_enabled": store.entries_enabled(scope.key)}

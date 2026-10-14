@@ -135,6 +135,13 @@ resolver exists (see `docs/architecture.md` "Open Risks").
 - 401 or token-expiry code (`EGW00123`) on a GET → the client deletes the cached
   token and retries once independently of rate-limit retries. Other 403 responses
   do not invalidate the token. Do not loop token issuance; KIS limits it.
+- `account_pages` marks HTTP >= 400 and well-formed refusals (a string `rt_cd` other
+  than `"0"`) ("KIS account inquiry failed"), plus token throttling and token HTTP
+  failures, with `read_unavailable=True`
+  (and `kind`/`http_status` where known). The managed supervisor treats only these and
+  `OSError` transport errors as warning-only read outages. Malformed envelopes
+  (a body that is not an object, or a missing or invalid `rt_cd`), malformed pages
+  and pagination errors stay unmarked, so they remain fail-closed intervention.
 - Paper accounts do not support every endpoint (e.g. many analysis/ranking APIs,
   some order types). If a paper call returns an "unsupported" message, verify against
   the portal before assuming a bug.
