@@ -29,13 +29,21 @@ native trailing-stop validation.
 References: [trade.xyz specification index](https://docs.trade.xyz/consolidated-resources/specification-index),
 [Direxion KORU](https://www.direxion.com/product/daily-msci-south-korea-bull-3x-etf).
 
+## Selected KIS execution catalog
+
+The 2026-10-15 KIS `search-info` observation supports `kis:UGL`, `kis:XLE`,
+`kis:NRGU`, `kis:XLV`, `kis:CURE`, `kis:XLP` and `kis:URAA`: quote exchange
+`AMS`, order exchange `AMEX`, USD, listed, whole-share units. This is broker
+metadata, not live order acceptance. The selected execution policy belongs to
+[trading operations](trading-operations.md#instruments-and-source-identity).
+
 ## Energy Select Sector XLE
 
-`hl:xyz:XLE` is a catalogued Energy Select Sector SPDR Fund perp. Its KIS
-execution instrument is separate: `kis:XLE` on the observed AMEX order route.
+`hl:xyz:XLE` is a catalogued tradable Energy Select Sector SPDR Fund perp seed.
+Its KIS execution instrument is separate: `kis:XLE` in the catalog above.
 The generated quote mapping uses `AMS` for NYSE Arca and does not by itself
-place an order. A fresh metadata verification check is still required before a
-live HL order.
+place an order. Public xyz metadata included the coin; a fresh metadata
+verification check is still required before a live HL order.
 
 ## Broadcom AVGO Support
 
@@ -50,9 +58,8 @@ U.S. common stock after redomiciliation, not the predecessor's IPO date.
 [Nasdaq corporate-action alert ECA2018-59](https://www.nasdaqtrader.com/TraderNews.aspx?id=ECA2018-59)
 identifies Broadcom Inc., unchanged ticker `AVGO`, common-stock CUSIP `11135F101`,
 and that marketplace effective date. This establishes more than 30 weeks of public
-listing as of 2026-10-07 without relying on predecessor identity. The observed KIS
-`search-info` payload at
-`data/analysis/avgo-entry-review/2026-10-07/kis_info.json` corroborates
+listing as of 2026-10-07 without relying on predecessor identity. The KIS
+`search-info` observation on that date corroborated
 `BROADCOM INC`, ISIN `US11135F1012`, `lstg_yn=Y`, and exchange `NASD`; its empty
 `lstg_dt` is not listing-date evidence.
 

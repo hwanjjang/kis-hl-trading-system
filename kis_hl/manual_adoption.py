@@ -95,7 +95,7 @@ def verify_adoption(gateway, row, now):
     fixed_floor = decimal(p["fixed_stop_price"]) if "fixed_stop_price" in p else average-distance
     # Account entryPx can be rounded while fills retain the exact weighted average.
     # Admit only a narrowly bounded rounding match; sizing/risk still use exact fills.
-    reported_average = decimal(snap["entry_price"], positive=True)
+    reported_average = decimal(snap["entry_price"])
     average_quantum = min(tick, Decimal("0.0001"))
     average_matches = reported_average == average or (
         reported_average == average.quantize(average_quantum, rounding=ROUND_HALF_UP)

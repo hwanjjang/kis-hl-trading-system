@@ -104,12 +104,26 @@ class ManualAdoptionTests(unittest.TestCase):
                 self.g.snapshot = lambda *args, reported=reported, snapshot=snapshot: snapshot(*args) | {
                     "entry_price": reported}
                 row = self.queue(limit_price="100.0000485", fixed_stop_price="96")
-                self.assertEqual(self.step(row)["state"], "INTERVENTION")
+                result = self.step(row)
+                self.assertEqual(result["state"], "INTERVENTION")
                 self.assertEqual(self.store.attempts(row["id"]), [])
                 self.g.trading.place_order.assert_not_called()
         # Rounding does not loosen the exact-fill planned-loss bound.
         with self.assertRaises(ValueError):
             validate_plan(plan() | {"limit_price": "100.0000485", "fixed_stop_price": "96", "max_loss": "4"}, 1)
+
+    def test_zero_entry_average_uses_reconciliation_error(self):
+        from kis_hl.manual_adoption import verify_adoption
+
+        snapshot = self.g.snapshot
+        self.g.snapshot = lambda *args: snapshot(*args) | {"entry_price": "0"}
+        row = self.queue()
+        self.info.l2_book.return_value["time"] = 21
+        with patch("kis_hl.managed_gateways.time.time", return_value=0.021):
+            with self.assertRaisesRegex(ValueError, "Current position or fixed SL cannot be reconciled"):
+                verify_adoption(self.g, row, 21)
+        self.assertEqual(self.store.attempts(row["id"]), [])
+        self.g.trading.place_order.assert_not_called()
 
     def test_quote_after_start_is_fresh_at_preflight_completion(self):
         row = self.queue()

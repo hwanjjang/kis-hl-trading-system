@@ -25,7 +25,7 @@ Extension groups are reviewed with the same rules but are not part of the base s
 
 | Group | Signal | 1x | Leveraged | Hyperliquid | Notes |
 | --- | --- | --- | --- | --- | --- |
-| ETH | `hl:ETH` | none | none | `hl:ETH` | No repository ETH-specific entry rule |
+| ETH | `hl:ETH` | none | none | `hl:ETH` | Separate explicit opt-in entry authority required |
 | Quantum | `kis:QPUX` | none | `kis:QPUX` | none | 2x daily quantum basket |
 | Uranium | `kis:URAA` | none | `kis:URAA` | none | 2x daily uranium/nuclear ETF basket |
 
@@ -42,14 +42,11 @@ the instrument actually held. Hyperliquid legs are independent contracts, not
 KIS fallbacks. `KR200` and `EWY` remain excluded; `xyz:EWY` may still be a
 read-only KORU confirmation source.
 
-Catalogued after the 2026-10-15 KIS `search-info` read: `kis:UGL`, `kis:XLE`,
-`kis:NRGU`, `kis:XLV`, `kis:CURE`, `kis:XLP` and `kis:URAA` use quote code `AMS`
-and order exchange `AMEX`, USD, listed, whole-share units. That observation is
-broker metadata, not live order acceptance. `hl:xyz:XLE` is a catalogued
-tradable ETF seed. Public xyz metadata included the coin; a fresh
-`xyz-assets verify` check is still required before a live HL order. `kis:DRAM`
-and `hl:xyz:DRAM` are no longer selected targets. `hl:xyz:AVGO` remains
-catalogued for an existing holding, not a default new-entry target.
+For selected KIS catalog routes and metadata provenance, see the
+[asset catalog](trade_xyz_assets.md#selected-kis-execution-catalog); for HL XLE
+eligibility and verification, see [XLE support](trade_xyz_assets.md#energy-select-sector-xle).
+`kis:DRAM` and `hl:xyz:DRAM` are no longer selected targets. `hl:xyz:AVGO`
+remains catalogued for an existing holding, not a default new-entry target.
 
 Product identity, not a sizing input: UGL is ProShares Ultra Gold; NRGU is the
 Bank of Montreal MicroSectors U.S. Big Oil 3X Leveraged ETN (issuer credit and
@@ -191,15 +188,11 @@ below pink support at that review is a strategy stop-loss/whole-position exit
 review condition; it takes precedence over a new buy scenario. Do not confuse
 this chart decision with continuous account-local SL/TS protection.
 
-The supplied screenshot shows KOSPI 6,971.23. Visually estimated pixel locations
-at its latest candle, calibrated to the approximately logarithmic right axis,
-give yellow resistance about **7,115** (rough band 7,070-7,160) and pink support
-about **6,810** (rough band 6,765-6,850). These are screenshot-only estimates,
-not live quotes, exact anchors, validated bounds or permanent horizontal levels.
-Recompute from the user's current chart/anchors at each review; do not use image
-estimates as executable order triggers or as ETF/KORU stop prices. This setup is
-user-selected discretionary chart analysis, not a passing deterministic generic
-trend predicate or an implemented automated channel detector.
+Recompute resistance and support from the user's current chart/anchors at each
+review; transient screenshot estimates are not executable order triggers or
+ETF/KORU stop prices. This setup is user-selected discretionary chart analysis,
+not a passing deterministic generic trend predicate or an implemented automated
+channel detector.
 
 Keep the one-unit entry baseline and independent HL risk-unit sizing. Entry and
 add require actual holdings, current execution prices, fixed stops, funds and
@@ -227,12 +220,12 @@ new-entry versus add/reassessment distinction. Use KORU execution prices/ATR and
 fresh reconciled selected-account capital, never EWY prices or overlapping balances.
 This is notification and proposal authority only, not authority to enter or manage.
 
-Profile job `1882b13d43f0` checks at minute 02 hourly via
-`ewy_1h_high_alert.sh` / `ewy_1h_high_alert.py`. Its SQLite outbox is
-`data/analysis/ewy-1h-high-watch/state.sqlite`; retain pending events until exact
-successful scheduler output/delivery receipts, and label delayed confirmations.
-The first successful fetch establishes a baseline rather than notifying old bars.
-No event means a silent pre-agent gate. HL underlying sessions are advisory only.
+Scheduling, outbox state and delivery receipts belong to the external Hermes
+configuration; see [workflow ownership](strategy-authoring.md#ownership).
+This repository does not establish that the alert job or delivery is active.
+When configured, the first successful fetch should establish a baseline rather
+than notify old bars; no event should remain silent. Retain pending events until
+successful delivery is evidenced, and label delayed confirmations.
 
 ## BTC three-hour strategy activation policy
 
@@ -625,7 +618,9 @@ limits are decimal strings; durations and UTC epoch milliseconds are integers.
 
 Exposure limits are gross notional, not leverage-normalized economic exposure or
 a consolidated cross-currency/cross-broker NAV limit. US equity families are
-conservatively grouped together; unknown holdings are charged to the proposed group.
+conservatively grouped together, including the selected sector baskets and HL
+AVGO/XLE; holdings and pending entries both count. Gold and crypto retain their
+separate groups; unknown holdings are charged to the proposed group.
 All configured limits are mandatory. The existing HL operating-capital multiplier
 is not applied to KIS cash balances.
 
@@ -710,6 +705,12 @@ process, not the agent conversation, owns the ongoing loop.
    notional and fixed-SL loss still use exact weighted fills. Additions, reductions,
    foreign orders, missing retention evidence and a legacy manager owning the coin
    block admission.
+   The half-up rule is a deliberately bounded local admission policy, not a
+   verified specification of Hyperliquid's `entryPx` rounding. Other exchange
+   rounding or precision can reject an otherwise matching position. The one-ppm
+   bound also rejects some small-price rounding differences (for example,
+   `20.00004` to `20.0000`); smaller differences can still pass. Do not widen the
+   tolerance without evidence and a separately reviewed policy change.
 2. Prepare the plan fields above; quantity and limit_price must equal the actual
    entry quantity and average. `order prepare` can refresh ATR from execution-market
    daily bars. Policy numbers are explicit user/strategy inputs, never invented by
@@ -783,6 +784,12 @@ handoff does not require frozen ATR to equal a newly recalculated ATR.
   original size and actual fills establish quantity. Acknowledgement alone is not
   coverage. Import itself performs no signed action, cancellation, modification or
   watermark reset.
+- Percentage supervision reconstructs each same-millisecond account fill burst
+  from the unique `startPosition` successor, including mixed buys and protective
+  sells; trade IDs do not establish order within that burst. Missing or ambiguous
+  chains reject reconciliation. Filled trailing orders retain exact native-ID,
+  coin, direction, reduce-only and order-type checks; open or triggered trailing
+  orders still require condition readback before claiming active coverage.
 - `ExecutionStore.prepare_external_percentage_adoption(position_id,
   entry_order_id=..., stop_order_id=..., trailing_order_id=..., percent="8.35",
   now_ms=..., admission_expires_ms=...)` requeues the **same** `INTERVENTION` owner

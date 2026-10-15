@@ -4,6 +4,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone, timedelta, time as dt_time
 from decimal import Decimal
 import hashlib
+from itertools import groupby
 import time
 from zoneinfo import ZoneInfo
 
@@ -34,11 +35,36 @@ def correlated(asset, symbol, venue):
     # Unknown holdings are conservatively charged to the proposed group.
     if match is None:
         return True
-    equities = {"S&P500", "Nasdaq100", "quantum", "memory", "memory_contract"}
+    equities = {"S&P500", "Nasdaq100", "quantum", "memory", "memory_contract",
+                "energy", "health care", "consumer staples", "uranium",
+                "Broadcom Inc.", "Energy Select Sector SPDR Fund"}
     return (
         match.underlying == asset.underlying
         or {asset.underlying, match.underlying} <= equities
     )
+
+
+def percentage_fill_chain(fills):
+    """Require a unique account-position successor within each millisecond."""
+    net = Decimal(0)
+    for _, burst in groupby(sorted(fills, key=lambda f: (f["time"], int(f["tid"]))),
+                            key=lambda f: f["time"]):
+        successors = {}
+        for fill in burst:
+            successors.setdefault(decimal(fill["startPosition"]), []).append(fill)
+        while successors:
+            candidates = successors.pop(net, [])
+            if len(candidates) != 1:
+                raise ValueError("Percentage tranche account fill generation is incomplete or ambiguous")
+            fill = candidates[0]
+            qty = decimal(fill["sz"], positive=True)
+            if fill["side"] == "B":
+                net += qty
+            elif fill["side"] == "A":
+                net -= qty
+            else:
+                raise ValueError("Unknown execution side")
+            yield fill
 
 
 class ManagedHyperliquidGateway:
@@ -346,9 +372,9 @@ class ManagedHyperliquidGateway:
             trailing = {}
             if a["kind"] == "trailing":
                 from kis_hl.hyperliquid.trailing import TrailingConditionError, trailing_readback
-                # A triggered/filled trailing stop is read back with isTrigger=false and
-                # triggerCondition="Triggered" for both quote and percent units; its
-                # condition can no longer be re-verified, only its identity and type.
+                # A filled trailing stop loses its live condition in readback for both
+                # units. Only terminal fills use identity/type checks; triggered or
+                # open orders still require condition readback before claiming coverage.
                 if status == "filled":
                     if order.get("orderType") != "Trailing Stop Market":
                         raise ValueError("Filled trailing order type mismatch")
@@ -418,14 +444,9 @@ class ManagedHyperliquidGateway:
         protective_filled = Decimal(0)
         fixed_stop_filled = Decimal(0)
         fixed_ids = {str(a.get("order_id")) for a in attempts if a["kind"] == "stop"}
-        def generation_order(f):
-            # Hyperliquid tids are not monotonic inside one millisecond; a same-time burst
-            # is one order generation whose chain is the startPosition ladder (descending
-            # for sells, ascending for buys).
-            start = decimal(f["startPosition"]) if row["plan"].get("native_trailing_percent") else Decimal(0)
-            return (f["time"], -start if f["side"] == "A" else start, int(f["tid"]))
-
-        for f in sorted(relevant.values(), key=generation_order):
+        ordered = (percentage_fill_chain(relevant.values()) if row["plan"].get("native_trailing_percent")
+                   else sorted(relevant.values(), key=lambda f: (f["time"], int(f["tid"]))))
+        for f in ordered:
             if row["plan"].get("native_trailing_percent") and decimal(f["startPosition"]) != net:
                 raise ValueError("Percentage tranche account fill generation is incomplete")
             qty = decimal(f["sz"], positive=True)
