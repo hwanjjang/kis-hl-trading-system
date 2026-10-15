@@ -459,6 +459,50 @@ class ManagedGatewayTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             g.snapshot(row, attempts, 20)
 
+    def test_filled_quote_trailing_readback_without_trigger_flag_is_still_owned(self):
+        # A triggered/filled Trailing Stop Market reads back isTrigger=false and
+        # triggerCondition="Triggered" regardless of the retracement unit.
+        g, info, row, attempts, order = self.hl()
+        attempts[0].update(kind="trailing", order_id="42", quantity="1", retracement="3.1764")
+        order.update(side="A", reduceOnly=True, isTrigger=False, orderType="Trailing Stop Market",
+                     sz="0.0", triggerPx="0.0", triggerCondition="Triggered")
+        info.user_fills_by_time.return_value[0].update(side="A")
+        info.clearinghouse_state.return_value["assetPositions"] = []
+        snap = g.snapshot(row, attempts, 20)
+        self.assertEqual(snap["orders"]["42"]["kind"], "trailing")
+        self.assertEqual(snap["orders"]["42"]["status"], "filled")
+        self.assertEqual(snap["protective_filled"], "1")
+        order["orderType"] = "Stop Market"
+        with self.assertRaises(ValueError):
+            g.snapshot(row, attempts, 20)
+
+    def test_percent_tranche_same_millisecond_fill_burst_reconciles(self):
+        # Hyperliquid tids are not monotonic within one millisecond; the chain is
+        # the startPosition ladder, not tid order.
+        g, info, row, attempts, order = self.hl()
+        row["plan"]["native_trailing_percent"] = "3.13"
+        attempts[0].update(order_id="42")
+        attempts.append(dict(id="trail", kind="trailing", order_id="43", status="SUBMITTED",
+                             quantity="1", retracement="3.13", retracement_unit="percent"))
+        trailing = dict(order, oid=43, side="A", reduceOnly=True, isTrigger=False,
+                        orderType="Trailing Stop Market", sz="0.0", origSz="1", triggerPx="0.0")
+        info.order_status.side_effect = lambda *, oid: {"status": "order", "order": {
+            "status": "filled", "order": trailing if str(oid) == "43" else order}}
+        info.user_fills_by_time.return_value = [
+            dict(tid=1, coin="BTC", side="B", sz="1", px="100", time=10, oid=42, startPosition="0"),
+            dict(tid=900, coin="BTC", side="A", sz="0.2", px="96", time=11, oid=43, startPosition="0.2"),
+            dict(tid=100, coin="BTC", side="A", sz="0.5", px="96", time=11, oid=43, startPosition="1"),
+            dict(tid=500, coin="BTC", side="A", sz="0.3", px="96", time=11, oid=43, startPosition="0.5"),
+        ]
+        info.clearinghouse_state.return_value["assetPositions"] = []
+        snap = g.snapshot(row, attempts, 20)
+        self.assertTrue(snap["consistent"])
+        self.assertEqual(snap["size"], "0")
+        self.assertEqual(snap["protective_filled"], "1.0")
+        info.user_fills_by_time.return_value[1]["startPosition"] = "0.3"
+        with self.assertRaises(ValueError):
+            g.snapshot(row, attempts, 20)
+
     def test_stop_contract_is_bound_to_sell_reduce_only_stop_market(self):
         g, info, row, attempts, order = self.hl()
         attempts[0]["kind"] = "stop"

@@ -83,6 +83,34 @@ class ManualAdoptionTests(unittest.TestCase):
         self.g.trading.place_order.assert_not_called()
         self.assertEqual(self.orders[43]["status"],"open")
 
+    def test_rounded_exchange_entry_average_preserves_exact_fill_risk(self):
+        self.fills[0]["px"] = "100.0000485"
+        snapshot = self.g.snapshot
+        self.g.snapshot = lambda *args: snapshot(*args) | {
+            "entry_price": "100.0000", "price_step": "0.0001"}
+        row = self.queue(limit_price="100.0000485", fixed_stop_price="96")
+        result = self.step(row)
+        self.assertEqual(result["state"], "PROTECTING")
+        self.assertEqual(result["trail"]["entry"], "100.0000485")
+        self.g.trading.place_order.assert_not_called()
+        self.g.trading.place_trailing_stop_order.assert_not_called()
+
+    def test_entry_average_rounding_rejects_wrong_price_or_excess_risk(self):
+        for reported in ("100.0001", "99.9999", "100.001", "0"):
+            with self.subTest(reported=reported):
+                self.setUp()
+                self.fills[0]["px"] = "100.0000485"
+                snapshot = self.g.snapshot
+                self.g.snapshot = lambda *args, reported=reported, snapshot=snapshot: snapshot(*args) | {
+                    "entry_price": reported}
+                row = self.queue(limit_price="100.0000485", fixed_stop_price="96")
+                self.assertEqual(self.step(row)["state"], "INTERVENTION")
+                self.assertEqual(self.store.attempts(row["id"]), [])
+                self.g.trading.place_order.assert_not_called()
+        # Rounding does not loosen the exact-fill planned-loss bound.
+        with self.assertRaises(ValueError):
+            validate_plan(plan() | {"limit_price": "100.0000485", "fixed_stop_price": "96", "max_loss": "4"}, 1)
+
     def test_quote_after_start_is_fresh_at_preflight_completion(self):
         row = self.queue()
         self.g.preflight.return_value.update(time_ms=243, observed_now_ms=640)

@@ -346,9 +346,12 @@ class ManagedHyperliquidGateway:
             trailing = {}
             if a["kind"] == "trailing":
                 from kis_hl.hyperliquid.trailing import TrailingConditionError, trailing_readback
-                if status == "filled" and a.get("retracement_unit") == "percent":
+                # A triggered/filled trailing stop is read back with isTrigger=false and
+                # triggerCondition="Triggered" for both quote and percent units; its
+                # condition can no longer be re-verified, only its identity and type.
+                if status == "filled":
                     if order.get("orderType") != "Trailing Stop Market":
-                        raise ValueError("Filled percentage trailing order type mismatch")
+                        raise ValueError("Filled trailing order type mismatch")
                 else:
                     try:
                         trailing = trailing_readback(order, retracement=decimal(a["retracement"]),
@@ -415,7 +418,14 @@ class ManagedHyperliquidGateway:
         protective_filled = Decimal(0)
         fixed_stop_filled = Decimal(0)
         fixed_ids = {str(a.get("order_id")) for a in attempts if a["kind"] == "stop"}
-        for f in sorted(relevant.values(), key=lambda f: (f["time"], int(f["tid"]))):
+        def generation_order(f):
+            # Hyperliquid tids are not monotonic inside one millisecond; a same-time burst
+            # is one order generation whose chain is the startPosition ladder (descending
+            # for sells, ascending for buys).
+            start = decimal(f["startPosition"]) if row["plan"].get("native_trailing_percent") else Decimal(0)
+            return (f["time"], -start if f["side"] == "A" else start, int(f["tid"]))
+
+        for f in sorted(relevant.values(), key=generation_order):
             if row["plan"].get("native_trailing_percent") and decimal(f["startPosition"]) != net:
                 raise ValueError("Percentage tranche account fill generation is incomplete")
             qty = decimal(f["sz"], positive=True)

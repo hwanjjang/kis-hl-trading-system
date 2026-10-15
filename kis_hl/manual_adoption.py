@@ -1,5 +1,5 @@
 """Read-only admission of an explicitly identified existing Hyperliquid long."""
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from uuid import uuid4
 
 from kis_hl.journal_sync import decimal
@@ -93,8 +93,17 @@ def verify_adoption(gateway, row, now):
     stop = snap["orders"].get(str(stop_id), {})
     distance = decimal(p["stop_distance"])
     fixed_floor = decimal(p["fixed_stop_price"]) if "fixed_stop_price" in p else average-distance
+    # Account entryPx can be rounded while fills retain the exact weighted average.
+    # Admit only a narrowly bounded rounding match; sizing/risk still use exact fills.
+    reported_average = decimal(snap["entry_price"], positive=True)
+    average_quantum = min(tick, Decimal("0.0001"))
+    average_matches = reported_average == average or (
+        reported_average == average.quantize(average_quantum, rounding=ROUND_HALF_UP)
+        and abs(reported_average - average) <= average_quantum / 2
+        and abs(reported_average - average) <= average * Decimal("0.000001")
+    )
     if (not snap["consistent"] or snap["foreign_add"] or decimal(snap["size"]) != quantity
-            or decimal(snap["entry_filled"]) != quantity or decimal(snap["entry_price"]) != average
+            or decimal(snap["entry_filled"]) != quantity or not average_matches
             or stop.get("status") != "open" or stop.get("kind") != "stop"
             or decimal(stop.get("coverage_size", stop.get("size", "0"))) != quantity
             or decimal(stop.get("trigger_price", "0")) < fixed_floor
