@@ -29,6 +29,44 @@ native trailing-stop validation.
 References: [trade.xyz specification index](https://docs.trade.xyz/consolidated-resources/specification-index),
 [Direxion KORU](https://www.direxion.com/product/daily-msci-south-korea-bull-3x-etf).
 
+## Energy Select Sector XLE
+
+`hl:xyz:XLE` is a catalogued Energy Select Sector SPDR Fund perp. Its KIS
+execution instrument is separate: `kis:XLE` on the observed AMEX order route.
+The generated quote mapping uses `AMS` for NYSE Arca and does not by itself
+place an order. A fresh metadata verification check is still required before a
+live HL order.
+
+## Broadcom AVGO Support
+
+`hl:xyz:AVGO` is a catalogued managed execution instrument. The curated stock
+seed maps `AVGO` / `xyz:AVGO` to **Broadcom Inc. common stock (NASDAQ: AVGO)**,
+not a leveraged ETF or the former Broadcom Corporation `BRCM` stock. The
+[trade.xyz specification index](https://docs.trade.xyz/consolidated-resources/specification-index)
+explicitly references one Broadcom Inc. common share, quoted in USD.
+
+The listing-date seed is **2018-04-05**, the first Nasdaq trading day of the current
+U.S. common stock after redomiciliation, not the predecessor's IPO date.
+[Nasdaq corporate-action alert ECA2018-59](https://www.nasdaqtrader.com/TraderNews.aspx?id=ECA2018-59)
+identifies Broadcom Inc., unchanged ticker `AVGO`, common-stock CUSIP `11135F101`,
+and that marketplace effective date. This establishes more than 30 weeks of public
+listing as of 2026-10-07 without relying on predecessor identity. The observed KIS
+`search-info` payload at
+`data/analysis/avgo-entry-review/2026-10-07/kis_info.json` corroborates
+`BROADCOM INC`, ISIN `US11135F1012`, `lstg_yn=Y`, and exchange `NASD`; its empty
+`lstg_dt` is not listing-date evidence.
+
+The existing stock mapper generates an active KIS **quote-only** route:
+`overseas` / `NAS` / `AVGO`. `NASD` is the broker metadata/order exchange code,
+not the quote code; no `kis:AVGO` execution instrument is added. No API endpoint
+changes are needed. Underlying cash-equity sessions follow the existing U.S. stock
+classification and remain advisory for HL execution; see `docs/trading_hours.md`.
+
+Source support and temporary-database tests do not refresh operational SQLite or
+establish current HL metadata verification, live order acceptance, or AVGO native
+SL/trailing readback. Existing eligibility, freshness, account, ownership and
+protection guards remain required before live execution.
+
 ## SQLite Table
 
 `trade_xyz_assets` is created by `init_db()` and populated by `seed_trade_xyz_assets()`.

@@ -44,6 +44,21 @@ INSTRUMENTS = [
             ("QPUX", "NAS", "NASD", "quantum"),
         ]
     ],
+    *[
+        Instrument(
+            "kis:" + symbol, "kis", "overseas", symbol, "USD", "AMS", "AMEX", underlying,
+            status="broker_metadata_observed",
+        )
+        for symbol, underlying in [
+            ("UGL", "gold"),
+            ("XLE", "energy"),
+            ("NRGU", "energy"),
+            ("XLV", "health care"),
+            ("CURE", "health care"),
+            ("XLP", "consumer staples"),
+            ("URAA", "uranium"),
+        ]
+    ],
     Instrument(
         "kis:DRAM",
         "kis",
@@ -67,6 +82,8 @@ INSTRUMENTS = [
             ("GOLD", "gold"),
             ("KORU", "Direxion Daily MSCI South Korea Bull 3X Shares"),
             ("DRAM", "memory_contract"),
+            ("AVGO", "Broadcom Inc."),
+            ("XLE", "Energy Select Sector SPDR Fund"),
         ]
     ],
 ]
