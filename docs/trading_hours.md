@@ -19,7 +19,7 @@ This document records the default session policy for the current tradable asset 
 
 | Session group | Default live-entry window | Current KST conversion during U.S. daylight saving time | Assets |
 | --- | --- | --- | --- |
-| U.S. cash equities | Monday-Friday 09:30-16:00 ET | 22:30-05:00 next calendar day | `SP500`, `XYZ100`, `KORU`, `URNM`, `TSLA`, `NVDA`, `GOOGL`, `INTC`, `MU`, `PLTR`, `ORCL`, `MSTR`, `MSFT`, `META`, `AMZN`, `AMD`, `AAPL`, `COIN`, `HOOD`, `NFLX`, `CRCL`, `SNDK`, `RIVN`, `USAR`, `TSM`, `BABA`, `CRWV`, `DKNG`, `HIMS`, `COST`, `LLY` |
+| U.S. cash equities | Monday-Friday 09:30-16:00 ET | 22:30-05:00 next calendar day | `SP500`, `XYZ100`, `KORU`, `URNM`, `XLE`, `TSLA`, `NVDA`, `GOOGL`, `INTC`, `MU`, `PLTR`, `ORCL`, `MSTR`, `MSFT`, `META`, `AMZN`, `AMD`, `AAPL`, `COIN`, `HOOD`, `NFLX`, `CRCL`, `SNDK`, `RIVN`, `USAR`, `TSM`, `BABA`, `CRWV`, `DKNG`, `HIMS`, `COST`, `AVGO`, `LLY` |
 | KRX cash equities | Monday-Friday 09:00-15:30 KST | 09:00-15:30 KST | `SKHYNIX`, `SAMSUNG`, `HYUNDAI` |
 | TSE cash equities | Monday-Friday 09:00-11:30 and 12:30-15:30 JST | 09:00-11:30 and 12:30-15:30 KST | `JP225` |
 | Commodity futures reference | Sunday 18:00 ET-Friday 17:00 ET, with a daily 17:00-18:00 ET maintenance break Monday-Thursday | Monday 07:00-Saturday 06:00 KST, with a daily 06:00-07:00 KST break during U.S. daylight saving time | `BRENTOIL`, `WTIOIL`, `NATGAS`, `COPPER`, `GOLD`, `SILVER`, `PLATINUM`, `PALLADIUM` |

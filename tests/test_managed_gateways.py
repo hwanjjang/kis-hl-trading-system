@@ -10,6 +10,81 @@ from tests.test_managed_execution import plan
 
 
 class ManagedGatewayTests(unittest.TestCase):
+    def test_selected_equity_families_share_conservative_correlation(self):
+        from kis_hl.managed_gateways import correlated
+
+        for symbol in ("XLE", "NRGU", "XLV", "CURE", "XLP", "URAA"):
+            with self.subTest(symbol=symbol):
+                self.assertTrue(correlated(instrument("kis:SPY"), symbol, "kis"))
+                self.assertTrue(correlated(instrument("kis:" + symbol), "QQQ", "kis"))
+        for symbol in ("xyz:AVGO", "xyz:XLE"):
+            self.assertTrue(correlated(instrument("hl:xyz:SP500"), symbol, "hyperliquid"))
+        self.assertFalse(correlated(instrument("kis:SPY"), "UGL", "kis"))
+        self.assertFalse(correlated(instrument("hl:BTC"), "xyz:AVGO", "hyperliquid"))
+        self.assertTrue(correlated(instrument("kis:SPY"), "UNKNOWN", "kis"))
+
+    def test_new_equity_catalog_counts_holdings_and_orders_in_hl_risk_gate(self):
+        import tempfile
+        from pathlib import Path
+        from kis_hl.managed_execution import ExecutionStore, Supervisor
+
+        for pending in (False, True):
+            with self.subTest(pending=pending), tempfile.TemporaryDirectory() as tmp:
+                g, info, _, _, _ = self.hl()
+                info.meta_and_asset_ctxs.return_value = [{"collateralToken": 0,
+                    "universe": [{"name": "xyz:SP500", "szDecimals": 2}]}, []]
+                info.clearinghouse_state.side_effect = lambda *, dex: {"assetPositions": (
+                    [{"position": {"coin": "xyz:AVGO", "szi": "1", "positionValue": "450"}}]
+                    if dex == "xyz" and not pending else [])}
+                info.frontend_open_orders.side_effect = lambda *, dex: (
+                    [dict(coin="xyz:XLE", oid=99, sz="5", limitPx="90", reduceOnly=False)]
+                    if dex == "xyz" and pending else [])
+                g._eligible = Mock(return_value=True)
+                g._session_advisory = Mock(return_value={})
+                p = plan() | dict(instrument="hl:xyz:SP500", signal_instrument="hl:xyz:SP500")
+                with patch("kis_hl.trailing_runner.fetch_trailing_atr", return_value=(Decimal("2"), [])), \
+                        patch("kis_hl.managed_gateways.time.time", return_value=0.020):
+                    pre = g.preflight(p, 20)
+                    self.assertEqual(Decimal(pre["correlated_notional"]), Decimal("450"))
+                    store = ExecutionStore(Path(tmp) / "state.sqlite")
+                    row = store.enqueue(g.scope, p, live=True, now_ms=1)
+                    result = Supervisor(store, g, live=True).step(row["id"], 20)
+                self.assertEqual(result["state"], "INTERVENTION")
+                self.assertIn("Correlated notional limit exceeded", result["reason"])
+                self.assertEqual(store.attempts(row["id"]), [])
+                g.trading.place_order.assert_not_called()
+
+    def test_new_equity_catalog_counts_holdings_and_orders_in_kis_risk_gate(self):
+        import tempfile
+        from pathlib import Path
+        from kis_hl.managed_execution import ExecutionStore, Supervisor
+
+        for pending in (False, True):
+            with self.subTest(pending=pending), tempfile.TemporaryDirectory() as tmp:
+                g, client = self.kis()
+                g._rows = Mock(return_value=[] if pending else [dict(pdno="XLV", ovrs_stck_evlu_amt="450")])
+                g._quote = Mock(return_value=(Decimal("100"), Decimal("100.1"), 20))
+                g._session = Mock(return_value=True)
+                g._atr = Mock(return_value=("2", {"instrument": "kis:SPY"}))
+                g._history = Mock(return_value=[])
+                client.overseas_instrument_info.return_value = SimpleNamespace(status=200,
+                    body={"rt_cd": "0", "output": dict(ovrs_excg_cd="AMEX", tr_crcy_cd="USD",
+                        lstg_yn="Y", lstg_abol_item_yn="N", buy_unit_qty="1", sll_unit_qty="1")})
+                client.account_pages.side_effect = lambda route, **kw: {"output": (
+                    [dict(ovrs_ord_psbl_amt="1000")] if route.endswith("buying_power") else
+                    [dict(pdno="CURE", nccs_qty="5", ft_ord_unpr3="90")] if pending else [])}
+                p = plan() | dict(instrument="kis:SPY", signal_instrument="kis:SPY", verified_price_step="0.01")
+                with patch("kis_hl.managed_gateways.time.time", return_value=0.020):
+                    pre = g.preflight(p, 20)
+                    self.assertEqual(Decimal(pre["correlated_notional"]), Decimal("450"))
+                    store = ExecutionStore(Path(tmp) / "state.sqlite")
+                    row = store.enqueue(g.scope, p, live=True, now_ms=1)
+                    result = Supervisor(store, g, live=True).step(row["id"], 20)
+                self.assertEqual(result["state"], "INTERVENTION")
+                self.assertIn("Correlated notional limit exceeded", result["reason"])
+                self.assertEqual(store.attempts(row["id"]), [])
+                client.cash_order.assert_not_called()
+
     def test_sqlite_eligibility_is_required_even_for_documented_xyz_assets(self):
         import tempfile
         import sqlite3
@@ -458,6 +533,97 @@ class ManagedGatewayTests(unittest.TestCase):
         order["orderType"] = "Take Profit Market"
         with self.assertRaises(ValueError):
             g.snapshot(row, attempts, 20)
+
+    def test_filled_quote_trailing_readback_without_trigger_flag_is_still_owned(self):
+        # A triggered/filled Trailing Stop Market reads back isTrigger=false and
+        # triggerCondition="Triggered" regardless of the retracement unit.
+        g, info, row, attempts, order = self.hl()
+        attempts[0].update(kind="trailing", order_id="42", quantity="1", retracement="3.1764")
+        order.update(side="A", reduceOnly=True, isTrigger=False, orderType="Trailing Stop Market",
+                     sz="0.0", triggerPx="0.0", triggerCondition="Triggered")
+        info.user_fills_by_time.return_value[0].update(side="A")
+        info.clearinghouse_state.return_value["assetPositions"] = []
+        snap = g.snapshot(row, attempts, 20)
+        self.assertEqual(snap["orders"]["42"]["kind"], "trailing")
+        self.assertEqual(snap["orders"]["42"]["status"], "filled")
+        self.assertEqual(snap["protective_filled"], "1")
+        order["orderType"] = "Stop Market"
+        with self.assertRaises(ValueError):
+            g.snapshot(row, attempts, 20)
+
+    def test_percent_tranche_same_millisecond_fill_burst_reconciles(self):
+        # Hyperliquid tids are not monotonic within one millisecond; the chain is
+        # the startPosition ladder, not tid order.
+        g, info, row, attempts, order = self.hl()
+        row["plan"]["native_trailing_percent"] = "3.13"
+        attempts[0].update(order_id="42")
+        attempts.append(dict(id="trail", kind="trailing", order_id="43", status="SUBMITTED",
+                             quantity="1", retracement="3.13", retracement_unit="percent"))
+        trailing = dict(order, oid=43, side="A", reduceOnly=True, isTrigger=False,
+                        orderType="Trailing Stop Market", sz="0.0", origSz="1", triggerPx="0.0")
+        info.order_status.side_effect = lambda *, oid: {"status": "order", "order": {
+            "status": "filled", "order": trailing if str(oid) == "43" else order}}
+        info.user_fills_by_time.return_value = [
+            dict(tid=1, coin="BTC", side="B", sz="1", px="100", time=10, oid=42, startPosition="0"),
+            dict(tid=900, coin="BTC", side="A", sz="0.2", px="96", time=11, oid=43, startPosition="0.2"),
+            dict(tid=100, coin="BTC", side="A", sz="0.5", px="96", time=11, oid=43, startPosition="1"),
+            dict(tid=500, coin="BTC", side="A", sz="0.3", px="96", time=11, oid=43, startPosition="0.5"),
+        ]
+        info.clearinghouse_state.return_value["assetPositions"] = []
+        snap = g.snapshot(row, attempts, 20)
+        self.assertTrue(snap["consistent"])
+        self.assertEqual(snap["size"], "0")
+        self.assertEqual(snap["protective_filled"], "1.0")
+        info.user_fills_by_time.return_value[1]["startPosition"] = "0.3"
+        with self.assertRaises(ValueError):
+            g.snapshot(row, attempts, 20)
+
+    def percent_mixed_burst(self):
+        g, info, row, attempts, order = self.hl()
+        row["plan"]["native_trailing_percent"] = "3.13"
+        attempts[0]["order_id"] = "42"
+        attempts.extend([
+            dict(id="add", kind="add", order_id="43", status="FILLED", quantity="0.5"),
+            dict(id="trail", kind="trailing", order_id="44", status="SUBMITTED",
+                 quantity="1", retracement="3.13", retracement_unit="percent"),
+        ])
+        orders = {42: order, 43: dict(order, oid=43, origSz="0.5"),
+                  44: dict(order, oid=44, side="A", reduceOnly=True, orderType="Trailing Stop Market")}
+        info.order_status.side_effect = lambda *, oid: {"status": "order", "order": {
+            "status": "filled", "order": orders[int(oid)]}}
+        info.user_fills_by_time.return_value = [
+            dict(tid=1, coin="BTC", side="B", sz="1", px="100", time=10, oid=42, startPosition="0"),
+            dict(tid=900, coin="BTC", side="B", sz="0.5", px="100", time=11, oid=43, startPosition="1"),
+            dict(tid=100, coin="BTC", side="A", sz="1", px="96", time=11, oid=44, startPosition="1.5"),
+        ]
+        info.clearinghouse_state.return_value["assetPositions"][0]["position"]["szi"] = "0.5"
+        return g, info, row, attempts
+
+    def test_percent_tranche_mixed_side_same_millisecond_reconciles(self):
+        g, info, row, attempts = self.percent_mixed_burst()
+        snap = g.snapshot(row, attempts, 20)
+        self.assertTrue(snap["consistent"])
+        self.assertEqual(snap["size"], "0.5")
+        self.assertEqual(snap["entry_filled"], "1.5")
+        self.assertEqual(snap["protective_filled"], "1")
+        self.assertEqual(snap["fills_by_attempt"]["add"], "0.5")
+
+    def test_percent_tranche_missing_or_ambiguous_chain_rejects(self):
+        for start in ("1.4", "1"):
+            with self.subTest(start=start):
+                g, info, row, attempts = self.percent_mixed_burst()
+                info.user_fills_by_time.return_value[-1]["startPosition"] = start
+                with self.assertRaises(ValueError):
+                    g.snapshot(row, attempts, 20)
+
+    def test_percent_entry_same_millisecond_buy_burst_reconciles(self):
+        g, info, row, attempts, _ = self.hl()
+        row["plan"]["native_trailing_percent"] = "3.13"
+        info.user_fills_by_time.return_value = [
+            dict(tid=1, coin="BTC", side="B", sz="0.4", px="100", time=10, oid=42, startPosition="0.6"),
+            dict(tid=900, coin="BTC", side="B", sz="0.6", px="100", time=10, oid=42, startPosition="0"),
+        ]
+        self.assertTrue(g.snapshot(row, attempts, 20)["consistent"])
 
     def test_stop_contract_is_bound_to_sell_reduce_only_stop_market(self):
         g, info, row, attempts, order = self.hl()

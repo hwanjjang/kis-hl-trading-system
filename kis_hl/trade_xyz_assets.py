@@ -228,6 +228,19 @@ TRADE_XYZ_ASSETS: tuple[TradeXyzAsset, ...] = (
         min_listing_age_weeks=0,
     ),
     TradeXyzAsset(
+        trade_symbol="XLE",
+        hyperliquid_coin="xyz:XLE",
+        asset_class="etf",
+        underlying_name="Energy Select Sector SPDR Fund",
+        underlying_symbol="XLE",
+        underlying_exchange="NYSE Arca",
+        listing_status="listed",
+        tradable=True,
+        listing_date="1998-12-16",
+        min_listing_age_weeks=0,
+        notes="KIS search-info on 2026-10-15 returned AMEX, USD, listed, whole-share units. Quote route uses AMS for NYSE Arca.",
+    ),
+    TradeXyzAsset(
         trade_symbol="EWY",
         hyperliquid_coin="xyz:EWY",
         asset_class="etf",
@@ -306,6 +319,10 @@ TRADE_XYZ_ASSETS: tuple[TradeXyzAsset, ...] = (
     TradeXyzAsset("DKNG", "xyz:DKNG", "stock", "DraftKings Inc.", "DKNG", "NASDAQ", "listed", True, "2020-04-24"),
     TradeXyzAsset("HIMS", "xyz:HIMS", "stock", "Hims & Hers Health, Inc.", "HIMS", "NYSE", "listed", True, "2021-01-21"),
     TradeXyzAsset("COST", "xyz:COST", "stock", "Costco Wholesale Corporation", "COST", "NASDAQ", "listed", True, "1985-12-05"),
+    TradeXyzAsset(
+        "AVGO", "xyz:AVGO", "stock", "Broadcom Inc.", "AVGO", "NASDAQ", "listed", True, "2018-04-05",
+        notes="References Broadcom Inc. common stock, ISIN US11135F1012. Current US common stock began Nasdaq trading on 2018-04-05 after redomiciliation (not the predecessor IPO): https://www.nasdaqtrader.com/TraderNews.aspx?id=ECA2018-59",
+    ),
     TradeXyzAsset("LLY", "xyz:LLY", "stock", "Eli Lilly and Company", "LLY", "NYSE", "listed", True, "1952-01-01"),
 )
 

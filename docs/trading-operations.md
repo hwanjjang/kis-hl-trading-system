@@ -10,15 +10,49 @@ transport or service is installed automatically.
 Use `instrument list`, `instrument verify --instrument ID`, and
 `capability inspect --instrument ID`. Index and execution IDs are separate.
 
-| Analysis | Execution IDs |
-| --- | --- |
-| `index:KOSPI` (shared timing signal, not a price proxy) | `kis:122630` preferred, `kis:069500` fallback; independently `hl:xyz:KORU` |
-| `index:SPX` or `kis:SPY` | `kis:SPY`, `kis:UPRO`, `hl:xyz:SP500` |
-| `index:NDX` or `kis:QQQ` | `kis:TQQQ` preferred, `kis:QQQ` fallback; `hl:xyz:XYZ100` |
-| Matching crypto | `hl:BTC`, `hl:ETH` |
-| Named gold reference | `kis:GLD`, `hl:xyz:GOLD` |
-| Quantum basket | `kis:QPUX` |
-| Named memory reference | `kis:DRAM`, `hl:xyz:DRAM` (distinct contracts) |
+| Group | Signal | 1x | Leveraged | Hyperliquid | Notes |
+| --- | --- | --- | --- | --- | --- |
+| KOSPI | `index:KOSPI`; KOSPI200 front future is confirmation only | `kis:069500` | `kis:122630` | `hl:xyz:KORU` | `kis:396500` is no longer the selected execution pair |
+| Nasdaq100 | `index:NDX` | `kis:QQQ` | `kis:TQQQ` | `hl:xyz:XYZ100` | |
+| S&P500 | `index:SPX` | `kis:SPY` | `kis:UPRO` | `hl:xyz:SP500` | |
+| Gold | `kis:GLD` | `kis:GLD` | `kis:UGL` | `hl:xyz:GOLD` | GLD is both the signal and the 1x leg; do not copy its price onto GOLD |
+| BTC | `hl:BTC` | none | none | `hl:BTC` | Perp quote is BTC/USDC; no ETF leg |
+| Energy | `kis:XLE` | `kis:XLE` | `kis:NRGU` | `hl:xyz:XLE` | NRGU is an ETN, not an equity ETF |
+| Health care | `kis:XLV` | `kis:XLV` | `kis:CURE` | `hl:xyz:LLY` | LLY is one company, not an XLV equivalent |
+| Consumer staples | `kis:XLP` | `kis:XLP` | none | `hl:xyz:COST` | COST book can be thin; do not treat low liquidity as an entry reason |
+
+Extension groups are reviewed with the same rules but are not part of the base set:
+
+| Group | Signal | 1x | Leveraged | Hyperliquid | Notes |
+| --- | --- | --- | --- | --- | --- |
+| ETH | `hl:ETH` | none | none | `hl:ETH` | Separate explicit opt-in entry authority required |
+| Quantum | `kis:QPUX` | none | `kis:QPUX` | none | 2x daily quantum basket |
+| Uranium | `kis:URAA` | none | `kis:URAA` | none | 2x daily uranium/nuclear ETF basket |
+
+`US10Y` is a monitoring input only: the U.S. 10-year Treasury yield, preferably the
+cited H.15 / FRED `DGS10` daily print. It is not an execution instrument, ETF,
+or order signal. Report the yield, date and daily change when a fresh cited
+print is available; otherwise mark it unavailable. Do not size a trade from it.
+
+On KIS, prefer the leveraged column when the broker's leveraged-product deposit
+requirement is verified as satisfied. Use the 1x column only as the fallback
+after that ineligibility is verified, not because of trend or volatility. Groups
+with no leveraged symbol have no such fallback. Do not buy both columns. Exit
+the instrument actually held. Hyperliquid legs are independent contracts, not
+KIS fallbacks. `KR200` and `EWY` remain excluded; `xyz:EWY` may still be a
+read-only KORU confirmation source.
+
+For selected KIS catalog routes and metadata provenance, see the
+[asset catalog](trade_xyz_assets.md#selected-kis-execution-catalog); for HL XLE
+eligibility and verification, see [XLE support](trade_xyz_assets.md#energy-select-sector-xle).
+`kis:DRAM` and `hl:xyz:DRAM` are no longer selected targets. `hl:xyz:AVGO`
+remains catalogued for an existing holding, not a default new-entry target.
+
+Product identity, not a sizing input: UGL is ProShares Ultra Gold; NRGU is the
+Bank of Montreal MicroSectors U.S. Big Oil 3X Leveraged ETN (issuer credit and
+daily reset); CURE is the Direxion Daily Healthcare Bull 3X ETF; URAA is the
+Direxion Daily Uranium Industry Bull 2X ETF. Read the current prospectus before
+using a leverage multiple in an order card.
 
 South Korea trade.xyz exposure uses `hl:xyz:KORU`; `KR200` and `EWY` remain
 excluded. KORU references a leveraged ETF, not an equivalent KOSPI200 contract,
@@ -67,15 +101,17 @@ User requirements (policy, not an implemented automatic router):
   from the KRX review or treat an earlier approval as authority for the next session.
   Entry and exit decisions are intended for both venues, with separate venue-specific
   execution. This is not an atomic cross-exchange transaction.
-- On KIS, prefer `kis:TQQQ` over `kis:QQQ`, and `kis:122630` over `kis:069500`.
-  The specified fallback trigger is failure to satisfy the broker's leveraged-ETF
-  deposit requirement, not an inferred trend or volatility rule. Do not invent a
-  deposit threshold or assume the same requirement across domestic and overseas
-  ETFs; use verified account/product-specific broker eligibility. Unknown
-  eligibility or an ambiguous order outcome is not proof of deposit ineligibility.
-  The fallback still requires its own funds and safety checks. This is a selection
-  priority, not an instruction to buy both ETFs. Exit the instrument actually held;
-  do not replace an exit with a fallback entry.
+- On KIS, prefer the leveraged member of a selected group (`kis:122630`,
+  `kis:TQQQ`, `kis:UGL`, `kis:NRGU`, `kis:CURE`, `kis:QPUX`, `kis:URAA`) over
+  its 1x symbol. The fallback trigger is verified failure to satisfy the
+  broker's leveraged-product deposit requirement, not an inferred trend or
+  volatility rule. Groups with no leveraged symbol (`kis:XLP`) have no fallback.
+  Do not invent a deposit threshold or assume the same requirement across
+  domestic and overseas products; use verified account/product-specific broker
+  eligibility. Unknown eligibility or an ambiguous order outcome is not proof of
+  deposit ineligibility. This is a selection priority, not an instruction to buy
+  both products. Exit the instrument actually held; do not replace an exit with
+  a fallback entry.
 - Apply shared strategy entry/exit decisions to all explicitly paired market
   groups, not just KOSPI. The preferred/fallback ETF choices above are KIS-only;
   do not change the independently selected Hyperliquid contract. For gold,
@@ -85,6 +121,18 @@ User requirements (policy, not an implemented automatic router):
   them. If both legs independently pass with funding and protection, both may be
   considered; if only one passes, consider only that leg. A shared thesis is not
   automatic cross-venue routing or authority for either order.
+- COST setup-specific advisory review: at the U.S. cash session close minus
+  twenty minutes (15:40 ET on normal sessions, early-close aware), a KIS COST
+  current price strictly above the previous trading session's high is the
+  user-selected long-entry timing alert. The intended entry review includes both
+  KIS COST shares and Hyperliquid `xyz:COST` perpetuals; it is notification-only,
+  not permission to submit either leg or a claim of supported managed routing.
+  Include independent per-unit quantity/notional, fixed SL and initial TS
+  percentage proposals for both accounts, using each execution instrument's own
+  price and completed daily ATR. Keep KIS NAV and HL reconciled account-total
+  capital separate. Missing HL review evidence must not suppress the KIS trigger
+  notification. This intraday alert does not claim a completed daily/weekly trend
+  predicate, simultaneous fills, or cross-venue protective-exit authority.
 - The U.S. pre-auction review window applies to KIS GLD entries; it does not
   close the 24-hour HL GOLD market. A completed HL 4H candle after the U.S.
   regular close can support a fresh HL-only entry review, subject to its own
@@ -123,6 +171,61 @@ The current signal/plan path uses explicit execution instrument IDs; it does not
 automatically select these fallbacks or coordinate both venues. Do not claim
 paired execution until that path is implemented and verified. No new execution
 authority, live order or supervisor start is implied by this policy.
+
+## AK KOSPI chart-channel setup
+
+For this user-selected chart setup, execute through the selected KOSPI row:
+`kis:122630` preferred, `kis:069500` only after verified leveraged-deposit
+ineligibility, and independently `hl:xyz:KORU`. `kis:396500` is no longer the
+selected execution pair. Broker metadata, catalog support and account-specific
+eligibility for any newly named KIS symbol still require verification.
+
+Use the KOSPI chart's descending yellow resistance and rising pink channel
+lower boundary. At the KRX pre-closing-auction review, assess a new entry or add
+when price breaks above yellow resistance, or tests pink support and rebounds/
+holds above it. Touching support alone is not confirmation. A price remaining
+below pink support at that review is a strategy stop-loss/whole-position exit
+review condition; it takes precedence over a new buy scenario. Do not confuse
+this chart decision with continuous account-local SL/TS protection.
+
+Recompute resistance and support from the user's current chart/anchors at each
+review; transient screenshot estimates are not executable order triggers or
+ETF/KORU stop prices. This setup is user-selected discretionary chart analysis,
+not a passing deterministic generic trend predicate or an implemented automated
+channel detector.
+
+Keep the one-unit entry baseline and independent HL risk-unit sizing. Entry and
+add require actual holdings, current execution prices, fixed stops, funds and
+applicable authorization. Keep the separately confirmed
+next-U.S.-session KORU reassessment and approval workflow for this setup; this is
+a chosen workflow, not a Hyperliquid market-hours prohibition. No order, deferred
+queue or persistent trading authority is created by recording these conditions.
+
+## EWY one-hour confirmation alert for a KORU long proposal
+
+AK separately requested notification when a completed native Hyperliquid
+`xyz:EWY` one-hour candle closes strictly above the immediately previous adjacent
+one-hour candle's high. EWY is a read-only signal source, not an execution asset;
+its exclusion remains unchanged. This event is entry confirmation for the requested
+`hl:xyz:KORU` advisory card; do not add generic weekly, retest or KOSPI-channel
+conditions as alert gates. This alert is separate from the chart-channel setup.
+
+At confirmation, propose a nonzero risk-unit plan (one unit as the valid-new-entry
+baseline; explain any adjustment), fresh KORU quantity/notional/fixed-SL risk,
+structural SL with ATR context, local/native TS distances and percentage equivalents,
+immediate activation and account/margin/protection evidence. Missing inputs must
+be reported unavailable rather than fabricated; execution blockers do not turn the
+confirmed event into a zero-unit card. Existing KORU exposure requires explicit
+new-entry versus add/reassessment distinction. Use KORU execution prices/ATR and
+fresh reconciled selected-account capital, never EWY prices or overlapping balances.
+This is notification and proposal authority only, not authority to enter or manage.
+
+Scheduling, outbox state and delivery receipts belong to the external Hermes
+configuration; see [workflow ownership](strategy-authoring.md#ownership).
+This repository does not establish that the alert job or delivery is active.
+When configured, the first successful fetch should establish a baseline rather
+than notify old bars; no event should remain silent. Retain pending events until
+successful delivery is evidenced, and label delayed confirmations.
 
 ## BTC three-hour strategy activation policy
 
@@ -515,7 +618,9 @@ limits are decimal strings; durations and UTC epoch milliseconds are integers.
 
 Exposure limits are gross notional, not leverage-normalized economic exposure or
 a consolidated cross-currency/cross-broker NAV limit. US equity families are
-conservatively grouped together; unknown holdings are charged to the proposed group.
+conservatively grouped together, including the selected sector baskets and HL
+AVGO/XLE; holdings and pending entries both count. Gold and crypto retain their
+separate groups; unknown holdings are charged to the proposed group.
 All configured limits are mandatory. The existing HL operating-capital multiplier
 is not applied to KIS cash balances.
 
@@ -593,8 +698,19 @@ process, not the agent conversation, owns the ongoing loop.
 
 1. Query the existing long, complete entry fills and open orders. This admission
    supports one fully filled, flat-to-long entry whose original quantity and weighted
-   average still match the account. Additions, reductions, foreign orders, missing
-   retention evidence and a legacy manager owning the coin block admission.
+   average still match the account. A rounded Hyperliquid `entryPx` is accepted
+   only when it equals the exact fill average rounded half-up to the smaller of
+   the metadata decimal price step and 0.0001, differs by no more than half that
+   quantum, and differs by no more than one part per million. The plan average,
+   notional and fixed-SL loss still use exact weighted fills. Additions, reductions,
+   foreign orders, missing retention evidence and a legacy manager owning the coin
+   block admission.
+   The half-up rule is a deliberately bounded local admission policy, not a
+   verified specification of Hyperliquid's `entryPx` rounding. Other exchange
+   rounding or precision can reject an otherwise matching position. The one-ppm
+   bound also rejects some small-price rounding differences (for example,
+   `20.00004` to `20.0000`); smaller differences can still pass. Do not widen the
+   tolerance without evidence and a separately reviewed policy change.
 2. Prepare the plan fields above; quantity and limit_price must equal the actual
    entry quantity and average. `order prepare` can refresh ATR from execution-market
    daily bars. Policy numbers are explicit user/strategy inputs, never invented by
@@ -668,6 +784,12 @@ handoff does not require frozen ATR to equal a newly recalculated ATR.
   original size and actual fills establish quantity. Acknowledgement alone is not
   coverage. Import itself performs no signed action, cancellation, modification or
   watermark reset.
+- Percentage supervision reconstructs each same-millisecond account fill burst
+  from the unique `startPosition` successor, including mixed buys and protective
+  sells; trade IDs do not establish order within that burst. Missing or ambiguous
+  chains reject reconciliation. Filled trailing orders retain exact native-ID,
+  coin, direction, reduce-only and order-type checks; open or triggered trailing
+  orders still require condition readback before claiming active coverage.
 - `ExecutionStore.prepare_external_percentage_adoption(position_id,
   entry_order_id=..., stop_order_id=..., trailing_order_id=..., percent="8.35",
   now_ms=..., admission_expires_ms=...)` requeues the **same** `INTERVENTION` owner

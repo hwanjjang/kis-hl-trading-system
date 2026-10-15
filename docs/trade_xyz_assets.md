@@ -29,6 +29,51 @@ native trailing-stop validation.
 References: [trade.xyz specification index](https://docs.trade.xyz/consolidated-resources/specification-index),
 [Direxion KORU](https://www.direxion.com/product/daily-msci-south-korea-bull-3x-etf).
 
+## Selected KIS execution catalog
+
+The 2026-10-15 KIS `search-info` observation supports `kis:UGL`, `kis:XLE`,
+`kis:NRGU`, `kis:XLV`, `kis:CURE`, `kis:XLP` and `kis:URAA`: quote exchange
+`AMS`, order exchange `AMEX`, USD, listed, whole-share units. This is broker
+metadata, not live order acceptance. The selected execution policy belongs to
+[trading operations](trading-operations.md#instruments-and-source-identity).
+
+## Energy Select Sector XLE
+
+`hl:xyz:XLE` is a catalogued tradable Energy Select Sector SPDR Fund perp seed.
+Its KIS execution instrument is separate: `kis:XLE` in the catalog above.
+The generated quote mapping uses `AMS` for NYSE Arca and does not by itself
+place an order. Public xyz metadata included the coin; a fresh metadata
+verification check is still required before a live HL order.
+
+## Broadcom AVGO Support
+
+`hl:xyz:AVGO` is a catalogued managed execution instrument. The curated stock
+seed maps `AVGO` / `xyz:AVGO` to **Broadcom Inc. common stock (NASDAQ: AVGO)**,
+not a leveraged ETF or the former Broadcom Corporation `BRCM` stock. The
+[trade.xyz specification index](https://docs.trade.xyz/consolidated-resources/specification-index)
+explicitly references one Broadcom Inc. common share, quoted in USD.
+
+The listing-date seed is **2018-04-05**, the first Nasdaq trading day of the current
+U.S. common stock after redomiciliation, not the predecessor's IPO date.
+[Nasdaq corporate-action alert ECA2018-59](https://www.nasdaqtrader.com/TraderNews.aspx?id=ECA2018-59)
+identifies Broadcom Inc., unchanged ticker `AVGO`, common-stock CUSIP `11135F101`,
+and that marketplace effective date. This establishes more than 30 weeks of public
+listing as of 2026-10-07 without relying on predecessor identity. The KIS
+`search-info` observation on that date corroborated
+`BROADCOM INC`, ISIN `US11135F1012`, `lstg_yn=Y`, and exchange `NASD`; its empty
+`lstg_dt` is not listing-date evidence.
+
+The existing stock mapper generates an active KIS **quote-only** route:
+`overseas` / `NAS` / `AVGO`. `NASD` is the broker metadata/order exchange code,
+not the quote code; no `kis:AVGO` execution instrument is added. No API endpoint
+changes are needed. Underlying cash-equity sessions follow the existing U.S. stock
+classification and remain advisory for HL execution; see `docs/trading_hours.md`.
+
+Source support and temporary-database tests do not refresh operational SQLite or
+establish current HL metadata verification, live order acceptance, or AVGO native
+SL/trailing readback. Existing eligibility, freshness, account, ownership and
+protection guards remain required before live execution.
+
 ## SQLite Table
 
 `trade_xyz_assets` is created by `init_db()` and populated by `seed_trade_xyz_assets()`.
